@@ -11,7 +11,8 @@ export type ObligationKind =
   | 'changelog'
   | 'decision-log'
   | 'constraint-dual-write'
-  | 'affects-revisit';
+  | 'affects-revisit'
+  | 'symbol-verification';
 
 export interface Obligation {
   kind: ObligationKind;
@@ -57,6 +58,9 @@ export class ObligationsLedger {
   /** A KiCad edit re-opens verification obligations even if previously cleared. */
   onKicadEdit(file: string): void {
     this.add('erc', 'ERC must pass after schematic edits', file);
+    if (file.endsWith('.kicad_sch')) {
+      this.add('symbol-verification', 'verify_symbols must be run after schematic edits', file);
+    }
     if (file.endsWith('.kicad_pcb')) this.add('drc', 'DRC must pass after board edits', file);
     if (file.endsWith('.kicad_sch') && this.gateLegibility) {
       this.add('legibility', 'check_legibility must run clean after schematic edits', file);
