@@ -267,7 +267,7 @@ copperhead do "<change request>" [--model codex|gpt-5|claude] [--max-turns N]
     The core loop. See §4.
 
 copperhead check          (alias: copperhead verify)
-    Run ERC + DRC + doc-drift check; exit non-zero on violations.
+    Run ERC + DRC + symbol verification + doc-drift check; exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
 
 copperhead sync [--dry-run]
@@ -332,6 +332,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |
 | `export_svg` | (sch\|pcb) → path | For viewer + before/after diffing |
 | `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic |
+| `verify_symbols` | () → {findings: [...], skipped: N} | Compares schematic symbols against installed KiCad libraries; opens symbol-verification ledger obligation on schematic edit |
 
 ### 4.3 System prompt — key rules (verbatim requirements)
 
