@@ -20,7 +20,7 @@ export interface CheckResult {
   erc: { ok: boolean; violations: number } | null;
   drc: { ok: boolean; violations: number } | null;
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
-  symbols: { ok: boolean; findings: number } | null;
+  symbols: { ok: boolean; findings: number; skipped?: number } | null;
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
   /**
@@ -70,12 +70,16 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     if (driftWarning) log(`drift warning: ${driftWarning}`);
   }
 
-  let symbols: { ok: boolean; findings: number } | null = null;
+  let symbols: { ok: boolean; findings: number; skipped?: number } | null = null;
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    const { findings } = await verifySchematicSymbols(path.join(repoRoot, config.schematic));
+    const { findings, skipped } = await verifySchematicSymbols(path.join(repoRoot, config.schematic));
     const mismatches = findings.filter((f) => f.kind !== 'no-library');
-    symbols = { ok: mismatches.length === 0, findings: mismatches.length };
-    log(mismatches.length === 0 ? 'symbols ✓' : `symbols: ${mismatches.length} divergence(s) from installed KiCad libraries`);
+    symbols = { ok: mismatches.length === 0, findings: mismatches.length, ...(skipped > 0 ? { skipped } : {}) };
+    log(
+      mismatches.length === 0
+        ? `symbols ✓${skipped > 0 ? ` (${skipped} skipped)` : ''}`
+        : `symbols: ${mismatches.length} divergence(s) from installed KiCad libraries`,
+    );
   }
 
   let openspec: { ok: boolean; detail: string } | null = null;
