@@ -83,6 +83,24 @@ describe('syncVerify coverage locations', () => {
       await cleanup();
     }
   });
+
+  it('reports a bare file name when docs is empty (docs at the repo root)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      await writeConfig(repo, { docs: '' });
+      await rm(path.join(repo, 'DECISIONS.md'), { force: true });
+
+      const locations = (await syncVerify(repo)).resolvable
+        .filter((i) => i.kind === 'coverage')
+        .map((i) => i.doc);
+
+      expect(locations).toContain('DECISIONS.md');
+      expect(locations).not.toContain('/DECISIONS.md');
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe('syncVerify budget dual-write', () => {
@@ -130,6 +148,23 @@ describe('syncVerify budget dual-write', () => {
 
       const budgetItems = (await syncVerify(repo)).resolvable.filter(
         (i) => i.kind === 'dual-write' && i.claim.startsWith('budget cost='),
+      );
+
+      expect(budgetItems).toHaveLength(0);
+    } finally {
+      await cleanup();
+    }
+  });
+  it('accepts a dotted budget name that matches its own key exactly', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      // budget names are free-form and may themselves be dotted
+      await writeConfig(repo, { docs: 'docs/', budgets: { 'power.cost': 10 } });
+      await writeRegistry(repo, { 'power.cost': { source: 'SPEC.md', value: '10' } });
+
+      const budgetItems = (await syncVerify(repo)).resolvable.filter(
+        (i) => i.kind === 'dual-write' && i.claim.startsWith('budget power.cost='),
       );
 
       expect(budgetItems).toHaveLength(0);

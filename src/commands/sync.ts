@@ -74,10 +74,11 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     }
   }
   for (const [budget, value] of Object.entries(config.budgets)) {
-    // Compare the final dot-separated segment rather than any suffix: `endsWith`
-    // lets an unrelated key such as `power.unit_cost` satisfy a `cost` budget,
-    // so the missing dual-write is never reported.
-    if (!Object.keys(registry).some((k) => k.split('.').pop() === budget)) {
+    // Match the whole key or its final dot-separated segment, but not any
+    // suffix: `endsWith` let an unrelated key such as `power.unit_cost` satisfy
+    // a `cost` budget. Budget names are free-form and may themselves be dotted,
+    // in which case they match their own key exactly.
+    if (!Object.keys(registry).some((k) => k === budget || k.split('.').pop() === budget)) {
       resolvable.push({
         kind: 'dual-write',
         doc: '.copperhead/config.json',
@@ -107,15 +108,15 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   }
 
   // coverage: docs the transparency layer expects.
-  // `config.docs` is not normalised on load, so it may or may not carry a
-  // trailing separator; strip it and join explicitly rather than concatenating,
-  // which produced locations like `docsDECISIONS.md` for a config of "docs".
-  const docsPrefix = config.docs.replace(/[/\\]+$/, '');
+  // `config.docs` is not normalised on load, so it may carry a trailing
+  // separator, be nested, or be empty (docs at the repo root). Joining handles
+  // all of those; concatenating produced `docsDECISIONS.md` for "docs", and
+  // stripping then templating produced a root-absolute `/DECISIONS.md` for "".
   for (const name of ['DECISIONS.md', 'CHANGELOG.md']) {
     if (!existsSync(path.join(docsDir, name))) {
       resolvable.push({
         kind: 'coverage',
-        doc: `${docsPrefix}/${name}`,
+        doc: path.posix.join(config.docs.replace(/\\/g, '/'), name),
         claim: 'exists (transparency layer)',
         actual: 'missing',
         resolution: 'scaffold it (copperhead init creates it)',
