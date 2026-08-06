@@ -74,7 +74,10 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     }
   }
   for (const [budget, value] of Object.entries(config.budgets)) {
-    if (!Object.keys(registry).some((k) => k.endsWith(budget))) {
+    // Compare the final dot-separated segment rather than any suffix: `endsWith`
+    // lets an unrelated key such as `power.unit_cost` satisfy a `cost` budget,
+    // so the missing dual-write is never reported.
+    if (!Object.keys(registry).some((k) => k.split('.').pop() === budget)) {
       resolvable.push({
         kind: 'dual-write',
         doc: '.copperhead/config.json',
@@ -103,12 +106,16 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     }
   }
 
-  // coverage: docs the transparency layer expects
+  // coverage: docs the transparency layer expects.
+  // `config.docs` is not normalised on load, so it may or may not carry a
+  // trailing separator; strip it and join explicitly rather than concatenating,
+  // which produced locations like `docsDECISIONS.md` for a config of "docs".
+  const docsPrefix = config.docs.replace(/[/\\]+$/, '');
   for (const name of ['DECISIONS.md', 'CHANGELOG.md']) {
     if (!existsSync(path.join(docsDir, name))) {
       resolvable.push({
         kind: 'coverage',
-        doc: `${config.docs}${name}`,
+        doc: `${docsPrefix}/${name}`,
         claim: 'exists (transparency layer)',
         actual: 'missing',
         resolution: 'scaffold it (copperhead init creates it)',
