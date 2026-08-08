@@ -18,8 +18,8 @@ drawings differ in layout, which is expected and not a defect.
 
 Original (drawn by a person):
 
-- `render/original.png` (rendered separately: the sheet embeds a bitmap logo that ImageMagick reports as an error while still painting everything else, so the sweep marked it unrendered)
+- (not rendered)
 
 Drawn by the engine:
 
-- `render/drawn.png`
+- `manual-tests/runs/real-designs/interf_u/render/drawn.png`

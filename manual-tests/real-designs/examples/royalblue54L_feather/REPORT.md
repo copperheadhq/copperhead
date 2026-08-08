@@ -18,12 +18,12 @@ drawings differ in layout, which is expected and not a defect.
 
 Original (drawn by a person):
 
-- `render/original-RoyalBlue54L-Feather-Connectors.png`
-- `render/original-RoyalBlue54L-Feather-Debugger.png`
-- `render/original-RoyalBlue54L-Feather-nPM1300.png`
-- `render/original-RoyalBlue54L-Feather-nRF54L15.png`
-- `render/original-RoyalBlue54L-Feather.png`
+- `manual-tests/runs/real-designs/royalblue54L_feather/render/original-RoyalBlue54L-Feather-Connectors.png`
+- `manual-tests/runs/real-designs/royalblue54L_feather/render/original-RoyalBlue54L-Feather-Debugger.png`
+- `manual-tests/runs/real-designs/royalblue54L_feather/render/original-RoyalBlue54L-Feather-nPM1300.png`
+- `manual-tests/runs/real-designs/royalblue54L_feather/render/original-RoyalBlue54L-Feather-nRF54L15.png`
+- `manual-tests/runs/real-designs/royalblue54L_feather/render/original-RoyalBlue54L-Feather.png`
 
 Drawn by the engine:
 
-- `render/drawn.png`
+- `manual-tests/runs/real-designs/royalblue54L_feather/render/drawn.png`
