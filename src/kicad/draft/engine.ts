@@ -1245,10 +1245,15 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       for (const pin of opl.sym.pins) {
         const ep = `${opl.refDes}.${pin.number}`;
         const onet = netByEndpoint.get(ep);
-        if (!onet || onet.name === netName || ownEps.has(ep)) continue;
+        // A pin with NO net is still a connection point: a wire through it
+        // joins it in KiCad. jetson-agx-thor-baseboard put an L-route corner
+        // exactly on such a pin (J14.46, a single-pin group the intent never
+        // names) and shipped a merged net past every gate. Only the pin's
+        // POINT is guarded for netless pins; there is no stub to predict.
+        if (onet?.name === netName || ownEps.has(ep)) continue;
         const p = pinAt(opl, pin);
         if (segs.some((c) => pointOnSeg(p.x, p.y, c))) return true;
-        if (!predictStubs) continue;
+        if (!predictStubs || !onet) continue;
         const o = outward(pin);
         const len = (netClasses.get(onet.name)?.cls ?? 'signal') !== 'signal' && o.dx !== 0 ? STUB + 2 : STUB;
         const end = { x: p.x + o.dx * len * U, y: p.y + o.dy * len * U };
