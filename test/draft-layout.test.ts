@@ -159,14 +159,14 @@ describe('shelf-wrap: the group ribbon reflows into rows (design D12)', () => {
 /** N MCUs chained U1.5 -> U2.4, U2.5 -> U3.4, ... in ONE group: each signal
  * edge pushes layer depth forward, so the group tiles as one column per part —
  * a horizontal ribbon that outgrows every sheet long before the netlist does. */
-function chainGroup(n: number, group = 'MAIN'): SchematicIntent {
+function chainGroup(n: number, group = 'MAIN', netName: (i: number) => string = (i) => `SIG${i}`): SchematicIntent {
   const parts = [];
   const nets = [];
   const noConnect: string[] = [];
   for (let i = 1; i <= n; i++) {
     parts.push({ ref: `U${i}`, libId: 'CopperMCU:MCU8', value: 'MCU8', group });
     for (const p of ['3', '6', '7', '8']) noConnect.push(`U${i}.${p}`);
-    if (i > 1) nets.push({ name: `SIG${i}`, pins: [`U${i - 1}.5`, `U${i}.4`] });
+    if (i > 1) nets.push({ name: netName(i), pins: [`U${i - 1}.5`, `U${i}.4`] });
   }
   noConnect.push('U1.4', `U${n}.5`);
   nets.push({ name: 'VCC', pins: Array.from({ length: n }, (_, i) => `U${i + 1}.1`) });
@@ -186,7 +186,9 @@ describe('column banding: a group wider than every sheet wraps into bands (#219)
     // frame. Before banding this drew an A0 whose content ran 430 mm past the
     // right edge: a sheet that would not plot (issue #219, 367 findings).
     const { model, report } = await place(chainGroup(40));
-    expect(report.notes).toContain('group "MAIN" was wider than the sheet; its columns wrapped onto 4 bands');
+    // 5 bands, not 4: the band budget reserves the group's facing-label
+    // extents so edge labels stay inside the frame (#220 phase 1).
+    expect(report.notes).toContain('group "MAIN" was wider than the sheet; its columns wrapped onto 5 bands');
     expect(report.paper).toBe('A3');
     expect(report.mergedNets).toEqual([]);
     const paper = PAPER_DIMS[model.paper]!;
@@ -276,6 +278,44 @@ describe('column banding: a group wider than every sheet wraps into bands (#219)
       expect(leg.findings.filter((f) => f.kind === 'out-of-frame')).toEqual([]);
       expect(leg.suppressed.filter((s) => s.family === 'out-of-frame')).toEqual([]);
       expect(leg.findings.filter((f) => f.severity === 'error')).toEqual([]);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  }, 30000);
+
+  it('long edge-facing net names stay inside the frame on a banded sheet (#220 phase 1)', async () => {
+    // stickhub's survivor after banding: the leftmost column's left-facing
+    // label text was not counted anywhere, so on a sheet banded near the full
+    // usable width it overhung the left frame edge. Long anonymous-style
+    // names make the extent big enough to reproduce that here.
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-band-edge-'));
+    try {
+      const intent = chainGroup(40, 'MAIN', (i) => `Net-(D${i}-PADA)`);
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(
+        path.join(repo, 'docs', 'SUBSYSTEMS.md'),
+        ['# Subsystems', ...[...new Set(intent.parts.map((p) => p.group))].map((g) => `\n## ${g}\n\nBlock ${g}.`)].join('\n'),
+        'utf8',
+      );
+      await writeFile(
+        path.join(repo, 'docs', 'BOM.md'),
+        ['# BOM', '', '| Refdes | Value | Footprint | MPN | Rationale |', '| --- | --- | --- | --- | --- |',
+          ...intent.parts.map((p) => `| ${p.ref} | ${p.value} |  | UNVERIFIED | fixture |`)].join('\n'),
+        'utf8',
+      );
+      await writeFile(path.join(repo, 'schematic.intent.json'), JSON.stringify(intent, null, 2), 'utf8');
+
+      const res = await draftSchematic({
+        repoRoot: repo,
+        schematic: 'board.kicad_sch',
+        docsDir: 'docs',
+        symbolDirs: [SYMLIB],
+      });
+      expect(res.ok, res.ok ? '' : res.message).toBe(true);
+      if (!res.ok) return;
+      const leg = await checkLegibility(res.schematicPath, { docsDir: path.join(repo, 'docs') });
+      expect(leg.findings.filter((f) => f.kind === 'out-of-frame')).toEqual([]);
+      expect(leg.suppressed.filter((s) => s.family === 'out-of-frame')).toEqual([]);
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

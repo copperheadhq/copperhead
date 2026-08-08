@@ -585,6 +585,12 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       let groupMaxY = 0;
       let bandTop = 0; // y origin (units) of the current band of columns
       let bandCount = 1;
+      // The budget must leave room for the label TEXT facing the sheet edges:
+      // a band filled to the full usable width puts the leftmost column's
+      // left-facing labels outside the frame (#220 phase 1), and no later
+      // shift can fix both edges at once.
+      const ext = groupExtents.get(gname)!;
+      const bandW = Math.max(1, bandBudgetW - ceilU(ext.left) - ceilU(ext.right));
       for (let ci = 0; ci < columns.length; ci++) {
         const col = columns[ci]!;
         const colW = Math.max(...col.map((r) => cellDims.get(r)!.w));
@@ -593,7 +599,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         // shelf-wrap below re-rows whole groups. Never before the first column
         // of a band, so a single over-wide column still places (and the caller
         // rejects this budget instead).
-        if (colX > groupX && colX + colW - groupX > bandBudgetW) {
+        if (colX > groupX && colX + colW - groupX > bandW) {
           bandTop = groupMaxY + GROUP_GAP;
           colX = groupX;
           bandCount++;
@@ -636,7 +642,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           const b = bodyBoundsOf(inst.sym);
           // Banding (#219): a decoupling bank wider than the budget wraps onto
           // another uniform row rather than running past the frame.
-          if (capX > groupX && capX + ceilU(b.maxX - b.minX) + 2 * MARGIN - groupX > bandBudgetW) {
+          if (capX > groupX && capX + ceilU(b.maxX - b.minX) + 2 * MARGIN - groupX > bandW) {
             capX = groupX;
             capY += 2 * MARGIN + 6;
           }
@@ -1836,8 +1842,29 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   const minY = allY.length ? Math.min(...allY) : 0;
   const availW = paper.w - 2 * FRAME;
   const availH = paper.h - 2 * FRAME - TITLE_STRIP;
-  const dx = grid(Math.round((FRAME + Math.max(0, (availW - contentW) / 2) - minX) / U));
-  const dy = grid(Math.round((FRAME + 4 * U + Math.max(0, (availH - contentH) / 2) - minY) / U));
+  let dx = grid(Math.round((FRAME + Math.max(0, (availW - contentW) / 2) - minX) / U));
+  let dy = grid(Math.round((FRAME + 4 * U + Math.max(0, (availH - contentH) / 2) - minY) / U));
+
+  // The group rects measure bodies plus margins; label TEXT extends past them
+  // at the sheet-facing edges, and on a sheet banded near the full usable
+  // width the centered offset leaves that text outside the frame (#220
+  // phase 1). Clamp the shift against the true extent, label boxes included:
+  // a whole-unit correction keeps the grid, fires only when text would cross
+  // the frame, and an extent wider than the window keeps the centered offset
+  // (that overflow was already noted by the fit pass).
+  const labelBoxes = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot));
+  const fullMinX = Math.min(minX, ...labelBoxes.map((b) => b.minX));
+  const fullMaxX = Math.max(minX + contentW, ...labelBoxes.map((b) => b.maxX));
+  const fullMinY = Math.min(minY, ...labelBoxes.map((b) => b.minY));
+  const fullMaxY = Math.max(minY + contentH, ...labelBoxes.map((b) => b.maxY));
+  const clampShift = (d: number, lo0: number, hi0: number, lo: number, hi: number): number => {
+    if (hi0 - lo0 > hi - lo) return d;
+    if (lo0 + d < lo) return d + Math.ceil((lo - lo0 - d) / U - 1e-9) * U;
+    if (hi0 + d > hi) return d - Math.ceil((hi0 + d - hi) / U - 1e-9) * U;
+    return d;
+  };
+  dx = clampShift(dx, fullMinX, fullMaxX, FRAME, paper.w - FRAME);
+  dy = clampShift(dy, fullMinY, fullMaxY, FRAME, paper.h - FRAME);
   const shift = <T extends { x?: number; y?: number; x1?: number; y1?: number; x2?: number; y2?: number }>(o: T): T => {
     if (o.x !== undefined) o.x += dx;
     if (o.y !== undefined) o.y += dy;
