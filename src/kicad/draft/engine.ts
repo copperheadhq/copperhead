@@ -28,8 +28,11 @@ const MAX_WIRE_SPAN = 50.8;
 /** Label text metrics, matching the legibility checker's conservative box. */
 const LABEL_HEIGHT = 1.27;
 const LABEL_ADVANCE = 0.6;
-/** How far a colliding label may ride its stub outward, in grid units. */
-const MAX_LABEL_NUDGE = 4;
+/** How far a colliding label may ride its stub outward, in grid units.
+ * Deep enough to carry a bottom-pin label past the routing channel that runs
+ * under its connector (#220 phase 2); rungs stay ordered nearest-first, so a
+ * label that used to clear at rung n still clears at rung n. */
+const MAX_LABEL_NUDGE = 8;
 /**
  * How far a power stub may be pulled in or pushed out to clear a foreign
  * connection point, in grid units. Bounded so the symbol stays visibly attached
@@ -1713,14 +1716,33 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     if (alt) {
       lb.x = alt.x;
       lb.y = alt.y;
+      continue;
+    }
+    // No segment endpoint clears, but the label may sit at ANY point of its
+    // own net's wires: walk the interior grid points of each segment too
+    // (#220 phase 2). Endpoints stay the first choice so a run that used to
+    // clear keeps its exact label point.
+    const interior: { x: number; y: number }[] = [];
+    for (let i = 0; i + 1 < rec.pts.length; i += 2) {
+      const a = rec.pts[i]!;
+      const b = rec.pts[i + 1]!;
+      const steps = Math.round((Math.abs(b.x - a.x) + Math.abs(b.y - a.y)) / U);
+      const sx = Math.sign(b.x - a.x);
+      const sy = Math.sign(b.y - a.y);
+      for (let k = 1; k < steps; k++) interior.push({ x: a.x + sx * k * U, y: a.y + sy * k * U });
+    }
+    const inner = interior.find((p) => clearWired(p.x, p.y));
+    if (inner) {
+      lb.x = inner.x;
+      lb.y = inner.y;
     }
   }
 
   for (const rec of stubbedLabels) {
     const lb = labels[rec.label]!;
     const stub = wires[rec.wire]!;
-    const clearAt = (x: number, y: number): boolean => {
-      const box = labelTextBox(lb.name, x, y, lb.rot);
+    const clearAt = (x: number, y: number, rot: number = lb.rot): boolean => {
+      const box = labelTextBox(lb.name, x, y, rot);
       if (bodies.some((b) => boundsOverlap(box, b))) return false;
       if (textObstacles.some((b) => boundsOverlap(box, b))) return false;
       if (wires.some((w, i) => i !== rec.wire && segHitsBox(w, box))) return false;
@@ -1779,10 +1801,37 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       if (bodies.some((b) => segCrossesBody(stub.x1, stub.y1, x, y, b))) break;
       candidates.push({ x, y });
     }
+    // Last rung: pull the stub BACK to one unit. Riding outward moves a
+    // facing pair's text toward each other, so two long names in a tight
+    // channel can never separate that way — but each is under a grid unit
+    // deep into the other, and one unit of retreat clears it (#220 phase 2).
+    {
+      const shortened = { x: stub.x1 + rec.o.dx * U, y: stub.y1 + rec.o.dy * U };
+      if (Math.abs(lb.x - stub.x1) + Math.abs(lb.y - stub.y1) > U + 0.01) candidates.push(shortened);
+    }
     const clear = candidates.find((c) => clearAt(c.x, c.y) && wireClearAt(c.x, c.y));
     if (clear) {
       rideTo(clear.x, clear.y);
       continue;
+    }
+    // A vertical stub may flip its text to the other side of the anchor: a
+    // trunk running parallel beside the stub blocks every rung on one side
+    // while the other side is empty (#220 phase 2). The anchor point itself is
+    // unchanged, so this is purely typographic — but the flipped box no longer
+    // overlaps a same-point foreign label, so the merge check must be explicit.
+    if (rec.o.dy !== 0) {
+      const flipRot = lb.rot === 0 ? 180 : 0;
+      const flip = [{ x: lb.x, y: lb.y }, ...candidates].find(
+        (c) =>
+          clearAt(c.x, c.y, flipRot) &&
+          !mergesAt(c.x, c.y) &&
+          (sameCoord(c.x, lb.x) && sameCoord(c.y, lb.y) ? true : wireClearAt(c.x, c.y)),
+      );
+      if (flip) {
+        lb.rot = flipRot;
+        rideTo(flip.x, flip.y);
+        continue;
+      }
     }
     // Nothing fully clear within the nudge budget. Overlapping text is a
     // legibility cost the sheet can carry and the report will name; a shared
@@ -1797,6 +1846,49 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     // overlapping text, but it still may not trade one merge for another.
     const unmerged = candidates.find((c) => !mergesAt(c.x, c.y) && wireClearAt(c.x, c.y));
     if (unmerged) rideTo(unmerged.x, unmerged.y);
+  }
+
+  // ---------- power-value sweep (#220 phase 2) ----------
+  // The power pass placed its value text before any signal label existed, and
+  // the label ride above can fail to clear in a dense row — whichever mover
+  // ran last was blind to the other, and cm5_minima's residual error findings
+  // were exactly "#PWR Value and label X overlap". The value text is the one
+  // item on the sheet with no electrical meaning, so it moves LAST, with the
+  // finished drawing as its obstacle set: slide it outward along its stub
+  // axis, then allow a small lateral step, to the first slot the checker will
+  // measure as clean. Nothing clear keeps the placed slot so the report stays
+  // honest, and a value that is already clean does not move at all.
+  {
+    const labelBoxesFinal = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot));
+    const memberText = emitPairs.flatMap(({ sym: s, pl }) => [
+      centeredTextBox(displayRefOf(pl), s.refAt.x, s.refAt.y),
+      centeredTextBox(s.value, s.valueAt.x, s.valueAt.y),
+    ]);
+    const valueEntries = extraSymbols.filter((s) => !s.hideValue);
+    const liveBoxes = new Map(valueEntries.map((s) => [s, powerValueBox(s.value, s.valueAt.x, s.valueAt.y)]));
+    const clearFor = (self: EmitSymbol, b: Bounds): boolean =>
+      !bodies.some((bd) => boundsOverlap(b, bd)) &&
+      !wires.some((w) => segHitsBoxEarly(w, b)) &&
+      !labelBoxesFinal.some((lb) => boundsOverlap(lb, b)) &&
+      !memberText.some((t) => boundsOverlap(t, b)) &&
+      ![...liveBoxes].some(([o, ob]) => o !== self && boundsOverlap(ob, b));
+    for (const s of valueEntries) {
+      if (clearFor(s, liveBoxes.get(s)!)) continue;
+      // outward = the side of the symbol the text was already offset to
+      const dir = Math.sign(s.valueAt.y - s.at.y) || -1;
+      const cands: { x: number; y: number }[] = [];
+      for (let k = 1; k <= 8; k++) cands.push({ x: s.valueAt.x, y: s.valueAt.y + dir * k * U });
+      for (let k = 0; k <= 8; k++) {
+        for (const lx of [U, -U, 2 * U, -2 * U, 3 * U, -3 * U, 4 * U, -4 * U]) {
+          cands.push({ x: s.valueAt.x + lx, y: s.valueAt.y + dir * k * U });
+        }
+      }
+      const found = cands.find((c) => clearFor(s, powerValueBox(s.value, c.x, c.y)));
+      if (found) {
+        s.valueAt = { x: found.x, y: found.y };
+        liveBoxes.set(s, powerValueBox(s.value, found.x, found.y));
+      }
+    }
   }
 
   // junctions: any point where three or more wire ends meet
