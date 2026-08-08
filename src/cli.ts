@@ -3,12 +3,17 @@ import { Command } from 'commander';
 import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
 import { loadConfig, resolveModel, type ModelSource } from './config.js';
-import { pickModel } from './util/select.js';
+import { pickModel, selectMenu } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
 import { runCreate } from './commands/create.js';
+import {
+  formatPartsCheckpointReport,
+  type PartsCheckpointDecision,
+  type PartsCheckpointReport,
+} from './commands/parts-gate.js';
 import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
 import {
@@ -44,6 +49,33 @@ async function confirmTty(question: string): Promise<boolean> {
   const answer = await rl.question(`${question} [y/N] `);
   rl.close();
   return /^y(es)?$/i.test(answer.trim());
+}
+
+/** True when `--interactive` was passed AND the terminal is attended. The
+ * create/demo human gates are spread only under both: off-TTY, no callback is
+ * forwarded and gates behave as in autonomous runs — `confirmTty` reads stdin
+ * without checking TTY, so forwarding it off-TTY would silently answer "N". */
+function attendedInteractive(interactive: boolean | undefined): boolean {
+  return Boolean(interactive) && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
+}
+
+/**
+ * The stage-4 unresolvable-parts checkpoint prompt: print the report, then a
+ * three-way select. Cancel (Esc/Ctrl-C) maps to stop — the safe default
+ * spends nothing. Fires between stages while the renderer is idle, the same
+ * slot the budget continue-prompt already occupies safely.
+ */
+async function partsCheckpointPrompt(report: PartsCheckpointReport): Promise<PartsCheckpointDecision | null> {
+  console.log(formatPartsCheckpointReport(report));
+  const choice = await selectMenu({
+    title: `${report.absent.length} BOM part(s) have no installed symbol — proceed?`,
+    items: [
+      { value: 'recheck', label: 're-check', description: 'edit docs/BOM.md in another terminal, then re-resolve' },
+      { value: 'continue', label: 'continue', description: 'proceed to the agent, which will substitute parts' },
+      { value: 'stop', label: 'stop', description: 'exit now; fix docs/BOM.md and resume' },
+    ],
+  });
+  return choice === 'recheck' || choice === 'continue' || choice === 'stop' ? choice : null;
 }
 
 /**
@@ -351,7 +383,7 @@ program
   .command('demo')
   .description('tour of what copperhead does, or run the USB-C breakout create pipeline')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code (or a provider-specific model id)')
-  .option('--interactive', 're-enable the human gates (spec approval, pre-export)')
+  .option('--interactive', 're-enable the human gates (spec approval, unresolvable-parts checkpoint, pre-export)')
   .option('--dir <path>', 'demo repo directory (default: demo-runs/usb-c-breakout)')
   .option('--tour', 'print the overview only; do not run the pipeline')
   .action(async (opts: { model?: string; interactive?: boolean; dir?: string; tour?: boolean }) => {
@@ -382,6 +414,9 @@ program
         version,
         kicadCliVersion: kicadVer,
         interactive: opts.interactive ?? false,
+        ...(attendedInteractive(opts.interactive)
+          ? { confirm: confirmTty, onPartsCheckpoint: partsCheckpointPrompt }
+          : {}),
         ...(opts.dir ? { demoDir: opts.dir } : {}),
         ...(continuePrompt ? { onBudgetExhausted: continuePrompt } : {}),
         log: (s) => console.log(s),
@@ -399,7 +434,7 @@ program
   .description('Mode A: full pipeline from a product brief to the output package')
   .requiredOption('--brief <file>', 'product brief (markdown)')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
-  .option('--interactive', 're-enable the human gates (spec approval, pre-export)')
+  .option('--interactive', 're-enable the human gates (spec approval, unresolvable-parts checkpoint, pre-export)')
   .action(async (opts: { brief: string; model?: string; interactive?: boolean }) => {
     const repo = repoOf(program.opts());
     try {
@@ -412,6 +447,9 @@ program
         briefPath: opts.brief,
         model,
         interactive: opts.interactive ?? false,
+        ...(attendedInteractive(opts.interactive)
+          ? { confirm: confirmTty, onPartsCheckpoint: partsCheckpointPrompt }
+          : {}),
         ...(continuePrompt ? { onBudgetExhausted: continuePrompt } : {}),
         log: (s) => console.log(s),
         renderer: rendererOf(),

@@ -253,6 +253,23 @@ describe('config loading', () => {
       expect(config.maxRepairCycles).toBe(5);
       expect(config.schematic).toBe(path.join('hardware', 'open-key.kicad_sch'));
       expect(config.board).toBe(path.join('hardware', 'open-key.kicad_pcb'));
+      expect(config.unresolvableParts).toBe('agent');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('unresolvableParts maps by membership: stop maps, absent and typo fall back to agent', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const cfgPath = path.join(repo, '.copperhead', 'config.json');
+      const raw = JSON.parse(await readFile(cfgPath, 'utf8')) as Record<string, unknown>;
+      await writeFile(cfgPath, JSON.stringify({ ...raw, unresolvableParts: 'stop' }, null, 2), 'utf8');
+      expect((await loadConfig(repo)).unresolvableParts).toBe('stop');
+      // A config typo cannot crash or stop a run: any other value is 'agent'.
+      await writeFile(cfgPath, JSON.stringify({ ...raw, unresolvableParts: 'sotp' }, null, 2), 'utf8');
+      expect((await loadConfig(repo)).unresolvableParts).toBe('agent');
     } finally {
       await cleanup();
     }

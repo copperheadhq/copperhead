@@ -393,6 +393,66 @@ export async function searchInstalledSymbols(
   return hits.slice(0, cap).map((h) => h.libId);
 }
 
+/** Longest shared prefix length of two canonicalized names. */
+function sharedPrefixLen(a: string, b: string): number {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
+
+/** Suggestion search is looser than matching: up to two edits qualify. */
+const SUGGEST_EDIT_CAP = 2;
+/** …or a shared canonical prefix at least this long (a part-family stem). */
+const SUGGEST_PREFIX_MIN = 5;
+
+/**
+ * Nearest installed symbols for a query that resolved to nothing: a *loose*
+ * pass over every installed library, qualifying by bounded edit distance or a
+ * shared family-stem prefix on canonicalized names, ordered deterministically.
+ *
+ * Deliberately more permissive than `rankSymbolNames`: that ranking refuses
+ * digit-for-digit substitutions because it protects a *match* claim (a
+ * TPS22810 is not a TPS22860). This list is a *suggestion* offered to a human
+ * at the parts checkpoint, where the digit sibling is exactly what they want
+ * to see — a suggestion is not a match claim. Called only from the checkpoint;
+ * the dossier hot path never pays for it.
+ */
+export async function nearestInstalledSymbols(query: string, dirs: string[], cap = 5): Promise<string[]> {
+  const q = canonSymName(query);
+  if (q.length < 3) return [];
+  const hits: { libId: string; score: number; name: string }[] = [];
+  for (const [lib, file] of await listInstalledLibraries(dirs)) {
+    const names = await libSymbolNames(file);
+    if (!names) continue;
+    const seen = new Set<string>();
+    for (const name of names) {
+      if (seen.has(name) || /_\d+_\d+$/.test(name)) continue;
+      seen.add(name);
+      const c = canonSymName(name);
+      let score: number;
+      if (c === q) score = 0;
+      else if (c.startsWith(q) || (c.length >= 3 && q.startsWith(c))) score = 1;
+      else if (c.includes(q) || (c.length >= 3 && q.includes(c))) score = 2;
+      else if (
+        q.length >= MIN_EDIT_MATCH_LEN &&
+        c.length >= MIN_EDIT_MATCH_LEN &&
+        editDistanceWithin(q, c, SUGGEST_EDIT_CAP) <= SUGGEST_EDIT_CAP
+      )
+        score = 3;
+      else if (sharedPrefixLen(q, c) >= SUGGEST_PREFIX_MIN) score = 4;
+      else continue;
+      hits.push({ libId: `${lib}:${name}`, score, name });
+    }
+  }
+  hits.sort(
+    (a, b) =>
+      a.score - b.score ||
+      a.name.length - b.name.length ||
+      (a.libId < b.libId ? -1 : a.libId > b.libId ? 1 : 0),
+  );
+  return hits.slice(0, cap).map((h) => h.libId);
+}
+
 /** Collect pins (number, name, electrical type) from a `(symbol …)` node,
  * including its nested unit sub-symbols. Same walk `libPinDefs` uses, plus the
  * electrical-type atom that pin-position parsing does not need. */

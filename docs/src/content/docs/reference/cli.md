@@ -68,7 +68,7 @@ copperhead demo --dir /tmp/my-demo     # custom demo repo path
 | --- | --- |
 | `--tour` | Print the overview and exit. Honours the global `--json`, which emits `{ "tour": [...lines] }`. |
 | `--model <model>` | Model for the create pipeline. |
-| `--interactive` | Re-enable human gates during create. |
+| `--interactive` | Re-enable the create human gates: spec approval, the unresolvable-parts checkpoint, and a pause before export. |
 | `--dir <path>` | Demo repo directory. Default `demo-runs/usb-c-breakout` (or `COPPERHEAD_DEMO_DIR`). |
 
 ## `copperhead init`
@@ -207,7 +207,7 @@ copperhead create --brief brief.md [--model <model>] [--interactive]
 | --- | --- |
 | `--brief <file>` | **Required.** The product brief, in markdown. |
 | `--model <model>` | `codex`, `cursor`, `gpt-5`, `claude`, or `claude-code` (saved-login; no model API key for those three). |
-| `--interactive` | Re-enable the human gates: spec approval, and a pause before export. |
+| `--interactive` | Re-enable the human gates: spec approval, the unresolvable-parts checkpoint (a pause when a BOM part matches no installed symbol, with re-check / continue / stop), and a pause before export. |
 
 Exits 1 if any stage fails to complete, 0 when the pipeline finishes.
 

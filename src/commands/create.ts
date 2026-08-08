@@ -24,6 +24,13 @@ import { symbolSearchDirs } from '../kicad/symlib.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
+import {
+  schematicPartsGate,
+  formatPartsCheckpointReport,
+  writeUnresolvedPartsReport,
+  type PartsCheckpointDecision,
+  type PartsCheckpointReport,
+} from './parts-gate.js';
 
 /**
  * Mode A (`copperhead create`, SPEC §2.5): staged pipeline, each stage a
@@ -303,6 +310,14 @@ export interface CreateOptions {
   interactive?: boolean;
   /** Forwarded to each stage's run (attended continue-on-exhaustion prompt). */
   onBudgetExhausted?: (stats: BudgetExhaustedStats) => Promise<number>;
+  /** Forwarded into each stage's agent loop, so `--interactive`'s spec-approval
+   * gate prompts instead of silently auto-approving through the loop's
+   * always-true default. Absent off-TTY: gates behave as in autonomous runs. */
+  confirm?: (q: string) => Promise<boolean>;
+  /** The stage-4 unresolvable-parts checkpoint prompt (`--interactive` on an
+   * attended terminal). Presence takes precedence over `unresolvableParts:
+   * 'stop'` — a present human is always asked instead of the run failing. */
+  onPartsCheckpoint?: (report: PartsCheckpointReport) => Promise<PartsCheckpointDecision | null>;
   log: (s: string) => void;
   renderer?: ProgressRenderer;
   /** Command-level metadata; stage and brief identity are filled in per stage. */
@@ -811,6 +826,31 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       await emitJlcpcbAfterOutputs(stage.name, opts);
       continue;
     }
+    // The unresolvable-parts checkpoint: once per schematic-stage entry —
+    // after the resume check, before the first attempt's agent turn — so human
+    // attention (or the 'stop' policy) is spent before tokens. Retries stay
+    // autonomous: a failed attempt's rollback restores docs/BOM.md to the
+    // stage-3-committed state the human approved here (D1).
+    if (stage.name === 'schematic') {
+      const gate = await schematicPartsGate({
+        repoRoot: opts.repoRoot,
+        docsDir: config.docs,
+        mode: config.unresolvableParts,
+        ...(opts.onPartsCheckpoint ? { onCheckpoint: opts.onPartsCheckpoint } : {}),
+        log: opts.log,
+      });
+      if (gate.verdict === 'stop') {
+        if (gate.report) {
+          opts.log(formatPartsCheckpointReport(gate.report));
+          await writeUnresolvedPartsReport(opts.repoRoot, gate.report, resumeCommand(opts), opts.log);
+        }
+        opts.log(stageLine('schematic', 'stopped at the unresolvable-parts checkpoint before any agent turn', 'err'));
+        logResumePoint(opts, stage, i);
+        printCostTable(opts, stageCosts);
+        await writeRunReport(opts, stageCosts);
+        return { ok: false, completed };
+      }
+    }
     // Auto-recovery loop: run the stage, and if it fails or ends without meeting
     // its contract, ask the model to diagnose whether another attempt is likely
     // to help. On "retry" the pipeline runs the stage again (with the diagnosis's
@@ -881,6 +921,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         interactive: opts.interactive ?? false,
         allowDirty: true, // stages build on each other's uncommitted state within the pipeline
         ...(stageTurns !== undefined ? { maxTurns: stageTurns } : {}),
+        ...(opts.confirm ? { confirm: opts.confirm } : {}),
         ...(opts.onBudgetExhausted ? { onBudgetExhausted: opts.onBudgetExhausted } : {}),
         log: opts.log,
         ...(opts.renderer ? { renderer: opts.renderer } : {}),

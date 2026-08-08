@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { resolveLibrarySymbol } from '../src/kicad/symlib.js';
-import { bomSymbolDossier } from '../src/kicad/dossier.js';
+import { resolveLibrarySymbol, nearestInstalledSymbols } from '../src/kicad/symlib.js';
+import { bomSymbolDossier, resolveBomSymbols, renderDossier } from '../src/kicad/dossier.js';
 import { dispatchTool, type RunContext } from '../src/agent/tools.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 
@@ -186,6 +186,116 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(await bomSymbolDossier(BOM, [])).toBe('');
       expect(await bomSymbolDossier('no table here', [libDir])).toBe('');
       expect(await bomSymbolDossier(BOM, [path.join(libDir, 'nonexistent')])).toBe('');
+    });
+  });
+
+  describe('resolveBomSymbols (resolution/render split)', () => {
+    it('classifies each part: resolved with lib_id/units/alternatives, absent, and the not-searched set', async () => {
+      const r = await resolveBomSymbols(BOM, [libDir]);
+      expect(r.status).toBe('ok');
+      if (r.status !== 'ok') return;
+      const byQuery = new Map(r.parts.map((p) => [p.query, p]));
+      const codec = byQuery.get('TLV320AIC3100')!;
+      expect(codec.status).toBe('resolved');
+      expect(codec.libId).toBe('Audio:TLV320AIC3100');
+      expect(codec.refs).toEqual(['U1']);
+      const buffer = byQuery.get('SN74LVC2G17')!;
+      expect(buffer.status).toBe('resolved');
+      expect(buffer.units).toBe(2);
+      const ghost = byQuery.get('XYZQ9999ZZ')!;
+      expect(ghost.status).toBe('absent');
+      expect(ghost.refs).toEqual(['U3']);
+      // The Value fallback resolves a bogus MPN — never classified absent.
+      const bogus = byQuery.get('BOGUSMPN9999')!;
+      expect(bogus.status).toBe('resolved');
+      expect(bogus.fallback).toBe('SN74LVC1G17');
+      expect(r.notSearched).toContain('Y1 (8M)');
+      expect(r.errored).toEqual([]);
+      expect(r.overflow).toEqual([]);
+    });
+
+    it('reports distinct empty-with-reason degrade states instead of throwing', async () => {
+      expect(await resolveBomSymbols(BOM, [])).toEqual({ status: 'empty', reason: 'no-search-dirs' });
+      expect(await resolveBomSymbols(BOM, [path.join(libDir, 'nonexistent')])).toEqual({
+        status: 'empty',
+        reason: 'no-readable-library',
+      });
+      expect(await resolveBomSymbols('no table here', [libDir])).toEqual({
+        status: 'empty',
+        reason: 'no-searchable-rows',
+      });
+    });
+
+    it('moves parts past the size cap into the overflow set, scans skipped', async () => {
+      const r = await resolveBomSymbols(BOM, [libDir], { maxChars: 700 });
+      expect(r.status).toBe('ok');
+      if (r.status !== 'ok') return;
+      expect(r.overflow.length).toBeGreaterThan(0);
+      // An overflow part has no record: its classification was never rendered
+      // and (once the body is full) never even scanned.
+      for (const who of r.overflow) {
+        expect(r.parts.some((p) => `${p.refs.join(', ')} (${p.query})` === who)).toBe(false);
+      }
+    });
+
+    it('classifies a probe error as errored, never absent', async () => {
+      vi.resetModules();
+      vi.doMock('../src/kicad/symlib.js', async (importOriginal) => {
+        const real = await importOriginal<typeof import('../src/kicad/symlib.js')>();
+        return {
+          ...real,
+          searchInstalledSymbols: async (q: string, dirs: string[], cap?: number) => {
+            if (q === 'TLV320AIC3100') throw new Error('probe boom');
+            return real.searchInstalledSymbols(q, dirs, cap);
+          },
+        };
+      });
+      try {
+        const { resolveBomSymbols: resolveMocked } = await import('../src/kicad/dossier.js');
+        const r = await resolveMocked(BOM, [libDir]);
+        expect(r.status).toBe('ok');
+        if (r.status !== 'ok') return;
+        expect(r.errored).toContain('U1 (TLV320AIC3100)');
+        expect(r.parts.some((p) => p.query === 'TLV320AIC3100')).toBe(false);
+      } finally {
+        vi.doUnmock('../src/kicad/symlib.js');
+        vi.resetModules();
+      }
+    });
+
+    it('renderDossier(resolveBomSymbols(...)) is byte-identical to bomSymbolDossier', async () => {
+      expect(renderDossier(await resolveBomSymbols(BOM, [libDir]))).toBe(await bomSymbolDossier(BOM, [libDir]));
+      // …including under a tight maxChars, where the overflow trailer renders.
+      const opts = { maxChars: 700 };
+      expect(renderDossier(await resolveBomSymbols(BOM, [libDir], opts), opts)).toBe(
+        await bomSymbolDossier(BOM, [libDir], opts),
+      );
+      // …and on degraded inputs, where both say nothing.
+      expect(renderDossier(await resolveBomSymbols(BOM, []))).toBe('');
+    });
+  });
+
+  describe('nearestInstalledSymbols (checkpoint suggestion search)', () => {
+    it('suggests digit-sibling family variants the match ranking refuses', async () => {
+      // SN74LVC3G17 differs from both installed buffers by one digit: never a
+      // match claim, exactly the suggestion a human wants to see.
+      const s = await nearestInstalledSymbols('SN74LVC3G17', [libDir]);
+      expect(s).toContain('Logic:SN74LVC1G17');
+      expect(s).toContain('Logic:SN74LVC2G17');
+    });
+
+    it('finds a distance-bounded near miss', async () => {
+      const s = await nearestInstalledSymbols('TLV320AIC31', [libDir]);
+      expect(s).toContain('Audio:TLV320AIC3100');
+    });
+
+    it('returns nothing for an alien query', async () => {
+      expect(await nearestInstalledSymbols('QQXV77', [libDir])).toEqual([]);
+    });
+
+    it('respects the cap', async () => {
+      const s = await nearestInstalledSymbols('SN74LVC3G17', [libDir], 1);
+      expect(s).toHaveLength(1);
     });
   });
 

@@ -50,6 +50,15 @@ export interface CopperheadConfig {
    * so retries/restarts reuse work already paid for. Default on. */
   llmCache: boolean;
   /**
+   * What the create pipeline does when, at schematic-stage entry, a BOM part
+   * matches no installed symbol and no checkpoint prompt is available:
+   * `'agent'` (default) proceeds exactly as today (run-to-completion, the
+   * agent substitutes), `'stop'` fails fast before the first schematic agent
+   * turn with a structured report. An available `--interactive` prompt always
+   * takes precedence over `'stop'`.
+   */
+  unresolvableParts: 'agent' | 'stop';
+  /**
    * Base URL of an OpenAI-compatible endpoint (Groq, OpenRouter, Gemini's
    * compat endpoint, a local Ollama). Consulted only by the `compat`
    * route (design D2), so a stray value never redirects a plain `gpt-5` run.
@@ -92,6 +101,7 @@ export const DEFAULTS: Omit<CopperheadConfig, 'schematic' | 'board'> = {
   heartbeatMs: 30000,
   maxStageRetries: 2,
   llmCache: true,
+  unresolvableParts: 'agent',
 };
 
 export function configPath(repoRoot: string): string {
@@ -125,6 +135,9 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
         ? (raw.maxStageRetries as number)
         : DEFAULTS.maxStageRetries,
     llmCache: raw.llmCache !== false,
+    // Membership test, not a cast: any value other than the two knowns falls
+    // back to the default — a config typo cannot crash or stop a run.
+    unresolvableParts: raw.unresolvableParts === 'stop' ? 'stop' : DEFAULTS.unresolvableParts,
     ...(typeof raw.baseURL === 'string' && raw.baseURL.trim() ? { baseURL: raw.baseURL.trim() } : {}),
     ...(typeof raw.apiKeyEnv === 'string' && raw.apiKeyEnv.trim() ? { apiKeyEnv: raw.apiKeyEnv.trim() } : {}),
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),

@@ -15,6 +15,7 @@ import { copper, dim, ok } from '../agent/theme.js';
 import { traceRule } from '../agent/animate.js';
 import { shortPath } from '../util/paths.js';
 import { runCreate } from './create.js';
+import type { PartsCheckpointDecision, PartsCheckpointReport } from './parts-gate.js';
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DEFAULT_BRIEF = path.join(PKG_ROOT, 'examples/simple/usb-c-breakout.md');
@@ -32,6 +33,10 @@ export interface DemoOptions {
   log?: (line: string) => void;
   renderer: ProgressRenderer;
   onBudgetExhausted?: (stats: BudgetExhaustedStats) => Promise<number>;
+  /** Forwarded to runCreate: the `--interactive` spec-approval confirm. */
+  confirm?: (q: string) => Promise<boolean>;
+  /** Forwarded to runCreate: the stage-4 unresolvable-parts checkpoint prompt. */
+  onPartsCheckpoint?: (report: PartsCheckpointReport) => Promise<PartsCheckpointDecision | null>;
 }
 
 /** Resolve the packaged USB-C brief; throws a clear error if the install is incomplete. */
@@ -169,6 +174,8 @@ export async function runDemo(opts: DemoOptions): Promise<{ ok: boolean; demoDir
     briefPath,
     model: opts.model,
     interactive: opts.interactive ?? false,
+    ...(opts.confirm ? { confirm: opts.confirm } : {}),
+    ...(opts.onPartsCheckpoint ? { onPartsCheckpoint: opts.onPartsCheckpoint } : {}),
     ...(opts.onBudgetExhausted ? { onBudgetExhausted: opts.onBudgetExhausted } : {}),
     log,
     renderer: opts.renderer,
