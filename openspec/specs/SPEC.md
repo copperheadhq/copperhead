@@ -156,7 +156,7 @@ Firmware scope: scaffold + pin definitions + driver stubs + one working happy-pa
 
 ### The pipeline (Mode A internally)
 
-**Run-to-completion guarantee:** once `create` starts, it always finishes with the complete output package. Gates are *quality checks the agent must satisfy*, not stops that wait for a human. By default the pipeline is fully autonomous: unstated decisions get `ASSUMED` flags, imperfect layout gets the `Draft quality` label, and the run ends with gerbers, firmware, renders, and DEVPLAN.md on disk — an end product, reviewable as a whole. `--interactive` turns the two human gates (spec approval, pre-export review) back on for users who want them.
+**Run-to-completion guarantee:** once `create` starts, it always finishes with the complete output package. Gates are *quality checks the agent must satisfy*, not stops that wait for a human. By default the pipeline is fully autonomous: unstated decisions get `ASSUMED` flags, imperfect layout gets the `Draft quality` label, and the run ends with gerbers, firmware, renders, and DEVPLAN.md on disk — an end product, reviewable as a whole. `--interactive` turns the three human gates (spec approval, the stage-4 unresolvable-parts checkpoint, pre-export review) back on for users who want them. The checkpoint pauses once per schematic-stage entry when a BOM part matches no installed symbol, offering re-check / continue / stop with nearest-installed candidates; unattended runs can opt out of run-to-completion for that one case with `unresolvableParts: "stop"` (§5), which fails fast with a structured report before the first schematic agent turn.
 
 ```
 brief.md
@@ -385,7 +385,7 @@ interface Provider {
 }
 ```
 
-`budgets` is free-form; keys are surfaced verbatim into the system prompt so the agent treats them as hard constraints. `stageMaxTurns` is optional: per-stage turn budgets for the create pipeline, keyed by stage name; stages without an entry use `maxTurns`.
+`budgets` is free-form; keys are surfaced verbatim into the system prompt so the agent treats them as hard constraints. `stageMaxTurns` is optional: per-stage turn budgets for the create pipeline, keyed by stage name; stages without an entry use `maxTurns`. `unresolvableParts` (`"agent"` | `"stop"`, default `"agent"`) sets what `create` does when, at schematic-stage entry, a BOM part matches no installed symbol and no `--interactive` prompt is available: `"agent"` preserves run-to-completion exactly (the agent substitutes), `"stop"` opts out of it for that one case, ending the run before the first schematic agent turn with a report naming each absent part, its nearest installed candidates, and the resume command (plus a machine-readable `.copperhead/runs/unresolved-parts.json`). An attended `--interactive` prompt always takes precedence over `"stop"`; any other value falls back to `"agent"`.
 
 ---
 

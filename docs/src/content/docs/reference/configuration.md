@@ -32,6 +32,7 @@ Written by `copperhead init`. Every key is optional; the defaults below apply wh
 | `maxTurns` | `40` | Turn budget per run. |
 | `maxRepairCycles` | `5` | ERC/DRC repair attempts before the run rolls back to the git snapshot. |
 | `budgets` | `{}` | Free-form hard constraints, surfaced verbatim into every run's system prompt. |
+| `unresolvableParts` | `"agent"` | What `create` does when a BOM part matches no installed symbol at schematic-stage entry and no `--interactive` prompt is available: `"agent"` proceeds as always (the agent substitutes), `"stop"` fails fast before the first schematic agent turn with a report of each absent part, its nearest installed candidates, and the resume command. An attended `--interactive` prompt takes precedence; any other value falls back to `"agent"`. |
 | `baseURL` | unset | Base URL of an OpenAI-compatible endpoint. Read **only** by the `compat` model route. |
 | `apiKeyEnv` | `OPENAI_API_KEY` | Name of the environment variable holding that endpoint's key. The name, never the key itself. |
 
