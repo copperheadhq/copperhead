@@ -14,9 +14,17 @@ import type { ValidatedIntent } from './ir.js';
  * no wall clock, no randomness — identical intent yields identical bytes.
  */
 
-/** KiCad sheet space is mm with +y down; circuit-json is mm with +y up. The
- * y-negation lives here and nowhere else. */
-const toCj = (x: number, y: number): { x: number; y: number } => ({ x: n4(x), y: n4(-y) });
+/** KiCad sheet space is mm with +y down; circuit-json schematic space is
+ * unit-based with +y up, where tscircuit's grid step is 0.2 units. One KiCad
+ * 100 mil grid step (2.54 mm) maps to one 0.2-unit step, so renderers draw
+ * text, ports, and wires at their native proportions instead of mm-scale
+ * geometry that shrinks them ~13x. The scale and y-negation live here and
+ * nowhere else. */
+export const SCH_UNITS_PER_MM = 0.2 / 2.54;
+const toCj = (x: number, y: number): { x: number; y: number } => ({
+  x: n4(x * SCH_UNITS_PER_MM),
+  y: n4(-y * SCH_UNITS_PER_MM),
+});
 
 /** Trim float noise the same way knum does, but numerically. */
 const n4 = (v: number): number => {
@@ -70,8 +78,8 @@ export function buildCircuitJson(validated: ValidatedIntent, model: PlacementMod
         ? toCj(at.x + (b.minX + b.maxX) / 2, at.y - (b.minY + b.maxY) / 2)
         : toCj(at.x, at.y);
       const size = b
-        ? { width: n4(b.maxX - b.minX), height: n4(b.maxY - b.minY) }
-        : { width: 2.54, height: 2.54 };
+        ? { width: n4((b.maxX - b.minX) * SCH_UNITS_PER_MM), height: n4((b.maxY - b.minY) * SCH_UNITS_PER_MM) }
+        : { width: 0.2, height: 0.2 };
       schematicComponents.push({
         type: 'schematic_component',
         schematic_component_id: `schematic_component_${ci}`,

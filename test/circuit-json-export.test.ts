@@ -167,18 +167,21 @@ describe('export circuit-json', () => {
     };
 
     const elements = buildCircuitJson(validated, model);
+    // Coordinates scale from KiCad mm to tscircuit grid units (2.54 mm → 0.2
+    // units) and negate y. 100 mm → 7.874, 50 mm → 3.937, 46.19 mm → 3.637,
+    // 110 mm → 8.6614 (all rounded to 4 decimals by the serializer).
     const comp = elements.find((e) => e.type === 'schematic_component') as Element;
-    // Body center in symbol space is (0, 0), so the component centers on its origin, y negated.
-    expect(comp.center).toEqual({ x: 100, y: -50 });
-    expect(comp.size).toEqual({ width: 2, height: 4 });
+    // Body center in symbol space is (0, 0), so the component centers on its origin.
+    expect(comp.center).toEqual({ x: 7.874, y: -3.937 });
+    expect(comp.size).toEqual({ width: 0.1575, height: 0.315 });
     const port = elements.find((e) => e.type === 'schematic_port') as Element;
-    // Pin (0, 3.81) symbol space → sheet (100, 50 - 3.81) → circuit-json y negated.
-    expect(port.center).toEqual({ x: 100, y: -46.19 });
+    // Pin (0, 3.81) symbol space → sheet (100, 50 - 3.81) → scaled, y negated.
+    expect(port.center).toEqual({ x: 7.874, y: -3.637 });
     const label = elements.find((e) => e.type === 'schematic_net_label') as Element;
-    expect(label.center).toEqual({ x: 110, y: -46.19 });
+    expect(label.center).toEqual({ x: 8.6614, y: -3.637 });
     expect(label.anchor_side).toBe('left');
     const trace = elements.find((e) => e.type === 'schematic_trace') as Element;
-    expect(trace.edges).toEqual([{ from: { x: 100, y: -46.19 }, to: { x: 110, y: -46.19 } }]);
+    expect(trace.edges).toEqual([{ from: { x: 7.874, y: -3.637 }, to: { x: 8.6614, y: -3.637 } }]);
   });
 
   it('is listed beside bom under export --help (cli-surface)', async () => {
