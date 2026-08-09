@@ -25,7 +25,14 @@ export interface SyncItem {
 }
 
 export interface SyncViolationItem {
-  kind: 'requirement-violation';
+  /**
+   * `schematic-missing` sits with the violations rather than the resolvable
+   * items on purpose: every resolvable item is handed to the LLM resolve
+   * phase, and a schematic that is not on disk is not something an agent
+   * should try to write its way out of. Restoring the file or fixing the
+   * path is a human decision, which is exactly what violations mean here.
+   */
+  kind: 'requirement-violation' | 'schematic-missing';
   description: string;
   governedBy: string;
 }
@@ -40,7 +47,21 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   const resolvable: SyncItem[] = [];
   const violations: SyncViolationItem[] = [];
 
-  if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
+  // Both schematic-gated sections below share this condition, so it is resolved
+  // once. A schematic that is configured but absent silently disarmed drift and
+  // the forbidden-pin check together, and `sync` still reported no
+  // inconsistencies and exited 0 (issue #188).
+  const schematicPath = config.schematic ? path.join(repoRoot, config.schematic) : null;
+  const schematicUsable = schematicPath !== null && existsSync(schematicPath);
+  if (config.schematic && !schematicUsable) {
+    violations.push({
+      kind: 'schematic-missing',
+      description: `schematic configured at ${config.schematic} but the file is missing, so drift and constraint checks did not run`,
+      governedBy: '.copperhead/config.json',
+    });
+  }
+
+  if (schematicUsable && config.schematic) {
     for (const m of await checkDrift(repoRoot, config.docs, config.schematic)) {
       resolvable.push({
         kind: 'drift',
@@ -130,8 +151,8 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   }
 
   // requirement violations: never auto-resolved (AC-7.3)
-  if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    const pins = await pinNets(path.join(repoRoot, config.schematic));
+  if (schematicUsable) {
+    const pins = await pinNets(schematicPath);
     for (const v of checkForbiddenPins(registry, pins)) {
       violations.push({
         kind: 'requirement-violation',
