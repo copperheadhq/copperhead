@@ -1097,16 +1097,24 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
    */
   const wrapTo = (budgetW: number): { deltas: { dx: number; dy: number }[]; w: number; h: number } => {
     const originX = groupRects[0]!.x1;
+    const leftExtOf = (name: string): number => groupExtents.get(name)?.left ?? 0;
+    const rightExtOf = (name: string): number => groupExtents.get(name)?.right ?? 0;
     const deltas: { dx: number; dy: number }[] = [];
     let rowOriginX = originX;
+    // Label text on the row's flanks needs budget too: a row filled to the
+    // full usable width hangs its leading group's left-facing labels outside
+    // the frame, where no later shift can reach them (#220, the shelf-wrap
+    // analog of the band budget's reserved extents).
+    let rowLeftExt = leftExtOf(groupRects[0]!.name);
     let dyUnits = 0;
     let rowH = 0;
     for (const r of groupRects) {
       // A group wider than the whole budget still starts its own row; it will
       // overflow, and the caller rejects this paper for it.
-      if (r.x1 > rowOriginX && r.x2 - rowOriginX > budgetW) {
+      if (r.x1 > rowOriginX && r.x2 - rowOriginX + rowLeftExt + rightExtOf(r.name) > budgetW) {
         dyUnits += Math.ceil((rowH + gap) / U);
         rowOriginX = r.x1;
+        rowLeftExt = leftExtOf(r.name);
         rowH = 0;
       }
       deltas.push({ dx: grid(Math.round((originX - rowOriginX) / U)), dy: dyUnits * U });
@@ -2030,15 +2038,27 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // a whole-unit correction keeps the grid, fires only when text would cross
   // the frame, and an extent wider than the window keeps the centered offset
   // (that overflow was already noted by the fit pass).
-  const labelBoxes = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot));
-  const fullMinX = Math.min(minX, ...labelBoxes.map((b) => b.minX));
-  const fullMaxX = Math.max(minX + contentW, ...labelBoxes.map((b) => b.maxX));
-  const fullMinY = Math.min(minY, ...labelBoxes.map((b) => b.minY));
-  const fullMaxY = Math.max(minY + contentH, ...labelBoxes.map((b) => b.maxY));
+  const textBoxes = [
+    ...labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot)),
+    // power VALUE text is measured by the checker too, and the sweep above
+    // may have slid it past its group rect's margin (pic_programmer put a
+    // rail name 1 mm over the top edge of a compacted sheet)
+    ...extraSymbols.filter((s) => !s.hideValue).map((s) => powerValueBox(s.value, s.valueAt.x, s.valueAt.y)),
+  ];
+  const fullMinX = Math.min(minX, ...textBoxes.map((b) => b.minX));
+  const fullMaxX = Math.max(minX + contentW, ...textBoxes.map((b) => b.maxX));
+  const fullMinY = Math.min(minY, ...textBoxes.map((b) => b.minY));
+  const fullMaxY = Math.max(minY + contentH, ...textBoxes.map((b) => b.maxY));
+  // Both edges are corrected, far edge first, so the whole-unit rounding of
+  // the far-edge shift can never leave the near edge (the checker-visible
+  // frame line) outside: the near-edge correction runs last and wins. When
+  // the span nearly fills the window, the far edge may keep up to one unit
+  // of overhang into the engine's conservative title strip; the strip is
+  // wider than the checker's reserved corner, so that overhang is invisible.
   const clampShift = (d: number, lo0: number, hi0: number, lo: number, hi: number): number => {
     if (hi0 - lo0 > hi - lo) return d;
-    if (lo0 + d < lo) return d + Math.ceil((lo - lo0 - d) / U - 1e-9) * U;
-    if (hi0 + d > hi) return d - Math.ceil((hi0 + d - hi) / U - 1e-9) * U;
+    if (hi0 + d > hi) d -= Math.ceil((hi0 + d - hi) / U - 1e-9) * U;
+    if (lo0 + d < lo) d += Math.ceil((lo - lo0 - d) / U - 1e-9) * U;
     return d;
   };
   dx = clampShift(dx, fullMinX, fullMaxX, FRAME, paper.w - FRAME);
