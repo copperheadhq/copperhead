@@ -38,7 +38,14 @@ export type CircuitJsonElement = Record<string, unknown>;
 export function buildCircuitJson(validated: ValidatedIntent, model: PlacementModel): CircuitJsonElement[] {
   const parts = [...validated.intent.parts].sort((a, b) => compareRef(a.ref, b.ref));
   const nets = [...validated.intent.nets].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-  const symbolAt = new Map(model.symbols.map((s) => [s.ref, s.at]));
+  // A multi-unit part places several instances under one ref (an opamp's
+  // units); each instance carries only its own unit's pinNumbers.
+  const instancesByRef = new Map<string, typeof model.symbols>();
+  for (const s of model.symbols) {
+    const list = instancesByRef.get(s.ref);
+    if (list) list.push(s);
+    else instancesByRef.set(s.ref, [s]);
+  }
 
   const sourceComponents: CircuitJsonElement[] = [];
   const sourcePorts: CircuitJsonElement[] = [];
@@ -61,20 +68,22 @@ export function buildCircuitJson(validated: ValidatedIntent, model: PlacementMod
     });
 
     const sym = validated.symbols.get(part.ref)!;
-    const at = symbolAt.get(part.ref);
-    if (at) {
+    const instances = [...(instancesByRef.get(part.ref) ?? [])].sort((a, b) => (a.unit ?? 1) - (b.unit ?? 1));
+    /** The unit view backing a placed instance, when the symbol is multi-unit. */
+    const viewOf = (unit: number | undefined) => sym.units?.find((u) => u.unit === (unit ?? 1));
+    for (const inst of instances) {
       // Symbol space is +y up; a rot-0 placement maps (px, py) → (x + px, y - py)
       // (engine pinAt), so body extents flip sign in y before centering.
-      const b = sym.body;
+      const b = viewOf(inst.unit)?.body ?? sym.body;
       const center = b
-        ? toCj(at.x + (b.minX + b.maxX) / 2, at.y - (b.minY + b.maxY) / 2)
-        : toCj(at.x, at.y);
+        ? toCj(inst.at.x + (b.minX + b.maxX) / 2, inst.at.y - (b.minY + b.maxY) / 2)
+        : toCj(inst.at.x, inst.at.y);
       const size = b
         ? { width: n4(b.maxX - b.minX), height: n4(b.maxY - b.minY) }
         : { width: 2.54, height: 2.54 };
       schematicComponents.push({
         type: 'schematic_component',
-        schematic_component_id: `schematic_component_${ci}`,
+        schematic_component_id: `schematic_component_${schematicComponents.length}`,
         source_component_id: componentId,
         center,
         size,
@@ -82,7 +91,10 @@ export function buildCircuitJson(validated: ValidatedIntent, model: PlacementMod
       });
     }
 
-    const pins = [...sym.pins].sort((a, b) => compareRef(`P${a.number}`, `P${b.number}`));
+    const seen = new Set<string>();
+    const pins = sym.pins
+      .filter((p) => !seen.has(p.number) && seen.add(p.number))
+      .sort((a, b) => compareRef(`P${a.number}`, `P${b.number}`));
     for (const pin of pins) {
       const id = `source_port_${sourcePorts.length}`;
       portId.set(`${part.ref}.${pin.number}`, id);
@@ -94,12 +106,17 @@ export function buildCircuitJson(validated: ValidatedIntent, model: PlacementMod
         name: pin.number,
         ...(pinNumber === undefined ? {} : { pin_number: pinNumber }),
       });
-      if (at) {
+      // The instance that draws this pin: for multi-unit parts, the placed
+      // unit whose pinNumbers carry it (a common-unit pin is drawn on every
+      // unit; the lowest one is the canonical anchor).
+      const inst = instances.find((s) => s.pinNumbers.includes(pin.number));
+      if (inst) {
+        const local = viewOf(inst.unit)?.pins.find((p) => p.number === pin.number) ?? pin;
         schematicPorts.push({
           type: 'schematic_port',
           schematic_port_id: `schematic_port_${schematicPorts.length}`,
           source_port_id: id,
-          center: toCj(at.x + pin.x, at.y - pin.y),
+          center: toCj(inst.at.x + local.x, inst.at.y - local.y),
         });
       }
     }
