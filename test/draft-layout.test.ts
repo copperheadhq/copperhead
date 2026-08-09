@@ -322,6 +322,67 @@ describe('column banding: a group wider than every sheet wraps into bands (#219)
   }, 30000);
 });
 
+describe('passive banks chain on one trunk (#233, #220 phase 3)', () => {
+  /** An IC with three decoupling caps on VCC/GND: the bank idiom's minimum. */
+  const banked: SchematicIntent = {
+    version: 1,
+    parts: [
+      { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' },
+      { ref: 'C1', libId: 'Device:C', value: '100n', group: 'MAIN' },
+      { ref: 'C2', libId: 'Device:C', value: '100n', group: 'MAIN' },
+      { ref: 'C3', libId: 'Device:C', value: '100n', group: 'MAIN' },
+    ],
+    nets: [
+      { name: 'VCC', pins: ['U1.1', 'C1.1', 'C2.1', 'C3.1'] },
+      { name: 'GND', pins: ['U1.2', 'C1.2', 'C2.2', 'C3.2'] },
+      { name: 'SIG', pins: ['U1.4', 'U1.5'] },
+    ],
+    noConnect: ['U1.3', 'U1.6', 'U1.7', 'U1.8'],
+  };
+
+  it('a three-cap bank carries one rail symbol and one ground symbol, not three of each', async () => {
+    const { model, report } = await place(banked);
+    expect(report.mergedNets).toEqual([]);
+    const pwr = model.symbols.filter((s) => s.libId.startsWith('copperhead_power:') && s.value !== 'PWR_FLAG');
+    // U1's own VCC/GND pins keep their symbols; the bank shares ONE per side
+    expect(pwr.filter((s) => s.value === 'VCC').length).toBe(2);
+    expect(pwr.filter((s) => s.value === 'GND').length).toBe(2);
+    // interior stub ends meet the trunk with junction dots
+    expect(model.junctions.length).toBeGreaterThanOrEqual(2);
+    // the trunk joins consecutive stub ends: every cap pin reaches the rail
+    const capXs = model.symbols.filter((s) => /^C\d$/.test(s.ref)).map((s) => s.at.x).sort((a, b) => a - b);
+    // the trunk is the horizontal VCC line with 2+ collinear segments (U1's
+    // own horizontal stub is a lone segment on its own row)
+    const horiz = model.wires.filter((w) => w.net === 'VCC' && w.y1 === w.y2);
+    const trunkYval = horiz.map((w) => w.y1).find((y, _, ys) => ys.filter((v) => v === y).length >= 2)!;
+    const trunk = horiz.filter((w) => w.y1 === trunkYval);
+    expect(trunk.length).toBeGreaterThanOrEqual(2);
+    expect(Math.min(...trunk.map((w) => Math.min(w.x1, w.x2)))).toBeCloseTo(capXs[0]!, 5);
+    expect(Math.max(...trunk.map((w) => Math.max(w.x1, w.x2)))).toBeCloseTo(capXs[2]!, 5);
+  });
+
+  it('a supply-named net with only passive pins still drafts as power, not labels', async () => {
+    // stickhub carries GND on embedded symbols whose pins are all `passive`:
+    // 80 pins, no etype evidence anywhere, and it drafted as 80 labels with
+    // zero ground bars. Only the name says it is a supply.
+    const intent: SchematicIntent = {
+      version: 1,
+      parts: [
+        { ref: 'R1', libId: 'Device:R', value: '10k', group: 'MAIN' },
+        { ref: 'R2', libId: 'Device:R', value: '10k', group: 'MAIN' },
+      ],
+      nets: [
+        { name: '5V0', pins: ['R1.1', 'R2.1'] },
+        { name: 'GNDD', pins: ['R1.2', 'R2.2'] },
+      ],
+    };
+    const { model } = await place(intent);
+    expect(model.labels.filter((l) => l.name === '5V0' || l.name === 'GNDD')).toEqual([]);
+    expect(model.symbols.some((s) => s.value === '5V0' && s.libId.startsWith('copperhead_power:'))).toBe(true);
+    expect(model.symbols.some((s) => s.value === 'GNDD' && s.libId.startsWith('copperhead_power:'))).toBe(true);
+  });
+});
+
 describe('compaction: a mostly-empty sheet reflows onto a smaller one (#220 phase 4)', () => {
   /** N parts sharing only power rails: every one lands at the same layer
    * depth, so the group naturally stacks into ONE full-height column, the

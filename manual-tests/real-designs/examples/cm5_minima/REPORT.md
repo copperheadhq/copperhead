@@ -5,7 +5,7 @@ Parts: 84  Nets: 95
 
 ## Drafted
 
-Paper: A0  Wires: 452  Labels: 205
+Paper: A0  Wires: 478  Labels: 204
 
 ## Netlist comparison
 
@@ -29,4 +29,4 @@ Original (drawn by a person):
 
 Drawn by the engine:
 
-- `manual-tests/runs/real-designs/cm5_minima/render/drawn.png`
+- (not rendered)

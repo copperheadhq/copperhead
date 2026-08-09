@@ -78,6 +78,12 @@ const PAPERS: { name: string; w: number; h: number }[] = [
 ];
 const FRAME = 10;
 const TITLE_STRIP = 30;
+/** Max pin-to-pin gap, grid units, for chaining a passive bank on one trunk
+ * (#233): wide enough for two-pin parts sitting in adjacent COLUMNS (cell
+ * width plus the channel, ~23 units), tight enough that a trunk never spans
+ * unrelated structure — and every join is still vetoed by the body-crossing
+ * and touches-foreign checks regardless of distance. */
+const BANK_PITCH_MAX = 32;
 /** Natural-fit utilization below which the paper pass tries smaller sheets
  * with width and height budgets (#220 phase 4). Matches the legibility
  * checker's low-utilization threshold: a sheet the checker would call mostly
@@ -270,7 +276,17 @@ function classifyNet(net: IntentNet, pinsOf: (ep: string) => DraftPin | null): {
     const p = pinsOf(ep);
     return p !== null && (p.etype === 'power_in' || p.etype === 'power_out');
   });
-  if (!touchesPower) return { cls: 'signal', overridden: false };
+  if (!touchesPower) {
+    // No electrical-type evidence: real boards routinely carry their supplies
+    // on embedded symbols whose pins are all `passive` (stickhub's GND, 80
+    // pins, drafted as 80 labels and zero ground bars). Fall back to the
+    // unambiguous supply-name shapes only; anything else stays signal.
+    if (/^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i.test(net.name)) return { cls: 'ground', overridden: false };
+    if (/^[+-]?[0-9]+(\.[0-9]+)?v[0-9]*$/i.test(net.name) || /^(vcc|vdd|vbus|vee)[0-9a-z_]*$/i.test(net.name)) {
+      return { cls: 'rail', overridden: false };
+    }
+    return { cls: 'signal', overridden: false };
+  }
   return { cls: /gnd|vss/i.test(net.name) ? 'ground' : 'rail', overridden: false };
 }
 
@@ -410,7 +426,13 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   const signalNets = intent.nets.filter((n) => netClasses.get(n.name)!.cls === 'signal');
 
   // ---------- reductions: decoupling caps and connectors ----------
-  const isCap = (p: IntentPart): boolean => /^Device:C(_|$)|^Device:C$/.test(p.libId) || p.libId === 'Device:C_Polarized';
+  // Structural, not name-based (#233): the reduction's own conditions below
+  // (a rail on one pin, ground on the other, an owner IC on the same rail)
+  // are what make a part a decoupling element. Real boards carry their caps
+  // under embedded, renamed lib ids the old `Device:C` test never matched,
+  // so their banks stayed in the columns as label islands; and a rail-clamp
+  // TVS drawn beside the caps is how the hand-drawn sheets show it too.
+  const isCap = (p: IntentPart): boolean => (symbols.get(p.ref)?.pins.length ?? 0) === 2;
   const railsOf = (ref: string): string[] =>
     powerNets
       .filter((net) => netClasses.get(net.name)!.cls === 'rail' && net.pins.some((ep) => ep.startsWith(`${ref}.`)))
@@ -672,6 +694,13 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       // decoupling rows: caps in a uniform row under their owner (or the group)
       const capRefs = caps.map((c) => c.key).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       if (capRefs.length) {
+        // The bank stacks under the circuit at the circuit's own width, the
+        // way a hand-drawn sheet does — a 45-cap ribbon run out to the band
+        // budget alone turned the group into an L-shape wider than the sheet
+        // it deserved (#233). The floor keeps a short bank (four typical cap
+        // cells) on one row even when the circuit above it is narrower.
+        const blockW = Math.max(64, colX - groupX);
+        const capBudget = Math.min(bandW, blockW);
         let capX = groupX;
         let capY = groupMaxY + MARGIN + 4;
         for (const ref of capRefs) {
@@ -679,7 +708,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           const b = bodyBoundsOf(inst.sym);
           // Banding (#219): a decoupling bank wider than the budget wraps onto
           // another uniform row rather than running past the frame.
-          if (capX > groupX && capX + ceilU(b.maxX - b.minX) + 2 * MARGIN - groupX > bandW) {
+          if (capX > groupX && capX + ceilU(b.maxX - b.minX) + 2 * MARGIN - groupX > capBudget) {
             capX = groupX;
             capY += 2 * MARGIN + 6;
           }
@@ -1149,6 +1178,23 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     return null;
   };
 
+  /**
+   * Budgeted attempt at one sheet. The width budget alone reshapes a ribbon
+   * into bands, but a group of stacked two-pin parts fills the HEIGHT first
+   * and leaves the landscape width untouched (stickhub reflowed to 347 mm of
+   * A1's 821 usable and still overflowed the bottom). Shorter column budgets
+   * spread the same cells into more side-by-side columns, so walk the height
+   * fractions until the content matches the sheet's aspect or nothing fits.
+   */
+  const tryPaperBudgeted = (p: (typeof PAPERS)[number]): { fit: SheetFit; bands: Map<string, number> } | null => {
+    for (const frac of [1, 0.7, 0.5]) {
+      const b = placeAllGroups(Math.floor(usableW(p) / U), Math.floor((usableH(p) * frac) / U));
+      const f = fitsOn(p);
+      if (f) return { fit: f, bands: b };
+    }
+    return null;
+  };
+
   let bands = placeAllGroups(Infinity);
   let fit = bestFit();
   if (!fit) {
@@ -1161,9 +1207,12 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     // the sheet whose width it banded to: accepting a narrow banding on a
     // larger sheet would re-create the empty-ribbon failure, rotated 90°.
     for (const p of candidates) {
-      bands = placeAllGroups(Math.floor(usableW(p) / U), Math.floor(usableH(p) / U));
-      fit = fitsOn(p);
-      if (fit) break;
+      const t = tryPaperBudgeted(p);
+      if (t) {
+        bands = t.bands;
+        fit = t.fit;
+        break;
+      }
     }
     if (!fit) {
       const largest = candidates[candidates.length - 1]!;
@@ -1184,15 +1233,12 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     // checker's utilization floor, retry the smaller sheets, smallest first,
     // with both budgets, and take the first that holds the reflowed content.
     // A paper hint pins the sheet and skips this entirely.
-    const contentOf = (f: SheetFit): { w: number; h: number } => {
-      if (f.wrap) return { w: f.wrap.w, h: f.wrap.h };
-      const r = groupRects[0];
-      return r ? { w: r.x2 - r.x1, h: r.y2 - r.y1 } : { w: 0, h: 0 };
-    };
-    const utilOf = (f: SheetFit): number => {
-      const c = contentOf(f);
-      return (c.w * c.h) / (usableW(f.paper) * usableH(f.paper));
-    };
+    // Utilization by INK, not bounding box: an L-shaped layout (a tall column
+    // strip plus a wide bank ribbon) spans a bbox that reads "full" while the
+    // sheet is mostly air, and the bbox measure let stickhub sprawl onto A0
+    // uncompacted. The sum of placed cell areas is what is actually drawn.
+    const inkArea = [...placed.values()].reduce((s, p) => s + p.cellW * p.cellH * U * U, 0);
+    const utilOf = (f: SheetFit): number => inkArea / (usableW(f.paper) * usableH(f.paper));
     const naturalUtil = utilOf(fit);
     if (naturalUtil < COMPACT_UTILIZATION) {
       const naturalPaper = fit.paper;
@@ -1200,10 +1246,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       let compactedBands = bands;
       for (const p of candidates) {
         if (p === naturalPaper) break; // only sheets smaller than the natural fit
-        compactedBands = placeAllGroups(Math.floor(usableW(p) / U), Math.floor(usableH(p) / U));
-        const f = fitsOn(p);
-        if (f) {
-          compacted = f;
+        const t = tryPaperBudgeted(p);
+        if (t) {
+          compacted = t.fit;
+          compactedBands = t.bands;
           break;
         }
       }
@@ -1378,9 +1424,174 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     libSymbols.set(src.libId, src.sourceText);
     const hasDriver = net.pins.some((ep) => pinLookup(ep)?.etype === 'power_out');
     const eps = endpointsOf(net);
+    /** One PWR_FLAG per undriven net, on the net's FIRST endpoint — whether
+     * that endpoint drafts as a bank member or a lone symbol. */
+    const maybeFlag = (i: number, x: number, y: number): void => {
+      if (i !== 0 || hasDriver) return;
+      const flag = pwrFlagSource();
+      libSymbols.set(flag.libId, flag.sourceText);
+      flgSeq++;
+      extraSymbols.push({
+        ref: `#FLG${String(flgSeq).padStart(2, '0')}`,
+        libId: flag.libId,
+        value: 'PWR_FLAG',
+        footprint: '',
+        at: { x, y, rot: 0 },
+        refAt: { x, y },
+        valueAt: { x, y },
+        hideRef: true,
+        hideValue: true,
+        pinNumbers: ['1'],
+      });
+      pwrFlags.push(net.name);
+    };
+    // ---------- rail-bank trunks (#233, #220 phase 3) ----------
+    // Decap-row caps adjacent on the same power net chain on ONE trunk: a
+    // stub per pin, horizontal joins between consecutive stub ends, a single
+    // power symbol and value at the first end. The human's sixteen-cap VBUS
+    // bank carries two power symbols; the per-pin idiom drew twenty-six.
+    // Every stub and trunk segment must clear foreign points and bodies, and
+    // a member that cannot join cleanly splits the run — a bank never buys
+    // density with a merged net.
+    const consumed = new Set<number>();
+    {
+      const ownEps = new Set(net.pins);
+      // Structural, not name-based: any two-pin part with a vertical pin on
+      // this power net banks — real boards carry their caps under embedded,
+      // renamed symbols the Device:C test never matches, and a pull-up array
+      // on one rail trunk is drawn the same way by hand.
+      const cands = eps
+        .map((ep, i) => ({ ep, i, o: outward(ep.pin) }))
+        .filter((c) => c.o.dy !== 0 && c.o.dx === 0 && (placed.get(c.ep.ref)?.sym.pins.length ?? 0) === 2);
+      const byLine = new Map<string, typeof cands>();
+      for (const c of cands) {
+        const k = `${c.o.dy}|${knum(c.ep.at.y + c.o.dy * STUB * U)}`;
+        byLine.set(k, [...(byLine.get(k) ?? []), c]);
+      }
+      const stubClear = (c: (typeof cands)[number]): boolean => {
+        const end = { x: c.ep.at.x, y: c.ep.at.y + c.o.dy * STUB * U };
+        return !touchesForeign([{ x1: c.ep.at.x, y1: c.ep.at.y, x2: end.x, y2: end.y }], net.name, ownEps, {
+          predictStubs: false,
+        });
+      };
+      /**
+       * A trunk may not cross the LINE a foreign stub could grow along.
+       * `touchesForeign` predicts foreign stubs at their base length only,
+       * but a signal stub's clearance ladder may extend it two units past
+       * that — jetson-agx-thor-baseboard shipped twelve trunk-on-stub
+       * contacts exactly that way, each a merged net the gate then refused.
+       * Orthogonal segments: bounding-box overlap IS intersection, and it
+       * also catches collinear overlap, conservatively.
+       */
+      const crossesForeignStubLine = (seg: { x1: number; y1: number; x2: number; y2: number }): boolean => {
+        for (const opl of placed.values()) {
+          for (const pin of opl.sym.pins) {
+            const ep = `${opl.refDes}.${pin.number}`;
+            const onet = netByEndpoint.get(ep);
+            if (!onet || onet.name === net.name) continue;
+            const o = outward(pin);
+            const p = pinAt(opl, pin);
+            const ex = p.x + o.dx * (STUB + 2) * U;
+            const ey = p.y + o.dy * (STUB + 2) * U;
+            if (
+              Math.min(seg.x1, seg.x2) <= Math.max(p.x, ex) + SEG_EPS &&
+              Math.max(seg.x1, seg.x2) >= Math.min(p.x, ex) - SEG_EPS &&
+              Math.min(seg.y1, seg.y2) <= Math.max(p.y, ey) + SEG_EPS &&
+              Math.max(seg.y1, seg.y2) >= Math.min(p.y, ey) - SEG_EPS
+            ) {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      const emitBank = (run: typeof cands): void => {
+        const dy = run[0]!.o.dy;
+        const ends = run.map((c) => ({ x: c.ep.at.x, y: c.ep.at.y + dy * STUB * U }));
+        run.forEach((c, j) => {
+          addWire(net.name, c.ep.at.x, c.ep.at.y, ends[j]!.x, ends[j]!.y);
+          consumed.add(c.i);
+        });
+        for (let j = 1; j < ends.length; j++) {
+          addWire(net.name, ends[j - 1]!.x, ends[j - 1]!.y, ends[j]!.x, ends[j]!.y);
+        }
+        const first = ends[0]!;
+        const valueAt = { x: first.x, y: first.y + dy * 3.556 };
+        const box = powerValueBox(net.name, valueAt.x, valueAt.y);
+        const hideValue = shownPowerValues.some((p) => p.net === net.name && boundsOverlap(p.box, box));
+        if (!hideValue) shownPowerValues.push({ net: net.name, box });
+        pwrSeq++;
+        extraSymbols.push({
+          ref: `#PWR${String(pwrSeq).padStart(2, '0')}`,
+          libId: src.libId,
+          value: net.name,
+          footprint: '',
+          at: { x: first.x, y: first.y, rot: 0 },
+          refAt: { x: first.x, y: first.y },
+          valueAt,
+          hideRef: true,
+          hideValue,
+          pinNumbers: ['1'],
+        });
+        for (const [j, c] of run.entries()) maybeFlag(c.i, ends[j]!.x, ends[j]!.y);
+      };
+      for (const line of [...byLine.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v)) {
+        line.sort((a, b) => a.ep.at.x - b.ep.at.x);
+        let run: typeof cands = [];
+        const flush = (): void => {
+          if (run.length >= 2) emitBank(run);
+          run = [];
+        };
+        for (const c of line) {
+          if (!stubClear(c)) {
+            flush();
+            continue;
+          }
+          if (!run.length) {
+            run.push(c);
+            continue;
+          }
+          const prev = run[run.length - 1]!;
+          const y = c.ep.at.y + c.o.dy * STUB * U;
+          const seg = { x1: prev.ep.at.x, y1: y, x2: c.ep.at.x, y2: y };
+          const clear =
+            c.ep.at.x - prev.ep.at.x <= BANK_PITCH_MAX * U &&
+            !powerBodies.some((b) => segCrossesBody(seg.x1, seg.y1, seg.x2, seg.y2, b)) &&
+            !touchesForeign([seg], net.name, ownEps, { predictStubs: true }) &&
+            !crossesForeignStubLine(seg);
+          if (clear) run.push(c);
+          else {
+            flush();
+            run = [c];
+          }
+        }
+        flush();
+      }
+    }
     eps.forEach((ep, i) => {
+      if (consumed.has(i)) return;
       const o = outward(ep.pin);
       let len = o.dx !== 0 ? STUB + 2 : STUB;
+      // Fair share of the channel: a stub may never cross the MIDLINE to the
+      // nearest facing foreign pin on its own line, whatever the text pass
+      // wants. Drafting order decides who draws first, and a first-drafted
+      // stub that fills the channel leaves the facing pin no clear rung at
+      // any length — jetson's text-grown 8-unit stub in a 9-unit channel did
+      // exactly that, and the facing GND shipped touching (a refusal).
+      let maxLen = Infinity;
+      for (const opl of placed.values()) {
+        for (const pin of opl.sym.pins) {
+          const fep = `${opl.refDes}.${pin.number}`;
+          if (netByEndpoint.get(fep)?.name === net.name) continue;
+          const p2 = pinAt(opl, pin);
+          if (o.dx !== 0 && sameCoord(p2.y, ep.at.y) && Math.sign(p2.x - ep.at.x) === o.dx) {
+            maxLen = Math.min(maxLen, Math.max(1, Math.floor(Math.abs(p2.x - ep.at.x) / U / 2)));
+          } else if (o.dy !== 0 && sameCoord(p2.x, ep.at.x) && Math.sign(p2.y - ep.at.y) === o.dy) {
+            maxLen = Math.min(maxLen, Math.max(1, Math.floor(Math.abs(p2.y - ep.at.y) / U / 2)));
+          }
+        }
+      }
+      if (len > maxLen) len = maxLen;
       const at = (l: number): { x: number; y: number } => ({ x: ep.at.x + o.dx * l * U, y: ep.at.y + o.dy * l * U });
       const valueAtOf = (end: { x: number; y: number }): { x: number; y: number } => ({
         x: end.x,
@@ -1404,6 +1615,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
             const v = valueAtOf(at(len));
             const b = powerValueBox(net.name, v.x, v.y);
             if (!shownPowerValues.some((p) => p.net !== net.name && boundsOverlap(p.box, b))) break;
+            if (len + 2 > maxLen) break; // text never buys past the midline
             const extended = at(len + 2);
             if (powerBodies.some((bd) => segCrossesBody(ep.at.x, ep.at.y, extended.x, extended.y, bd))) break;
             len += 2;
@@ -1475,8 +1687,18 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       if (!clearsAt(len)) {
         const ladder: number[] = [];
         for (let d = 1; d <= MAX_POWER_STUB_SHIFT; d++) {
-          ladder.push(len + d);
+          if (len + d <= maxLen) ladder.push(len + d);
           if (len - d >= 1) ladder.push(len - d);
+        }
+        // Full retreat, beyond the bounded shift: the TEXT-driven growth above
+        // can carry `len` so far out that every rung within
+        // MAX_POWER_STUB_SHIFT still overlaps the facing pin's stub, and the
+        // electrically clear short lengths sit out of reach (jetson's D2
+        // shipped a 10-unit VCC_IN stub through the facing net's 4-unit stub
+        // and its power symbol that way). Last rungs, so any bounded rung
+        // that clears still wins and existing layouts do not move.
+        for (let l = Math.min(len, STUB + 2); l >= 1; l--) {
+          if (!ladder.includes(l)) ladder.push(l);
         }
         const freed = ladder.find((l) => clearsAt(l) && textClearAt(l)) ?? ladder.find(clearsAt);
         if (freed !== undefined) len = freed;
@@ -1508,26 +1730,9 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         hideValue,
         pinNumbers: ['1'],
       });
-      if (i === 0 && !hasDriver) {
-        const flag = pwrFlagSource();
-        libSymbols.set(flag.libId, flag.sourceText);
-        flgSeq++;
-        // the flag's pin sits exactly on the stub END so KiCad's connectivity
-        // (which joins at wire endpoints) sees the power_out driver
-        extraSymbols.push({
-          ref: `#FLG${String(flgSeq).padStart(2, '0')}`,
-          libId: flag.libId,
-          value: 'PWR_FLAG',
-          footprint: '',
-          at: { x: stubEnd.x, y: stubEnd.y, rot: 0 },
-          refAt: { x: stubEnd.x, y: stubEnd.y },
-          valueAt: { x: stubEnd.x, y: stubEnd.y },
-          hideRef: true,
-          hideValue: true,
-          pinNumbers: ['1'],
-        });
-        pwrFlags.push(net.name);
-      }
+      // the flag's pin sits exactly on the stub END so KiCad's connectivity
+      // (which joins at wire endpoints) sees the power_out driver
+      maybeFlag(i, stubEnd.x, stubEnd.y);
     });
   }
 
@@ -1614,10 +1819,16 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         // loudly rather than ship the contact.
         let end = s.end;
         const own = new Set(net.pins);
-        for (let extra = 0; extra <= 2; extra++) {
+        // Rungs in preference order: the classic 0..2 extensions first so
+        // clear cases stay byte-identical, then deeper extensions, then a
+        // one-unit retreat. A stub that ships with NO clear rung still ends
+        // touching a foreign wire and the merge gate refuses the draft, so
+        // every extra rung here is a board that drafts instead of refusing
+        // (jetson's twelve wire-contact refusals were exactly this fallback).
+        for (const len of [STUB, STUB + 1, STUB + 2, STUB + 3, STUB + 4, STUB + 5, STUB + 6, 1]) {
           const cand = {
-            x: s.ep.at.x + s.o.dx * (STUB + extra) * U,
-            y: s.ep.at.y + s.o.dy * (STUB + extra) * U,
+            x: s.ep.at.x + s.o.dx * len * U,
+            y: s.ep.at.y + s.o.dy * len * U,
           };
           if (!touchesForeign([{ x1: s.ep.at.x, y1: s.ep.at.y, x2: cand.x, y2: cand.y }], net.name, own)) {
             end = cand;
