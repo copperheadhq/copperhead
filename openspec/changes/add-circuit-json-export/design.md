@@ -49,7 +49,7 @@ circuit-json ids are strings (`source_component_0`, `schematic_component_3`, …
 | `PlacementModel.wires` grouped by net | `schematic_trace` with a polyline route |
 | `PlacementModel.labels` | `schematic_net_label` |
 
-Coordinates: KiCad schematic space is mm with +y down; circuit-json schematic space is mm with +y up. The mapping negates y (positions and rotation sense) and is centralized in one `toCj({x, y})` helper with a unit test pinning a known symbol, so the convention lives in exactly one place. Exact field names follow the pinned `circuit-json` version's types; the schema-validation tests are the enforcement, so a field-name drift fails loudly in CI rather than silently emitting junk.
+Coordinates: KiCad schematic space is mm with +y down; circuit-json schematic space is unit-based with +y up, and tscircuit renderers size text/ports in those units (grid step 0.2 units). The mapping negates y and scales one KiCad 100 mil grid step (2.54 mm) to one 0.2-unit step (`SCH_UNITS_PER_MM`), so renders keep tscircuit-native proportions; raw mm coordinates render with ~13x-too-small text. Both live in one `toCj({x, y})` helper with a unit test pinning a known symbol, so the convention lives in exactly one place. Exact field names follow the pinned `circuit-json` version's types; the schema-validation tests are the enforcement, so a field-name drift fails loudly in CI rather than silently emitting junk.
 
 ### CJ-D6: CLI shape and output path
 
