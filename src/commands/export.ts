@@ -110,6 +110,14 @@ export interface ExportCircuitJsonResult {
  * re-drafts the intent and refuses unless the result byte-matches the on-disk
  * schematic, so the export always depicts the sheet as drawn, never a lift of
  * hand-edited KiCad text (issue #178: circuit-json is only ever a derived view).
+ *
+ * There is exactly ONE circuit-json build, from the intent plus the engine's
+ * placement model; the `.kicad_sch` is never parsed into circuit-json, so the
+ * gate is NOT two circuit-jsons compared. The re-draft's KiCad text equalling
+ * the on-disk sheet byte-for-byte is what licenses the single serialization to
+ * claim it depicts the drawn schematic: both backends (KiCad text, circuit-json)
+ * are pure functions of the same lowered model, so text equality transfers the
+ * claim without a second lift path existing at all.
  */
 export async function runExportCircuitJson(opts: ExportCircuitJsonOptions): Promise<ExportCircuitJsonResult> {
   const config = await loadConfig(opts.repoRoot);
