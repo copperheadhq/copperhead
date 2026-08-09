@@ -166,6 +166,15 @@ export const SYM_CACHE_DIR = 'sym-lib-cache';
  */
 const PROJECT_MARKERS = ['.git', '.copperhead'];
 
+/**
+ * How many directories above a schematic to search for the project root.
+ * `path.dirname` strictly shortens until it reaches the filesystem root, so the
+ * walk terminates on its own and this is a guard against a pathological path,
+ * not a tuning knob: it is set far past any real tree so that exhausting it is
+ * not a case real projects can reach.
+ */
+const MAX_PROJECT_WALK = 64;
+
 async function isProjectRoot(dir: string): Promise<boolean> {
   for (const marker of PROJECT_MARKERS) {
     try {
@@ -200,8 +209,17 @@ async function isProjectRoot(dir: string): Promise<boolean> {
  * both markers (a git repo is required before any run starts, and the config
  * lives in `.copperhead/`), so this fallback is for stray files, not for
  * projects.
+ *
+ * That fallback is why the budget is generous rather than tight. Exhausting it
+ * inside a real project is indistinguishable from being outside one, and the
+ * result is not an error but a silent revert to the behaviour this whole
+ * function replaced: the project's cache goes unseen, every
+ * `copperhead_power:*` symbol fails to resolve, and `verify_symbols` returns to
+ * reporting confident unreachable findings (#212). A sheet buried deep in a
+ * monorepo must not quietly get the old bug back, so the default reaches any
+ * plausible tree and the bound exists only so a pathological path cannot spin.
  */
-export async function vendoredCacheDirs(schPath: string, maxDepth = 5): Promise<string[]> {
+export async function vendoredCacheDirs(schPath: string, maxDepth = MAX_PROJECT_WALK): Promise<string[]> {
   const start = path.dirname(path.resolve(schPath));
   const levels: string[] = [];
   let dir = start;

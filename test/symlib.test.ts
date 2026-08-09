@@ -606,10 +606,12 @@ describe('verify_symbols sees a project vendored cache (#212)', () => {
     }
   });
 
-  it('claims no cache when no project root is found within maxDepth', async () => {
-    // The budget is what bounds the walk on a stray sheet outside any project.
-    // With the root beyond it the sheet is unattributable, so only a cache in
-    // its own directory could count, and there is none.
+  it('reaches the project root from a deeply nested sheet', async () => {
+    // Review catch (thanks @adhavan18): the budget used to be 5, so a sheet six
+    // or more levels below the root exhausted it, fell back to its own
+    // directory, missed the project's cache, and silently got #212 back. The
+    // default now reaches any plausible tree; the bound stays only as a guard,
+    // exercised here by passing a deliberately tight one.
     const outer = await mkdtemp(path.join(tmpdir(), 'copperhead-deep-'));
     try {
       await mkdir(path.join(outer, SYM_CACHE_DIR), { recursive: true });
@@ -618,9 +620,10 @@ describe('verify_symbols sees a project vendored cache (#212)', () => {
       await mkdir(deep, { recursive: true });
       const sch = path.join(deep, 'b.kicad_sch');
       await writeFile(sch, '(kicad_sch)', 'utf8');
-      expect(await vendoredCacheDirs(sch)).toEqual([]);
-      // and the same tree resolves once the root is inside the budget
-      expect(await vendoredCacheDirs(sch, 12)).toEqual([path.join(outer, SYM_CACHE_DIR)]);
+      // seven levels up, well past the old default of 5
+      expect(await vendoredCacheDirs(sch)).toEqual([path.join(outer, SYM_CACHE_DIR)]);
+      // and a tight budget still stops short, leaving the sheet unattributable
+      expect(await vendoredCacheDirs(sch, 3)).toEqual([]);
     } finally {
       await rm(outer, { recursive: true, force: true }).catch(() => {});
     }
