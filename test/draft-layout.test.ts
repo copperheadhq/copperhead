@@ -322,6 +322,52 @@ describe('column banding: a group wider than every sheet wraps into bands (#219)
   }, 30000);
 });
 
+describe('compaction: a mostly-empty sheet reflows onto a smaller one (#220 phase 4)', () => {
+  /** N parts sharing only power rails: every one lands at the same layer
+   * depth, so the group naturally stacks into ONE full-height column, the
+   * shape that made interf_u "fit" A1 while the person drew it on A3. */
+  function stack(n: number): SchematicIntent {
+    const parts = [];
+    const noConnect: string[] = [];
+    for (let i = 1; i <= n; i++) {
+      parts.push({ ref: `U${i}`, libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' });
+      for (const p of ['3', '4', '5', '6', '7', '8']) noConnect.push(`U${i}.${p}`);
+    }
+    const nets = [
+      { name: 'VCC', pins: Array.from({ length: n }, (_, i) => `U${i + 1}.1`) },
+      { name: 'GND', pins: Array.from({ length: n }, (_, i) => `U${i + 1}.2`) },
+    ];
+    return { version: 1, parts, nets, noConnect };
+  }
+
+  it('splits the tall column and takes the smallest sheet that holds it', async () => {
+    const { model, report } = await place(stack(16));
+    expect(report.notes.some((n) => /^sheet compacted:/.test(n)), report.notes.join('; ')).toBe(true);
+    // the single 16-cell column spans well past A3's usable height, so an
+    // uncompacted fit needs a large sheet; the reflowed block must land on
+    // something smaller than A2 and stay inside the frame
+    expect(['A5', 'A4', 'A3']).toContain(report.paper);
+    expect(report.mergedNets).toEqual([]);
+    const PAPER_DIMS: Record<string, { w: number; h: number }> = {
+      A5: { w: 210, h: 148 }, A4: { w: 297, h: 210 }, A3: { w: 420, h: 297 },
+    };
+    const paper = PAPER_DIMS[model.paper]!;
+    for (const s of model.symbols) {
+      expect(s.at.x, `${s.ref} outside the frame`).toBeGreaterThanOrEqual(10);
+      expect(s.at.x, `${s.ref} outside the frame`).toBeLessThanOrEqual(paper.w - 10);
+      expect(s.at.y, `${s.ref} outside the frame`).toBeGreaterThanOrEqual(10);
+      expect(s.at.y, `${s.ref} outside the frame`).toBeLessThanOrEqual(paper.h - 10);
+    }
+  });
+
+  it('leaves a well-filled sheet exactly as it was', async () => {
+    // the 4-part chain fits its natural sheet with healthy utilization: no
+    // compaction note, and the layout must not move
+    const { report } = await place(chainGroup(4));
+    expect(report.notes.some((n) => /^sheet compacted:/.test(n))).toBe(false);
+  });
+});
+
 describe('stacked pins are one point on the sheet', () => {
   /** PWRIC repeats its GND pin (2 and 4) at one coordinate, thermal-pad style. */
   const stacked: SchematicIntent = {

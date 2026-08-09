@@ -78,6 +78,11 @@ const PAPERS: { name: string; w: number; h: number }[] = [
 ];
 const FRAME = 10;
 const TITLE_STRIP = 30;
+/** Natural-fit utilization below which the paper pass tries smaller sheets
+ * with width and height budgets (#220 phase 4). Matches the legibility
+ * checker's low-utilization threshold: a sheet the checker would call mostly
+ * empty is a sheet worth compacting. */
+const COMPACT_UTILIZATION = 0.5;
 
 export type NetClass = 'rail' | 'ground' | 'signal';
 
@@ -499,12 +504,15 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   /**
    * Place every group's cells. `bandBudgetW` caps a single group's width, in
    * grid units: a column that would tile past it starts a new band of columns
-   * below the ones already placed (#219). `Infinity` keeps the classic
-   * single-band ribbon. Placement is deterministic in (intent, budget), so the
-   * paper-selection pass below may re-run it with a tighter budget when no
-   * standard sheet holds the natural ribbon. Returns each group's band count.
+   * below the ones already placed (#219). `colBudgetH` caps a single column's
+   * height, in grid units: a depth whose parts stack taller becomes several
+   * side-by-side columns, the vertical analog of banding (#220 phase 4).
+   * `Infinity` for both keeps the classic single-band ribbon. Placement is
+   * deterministic in (intent, budgets), so the paper-selection pass below may
+   * re-run it with tighter budgets when a sheet is worth compacting onto.
+   * Returns each group's band count.
    */
-  const placeAllGroups = (bandBudgetW: number): Map<string, number> => {
+  const placeAllGroups = (bandBudgetW: number, colBudgetH: number = Infinity): Map<string, number> => {
     placed.clear();
     groupRects.length = 0;
     groupOf.clear();
@@ -584,6 +592,32 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           body: b,
         });
       }
+      // Column height budget (#220 phase 4): a depth whose parts stack taller
+      // than the budget splits into several side-by-side columns, in row
+      // order, so a 24-part board stops drafting as one full-height strip on
+      // a sheet two sizes too large. Cells never shrink; only the arrangement
+      // changes, so readability is untouched.
+      const columnsToPlace: string[][] =
+        colBudgetH === Infinity
+          ? columns
+          : columns.flatMap((col) => {
+              const chunks: string[][] = [];
+              let cur: string[] = [];
+              let h = 0;
+              for (const ref of col) {
+                const add = cellDims.get(ref)!.h + (cur.length ? ROW_GAP : 0);
+                if (cur.length && h + add > colBudgetH) {
+                  chunks.push(cur);
+                  cur = [ref];
+                  h = cellDims.get(ref)!.h;
+                } else {
+                  cur.push(ref);
+                  h += add;
+                }
+              }
+              if (cur.length) chunks.push(cur);
+              return chunks;
+            });
       let colX = groupX;
       let groupMaxY = 0;
       let bandTop = 0; // y origin (units) of the current band of columns
@@ -594,8 +628,8 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       // shift can fix both edges at once.
       const ext = groupExtents.get(gname)!;
       const bandW = Math.max(1, bandBudgetW - ceilU(ext.left) - ceilU(ext.right));
-      for (let ci = 0; ci < columns.length; ci++) {
-        const col = columns[ci]!;
+      for (let ci = 0; ci < columnsToPlace.length; ci++) {
+        const col = columnsToPlace[ci]!;
         const colW = Math.max(...col.map((r) => cellDims.get(r)!.w));
         // Banding (#219): a column that would tile past the width budget starts
         // a new band of columns below everything placed so far, the way the
@@ -631,7 +665,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           rowY += dims.h + ROW_GAP;
         }
         groupMaxY = Math.max(groupMaxY, rowY - ROW_GAP);
-        const next = columns[ci + 1];
+        const next = columnsToPlace[ci + 1];
         colX += colW + CHANNEL + (next ? widenBy(labelExtents(col).right, labelExtents(next).left, 2 * MARGIN + CHANNEL) : 0);
       }
 
@@ -1119,13 +1153,13 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     // the sheet whose width it banded to: accepting a narrow banding on a
     // larger sheet would re-create the empty-ribbon failure, rotated 90°.
     for (const p of candidates) {
-      bands = placeAllGroups(Math.floor(usableW(p) / U));
+      bands = placeAllGroups(Math.floor(usableW(p) / U), Math.floor(usableH(p) / U));
       fit = fitsOn(p);
       if (fit) break;
     }
     if (!fit) {
       const largest = candidates[candidates.length - 1]!;
-      bands = placeAllGroups(Math.floor(usableW(largest) / U));
+      bands = placeAllGroups(Math.floor(usableW(largest) / U), Math.floor(usableH(largest) / U));
       fit = { paper: largest, wrap: groupRects.length > 1 ? wrapTo(usableW(largest)) : null };
       notes.push(
         `content does not fit the ${hinted ? 'hinted' : 'largest standard'} sheet (${largest.name}) even with groups and columns wrapped; the drawing will overflow the frame`,
@@ -1133,6 +1167,53 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     }
     for (const [g, n] of bands) {
       if (n > 1) notes.push(`group "${g}" was wider than the sheet; its columns wrapped onto ${n} bands`);
+    }
+  } else if (!hinted && fit.paper !== PAPERS[0]) {
+    // ---------- compaction (#220 phase 4) ----------
+    // The natural ribbon FITS a sheet, but mostly with air: a 24-part board
+    // whose parts stack into one full-height strip "fits" A1 while the person
+    // drew the same circuit on A3. When the natural fit uses less than the
+    // checker's utilization floor, retry the smaller sheets, smallest first,
+    // with both budgets, and take the first that holds the reflowed content.
+    // A paper hint pins the sheet and skips this entirely.
+    const contentOf = (f: SheetFit): { w: number; h: number } => {
+      if (f.wrap) return { w: f.wrap.w, h: f.wrap.h };
+      const r = groupRects[0];
+      return r ? { w: r.x2 - r.x1, h: r.y2 - r.y1 } : { w: 0, h: 0 };
+    };
+    const utilOf = (f: SheetFit): number => {
+      const c = contentOf(f);
+      return (c.w * c.h) / (usableW(f.paper) * usableH(f.paper));
+    };
+    const naturalUtil = utilOf(fit);
+    if (naturalUtil < COMPACT_UTILIZATION) {
+      const naturalPaper = fit.paper;
+      let compacted: SheetFit | null = null;
+      let compactedBands = bands;
+      for (const p of candidates) {
+        if (p === naturalPaper) break; // only sheets smaller than the natural fit
+        compactedBands = placeAllGroups(Math.floor(usableW(p) / U), Math.floor(usableH(p) / U));
+        const f = fitsOn(p);
+        if (f) {
+          compacted = f;
+          break;
+        }
+      }
+      if (compacted) {
+        bands = compactedBands;
+        fit = compacted;
+        notes.push(
+          `sheet compacted: the natural layout fit ${naturalPaper.name} at ${Math.round(naturalUtil * 100)}% utilization; reflowed onto ${fit.paper.name}`,
+        );
+        for (const [g, n] of bands) {
+          if (n > 1) notes.push(`group "${g}" was wider than the sheet; its columns wrapped onto ${n} bands`);
+        }
+      } else {
+        // nothing smaller holds the reflowed content: restore the natural
+        // placement byte for byte
+        bands = placeAllGroups(Infinity);
+        fit = bestFit()!;
+      }
     }
   }
   if (fit.wrap) {
@@ -1961,7 +2042,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     return d;
   };
   dx = clampShift(dx, fullMinX, fullMaxX, FRAME, paper.w - FRAME);
-  dy = clampShift(dy, fullMinY, fullMaxY, FRAME, paper.h - FRAME);
+  // the bottom edge is the engine's own usable bottom, ABOVE the title strip:
+  // content that fills the sheet's height exactly would otherwise carry the
+  // centering pass's 4-unit downward offset into the reserved corner
+  dy = clampShift(dy, fullMinY, fullMaxY, FRAME, paper.h - FRAME - TITLE_STRIP);
   const shift = <T extends { x?: number; y?: number; x1?: number; y1?: number; x2?: number; y2?: number }>(o: T): T => {
     if (o.x !== undefined) o.x += dx;
     if (o.y !== undefined) o.y += dy;
