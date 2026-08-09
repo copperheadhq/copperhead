@@ -1,9 +1,9 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { emitSchematic } from '../emit.js';
+import { emitSchematic, type PlacementModel } from '../emit.js';
 import { SymbolSource } from './symsource.js';
-import { parseIntent, validateIntent, formatIrFindings, INTENT_FILENAME, type IrFinding } from './ir.js';
+import { parseIntent, validateIntent, formatIrFindings, INTENT_FILENAME, type IrFinding, type ValidatedIntent } from './ir.js';
 import { draftSchematicPlacement, type SchematicDraftReport } from './engine.js';
 
 /**
@@ -31,6 +31,10 @@ export type SchematicDraftResult =
       report: SchematicDraftReport;
       text: string;
       schematicPath: string;
+      /** Lowered placement model and validated intent, for derived read-only
+       * views (circuit-json export). Never an input to any mutation path. */
+      model: PlacementModel;
+      validated: ValidatedIntent;
       /** Engine-generated lib blocks (copperhead_power) to vendor. */
       generatedLibs: { libId: string; sourceText: string }[];
       /** Library-sourced lib_ids, for cache/table maintenance. */
@@ -97,6 +101,8 @@ export async function draftSchematicToText(opts: SchematicDraftOptions): Promise
     report,
     text,
     schematicPath: path.join(opts.repoRoot, opts.schematic),
+    model,
+    validated,
     generatedLibs: model.libSymbols.filter((l) => l.libId.startsWith('copperhead_power:')),
     vendoredLibIds: [...validated.symbols.values()].map((s) => s.libId),
   };

@@ -120,6 +120,7 @@ copperhead doctor                    # env preflight: kicad-cli, git, node, prov
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
 copperhead create --brief brief.md   # brief → full output package
 copperhead export bom --supplier jlcpcb   # supplier-ready ordering file from docs/BOM.md
+copperhead export circuit-json            # tscircuit circuit-json view of the drafted schematic
 ```
 
 Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
@@ -166,6 +167,10 @@ copperhead export bom --supplier mouser --spares 15     # Mouser cart CSV, 15% s
 - Rows without an MPN, and rows still flagged `UNVERIFIED`, are excluded from the supplier file and named in a warnings footer on stderr. `--include-unverified` opts the flagged-but-MPN'd rows back in (it never includes MPN-less rows). `create` stage 6 also emits `outputs/jlcpcb-bom.csv` automatically.
 
 `docs/BOM.md` may carry optional `Manufacturer` and `LCSC` columns beyond the base `Refdes | Value | Footprint | MPN | Rationale`; the exporter matches columns by header, so add them when you want them populated in supplier files; `init` scaffolds the base columns only. Only *appending* columns is safe: keep `Refdes | Value | Footprint` first and in that order, because the drift check (`check`/`sync`, which the exporter gates on) reads those three by position, so reordering them makes it compare the wrong cells and refuse the export with a spurious drift message.
+
+### Interchange (`export circuit-json`)
+
+`copperhead export circuit-json` writes a [tscircuit circuit-json](https://github.com/tscircuit/circuit-json) view of the drafted schematic to `outputs/circuit.json` (override with `--out <path>`): the logical netlist as `source_*` elements from the intent IR, the drawn geometry as `schematic_*` elements from the engine's placement model. Same contract as `export bom`: deterministic, LLM-free, network-free. It covers copperhead-drafted sheets only, and refuses when re-drafting the intent does not reproduce the on-disk schematic byte-for-byte, so the file always depicts the sheet as drawn and verified. The output is a derived read-only view: circuit-json never enters the mutation path, and KiCad files remain the sole source of truth.
 
 Nothing is a black box: decisions land in an append-only `docs/DECISIONS.md`, every run writes a human-readable summary next to its transcript, and a per-run `docs/CHANGELOG.md` narrates the design history.
 
