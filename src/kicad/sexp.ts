@@ -107,6 +107,17 @@ interface ParsedSheet {
   root: SexpNode[];
 }
 
+/** Parsed schematic tree loaded once; derive symbols, nets, geometry, pinNets from it. */
+export interface LoadedSchematic {
+  sheets: ParsedSheet[];
+  powerSyms: Set<string>;
+}
+
+export async function loadSchematic(rootSch: string): Promise<LoadedSchematic> {
+  const sheets = await loadSheets(rootSch);
+  return { sheets, powerSyms: collectPowerSymbols(sheets) };
+}
+
 async function loadSheets(rootSch: string): Promise<ParsedSheet[]> {
   const seen = new Set<string>();
   const out: ParsedSheet[] = [];
@@ -248,22 +259,23 @@ const isPowerSymbol = (libId: string, powerSyms: Set<string>): boolean =>
   libId.startsWith('power:') || powerSyms.has(libId);
 
 /** One row per real component (power symbols excluded), across all sheets. */
-export async function listSymbols(rootSch: string): Promise<SchematicSymbol[]> {
-  const sheets = await loadSheets(rootSch);
-  const powerSyms = collectPowerSymbols(sheets);
+export function symbolsFromLoaded(loaded: LoadedSchematic): SchematicSymbol[] {
   const out: SchematicSymbol[] = [];
-  for (const sheet of sheets) {
+  for (const sheet of loaded.sheets) {
     for (const { sym } of symbolsOf(sheet)) {
-      if (!isPowerSymbol(sym.libId, powerSyms)) out.push(sym);
+      if (!isPowerSymbol(sym.libId, loaded.powerSyms)) out.push(sym);
     }
   }
   return out.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
 }
 
+export async function listSymbols(rootSch: string): Promise<SchematicSymbol[]> {
+  return symbolsFromLoaded(await loadSchematic(rootSch));
+}
+
 /** All net names visible via labels and power symbols, across all sheets. */
 export async function listNets(rootSch: string): Promise<string[]> {
-  const sheets = await loadSheets(rootSch);
-  const powerSyms = collectPowerSymbols(sheets);
+  const { sheets, powerSyms } = await loadSchematic(rootSch);
   const names = new Set<string>();
   for (const sheet of sheets) {
     for (const kind of ['label', 'global_label', 'hierarchical_label']) {
@@ -450,10 +462,8 @@ function textItemsOf(sym: SexpNode[]): TextItem[] {
  * Everything the legibility checker needs to see per sheet, extracted read-only.
  * Never serializes and never mutates the file.
  */
-export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[]> {
-  const sheets = await loadSheets(rootSch);
-  const powerSyms = collectPowerSymbols(sheets);
-  return sheets.map((sheet) => {
+export function geometryFromLoaded(loaded: LoadedSchematic): SheetGeometry[] {
+  return loaded.sheets.map((sheet) => {
     const paperNode = child(sheet.root, 'paper');
     const paperName = atomAt(paperNode, 1) ?? null;
     const portrait = paperNode?.includes('portrait') ?? false;
@@ -518,7 +528,7 @@ export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[
         value: sym.value,
         at: sym.at,
         mirror,
-        isPower: isPowerSymbol(sym.libId, powerSyms),
+        isPower: isPowerSymbol(sym.libId, loaded.powerSyms),
         props: textItemsOf(node),
       })),
       wires,
@@ -531,17 +541,19 @@ export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[
   });
 }
 
+export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[]> {
+  return geometryFromLoaded(await loadSchematic(rootSch));
+}
+
 /**
  * Geometric connectivity per sheet: pins, labels, and wire endpoints that share
  * coordinates (or are joined by wires) form a group; a group's net name comes
  * from its labels or power symbols. Good enough for docs scaffolding and drift
  * checks; not a full netlister.
  */
-export async function pinNets(rootSch: string): Promise<PinNet[]> {
-  const sheets = await loadSheets(rootSch);
-  const powerSyms = collectPowerSymbols(sheets);
+export function pinNetsFromLoaded(loaded: LoadedSchematic): PinNet[] {
   const out: PinNet[] = [];
-  for (const sheet of sheets) {
+  for (const sheet of loaded.sheets) {
     const pinDefs = libPinDefs(sheet.root);
     const uf = new UnionFind();
     const netNameAt = new Map<string, string>();
@@ -573,7 +585,7 @@ export async function pinNets(rootSch: string): Promise<PinNet[]> {
         const abs = pinAbsolute(sym.at, mirror, pin);
         const k = key(abs.x, abs.y);
         uf.find(k);
-        if (isPowerSymbol(sym.libId, powerSyms)) {
+        if (isPowerSymbol(sym.libId, loaded.powerSyms)) {
           netNameAt.set(k, sym.value);
         } else {
           symPins.push({ sym, pin, k });
@@ -593,4 +605,8 @@ export async function pinNets(rootSch: string): Promise<PinNet[]> {
     }
   }
   return out;
+}
+
+export async function pinNets(rootSch: string): Promise<PinNet[]> {
+  return pinNetsFromLoaded(await loadSchematic(rootSch));
 }

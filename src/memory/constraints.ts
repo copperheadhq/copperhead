@@ -146,8 +146,9 @@ export function checkForbiddenPins(
   const violations: ConstraintViolation[] = [];
   for (const [key, c] of Object.entries(registry)) {
     if (!c.forbidden?.length) continue;
+    const forbidden = new Set(c.forbidden);
     for (const pn of pinNets) {
-      if (pn.net && c.forbidden.includes(pn.pinName)) {
+      if (pn.net && forbidden.has(pn.pinName)) {
         violations.push({
           key,
           description: `${pn.ref} pin ${pn.pinName} is connected to net ${pn.net} but is forbidden by ${key}`,

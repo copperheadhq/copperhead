@@ -5,9 +5,19 @@ import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '../memory/constraints.js';
-import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
+import {
+  loadSchematic,
+  geometryFromLoaded,
+  pinNetsFromLoaded,
+  symbolsFromLoaded,
+} from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
-import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
+import {
+  checkLegibilityFromGeometry,
+  formatLegibility,
+  LEGIBILITY_FAMILIES,
+  type LegibilityFinding,
+} from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
 
 /**
@@ -39,63 +49,78 @@ export interface CheckResult {
 
 export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
-  let erc: CheckReport | null = null;
-  let drc: CheckReport | null = null;
+  const schRel = config.schematic;
+  const schPath = schRel ? path.join(repoRoot, schRel) : null;
+  const schExists = schPath !== null && existsSync(schPath);
+  const boardPath = config.board ? path.join(repoRoot, config.board) : null;
+  const boardExists = boardPath !== null && existsSync(boardPath);
+  const hasOpenspec = existsSync(path.join(repoRoot, 'openspec', 'config.yaml'));
 
-  if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    erc = await runErc(path.join(repoRoot, config.schematic));
-    log(erc.ok ? 'ERC ✓' : formatViolations(erc));
-  } else {
-    log('ERC skipped (no schematic configured; run copperhead init)');
-  }
+  const [erc, drc, openspec] = await Promise.all([
+    schExists
+      ? runErc(schPath!)
+      : Promise.resolve(null as CheckReport | null),
+    boardExists
+      ? runDrc(boardPath!)
+      : Promise.resolve(null as CheckReport | null),
+    hasOpenspec
+      ? openspecValidate(repoRoot).then((res) => ({ ok: res.ok, detail: res.output }))
+      : Promise.resolve(null as { ok: boolean; detail: string } | null),
+  ]);
 
-  if (config.board && existsSync(path.join(repoRoot, config.board))) {
-    drc = await runDrc(path.join(repoRoot, config.board));
-    log(drc.ok ? 'DRC ✓' : formatViolations(drc));
-  } else {
-    log('DRC skipped (no board configured)');
-  }
+  if (erc) log(erc.ok ? 'ERC ✓' : formatViolations(erc));
+  else log('ERC skipped (no schematic configured; run copperhead init)');
+
+  if (drc) log(drc.ok ? 'DRC ✓' : formatViolations(drc));
+  else log('DRC skipped (no board configured)');
+
+  if (openspec) log(openspec.ok ? 'openspec ✓' : `openspec: ${openspec.detail}`);
 
   let drift: DriftMismatch[] = [];
   let driftWarning: string | null = null;
-  if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    drift = await checkDrift(repoRoot, config.docs, config.schematic);
-    log(drift.length === 0 ? 'drift ✓' : drift.map((m) => `drift: ${m.doc} claims "${m.claim}" but actual is "${m.actual}"`).join('\n'));
-    // Informational, never a failure: the zero-symbol drift exemption is for
-    // bootstrap, but an established repo that lost its schematic content
-    // deserves a visible note rather than a silent green.
-    driftWarning = await emptySchematicWarning(repoRoot, config.docs, config.schematic);
-    if (driftWarning) log(`drift warning: ${driftWarning}`);
-  }
-
-  let openspec: { ok: boolean; detail: string } | null = null;
-  if (existsSync(path.join(repoRoot, 'openspec', 'config.yaml'))) {
-    const res = await openspecValidate(repoRoot);
-    openspec = { ok: res.ok, detail: res.output };
-    log(res.ok ? 'openspec ✓' : `openspec: ${res.output}`);
-  }
-
   let legibility: CheckResult['legibility'];
-  if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    const report = await checkLegibility(path.join(repoRoot, config.schematic), {
+  let constraintViolations: ConstraintViolation[] = [];
+
+  if (schExists && schRel) {
+    const loaded = await loadSchematic(schPath!);
+    const symbols = symbolsFromLoaded(loaded);
+    const geometry = geometryFromLoaded(loaded);
+    const pins = pinNetsFromLoaded(loaded);
+
+    drift = await checkDrift(repoRoot, config.docs, schRel, loaded);
+    log(
+      drift.length === 0
+        ? 'drift ✓'
+        : drift.map((m) => `drift: ${m.doc} claims "${m.claim}" but actual is "${m.actual}"`).join('\n'),
+    );
+    driftWarning = await emptySchematicWarning(repoRoot, config.docs, schRel, symbols);
+    if (driftWarning) log(`drift warning: ${driftWarning}`);
+
+    const legReport = await checkLegibilityFromGeometry(geometry, {
       docsDir: path.join(repoRoot, config.docs),
       ...(config.legibility ? { config: config.legibility } : {}),
     });
-    const score = scoreFromGeometry(
-      await readSheetGeometry(path.join(repoRoot, config.schematic)),
-      report,
-      config.legibility,
-    );
+    const score = scoreFromGeometry(geometry, legReport, config.legibility);
     legibility = {
-      findings: report.findings,
-      counts: report.counts,
-      skipped: report.skipped,
-      disabled: report.disabled,
-      suppressed: report.suppressed,
+      findings: legReport.findings,
+      counts: legReport.counts,
+      skipped: legReport.skipped,
+      disabled: legReport.disabled,
+      suppressed: legReport.suppressed,
       score,
     };
-    log(formatLegibility(report));
+    log(formatLegibility(legReport));
     log(`legibility score: ${score.composite}/100${score.cap ? ` (capped: ${score.cap.reason})` : ''}`);
+
+    const registry = await loadConstraints(repoRoot);
+    constraintViolations = checkForbiddenPins(registry, pins);
+    if (Object.keys(registry).length) {
+      log(
+        constraintViolations.length === 0
+          ? 'constraints ✓'
+          : constraintViolations.map((v) => `constraint ${v.key}: ${v.description} (source: ${v.source})`).join('\n'),
+      );
+    }
   } else {
     legibility = {
       findings: [],
@@ -106,20 +131,6 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
       score: null,
     };
     log('legibility skipped (no schematic configured)');
-  }
-
-  let constraintViolations: ConstraintViolation[] = [];
-  if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    const registry = await loadConstraints(repoRoot);
-    const pins = await pinNets(path.join(repoRoot, config.schematic));
-    constraintViolations = checkForbiddenPins(registry, pins);
-    if (Object.keys(registry).length) {
-      log(
-        constraintViolations.length === 0
-          ? 'constraints ✓'
-          : constraintViolations.map((v) => `constraint ${v.key}: ${v.description} (source: ${v.source})`).join('\n'),
-      );
-    }
   }
 
   const ok =

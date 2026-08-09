@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { listSymbols, pinNets, type SchematicSymbol } from '../kicad/sexp.js';
+import { listSymbols, pinNets, symbolsFromLoaded, pinNetsFromLoaded, type SchematicSymbol, type LoadedSchematic } from '../kicad/sexp.js';
 import {
   parseCanonicalRows,
   parseBomTable,
@@ -33,9 +33,10 @@ export async function emptySchematicWarning(
   repoRoot: string,
   docsDir: string,
   schematic: string,
+  symbols?: SchematicSymbol[],
 ): Promise<string | null> {
-  const symbols = await listSymbols(path.join(repoRoot, schematic));
-  if (symbols.length) return null;
+  const syms = symbols ?? (await listSymbols(path.join(repoRoot, schematic)));
+  if (syms.length) return null;
   const bomPath = path.join(repoRoot, docsDir, 'BOM.md');
   if (!existsSync(bomPath)) return null;
   const refs = parseCanonicalRows(await readFile(bomPath, 'utf8'))
@@ -45,10 +46,15 @@ export async function emptySchematicWarning(
   return `schematic has zero symbols but BOM.md lists ${refs.length} refdes; if this repo is not mid-bootstrap, the schematic may have been emptied accidentally`;
 }
 
-export async function checkDrift(repoRoot: string, docsDir: string, schematic: string): Promise<DriftMismatch[]> {
+export async function checkDrift(
+  repoRoot: string,
+  docsDir: string,
+  schematic: string,
+  loaded?: LoadedSchematic,
+): Promise<DriftMismatch[]> {
   const mismatches: DriftMismatch[] = [];
   const schPath = path.join(repoRoot, schematic);
-  const symbols = await listSymbols(schPath);
+  const symbols = loaded ? symbolsFromLoaded(loaded) : await listSymbols(schPath);
   // A schematic with zero symbols is the bootstrap state: during the create
   // pipeline the docs legitimately lead the schematic (part-selection writes
   // BOM.md before any symbol exists), so comparing against an empty sheet
@@ -101,7 +107,7 @@ export async function checkDrift(repoRoot: string, docsDir: string, schematic: s
   const pinoutPath = path.join(repoRoot, docsDir, 'PINOUT.md');
   if (existsSync(pinoutPath)) {
     const pinoutMd = await readFile(pinoutPath, 'utf8');
-    const nets = await pinNets(schPath);
+    const nets = loaded ? pinNetsFromLoaded(loaded) : await pinNets(schPath);
     const netOf = new Map(nets.map((p) => [`${p.ref}:${p.pinNumber}`, p.net]));
     // If the doc has a Refdes/Pin table but no Net column, say so once and
     // explicitly, rather than silently checking nothing (a correct doc then
