@@ -13,6 +13,7 @@ import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
 import {
   runExportBom,
+  runExportCircuitJson,
   parseSupplier,
   parseBoards,
   parseSpares,
@@ -461,6 +462,27 @@ exportCmd
     } catch (err) {
       // ExportError carries an actionable message (bad flag, missing BOM, drift);
       // anything else is unexpected. Both exit non-zero with no stack trace.
+      console.error(err instanceof ExportError ? err.message : (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+exportCmd
+  .command('circuit-json')
+  .description('write a tscircuit circuit-json view of the drafted schematic (drafted sheets only)')
+  .option('--out <path>', 'repo-relative output path', 'outputs/circuit.json')
+  .action(async (opts: { out: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const res = await runExportCircuitJson({ repoRoot: repo, out: opts.out });
+      if (json) {
+        console.log(JSON.stringify(res, null, 2));
+      } else {
+        console.log(`wrote ${res.outPath} (${res.elementCount} element(s))`);
+      }
+      process.exit(0);
+    } catch (err) {
       console.error(err instanceof ExportError ? err.message : (err as Error).message);
       process.exit(1);
     }
