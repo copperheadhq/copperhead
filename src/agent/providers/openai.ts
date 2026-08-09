@@ -1,4 +1,5 @@
 import { DEFAULT_API_KEY_ENV, isLocalEndpoint } from '../../config.js';
+import type OpenAI from 'openai';
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn, ToolCall } from '../types.js';
 
 /** Pointing the provider at an OpenAI-compatible endpoint (design D1). */
@@ -13,6 +14,7 @@ export class OpenAIProvider implements Provider {
   readonly name: string;
   private readonly apiKey: string | undefined;
   private readonly baseURL: string | undefined;
+  private client: OpenAI | null = null;
 
   constructor(
     private readonly model = 'gpt-5',
@@ -40,13 +42,7 @@ export class OpenAIProvider implements Provider {
   }
 
   async chat(messages: Msg[], tools: ToolSchema[], opts: ChatOpts = {}): Promise<Turn> {
-    const { default: OpenAI } = await import('openai');
-    const client = new OpenAI({
-      // A local endpoint may legitimately have no key, but the client still
-      // wants a non-empty string, so send a placeholder it will never check.
-      apiKey: this.apiKey ?? 'no-key-required',
-      ...(this.baseURL ? { baseURL: this.baseURL } : {}),
-    });
+    const client = await this.getClient();
     const res = await client.chat.completions.create({
       model: this.model,
       max_completion_tokens: opts.maxTokens ?? 8192,
@@ -92,6 +88,19 @@ export class OpenAIProvider implements Provider {
         outputTokens: res.usage?.completion_tokens ?? 0,
       },
     };
+  }
+
+  private async getClient(): Promise<OpenAI> {
+    if (!this.client) {
+      const { default: OpenAICtor } = await import('openai');
+      this.client = new OpenAICtor({
+        // A local endpoint may legitimately have no key, but the client still
+        // wants a non-empty string, so send a placeholder it will never check.
+        apiKey: this.apiKey ?? 'no-key-required',
+        ...(this.baseURL ? { baseURL: this.baseURL } : {}),
+      });
+    }
+    return this.client;
   }
 }
 

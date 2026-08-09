@@ -1,5 +1,5 @@
-import { readSheetGeometry, type SheetGeometry, type Bounds } from './sexp.js';
-import { checkLegibility, type LegibilityReport } from './legibility.js';
+import { type SheetGeometry, type Bounds } from './sexp.js';
+import { checkLegibilityWithGeometry, type LegibilityReport } from './legibility.js';
 import type { LegibilityUserConfig } from '../config.js';
 
 /**
@@ -87,12 +87,11 @@ export interface ScoreOptions {
 }
 
 export async function scoreSchematic(rootSch: string, opts: ScoreOptions = {}): Promise<ScoreReport> {
-  const sheets = await readSheetGeometry(rootSch);
-  const legibility = await checkLegibility(rootSch, {
+  const { report, sheets } = await checkLegibilityWithGeometry(rootSch, {
     docsDir: opts.docsDir ?? null,
     ...(opts.config ? { config: opts.config } : {}),
   });
-  return scoreFromGeometry(sheets, legibility, opts.config);
+  return scoreFromGeometry(sheets, report, opts.config);
 }
 
 export function scoreFromGeometry(

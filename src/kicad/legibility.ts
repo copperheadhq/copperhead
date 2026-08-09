@@ -299,9 +299,12 @@ export interface CheckLegibilityOptions {
   config?: LegibilityUserConfig;
 }
 
-export async function checkLegibility(rootSch: string, opts: CheckLegibilityOptions = {}): Promise<LegibilityReport> {
+/** Run the checker on geometry already extracted from a schematic (no re-read). */
+export async function checkLegibilityFromGeometry(
+  sheets: SheetGeometry[],
+  opts: CheckLegibilityOptions = {},
+): Promise<LegibilityReport> {
   const { thresholds: th, severity } = resolveConfig(opts.config);
-  const sheets = await readSheetGeometry(rootSch);
   const captions = await loadCaptionNames(opts.docsDir ?? null);
 
   const disabled = LEGIBILITY_FAMILIES.filter((f) => severity[f] === 'off');
@@ -353,6 +356,21 @@ export async function checkLegibility(rootSch: string, opts: CheckLegibilityOpti
     suppressed,
     sheets: sheets.length,
   };
+}
+
+/** Load geometry once and return it alongside the legibility report for scoring reuse. */
+export async function checkLegibilityWithGeometry(
+  rootSch: string,
+  opts: CheckLegibilityOptions = {},
+): Promise<{ report: LegibilityReport; sheets: SheetGeometry[] }> {
+  const sheets = await readSheetGeometry(rootSch);
+  const report = await checkLegibilityFromGeometry(sheets, opts);
+  return { report, sheets };
+}
+
+export async function checkLegibility(rootSch: string, opts: CheckLegibilityOptions = {}): Promise<LegibilityReport> {
+  const { report } = await checkLegibilityWithGeometry(rootSch, opts);
+  return report;
 }
 
 function checkSheet(

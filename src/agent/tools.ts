@@ -6,8 +6,8 @@ import { resolveInRepo, isKicadFile } from '../util/paths.js';
 import { runErc, runDrc, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
-import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
-import { scoreSchematic, formatScore } from '../kicad/score.js';
+import { checkLegibility, checkLegibilityWithGeometry, formatLegibility } from '../kicad/legibility.js';
+import { scoreSchematic, scoreFromGeometry, formatScore } from '../kicad/score.js';
 import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
@@ -229,7 +229,7 @@ export const TOOLS: ToolDef[] = [
     schema: {
       name: 'edit_file',
       description:
-        'Exact-match anchored replace in an existing file. Requires a validated change proposal first (call propose_change then validate_change to unlock edits; both may be in the same reply, before this call). The anchor must be unique; widen it with surrounding lines if not. For renames, pass replace_all: true to replace every occurrence in one call.',
+        'Exact-match anchored replace in an existing file. Requires a validated change proposal first (call propose_change then validate_change; edit tools unlock on the next turn after validation passes). The anchor must be unique; widen it with surrounding lines if not. For renames, pass replace_all: true to replace every occurrence in one call.',
       parameters: {
         type: 'object',
         properties: {
@@ -297,7 +297,7 @@ export const TOOLS: ToolDef[] = [
     schema: {
       name: 'write_file',
       description:
-        'Create a new file (docs, outputs). Requires a validated change proposal first (propose_change then validate_change to unlock edits). Refuses to overwrite anything or to create KiCad files.',
+        'Create a new file (docs, outputs). Requires a validated change proposal first (propose_change then validate_change; edit tools unlock on the next turn after validation passes). Refuses to overwrite anything or to create KiCad files.',
       parameters: {
         type: 'object',
         properties: { path: { type: 'string' }, content: { type: 'string' } },
@@ -475,16 +475,14 @@ export const TOOLS: ToolDef[] = [
       // draft-check-score iteration costs one tool call, and the embedded
       // checker result drives the ledger obligation exactly like check_legibility
       const docsAbs = path.join(ctx.repoRoot, ctx.config.docs);
-      const leg = await checkLegibility(res.schematicPath, {
+      const legOpts = {
         docsDir: docsAbs,
         ...(ctx.config.legibility ? { config: ctx.config.legibility } : {}),
-      });
+      };
+      const { report: leg, sheets } = await checkLegibilityWithGeometry(res.schematicPath, legOpts);
       ctx.lastLegibility = leg.counts;
       ctx.ledger.onLegibilityResult(leg.counts.error);
-      const score = await scoreSchematic(res.schematicPath, {
-        docsDir: docsAbs,
-        ...(ctx.config.legibility ? { config: ctx.config.legibility } : {}),
-      });
+      const score = scoreFromGeometry(sheets, leg, ctx.config.legibility);
       ctx.lastScore = score.composite;
       return [formatSchematicDraftReport(res.report), formatLegibility(leg), formatScore(score)].join('\n');
     },
