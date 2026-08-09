@@ -2,7 +2,13 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseSexp, children, child, isList, type SexpNode, type Bounds } from '../sexp.js';
-import { symbolSearchDirs, findLibraryFile, findSymbolAcrossLibraries, closestSymbolNames } from '../symlib.js';
+import {
+  symbolSearchDirs,
+  findLibraryFile,
+  findSymbolAcrossLibraries,
+  closestSymbolNames,
+  SYM_CACHE_DIR,
+} from '../symlib.js';
 import { EMIT_VERSION, renameSymbolBlock } from '../emit.js';
 
 /**
@@ -15,7 +21,10 @@ import { EMIT_VERSION, renameSymbolBlock } from '../emit.js';
  * library drift stays visible rather than silently frozen.
  */
 
-export const SYM_CACHE_DIR = 'sym-lib-cache';
+/** Re-exported from `symlib.ts`, where it is canonical: `verifySchematicSymbols`
+ * needs the same directory name to find a project's vendored cache, and symlib
+ * cannot import this module without creating a cycle. */
+export { SYM_CACHE_DIR };
 
 /**
  * How many `(extends …)` hops to follow before treating a library as malformed.

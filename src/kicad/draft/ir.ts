@@ -202,6 +202,29 @@ export async function validateIntent(
         continue;
       }
       symbols.set(p.ref, sym);
+      // A power-port part passes every structural check and is then silently
+      // dropped: the engine synthesizes its own per-pin power symbols from each
+      // net's class and filters `isPower` parts out of every placement path, so
+      // the part is never placed, never given an endpoint, never added to
+      // `lib_symbols`, and never mentioned in the report (#212). The draft still
+      // returns ok, and the engine vendors the symbol on the way past, so the
+      // project accumulates a cached symbol for a part that was never drawn.
+      //
+      // Refused rather than noted: a model that writes `power:GND`, sees
+      // `ok: true`, and finds nothing in `notes` has no way to learn its mental
+      // model is wrong, so it keeps doing it. A finding is the channel that
+      // teaches. Recorded in `symbols` first so the group and BOM cross-checks
+      // below take their `isPower` skips and this stays ONE finding rather than
+      // three unrelated-looking ones.
+      if (sym.isPower) {
+        add(
+          `${p.ref}: "${p.libId}" is a power-port symbol, which the drafting engine supplies itself. ` +
+            `Remove ${p.ref} from "parts" (and from every net's "pins"): the engine draws a power symbol at ` +
+            `each pin of a power-class net automatically, rails up and grounds down, and synthesizes a ` +
+            `PWR_FLAG for any such net with no driving pin. Name the rail in "nets" instead, and set that ` +
+            `net's "kind" to "power" or "ground" if the inferred class is wrong.`,
+        );
+      }
     } catch (e) {
       if (e instanceof SymbolResolutionError) add(`${p.ref}: ${e.message}`);
       else throw e;

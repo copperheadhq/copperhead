@@ -47,6 +47,7 @@
 
 - [x] 6.1 Versioned IR schema (parts, connections, groups, no-connects, net kinds, hints) with TypeScript types; documented in docs/reference
 - [x] 6.2 Validation: lib_id resolution (reuse symlib), pin existence, minimum net endpoints, exactly-one-group per non-power part against SUBSYSTEMS.md, no-connect consistency, BOM.md cross-check (refdes present, value matching), unsupported-version refusal
+- [x] 6.2a Refuse a part resolving to a power-port symbol, naming `nets`/`kind` as the fix: the engine supplies power symbols per pin of every power-class net, so a model-authored one was accepted and then silently discarded by the placement passes (#212)
 - [x] 6.3 Validation failures as a numbered finding list in the `verify_symbols` shape; a failed draft never touches the schematic on disk
 - [x] 6.4 Unit tests: one failing fixture per validation rule, plus a clean fixture
 

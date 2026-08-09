@@ -93,27 +93,45 @@ export async function symbolSearchDirs(env = process.env, winRoot = 'C:/Program 
     // single fixed path here. Discovered below instead.
   ];
   const out: string[] = [];
-  // An env override is exclusive: a caller pinning KICAD_SYMBOL_DIR at an
-  // isolated directory (tests, a pinned library set) must get only that
-  // directory back, not the machine's stock install appended after it.
-  for (const dir of fromEnv.length ? fromEnv : defaults) {
+  // A DIRECTORY, not merely an existing path: `access` also succeeds on a
+  // regular file, and an override naming one would count as resolved, suppress
+  // the fallback below, and then satisfy no lookup at all, since every search
+  // joins `<lib>.kicad_sym` onto these entries.
+  const addIfPresent = async (dir: string): Promise<void> => {
     try {
-      await access(dir);
-      if (!out.includes(dir)) out.push(dir);
+      if ((await stat(dir)).isDirectory() && !out.includes(dir)) out.push(dir);
     } catch {
       // not present on this machine; skip
     }
-  }
-  // Windows: KiCad's own installer picks the version directory
-  // (`10.0`, `9.0`, `8.0`, ...), so no fixed path is ever correct. List
-  // `C:\Program Files\KiCad` and check each version folder instead. Sorted
-  // descending so a machine with more than one version prefers the newest.
-  // Skipped entirely when an env override is set: "env overrides win" means
-  // exactly that, not "env overrides win, plus whatever else this discovers"
-  // — a caller pointing KICAD_SYMBOL_DIR at an isolated directory (tests, a
-  // pinned library set) must get only that directory back.
+  };
+  // An env override is exclusive: a caller pinning KICAD_SYMBOL_DIR at an
+  // isolated directory (tests, a pinned library set) must get only that
+  // directory back, not the machine's stock install appended after it.
+  for (const dir of fromEnv) await addIfPresent(dir);
+  /**
+   * Exclusivity is earned by RESOLVING, not by being set (#212).
+   *
+   * A variable left behind by an uninstalled, upgraded, or relocated KiCad
+   * names no directory that exists. Honouring it there returned an EMPTY
+   * search path, and an empty search path is not "search nothing", it is
+   * "every symbol is absent": `search_symbols` answers "no installed symbol
+   * matches" for parts sitting in the stock library it never looked at,
+   * `symbol_pins` reports no libraries at all, and the dossier and the
+   * recovery fact-check both degrade to silence. Stage 3 then substitutes
+   * parts that never needed substituting.
+   *
+   * A stale override is a broken pin, not a deliberate one, so fall back to
+   * the standard locations. An override that points at a real directory still
+   * wins outright, which is the case the exclusivity rule exists to serve.
+   */
+  const envHeld = out.length > 0;
   const kicadRoot = winRoot;
-  if (fromEnv.length === 0) {
+  if (!envHeld) {
+    for (const dir of defaults) await addIfPresent(dir);
+    // Windows: KiCad's own installer picks the version directory
+    // (`10.0`, `9.0`, `8.0`, ...), so no fixed path is ever correct. List
+    // `C:\Program Files\KiCad` and check each version folder instead. Sorted
+    // descending so a machine with more than one version prefers the newest.
     try {
       const entries = await readdir(kicadRoot, { withFileTypes: true });
       const versions = entries
@@ -121,25 +139,108 @@ export async function symbolSearchDirs(env = process.env, winRoot = 'C:/Program 
         .map((e) => e.name)
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
       for (const version of versions) {
-        const dir = `${kicadRoot}/${version}/share/kicad/symbols`;
-        try {
-          await access(dir);
-          if (!out.includes(dir)) out.push(dir);
-        } catch {
-          // this version folder has no symbols dir; skip
-        }
+        await addIfPresent(`${kicadRoot}/${version}/share/kicad/symbols`);
       }
       // Some installs put share/ directly under the KiCad root with no
       // version directory; probe that layout after the versioned ones.
-      const flat = `${kicadRoot}/share/kicad/symbols`;
-      try {
-        await access(flat);
-        if (!out.includes(flat)) out.push(flat);
-      } catch {
-        // no non-versioned layout either; skip
-      }
+      await addIfPresent(`${kicadRoot}/share/kicad/symbols`);
     } catch {
       // C:\Program Files\KiCad doesn't exist on this machine (not Windows, or KiCad not installed here); skip
+    }
+  }
+  return out;
+}
+
+/**
+ * Directory name of a project's vendored symbol cache. Canonical here rather
+ * than in `draft/symsource.ts` (which re-exports it) so this module can find a
+ * cache without importing the drafting layer, which already imports this one.
+ */
+export const SYM_CACHE_DIR = 'sym-lib-cache';
+
+/**
+ * Files that mark a directory as a project root. `.git` is matched by existence
+ * rather than by type on purpose: in a linked worktree it is a FILE pointing at
+ * the real git dir, and a worktree is exactly where a review or a CI job reads a
+ * project from.
+ */
+const PROJECT_MARKERS = ['.git', '.copperhead'];
+
+/**
+ * How many directories above a schematic to search for the project root.
+ * `path.dirname` strictly shortens until it reaches the filesystem root, so the
+ * walk terminates on its own and this is a guard against a pathological path,
+ * not a tuning knob: it is set far past any real tree so that exhausting it is
+ * not a case real projects can reach.
+ */
+const MAX_PROJECT_WALK = 64;
+
+async function isProjectRoot(dir: string): Promise<boolean> {
+  for (const marker of PROJECT_MARKERS) {
+    try {
+      await stat(path.join(dir, marker));
+      return true;
+    } catch {
+      // marker absent; try the next one
+    }
+  }
+  return false;
+}
+
+/**
+ * Vendored symbol caches at or above a schematic's own directory, nearest
+ * first. A drafted project keeps `sym-lib-cache/` at its root, which is beside
+ * the schematic for a flat project and one or more levels up when the sheet
+ * lives in a subdirectory (the reference boards put it beside `reference/`),
+ * so the cache is discovered by walking up rather than assumed adjacent.
+ *
+ * The walk stops AT the project root (a directory holding `.git` or
+ * `.copperhead`), inclusive, and never above it. Without that anchor the search
+ * escaped the project entirely: a board nested under a directory that happened
+ * to hold a `sym-lib-cache/` adopted that foreign cache, and
+ * `verifySchematicSymbols` would then resolve a lib_id against another
+ * project's vendored copy and report clean where the library is in fact
+ * missing. A verification that can silently borrow someone else's evidence is
+ * worse than one that reports the gap.
+ *
+ * When no project root is found within `maxDepth`, the sheet is not inside an
+ * identifiable project, so nothing above its own directory can be attributed to
+ * it and only an adjacent cache counts. Every real copperhead project carries
+ * both markers (a git repo is required before any run starts, and the config
+ * lives in `.copperhead/`), so this fallback is for stray files, not for
+ * projects.
+ *
+ * That fallback is why the budget is generous rather than tight. Exhausting it
+ * inside a real project is indistinguishable from being outside one, and the
+ * result is not an error but a silent revert to the behaviour this whole
+ * function replaced: the project's cache goes unseen, every
+ * `copperhead_power:*` symbol fails to resolve, and `verify_symbols` returns to
+ * reporting confident unreachable findings (#212). A sheet buried deep in a
+ * monorepo must not quietly get the old bug back, so the default reaches any
+ * plausible tree and the bound exists only so a pathological path cannot spin.
+ */
+export async function vendoredCacheDirs(schPath: string, maxDepth = MAX_PROJECT_WALK): Promise<string[]> {
+  const start = path.dirname(path.resolve(schPath));
+  const levels: string[] = [];
+  let dir = start;
+  let anchored = false;
+  for (let depth = 0; depth <= maxDepth; depth++) {
+    levels.push(dir);
+    if (await isProjectRoot(dir)) {
+      anchored = true;
+      break;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // filesystem root
+    dir = parent;
+  }
+  const out: string[] = [];
+  for (const level of anchored ? levels : levels.slice(0, 1)) {
+    const candidate = path.join(level, SYM_CACHE_DIR);
+    try {
+      if ((await stat(candidate)).isDirectory()) out.push(candidate);
+    } catch {
+      // no cache at this level
     }
   }
   return out;
@@ -509,7 +610,9 @@ function schematicLibSymbols(root: SexpNode[]): { libId: string; pins: LibPin[] 
 }
 
 /**
- * Compare every lib_symbols entry in a schematic against the installed library.
+ * Compare every lib_symbols entry in a schematic against the installed library,
+ * falling back to the project's vendored cache for lib_ids no installed library
+ * provides (#212).
  * Returns one finding per divergence; an empty array means every resolvable
  * symbol matched. A part whose library is not installed is reported once (so
  * the model knows the check could not run for it) but never treated as a
@@ -519,7 +622,33 @@ export async function verifySchematicSymbols(
   schPath: string,
   env = process.env,
 ): Promise<{ findings: SymbolFinding[]; checked: number; skipped: number }> {
-  const dirs = await symbolSearchDirs(env);
+  /**
+   * Installed libraries first, the project's vendored cache appended AFTER
+   * (#212).
+   *
+   * The order is the whole design. This function exists to catch a
+   * `lib_symbols` entry whose pins have drifted from the real part, so
+   * resolving against the cache the entry was copied from would make it
+   * compare a file with itself and report clean forever. Appending instead
+   * means a stock lib_id still verifies against the stock library, while a
+   * lib_id no installed directory provides falls through to the vendored copy.
+   *
+   * That second case is what was broken: the engine replaces power nets with
+   * generated `copperhead_power:*` symbols and vendors them into the project,
+   * but this search never saw the cache, so every one failed to resolve and
+   * the cross-library fallback fuzzy-matched it to whatever stock name looked
+   * close. On the `ldo-demo` board that produced four confident, unreachable
+   * findings out of six parts, including `3V3` reported as a DC-DC converter
+   * and a Zener diode. Unreachable is the operative word: the IR exposes no
+   * lever for power-symbol lib_ids and `edit_file` is refused on a drafted
+   * sheet, so stage 4 was handed "issues to reconcile" with no legal
+   * resolution, which is the deadlock shape of #163.
+   *
+   * Generalizing past power symbols is deliberate: any library a project
+   * vendors now verifies, instead of only the namespace the engine happens to
+   * own today.
+   */
+  const dirs = [...(await symbolSearchDirs(env)), ...(await vendoredCacheDirs(schPath))];
   const root = parseSexp(await readFile(schPath, 'utf8'))[0];
   const findings: SymbolFinding[] = [];
   if (root === undefined || !isList(root)) return { findings, checked: 0, skipped: 0 };
@@ -543,8 +672,11 @@ export async function verifySchematicSymbols(
         libId: entry.libId,
         kind: 'no-symbol',
         detail: resolved.candidates.length
-          ? `"${entry.libId}" does not exist in the installed library — closest real symbols: ${resolved.candidates.join(', ')}. Use one of these lib_ids (KiCad renames symbols across versions).`
-          : `"${entry.libId}" does not exist in the installed library and no close match was found; confirm the lib_id.`,
+          // "installed or vendored": since #212 this search also covers the
+          // project's own sym-lib-cache, so a library found there would make
+          // "the installed library" name the wrong file to go fix.
+          ? `"${entry.libId}" does not exist in the installed or vendored symbol library. Closest real symbols: ${resolved.candidates.join(', ')}. Use one of these lib_ids (KiCad renames symbols across versions).`
+          : `"${entry.libId}" does not exist in the installed or vendored symbol library and no close match was found; confirm the lib_id.`,
       });
       continue;
     }
