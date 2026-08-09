@@ -137,16 +137,42 @@ export function buildCircuitJson(validated: ValidatedIntent, model: PlacementMod
       connected_source_port_ids: [...net.pins].sort(compareRef).map((p) => portId.get(p)!),
       connected_source_net_ids: [id],
     });
-    const edges = model.wires
-      .filter((w) => w.net === net.name)
-      .sort((a, b) => a.index - b.index)
-      .map((w) => ({ from: toCj(w.x1, w.y1), to: toCj(w.x2, w.y2) }));
-    if (edges.length) {
+    // One schematic_trace per CONTIGUOUS wire chain, not per net: renderers
+    // (circuit-to-svg, circuitjson.com) draw a trace's edges as one connected
+    // route, so a net's disjoint branches must be separate traces or they
+    // render as phantom diagonals between branch endpoints.
+    const wires = model.wires.filter((w) => w.net === net.name).sort((a, b) => a.index - b.index);
+    const parent = new Map<string, string>();
+    const find = (k: string): string => {
+      let r = k;
+      while (parent.get(r) !== r) r = parent.get(r)!;
+      for (let c = k; c !== r; ) {
+        const next = parent.get(c)!;
+        parent.set(c, r);
+        c = next;
+      }
+      return r;
+    };
+    const union = (a: string, b: string) => {
+      if (!parent.has(a)) parent.set(a, a);
+      if (!parent.has(b)) parent.set(b, b);
+      parent.set(find(a), find(b));
+    };
+    const endKey = (x: number, y: number) => `${n4(x)},${n4(y)}`;
+    for (const w of wires) union(endKey(w.x1, w.y1), endKey(w.x2, w.y2));
+    const chains = new Map<string, typeof wires>();
+    for (const w of wires) {
+      const root = find(endKey(w.x1, w.y1));
+      const list = chains.get(root);
+      if (list) list.push(w);
+      else chains.set(root, [w]);
+    }
+    for (const chain of [...chains.values()].sort((a, b) => a[0]!.index - b[0]!.index)) {
       schematicTraces.push({
         type: 'schematic_trace',
         schematic_trace_id: `schematic_trace_${schematicTraces.length}`,
         source_trace_id: traceId,
-        edges,
+        edges: chain.map((w) => ({ from: toCj(w.x1, w.y1), to: toCj(w.x2, w.y2) })),
         junctions: [],
       });
     }
