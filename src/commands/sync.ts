@@ -35,6 +35,14 @@ export interface SyncViolationItem {
   kind: 'requirement-violation' | 'schematic-missing';
   description: string;
   governedBy: string;
+  /**
+   * The configured schematic path, on a `schematic-missing` item. Carried as
+   * data rather than only inside `description`, so `sync --json` answers "is
+   * the configured schematic missing, and where" the same way `check --json`
+   * does with its own `schematicMissing` field. Both halves of #188 should
+   * present the same fact the same way.
+   */
+  schematic?: string;
 }
 
 export interface SyncReport {
@@ -58,6 +66,7 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
       kind: 'schematic-missing',
       description: `schematic configured at ${config.schematic} but the file is missing, so drift and constraint checks did not run`,
       governedBy: '.copperhead/config.json',
+      schematic: config.schematic,
     });
   }
 
@@ -178,11 +187,23 @@ export function formatSyncReport(report: SyncReport): string {
     }
   }
   if (report.violations.length) {
-    lines.push(`${report.violations.length} REQUIREMENT VIOLATION(S) (not auto-resolved; human decision needed):`);
+    // Widened from "REQUIREMENT VIOLATION(S)": a file that is absent from disk
+    // is a check that could not run, not a requirement violation, and AC-7.3
+    // defines that term narrowly. What the whole list does share is that none
+    // of it is auto-resolved, so that is what the heading now says.
+    lines.push(`${report.violations.length} NOT AUTO-RESOLVED (human decision needed):`);
     for (const v of report.violations) {
-      lines.push(`- ${v.description}`);
+      lines.push(`- [${v.kind}] ${v.description}`);
       lines.push(`    governed by: ${v.governedBy}`);
     }
+  }
+  // Any violation exits before the resolve phase, so the resolvable items above
+  // are detected but not acted on. Say so: "reported but not fixed" reads like a
+  // failure unless the user knows it is deferred and why.
+  if (report.violations.length && report.resolvable.length) {
+    lines.push(
+      `note: the ${report.resolvable.length} resolvable item(s) above are deferred, not unfixable. sync stops before the resolve phase while anything is unresolved above; clear that first, then re-run.`,
+    );
   }
   return lines.join('\n');
 }

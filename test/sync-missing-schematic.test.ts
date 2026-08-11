@@ -18,7 +18,10 @@ import { tempFixtureRepo } from './helpers.js';
 
 const FIXTURE_SCH = 'hardware/open-key.kicad_sch';
 
-async function syncWith(schematic: string | null, opts: { removeFile?: boolean } = {}): Promise<SyncReport> {
+async function syncWith(
+  schematic: string | null,
+  opts: { removeFile?: boolean; dropDecisions?: boolean } = {},
+): Promise<SyncReport> {
   const { repo, cleanup } = await tempFixtureRepo();
   try {
     await runInit({ repoRoot: repo });
@@ -29,6 +32,9 @@ async function syncWith(schematic: string | null, opts: { removeFile?: boolean }
     );
     if (opts.removeFile && schematic) {
       await rm(path.join(repo, schematic), { force: true });
+    }
+    if (opts.dropDecisions) {
+      await rm(path.join(repo, 'docs', 'DECISIONS.md'), { force: true });
     }
     return await syncVerify(repo);
   } finally {
@@ -80,5 +86,41 @@ describe('sync with a configured but missing schematic', () => {
     const report = await syncWith(FIXTURE_SCH);
 
     expect(report.violations.filter((v) => v.kind === 'schematic-missing')).toEqual([]);
+  });
+});
+
+describe('how the missing schematic is presented', () => {
+  it('carries the path as data, not only inside the description', async () => {
+    const report = await syncWith('hardware/moved-board.kicad_sch');
+    const item = report.violations.find((v) => v.kind === 'schematic-missing');
+
+    // `check --json` exposes `schematicMissing`; `sync --json` should not make a
+    // consumer parse a sentence to learn the same fact
+    expect(item?.schematic).toBe('hardware/moved-board.kicad_sch');
+  });
+
+  it('is not called a requirement violation', async () => {
+    const report = await syncWith('hardware/moved-board.kicad_sch');
+    const text = formatSyncReport(report);
+
+    // AC-7.3 uses that term for a design fact breaking a budget or a spec
+    expect(text).not.toContain('REQUIREMENT VIOLATION');
+    expect(text).toContain('NOT AUTO-RESOLVED');
+    expect(text).toContain('[schematic-missing]');
+  });
+
+  it('says the resolvable items are deferred rather than unfixable', async () => {
+    // dropping a transparency doc gives a coverage item alongside the violation
+    const report = await syncWith('hardware/moved-board.kicad_sch', { dropDecisions: true });
+    expect(report.resolvable.length).toBeGreaterThan(0);
+
+    const text = formatSyncReport(report);
+    expect(text).toContain('deferred, not unfixable');
+  });
+
+  it('does not add the deferred note when there is nothing deferred', async () => {
+    const report = await syncWith('hardware/moved-board.kicad_sch');
+    expect(report.resolvable).toEqual([]);
+    expect(formatSyncReport(report)).not.toContain('deferred');
   });
 });
