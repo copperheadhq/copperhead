@@ -53,6 +53,25 @@ describe('BOM parsing (supplier-bom-export)', () => {
   it('returns no rows when there is no Refdes-headed table', () => {
     expect(parseBom('# nothing here\n\njust prose\n')).toEqual([]);
   });
+
+  it('ignores supporting tables and only parses the canonical parts table', () => {
+    const bomWithMultipleTables = `# Bill of Materials
+
+| Version | Date | Author | Description |
+|---|---|---|---|
+| 0.1 | 2026-07-26 | Chirag | Initial draft |
+
+| Refdes | Value | Footprint | MPN | Manufacturer | LCSC | Rationale |
+|---|---|---|---|---|---|---|
+| R1 | 10k | Resistor_SMD:R_0603_1608Metric | RC0603FR-0710KL | Yageo | C25804 | pullup |
+
+| Net | Description |
+|---|---|
+| GND | Power ground |
+`;
+    const rows = parseBom(bomWithMultipleTables);
+    expect(rows.map((r) => r.refdes)).toEqual(['R1']);
+  });
 });
 
 describe('quantity arithmetic (supplier-bom-export)', () => {

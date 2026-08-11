@@ -73,8 +73,8 @@
 - [x] 8.2 Implement --dry-run: propose diff, write nothing (AC-3.9)
 - [x] 8.3 Structured commit message (`copperhead: <request>` + edits/verification summary)
 - [x] 8.4 Integration test AC-3.1 (net rename): propagation to docs, ERC 0, one commit, diff locality < 5% lines (AC-3.7)
-- [ ] 8.5 Integration test AC-3.2 (RTC-capable pin move): strapping table consulted in transcript, schematic/PINOUT agree
-- [ ] 8.6 Integration test AC-3.3 (add RGB LED): unique refdes, valid footprint, UNVERIFIED BOM row with rationale
+- [x] 8.5 Integration test AC-3.2 (RTC-capable pin move): strapping table consulted in transcript, schematic/PINOUT agree
+- [x] 8.6 Integration test AC-3.3 (add RGB LED): unique refdes, valid footprint, UNVERIFIED BOM row with rationale
 - [x] 8.7 Integration test AC-3.4 (budget refusal): 100kΩ pullup refused citing 25 µA budget — the money demo
 - [x] 8.8 Integration tests AC-3.5/3.6 (repair loop converges; rollback leaves tree byte-identical)
 - [ ] 8.9 Provider parity: AC-3.1 green on both --model gpt-5 and --model claude (AC-3.10)
@@ -96,11 +96,11 @@
 - [x] 10.2 Implement `sync --dry-run`: print the full report (doc, claim, actual, proposed resolution), write nothing (AC-7.4)
 - [x] 10.3 Implement the resolve phase: spec-gated agent run seeded with the report, truth precedence (KiCad = as-built facts, specs/budgets = requirements), single commit with DECISIONS/CHANGELOG entries (AC-7.1, AC-7.2)
 - [x] 10.4 Implement violation flagging: inconsistencies that imply a requirement violation are reported with both sides and the governing spec, never rewritten, exit non-zero (AC-7.3)
-- [ ] 10.5 Tests: doc-drift fixture resolved then `check` clean; dual-write gap repaired both directions; violation fixture flagged not rewritten; clean repo no-op and double-run idempotence (AC-7.5)
+- [x] 10.5 Tests: doc-drift fixture resolved then `check` clean; dual-write gap repaired both directions; violation fixture flagged not rewritten; clean repo no-op and double-run idempotence (AC-7.5)
 
 ## 11. Submission readiness
 
 - [ ] 11.1 README quickstart (clone → npm i -g . → init/do/check on fixture) verified on a clean machine (AC-6.1)
-- [ ] 11.2 Full-tree secret grep in CI/test teardown: no `sk-[A-Za-z0-9_-]{20,}` anywhere incl. .copperhead/runs/ (AC-4.1)
+- [x] 11.2 Full-tree secret grep in CI/test teardown: no `sk-[A-Za-z0-9_-]{20,}` anywhere incl. .copperhead/runs/ (AC-4.1)
 - [ ] 11.3 Record one full demo run (screen capture) and export the 1-minute video (AC-6.2, AC-6.3)
 - [ ] 11.4 Live-verify the three pitch demos on the demo machine: AC-3.4, AC-3.2, AC-3.1 (AC-6.4)

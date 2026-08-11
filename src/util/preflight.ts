@@ -23,19 +23,20 @@ export function formatPreflightFailure(reason: string, why: string, remedy: stri
   return [reason, '', `why it failed: ${why}`, 'to fix:', ...steps].join('\n');
 }
 
-export function isNotFoundError(err: any): boolean {
-  if (!err) return false;
-  if (err.code === 'ENOENT') return true;
+export function isNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const error = err as Record<string, any>;
+  if (error.code === 'ENOENT') return true;
   if (process.platform === 'win32') {
-    const msg = String(err.stderr || err.message || '');
-    if (err.exitCode === 9009) {
+    const msg = String(error.stderr || error.message || '');
+    if (error.exitCode === 9009) {
       return (
         msg.includes('is not recognized') ||
         msg.includes('cannot find the path specified')
       );
     }
-    if (err.exitCode === 1) {
-      return msg.includes('is not recognized');
+    if (error.exitCode === 1) {
+      return /^'[^']+' is not recognized as an internal or external command/m.test(msg);
     }
   }
   return false;

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { PassThrough } from 'node:stream';
+import os from 'node:os';
 import {
   parseSlash,
   runRepl,
@@ -203,7 +204,7 @@ describe('repl chrome', () => {
   it('shortens home paths and keeps banner / help readable', () => {
     setColorEnabled(false);
     process.env.COPPERHEAD_NO_ANIM = '1';
-    expect(shortPath(`${process.env.HOME}/OpenSource/circuits/copperhead`)).toMatch(/^~/);
+    expect(shortPath(path.join(os.homedir(), 'OpenSource/circuits/copperhead'))).toMatch(/^~/);
     const text = banner({
       repoRoot: '/tmp/demo-board',
       model: 'cursor',
@@ -473,6 +474,9 @@ describe('session log file', () => {
     const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-repl-log-'));
     try {
       const { input, output } = fakeTty();
+      let requestDone!: () => void;
+      const requestFinished = new Promise<void>((r) => { requestDone = r; });
+
       const done = runRepl({
         repoRoot: repo,
         model: 'gpt-5',
@@ -484,13 +488,15 @@ describe('session log file', () => {
         output,
         runRequest: vi.fn(async (_req: string, log?: (l: string) => void) => {
           log?.('leaked sk-SECRET_KEY_123 in output');
+          requestDone();
           return { outcome: 'success' as const };
         }),
       });
       await new Promise((r) => setTimeout(r, 30));
-      input.write('do the thing\n');
-      await new Promise((r) => setTimeout(r, 30));
-      input.write('/quit\n');
+      input.write('do the thing\r\n');
+      await requestFinished;
+      await new Promise((r) => setTimeout(r, 50));
+      input.write('/quit\r\n');
       await done;
 
       const runsDir = path.join(repo, '.copperhead', 'runs');
@@ -523,6 +529,9 @@ describe('session log file', () => {
     ];
     try {
       const { input, output } = fakeTty();
+      let requestDone!: () => void;
+      const requestFinished = new Promise<void>((r) => { requestDone = r; });
+
       const done = runRepl({
         repoRoot: repo,
         model: 'gpt-5',
@@ -534,13 +543,15 @@ describe('session log file', () => {
         output,
         runRequest: vi.fn(async (_req: string, log?: (l: string) => void) => {
           for (const s of secrets) log?.(`tool output: ${s} trailing`);
+          requestDone();
           return { outcome: 'success' as const };
         }),
       });
       await new Promise((r) => setTimeout(r, 30));
-      input.write('publish it\n');
-      await new Promise((r) => setTimeout(r, 30));
-      input.write('/quit\n');
+      input.write('publish it\r\n');
+      await requestFinished;
+      await new Promise((r) => setTimeout(r, 50));
+      input.write('/quit\r\n');
       await done;
 
       const runsDir = path.join(repo, '.copperhead', 'runs');

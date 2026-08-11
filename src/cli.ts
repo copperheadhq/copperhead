@@ -19,6 +19,7 @@ import {
   ExportError,
 } from './commands/export.js';
 import { DEFAULT_BOARDS, DEFAULT_SPARES } from './kicad/bom-export.js';
+import { runVerifyParts, VerificationError } from './commands/verify.js';
 import { runAgentLoop, type BudgetExhaustedStats } from './agent/loop.js';
 import { makeRenderer } from './agent/render.js';
 import { kicadCliVersion } from './kicad/cli.js';
@@ -435,13 +436,27 @@ exportCmd
   .option('--boards <n>', 'number of boards to order', String(DEFAULT_BOARDS))
   .option('--spares <percent>', 'spare parts percentage', String(DEFAULT_SPARES))
   .option('--include-unverified', 'include UNVERIFIED rows that carry an MPN (never MPN-less rows)')
-  .action(async (opts: { supplier: string; boards: string; spares: string; includeUnverified?: boolean }) => {
+  .option('--verify', 'run catalog verification on all BOM MPNs first')
+  .action(async (opts: { supplier: string; boards: string; spares: string; includeUnverified?: boolean; verify?: boolean }) => {
     const repo = repoOf(program.opts());
     const json = Boolean(program.opts().json);
     try {
       const supplier = parseSupplier(opts.supplier);
       const boards = parseBoards(opts.boards);
       const spares = parseSpares(opts.spares);
+      
+      if (opts.verify) {
+        const verifyRes = await runVerifyParts({
+          repoRoot: repo,
+          strict: false,
+          log: json ? undefined : (s) => console.error(s),
+        });
+        if (!verifyRes.ok) {
+          console.error('BOM verification failed. Export aborted.');
+          process.exit(1);
+        }
+      }
+
       const res = await runExportBom({
         repoRoot: repo,
         supplier,
@@ -462,6 +477,31 @@ exportCmd
       // ExportError carries an actionable message (bad flag, missing BOM, drift);
       // anything else is unexpected. Both exit non-zero with no stack trace.
       console.error(err instanceof ExportError ? err.message : (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('verify-parts')
+  .description('verify BOM MPNs against LCSC distributor catalog')
+  .option('--update', 'write resolved LCSC part numbers back to BOM.md')
+  .option('--strict', 'fail if any part is out of stock')
+  .action(async (opts: { update?: boolean; strict?: boolean }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const res = await runVerifyParts({
+        repoRoot: repo,
+        update: opts.update ?? false,
+        strict: opts.strict ?? false,
+        log: json ? undefined : (s) => console.log(s),
+      });
+      if (json) {
+        console.log(JSON.stringify(res, null, 2));
+      }
+      process.exit(res.ok ? 0 : 1);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
       process.exit(1);
     }
   });

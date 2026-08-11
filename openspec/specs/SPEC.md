@@ -270,6 +270,16 @@ copperhead check          (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
 
+copperhead verify-parts [--strict] [--update]
+    Opt-in, networked part verification command. Queries distributor and catalog
+    APIs (LCSC/JLCPCB) to validate Manufacturer Part Numbers (MPNs) in BOM.md
+    against real stock/catalog databases. `--strict` fails on missing/out-of-stock
+    parts; `--update` writes resolved LCSC part numbers back into docs/BOM.md.
+
+copperhead export bom [--supplier jlcpcb|pcbway] [--verify]
+    Export supplier-formatted BOM CSV from KiCad project files and docs/BOM.md.
+    Optional `--verify` runs inline networked part verification prior to export.
+
 copperhead sync [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs
     schematic, constraints.json vs docs and openspec specs, PINOUT.md vs
@@ -404,7 +414,7 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 ## 7. Safety rails
 
 - Refuse to run `do` or `repl` on a dirty git tree (offer `--allow-dirty`, whose snapshot pairs a `git stash create` object for tracked changes with a tree object for untracked files, so the rollback restores both rather than letting `git clean` delete what the stash never captured). An untracked file that exists but cannot be read refuses the run by name: it cannot be snapshotted, and the rollback would delete it regardless, so proceeding would break exactly the promise `--allow-dirty` makes. Untracked paths that vanish before the snapshot is taken are skipped rather than refused
-- All file tools sandboxed to repo root; no network tools in Phase 1
+- All file tools sandboxed to repo root; no network tools in Phase 1 (except the opt-in `verify-parts` command)
 - `.env` in `.gitignore` from first commit; keys only via env vars — never written to any file, transcript, or commit
 - Transcripts in `.copperhead/runs/` redact anything matching `sk-[A-Za-z0-9_-]+`
 - The Codex CLI's native read access and `~/.codex/sessions/` logs are outside Copperhead's enforcement/redaction boundary; the Codex path documents this host-local exposure explicitly

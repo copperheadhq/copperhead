@@ -101,6 +101,9 @@ describe('kicad-cli binary resolution', () => {
     const bundle = path.join(dir, 'KiCad.app', 'Contents', 'MacOS', 'kicad-cli');
     await mkdir(path.dirname(bundle), { recursive: true });
     await writeFile(bundle, '#!/bin/sh\necho "9.0.1"\n', 'utf8');
+    if (process.platform === 'win32') {
+      await writeFile(bundle + '.cmd', '@echo 9.0.1\n', 'utf8');
+    }
     await chmod(bundle, 0o755);
     setKicadFallbackBinaries([path.join(dir, 'absent', 'kicad-cli'), bundle]);
     const savedPath = process.env.PATH;
@@ -124,10 +127,16 @@ describe('kicad-cli binary resolution', () => {
     await mkdir(onPath, { recursive: true });
     const pathBinary = path.join(onPath, 'kicad-cli');
     await writeFile(pathBinary, '#!/bin/sh\necho "8.0.4"\n', 'utf8');
+    if (process.platform === 'win32') {
+      await writeFile(pathBinary + '.cmd', '@echo 8.0.4\n', 'utf8');
+    }
     await chmod(pathBinary, 0o755);
 
     const override = path.join(dir, 'custom-kicad'); // deliberately not "kicad-cli"
     await writeFile(override, '#!/bin/sh\necho "9.9.9"\n', 'utf8');
+    if (process.platform === 'win32') {
+      await writeFile(override + '.cmd', '@echo 9.9.9\n', 'utf8');
+    }
     await chmod(override, 0o755);
 
     setKicadFallbackBinaries([]);
@@ -136,7 +145,11 @@ describe('kicad-cli binary resolution', () => {
     try {
       process.env.COPPERHEAD_KICAD_CLI = override;
       expect(resolveKicadCli()).toBe(override);
+      expect(await kicadCliVersion()).toBe('9.9.9'); // Confirm it executes the override successfully
       await rm(override, { force: true });
+      if (process.platform === 'win32') {
+        await rm(override + '.cmd', { force: true });
+      }
 
       // An explicit override that vanished must not silently fall back, even
       // though the PATH binary right there would have answered.

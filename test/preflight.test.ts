@@ -234,12 +234,22 @@ describe('isNotFoundError helper', () => {
         stderr: "'kicad-cli' is not recognized as an internal or external command"
       })).toBe(true);
 
+      expect(isNotFoundError({
+        exitCode: 9009,
+        stderr: 'The system cannot find the path specified.',
+      })).toBe(true);
+
 
 
       expect(isNotFoundError({
         exitCode: 1,
         stderr: "'openspec' is not recognized as an internal or external command, operable program or batch file."
       })).toBe(true);
+
+      expect(isNotFoundError({
+        exitCode: 1,
+        stderr: 'The file format is not recognized.'
+      })).toBe(false);
 
       // Negative cases
       expect(isNotFoundError({

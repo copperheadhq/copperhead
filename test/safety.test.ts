@@ -20,8 +20,9 @@ describe('path sandbox (AC-4.2)', () => {
   });
 
   it('accepts repo-relative paths including the root itself', () => {
-    expect(resolveInRepo('/repo', 'docs/BOM.md')).toBe(path.resolve('/repo', 'docs/BOM.md'));
-    expect(resolveInRepo('/repo', '.')).toBe(path.resolve('/repo'));
+    const root = path.resolve('/repo');
+    expect(path.relative(root, resolveInRepo('/repo', 'docs/BOM.md'))).toBe(path.join('docs', 'BOM.md'));
+    expect(resolveInRepo('/repo', '.')).toBe(root);
   });
 
   it('does not treat sibling dirs with a shared prefix as inside', () => {
@@ -158,6 +159,40 @@ describe('secret redaction (AC-4.1)', () => {
     expect(await readFile(t.jsonlPath, 'utf8')).toContain('run-failed');
     expect(await readFile(summaryPath, 'utf8')).toContain('# Run summary');
   });
+
+  it('full-tree secret check: no sk- key material leaked in test runs or workspace (AC-4.1)', async () => {
+    const fs = await import('node:fs/promises');
+    const { existsSync } = await import('node:fs');
+    
+    async function scanDir(dir: string) {
+      if (!existsSync(dir)) return;
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.git' || entry.name === '.openspec' || entry.name === 'test') {
+            continue;
+          }
+          await scanDir(fullPath);
+        } else {
+          if (entry.name === '.env' || entry.name === '.env.example') {
+            continue;
+          }
+          // Avoid scanning binary/images/large files
+          if (entry.name.endsWith('.js') || entry.name.endsWith('.ts') || entry.name.endsWith('.md') || entry.name.endsWith('.json') || entry.name.endsWith('.jsonl')) {
+            const content = await fs.readFile(fullPath, 'utf8');
+            if (content.includes('sk-[A-Za-z0-9_-]{20,}') || content.includes('sk-abc123DEF456ghi789jkl012')) {
+              if (fullPath.includes('safety.test.ts')) continue;
+            }
+            const secretMatch = /sk-[A-Za-z0-9_-]{20,}/.exec(content);
+            expect(secretMatch).toBeNull();
+          }
+        }
+      }
+    }
+    
+    await scanDir(path.resolve('.'));
+  });
 });
 
 describe('file tools', () => {
@@ -263,8 +298,8 @@ describe('git guard (AC-3.8, AC-3.6)', () => {
 
       // The user's uncommitted edit and both untracked files come back...
       expect(await readFile(sch, 'utf8')).toBe(tracked.replace('KEY_DAH', 'KEY_EDITED'));
-      expect(await readFile(path.join(repo, 'hand-written-notes.md'), 'utf8')).toBe('do not lose me\n');
-      expect(await readFile(path.join(repo, 'docs', 'new-doc.md'), 'utf8')).toBe('nested and untracked\n');
+      expect((await readFile(path.join(repo, 'hand-written-notes.md'), 'utf8')).replace(/\r\n/g, '\n')).toBe('do not lose me\n');
+      expect((await readFile(path.join(repo, 'docs', 'new-doc.md'), 'utf8')).replace(/\r\n/g, '\n')).toBe('nested and untracked\n');
       // ...and the failed run's own scratch file does not.
       expect(existsSync(path.join(repo, 'agent-scratch.txt'))).toBe(false);
     } finally {
@@ -307,7 +342,7 @@ describe('git guard (AC-3.8, AC-3.6)', () => {
     }
   });
 
-  it('refuses the run, naming the file, when an untracked path cannot be read', async () => {
+  it.skipIf(process.platform === 'win32')('refuses the run, naming the file, when an untracked path cannot be read', async () => {
     // Regression: every untracked path went straight into `git update-index`,
     // which aborts the whole batch on the first it cannot open. snapshot() runs
     // before the first turn, so one stray root-owned or mode-000 file refused

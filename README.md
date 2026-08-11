@@ -167,6 +167,21 @@ copperhead export bom --supplier mouser --spares 15     # Mouser cart CSV, 15% s
 
 `docs/BOM.md` may carry optional `Manufacturer` and `LCSC` columns beyond the base `Refdes | Value | Footprint | MPN | Rationale`; the exporter matches columns by header, so add them when you want them populated in supplier files; `init` scaffolds the base columns only. Only *appending* columns is safe: keep `Refdes | Value | Footprint` first and in that order, because the drift check (`check`/`sync`, which the exporter gates on) reads those three by position, so reordering them makes it compare the wrong cells and refuse the export with a spurious drift message.
 
+### Verification (`verify-parts`)
+
+`copperhead verify-parts` is an opt-in networked command that verifies BOM Manufacturer Part Numbers (MPNs) against real distributor catalogs (such as LCSC/JLCPCB via the public `jlcsearch` API).
+
+```bash
+copperhead verify-parts           # Query all BOM MPNs, report RESOLVED/NO STOCK/NOT FOUND
+copperhead verify-parts --update  # Write resolved LCSC part numbers back to BOM.md
+copperhead verify-parts --strict  # Fail (exit code 1) if any part is out of stock
+copperhead export bom --verify    # Verify catalog status inline before exporting
+```
+
+- `--update` automatically rewrites `docs/BOM.md` LCSC column values with the resolved LCSC code (e.g. `C25804`) for parts that exist in the catalog.
+- `--strict` fails the verification run if any part in the BOM is out of stock.
+- `--verify` runs verification inline during export. If any part fails verification, the export aborts.
+
 Nothing is a black box: decisions land in an append-only `docs/DECISIONS.md`, every run writes a human-readable summary next to its transcript, and a per-run `docs/CHANGELOG.md` narrates the design history.
 
 ## What it is not

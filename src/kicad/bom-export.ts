@@ -1,4 +1,4 @@
-import { parseMarkdownTables, type TableRow } from '../memory/bom-table.js';
+import { parseMarkdownTables, parseCanonicalTables, type TableRow } from '../memory/bom-table.js';
 
 /**
  * Supplier-format BOM export (capability supplier-bom-export). Deterministic,
@@ -38,7 +38,7 @@ export interface BomRow {
 
 // Header aliases → canonical field. Matched after normalizing a header cell to
 // lowercase alphanumerics, so "LCSC Part #" and "lcsc_part" both hit `lcsc`.
-const HEADER_ALIASES: Record<string, keyof Pick<BomRow, 'refdes' | 'value' | 'footprint' | 'mpn' | 'manufacturer' | 'lcsc'>> = {
+export const HEADER_ALIASES: Record<string, keyof Pick<BomRow, 'refdes' | 'value' | 'footprint' | 'mpn' | 'manufacturer' | 'lcsc'>> = {
   refdes: 'refdes',
   ref: 'refdes',
   designator: 'refdes',
@@ -60,7 +60,7 @@ const HEADER_ALIASES: Record<string, keyof Pick<BomRow, 'refdes' | 'value' | 'fo
   lcscpartnumber: 'lcsc',
 };
 
-const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+export const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // MPN cells that mean "no orderable part number yet". `UNVERIFIED` is the
 // init/scaffold placeholder (src/memory/scaffold.ts writes it into the MPN
@@ -83,10 +83,11 @@ const UNVERIFIED_RE = /\bUNVERIFIED\b/i;
  * drift message. Keep the base three columns first and in order; only append.
  */
 export function parseBom(md: string): BomRow[] {
-  const tableRows = parseMarkdownTables(md);
-  const headerIdx = tableRows.findIndex((r) => r.cells.some((c) => HEADER_ALIASES[norm(c)] === 'refdes'));
-  const header = headerIdx === -1 ? undefined : tableRows[headerIdx];
-  if (!header) return [];
+  const tables = parseCanonicalTables(md);
+  const targetTable = tables.find((t) => t.header.cells.some((c) => HEADER_ALIASES[norm(c)] === 'refdes'));
+  if (!targetTable) return [];
+
+  const header = targetTable.header;
   const col: Partial<Record<keyof BomRow, number>> = {};
   header.cells.forEach((c, i) => {
     const field = HEADER_ALIASES[norm(c)];
@@ -100,7 +101,7 @@ export function parseBom(md: string): BomRow[] {
   };
 
   const rows: BomRow[] = [];
-  for (const row of tableRows.slice(headerIdx + 1)) {
+  for (const row of targetTable.rows) {
     const refdes = at(row, 'refdes');
     if (!refdes) continue; // blank line / stray row
     const mpn = at(row, 'mpn');

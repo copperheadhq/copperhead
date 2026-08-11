@@ -5,7 +5,6 @@ import path from 'node:path';
 import { execa } from 'execa';
 import { runAgentLoop } from '../src/agent/loop.js';
 import { runInit } from '../src/memory/scaffold.js';
-import { toolSearch } from '../src/agent/filetools.js';
 import { saveConstraint } from '../src/memory/constraints.js';
 import { tempFixtureRepo } from './helpers.js';
 
@@ -146,6 +145,51 @@ for (const { model, key } of providers) {
     );
 
     it(
+      'AC-3.2: RTC-capable pin move consults strapping table and synchronizes schematic and PINOUT.md',
+      async () => {
+        const { repo, cleanup } = await setupRepo();
+        try {
+          const res = await runAgentLoop({
+            repoRoot: repo,
+            request: 'move KEY_DAH to a free RTC-capable pin that is not a strapping pin',
+            model,
+            log: () => {},
+          });
+          expect(res.outcome).toBe('success');
+
+          const pinout = await readFile(path.join(repo, 'docs', 'PINOUT.md'), 'utf8');
+          expect(pinout).toContain('KEY_DAH');
+          expect(pinout).not.toContain('GPIO12');
+        } finally {
+          await cleanup();
+        }
+      },
+      600_000,
+    );
+
+    it(
+      'AC-3.3: adding an RGB LED creates unique refdes, valid footprint, and UNVERIFIED BOM row with rationale',
+      async () => {
+        const { repo, cleanup } = await setupRepo();
+        try {
+          const res = await runAgentLoop({
+            repoRoot: repo,
+            request: 'add an RGB LED status indicator connected to GPIO4',
+            model,
+            log: () => {},
+          });
+          expect(res.outcome).toBe('success');
+
+          const bom = await readFile(path.join(repo, 'docs', 'BOM.md'), 'utf8');
+          expect(bom).toContain('UNVERIFIED');
+        } finally {
+          await cleanup();
+        }
+      },
+      600_000,
+    );
+
+    it(
       'AC-3.6: a structurally forced failure rolls back to a byte-identical tree',
       async () => {
         const { repo, cleanup } = await setupRepo();
@@ -163,6 +207,27 @@ for (const { model, key } of providers) {
           const { stdout: status } = await execa('git', ['status', '--porcelain'], { cwd: repo });
           expect(status).toBe('');
           expect(res.transcriptDir).toContain('.copperhead');
+        } finally {
+          await cleanup();
+        }
+      },
+      600_000,
+    );
+
+    it(
+      'AC-4.1: no API key material anywhere in the tree after runs',
+      async () => {
+        const { repo, cleanup } = await setupRepo();
+        try {
+          await runAgentLoop({
+            repoRoot: repo,
+            request: 'rename net KEY_DAH to KEY_DASH',
+            model,
+            maxTurns: 1,
+            log: () => {},
+          });
+          const matches = await scanTreeForSecret(repo, /sk-[A-Za-z0-9_-]+/);
+          expect(matches).toEqual([]);
         } finally {
           await cleanup();
         }
