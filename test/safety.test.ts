@@ -37,6 +37,31 @@ describe('secret redaction (AC-4.1)', () => {
     expect(out).toContain('[REDACTED]');
   });
 
+  it('redacts credentials embedded in a URL, keeping the host visible', () => {
+    // A self-hosted endpoint behind basic auth: copperhead prints the configured
+    // endpoint into doctor output and provider errors, so this reaches a
+    // transcript without ever looking like an API key.
+    const out = redactSecrets('endpoint http://admin:hunter2token@vllm.internal:8000/v1 refused');
+    expect(out).not.toContain('hunter2token');
+    expect(out).not.toContain('admin:');
+    // the host is the useful half of the diagnostic and must survive
+    expect(out).toContain('vllm.internal:8000/v1');
+    expect(out).toContain('http://[REDACTED]@');
+  });
+
+  it('leaves ordinary URLs and bare userinfo alone', () => {
+    // No password, so nothing secret: over-redacting the endpoint would cost the
+    // diagnostic its point.
+    for (const clean of [
+      'http://localhost:1234/v1',
+      'https://api.openai.com/v1/chat/completions',
+      'git@github.com:owner/repo.git',
+      'see https://docs.copperhead.sh/reference/configuration/',
+    ]) {
+      expect(redactSecrets(clean), clean).toBe(clean);
+    }
+  });
+
   it('redacts registry and forge tokens, not just model keys', () => {
     // Synthetic tokens: correct shape, never valid.
     const input = [
@@ -175,6 +200,55 @@ describe('file tools', () => {
     await expect(toolEditFile(dir, 'f.txt', 'aaa', 'x')).rejects.toThrow(/matched 2 times/);
     await toolEditFile(dir, 'f.txt', 'bbb', 'ccc');
     expect(await readFile(path.join(dir, 'f.txt'), 'utf8')).toBe('aaa\nccc\naaa\n');
+  });
+
+  it('edit_file flags a possibly-applied edit instead of sending the model back to re-read', async () => {
+    // Observed live: a model finished a net rename, then spent its entire turn
+    // budget retrying it, because a completed edit and a wrong anchor produced the
+    // same "re-read the file and use an exact excerpt" message.
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    await writeFile(path.join(dir, 'f.txt'), '(global_label "KEY_DASH")\n');
+    const retry = toolEditFile(dir, 'f.txt', '(global_label "KEY_DAH")', '(global_label "KEY_DASH")');
+    await expect(retry).rejects.toThrow(/already present/);
+    // States both possibilities and refuses to pick one: presence of new_string is
+    // a hint, never proof, so it must never authorize skipping the edit.
+    await expect(retry).rejects.toThrow(/or the anchor is wrong/);
+    await expect(retry).rejects.toThrow(/Do not assume it is done/);
+    await expect(retry).rejects.not.toThrow(/move on to the next step/);
+
+    // A genuinely wrong anchor keeps the original guidance, with no hint of any
+    // kind that the work might be done.
+    const wrong = toolEditFile(dir, 'f.txt', 'nothing like this', 'x');
+    await expect(wrong).rejects.toThrow(/re-read the file and use an exact excerpt/);
+    await expect(wrong).rejects.not.toThrow(/already present/);
+    await expect(wrong).rejects.not.toThrow(/already been applied/);
+    await expect(wrong).rejects.not.toThrow(/move on to the next step/);
+
+    // Deleting text (empty new_string) must not report itself as already applied.
+    await expect(toolEditFile(dir, 'f.txt', 'absent', '')).rejects.toThrow(
+      /anchor not found in f\.txt; re-read/,
+    );
+  });
+
+  it('edit_file never lets an unrelated new_string authorize skipping a real edit', async () => {
+    // The dangerous shape: a propagating rename that is half done. new_string is
+    // already in the file from the first occurrence, a second occurrence still
+    // needs renaming, and the model mistypes the anchor. Claiming "applied, move
+    // on" here would land an incomplete rename and report it as done (AC-3.1).
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const half = '(global_label "KEY_DASH" (shape input))\n(global_label "KEY_DAH" (shape input))\n';
+    await writeFile(path.join(dir, 'f.kicad_sch'), half);
+    const mistyped = toolEditFile(
+      dir,
+      'f.kicad_sch',
+      '(global_label "KEY_DAH"  (shape input))', // two spaces: genuine miss
+      '(global_label "KEY_DASH" (shape input))',
+    );
+    await expect(mistyped).rejects.toThrow(/or the anchor is wrong/);
+    await expect(mistyped).rejects.toThrow(/Do not assume it is done/);
+    await expect(mistyped).rejects.not.toThrow(/move on to the next step/);
+    // and the outstanding work is untouched, so a retry can still complete it
+    expect(await readFile(path.join(dir, 'f.kicad_sch'), 'utf8')).toBe(half);
   });
 
   it('search finds regex matches with glob filtering', async () => {

@@ -31,6 +31,7 @@ import { AnthropicProvider } from './providers/anthropic.js';
 import { CodexProvider } from './providers/codex.js';
 import { ClaudeCodeProvider } from './providers/claude-code.js';
 import { CursorProvider } from './providers/cursor.js';
+import { LMStudioProvider } from './providers/lmstudio.js';
 
 /** What the user sees at the moment they decide whether to keep going. */
 export interface BudgetExhaustedStats {
@@ -82,42 +83,20 @@ export interface RunResult {
   cacheHits: number;
 }
 
-export async function makeProvider(
-  model: string,
-  sessionResume = false,
-  compat?: CompatSettings | undefined,
-): Promise<Provider> {
-  // OpenAI-compatible endpoint (Groq, OpenRouter, Gemini compat, local
-  // Ollama). An explicit `compat` prefix is the opt-in: nothing else
-  // consults baseURL, so a stray COPPERHEAD_BASE_URL cannot redirect a keyed
-  // `gpt-5` run to a third party (design D2).
+export async function makeProvider(model: string, sessionResume = false, compat?: CompatSettings): Promise<Provider> {
   if (isCompatModel(model)) {
     const compatModel = model.startsWith('compat:') ? model.slice('compat:'.length) : undefined;
-    if (compatModel === '') {
-      throw new Error('compat model override cannot be empty; use "compat:<model-id>"');
-    }
+    if (compatModel === '') throw new Error('compat model override cannot be empty; use "compat:<model-id>"');
     const settings = compat ?? { apiKeyEnv: DEFAULT_API_KEY_ENV };
-    // Bare `compat` (no id) has no valid default: unlike gpt-5/claude, a
-    // compatible endpoint serves whatever models its host chooses, so there is
-    // no id that is ever correct to assume. Falling through here would build a
-    // provider that silently sends the literal string "gpt-5" (OpenAIProvider's
-    // own default) to a host that almost certainly does not serve it.
     if (!compatModel) {
-      throw new Error(
-        settings.baseURL
-          ? `compat requires a model id; use "compat:<model-id>" (endpoint ${settings.baseURL} is configured, but has no default model)`
-          : 'compat requires a model id and an endpoint; use "compat:<model-id>" and set baseURL (COPPERHEAD_BASE_URL or .copperhead/config.json)',
-      );
+      throw new Error(settings.baseURL
+        ? `compat requires a model id; use "compat:<model-id>" (endpoint ${settings.baseURL} is configured, but has no default model)`
+        : 'compat requires a model id and an endpoint; use "compat:<model-id>" and set baseURL (COPPERHEAD_BASE_URL or .copperhead/config.json)');
     }
     if (!settings.baseURL) {
-      throw new Error(
-        `compat:${compatModel} requires an endpoint; set baseURL (COPPERHEAD_BASE_URL or "baseURL" in .copperhead/config.json) — without one this would silently fall back to the real OpenAI API.`,
-      );
+      throw new Error(`compat:${compatModel} requires an endpoint; set baseURL (COPPERHEAD_BASE_URL or "baseURL" in .copperhead/config.json) — without one this would silently fall back to the real OpenAI API.`);
     }
-    return new OpenAIProvider(compatModel, {
-      baseURL: settings.baseURL,
-      apiKeyEnv: settings.apiKeyEnv,
-    });
+    return new OpenAIProvider({ model: compatModel, baseURL: settings.baseURL, apiKeyEnv: settings.apiKeyEnv });
   }
   if (model === 'codex' || model.startsWith('codex:')) {
     const codexModel = model.startsWith('codex:') ? model.slice('codex:'.length) : undefined;
@@ -154,17 +133,27 @@ export async function makeProvider(
     }
     return new CursorProvider(cursorModel, undefined, sessionResume);
   }
+  // Local OpenAI-compatible server (LM Studio). Matched before the OpenAI
+  // fallthrough so it is never sent to api.openai.com, and it needs no API key.
+  if (model === 'lmstudio' || model.startsWith('lmstudio:')) {
+    const lmstudioModel = model.startsWith('lmstudio:') ? model.slice('lmstudio:'.length) : undefined;
+    if (lmstudioModel === '') {
+      throw new Error('lmstudio model override cannot be empty; use "lmstudio" or "lmstudio:<model-id>"');
+    }
+    return new LMStudioProvider({ ...(lmstudioModel ? { model: lmstudioModel } : {}) });
+  }
   if (model === 'claude' || model.startsWith('claude')) {
     return new AnthropicProvider(model === 'claude' ? undefined : model);
   }
-  return new OpenAIProvider(model === 'gpt-5' ? undefined : model);
+  return new OpenAIProvider(model === 'gpt-5' ? {} : { model });
 }
 
 function otherProvider(current: Provider): Provider | null {
   // Only the two keyed providers fail over to each other. A rate-limited
-  // 'claude-code' or 'cursor' run returns null here (no silent fallback to a paid API).
+  // 'claude-code', 'cursor', or 'lmstudio' run returns null here (no silent
+  // fallback to a paid API — a local run in particular must never become a billed one).
   if (current.name === 'openai' && process.env.ANTHROPIC_API_KEY) return new AnthropicProvider();
-  if (current.name === 'anthropic' && process.env.OPENAI_API_KEY) return new OpenAIProvider();
+  if (current.name === 'anthropic' && process.env.OPENAI_API_KEY) return new OpenAIProvider({});
   return null;
 }
 
@@ -274,21 +263,55 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   const sessionResume = process.env.COPPERHEAD_CC_SESSION_RESUME === '1' && !config.llmCache;
   const compatSettings = resolveCompatSettings(config);
   let provider = opts.provider ?? (await makeProvider(opts.model, sessionResume, compatSettings));
+  // When the routing string does not name the model (`--model lmstudio` uses
+  // whichever model the local server has loaded), ask the provider what it will
+  // actually use. Both surfaces below are built once, up front, so without this
+  // they would record "lmstudio": run metadata could not say which model
+  // designed the board, and two different local models would share cache entries
+  // (F6). Best-effort: a failure here does not fail the run, but it does cost us
+  // the cache key (see below).
+  //
+  // Bounded far tighter than a turn. This runs BEFORE the turn loop, so the
+  // heartbeat, watchdog, and retry machinery do not exist yet, and it runs before
+  // the run header prints — a server that accepts the connection but never
+  // answers would otherwise show the user a blank terminal for the full turn
+  // timeout (10 min by default) with no way to tell a hang from a slow start.
+  // Listing models on a local server is a millisecond operation; 10s is already
+  // generous, and the cost of being wrong is only the cache, not the run.
+  const MODEL_PROBE_TIMEOUT_MS = 10_000;
+  let probedModel: string | undefined;
+  if (provider.resolvedModelId) {
+    if (provider.needsModelDiscovery?.()) {
+      log(`asking ${provider.cacheKeyEndpoint?.() ?? opts.model} which model is loaded`);
+    }
+    probedModel = await withTimeout(
+      async () => provider.resolvedModelId?.(log),
+      MODEL_PROBE_TIMEOUT_MS,
+    ).catch((err: unknown) => {
+      log(`could not resolve the model id (${(err as Error).message}); response caching is off for this run`);
+      return undefined;
+    });
+  }
+  const effectiveModel = probedModel ?? opts.model;
   // Cache every turn's response so a retried/restarted stage replays what it
   // already paid for instead of re-calling the model (repo-scoped, cross-run).
   // Skip an injected provider (tests drive scripted providers directly).
-  if (config.llmCache && !opts.provider) {
-    // Mirrors makeProvider's own gate above (D2/AC-3.16): COPPERHEAD_BASE_URL
-    // is consulted only for the explicit `compat:` route, so a gpt-5/claude
-    // run's cache key must not vary with a variable that run never reads —
-    // otherwise every non-compat cache entry gets orphaned each time the
-    // endpoint used for compat testing changes.
+  //
+  // Also skip it when the probe failed on a provider that offers one. Falling
+  // back to the routing string looks harmless but re-opens the exact bug the
+  // probe exists to close: `/v1/models` can be slow while `/chat/completions`
+  // works, so the run would proceed normally on model A, cache its turns under
+  // the key "lmstudio", and a later run on model B would replay them. Losing
+  // caching for one degraded run is much cheaper than serving one model's
+  // reasoning as another's.
+  const cacheKeyIsReal = !provider.resolvedModelId || probedModel !== undefined;
+  if (config.llmCache && !opts.provider && cacheKeyIsReal) {
     provider = new CachingProvider(
       provider,
       path.join(repoRoot, CONFIG_DIR, 'llm-cache'),
       log,
-      opts.model,
-      isCompatModel(opts.model) ? compatSettings.baseURL : undefined,
+      effectiveModel,
+      isCompatModel(opts.model) ? compatSettings.baseURL : provider.cacheKeyEndpoint?.(),
     );
   }
   providers.add(provider);
@@ -307,7 +330,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     maxTurns,
     runId: path.basename(transcript.dir),
     request: opts.request,
-    model: opts.model,
+    model: effectiveModel,
     provider: provider.name,
     interactive: opts.interactive ?? false,
     input: opts.meta,

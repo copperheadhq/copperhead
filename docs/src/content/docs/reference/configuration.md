@@ -66,6 +66,7 @@ The constraint registry: machine-readable counterparts to the constraints stated
 | `COPPERHEAD_MODEL` | Default model. Overrides config, overridden by `--model`. |
 | `COPPERHEAD_CODEX_PATH` | Optional path to a `codex` executable. Defaults to `codex` on `PATH`; the SDK-bundled launcher is a fallback. |
 | `COPPERHEAD_CURSOR_PATH` | Optional path to the Cursor Agent CLI (`agent` / `cursor-agent`). Defaults to `agent` on `PATH`. |
+| `LMSTUDIO_BASE_URL` | Optional. Endpoint for `--model lmstudio`; defaults to `http://localhost:1234/v1`. |
 | `COPPERHEAD_BASE_URL` | Optional. Overrides `baseURL`. Only the `compat` route reads it, so it never redirects a `gpt-5` run. |
 | `COPPERHEAD_API_KEY_ENV` | Optional. Overrides `apiKeyEnv`, e.g. `GROQ_API_KEY`. |
 | `NO_COLOR` | Optional. Disables ANSI colors in `doctor` output; colors are also skipped automatically when stdout is not a terminal. |
@@ -90,9 +91,11 @@ Set any of the first three to `codex` to use the installed Codex CLI and its sav
 
 If `codex` is not on `PATH`, point `COPPERHEAD_CODEX_PATH` at an executable explicitly. The optional SDK includes one at `node_modules/@openai/codex/bin/codex.js`; for a global installation, `$(npm root -g)/@openai/codex/bin/codex.js` resolves its path.
 
+Set any of the first three to `lmstudio` to use the configured OpenAI-compatible endpoint with no cloud API key. The default endpoint is LM Studio on localhost; a remote `LMSTUDIO_BASE_URL` receives your prompts. The provider is never auto-detected, so select it explicitly.
+
 If none of these produce a model, the command exits with an error telling you the available ways to set one. `check` never needs a model, since it makes no LLM calls at all.
 
-Accepted model values (routing is by prefix; `makeProvider` checks `compat`, then `codex`, then `claude-code`, then `cursor`, then `claude`, then OpenAI):
+Accepted model values (routing is by prefix; `makeProvider` checks `compat`, then `codex`, then `claude-code`, then `cursor`, then `lmstudio`, then `claude`, then OpenAI):
 
 Two rows below both mention "OpenAI," but mean different things - worth pulling apart before the table:
 
@@ -107,10 +110,13 @@ So every other row below is a dedicated integration for one specific vendor's lo
 | `codex` / `codex:<id>` | Codex CLI, saved login | none (local Codex login) |
 | `claude-code` / `claude-code:<id>` | Claude Code, saved login | none (uses `CLAUDE_CODE_OAUTH_TOKEN` / your logged-in CLI) |
 | `cursor` / `cursor:<id>` | Cursor Agent CLI, saved login | none (`agent login`) |
+| `lmstudio` / `lmstudio:<id>` | Configured OpenAI-compatible endpoint | none (a placeholder is sent, never a cloud key) |
 | `claude` / `claude-<id>` | Anthropic API | `ANTHROPIC_API_KEY` |
 | `gpt-5` / anything else | OpenAI API | `OPENAI_API_KEY` |
 
-`claude-code` is matched before the `claude` prefix, so it is never captured by the Anthropic API route. Cursor runs report 0 token usage (CLI JSON has no usage fields).
+`claude-code` is matched before the `claude` prefix, so it is never captured by the Anthropic API route. `lmstudio` is matched before the OpenAI catch-all. Cursor runs report 0 token usage (CLI JSON has no usage fields).
+
+`lmstudio` uses `LMSTUDIO_BASE_URL` (default `http://localhost:1234/v1`) with a literal placeholder credential and never falls back to a cloud provider. Prompts go to that endpoint, so use the localhost default to keep content on your machine. Bare `lmstudio` discovers the first model returned by `/v1/models`; use `lmstudio:<model-id>` to pin a model or to bypass discovery on servers without that endpoint.
 
 For `compat:<id>`, set `baseURL` (env `COPPERHEAD_BASE_URL` or `.copperhead/config.json`) and, if the endpoint needs a key, `apiKeyEnv` (env `COPPERHEAD_API_KEY_ENV` or config). Each resolves independently - env wins over config for whichever one it sets - so you can mix sources, e.g. `baseURL` in config with `COPPERHEAD_API_KEY_ENV` as an env var. `baseURL` is required for every compat endpoint. Non-local endpoints (Gemini, Groq, OpenRouter) also need the actual key, held in the variable `apiKeyEnv` names (defaults to `OPENAI_API_KEY` if left unset) - a local endpoint (Ollama) can skip the key entirely. The three pieces below are always: the endpoint, the name of the env var holding the key, and that env var itself.
 

@@ -137,10 +137,38 @@ describe('copperhead doctor', () => {
     expect(checkCredential('claude-code:opus', {}).status).toBe('info');
     expect(checkCredential('cursor', {}).status).toBe('info');
     expect(checkCredential('cursor:gpt-5', {}).status).toBe('info');
+    // lmstudio needs no key of any kind, so with an empty env it must not be
+    // reported as a missing-OPENAI_API_KEY failure via the catch-all route.
+    expect(checkCredential('lmstudio', {}).status).toBe('info');
+    expect(checkCredential('lmstudio:qwen2.5-coder', {}).status).toBe('info');
+    for (const model of ['lmstudio', 'lmstudio:qwen2.5-coder']) {
+      const c = checkCredential(model, {});
+      expect(c.detail).not.toMatch(/OPENAI_API_KEY/);
+      expect(c.hint ?? '').not.toMatch(/OPENAI_API_KEY/);
+    }
+  });
+
+  it('lmstudio reports the endpoint it would use, without contacting it', () => {
+    expect(checkCredential('lmstudio', {}).detail).toContain('http://localhost:1234/v1');
+    expect(checkCredential('lmstudio', { LMSTUDIO_BASE_URL: 'http://localhost:11434/v1' }).detail).toContain(
+      'http://localhost:11434/v1',
+    );
+    // blank or whitespace-only counts as unset, matching the provider, so a
+    // copied-but-unedited .env.example reports the default and not an empty host
+    for (const blank of ['', '   ']) {
+      expect(checkCredential('lmstudio', { LMSTUDIO_BASE_URL: blank }).detail).toContain('http://localhost:1234/v1');
+    }
+  });
+
+  it("doctor's endpoint default cannot drift from the provider's", async () => {
+    // doctor deliberately does not import a provider module, so the shared
+    // default is pinned here instead of by construction.
+    const { LMSTUDIO_DEFAULT_BASE_URL } = await import('../src/agent/providers/lmstudio.js');
+    expect(checkCredential('lmstudio', {}).detail).toContain(LMSTUDIO_DEFAULT_BASE_URL);
   });
 
   it('an empty saved-login override fails like makeProvider would, not info', () => {
-    for (const model of ['codex:', 'claude-code:', 'cursor:']) {
+    for (const model of ['codex:', 'claude-code:', 'cursor:', 'lmstudio:']) {
       const c = checkCredential(model, {});
       expect(c.status).toBe('fail');
       expect(c.hint).toContain(`${model}<model-id>`);

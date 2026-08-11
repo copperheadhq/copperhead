@@ -150,8 +150,9 @@ async function openspecCheck(probe: () => Promise<string>): Promise<DoctorCheck>
  * Map a resolved model to the credential its provider needs, mirroring
  * makeProvider's prefix routing (agent/loop.ts). Presence-only: it checks that a
  * required API key is set, never that it authenticates (that would need network).
- * Saved-login providers (codex, claude-code) need no key and can't be verified
- * offline, so they report `info` (which does not block `ok`).
+ * Saved-login providers (codex, claude-code, cursor) and the local `lmstudio`
+ * endpoint need no key and can't be verified offline, so they report `info`
+ * (which does not block `ok`).
  */
 export function checkCredential(
   model: string,
@@ -313,6 +314,27 @@ function checkKeyedCredential(model: string, env: NodeJS.ProcessEnv): DoctorChec
       };
     }
   }
+  // Local OpenAI-compatible endpoint. Checked before the OpenAI fallthrough for
+  // the same reason makeProvider does: `lmstudio` needs no key at all, and
+  // falling through would tell the user to export OPENAI_API_KEY, sending them
+  // after a credential the run will never use. Reports the endpoint it would
+  // contact, but does not contact it: doctor is offline by contract, so a server
+  // that is merely down cannot be distinguished here and must not be guessed at.
+  if (model === 'lmstudio' || model.startsWith('lmstudio:')) {
+    if (model === 'lmstudio:') {
+      return {
+        name: 'provider',
+        status: 'fail',
+        detail: `${shown} -> lmstudio: empty model override`,
+        hint: 'use "lmstudio" or "lmstudio:<model-id>".',
+      };
+    }
+    return {
+      name: 'provider',
+      status: 'info',
+      detail: `${shown} -> lmstudio: no API key needed, endpoint ${lmstudioEndpoint(env)} (not verified offline)`,
+    };
+  }
   if (model === 'claude' || model.startsWith('claude')) {
     return env.ANTHROPIC_API_KEY
       ? { name: 'provider', status: 'ok', detail: `${shown} -> anthropic: ANTHROPIC_API_KEY set` }
@@ -331,6 +353,19 @@ function checkKeyedCredential(model: string, env: NodeJS.ProcessEnv): DoctorChec
         detail: `${shown} -> openai: OPENAI_API_KEY not set`,
         hint: 'export OPENAI_API_KEY=... (or use --model codex for saved login).',
       };
+}
+
+/**
+ * The endpoint an `lmstudio` run would use, resolved exactly as the provider
+ * does: blank or whitespace-only counts as unset, so a copied-but-unedited
+ * `.env.example` reports the default rather than an empty string.
+ *
+ * Duplicated rather than imported so `doctor` keeps its offline preflight free of
+ * any provider module. A test asserts this stays equal to the provider's
+ * `LMSTUDIO_DEFAULT_BASE_URL`, so the two cannot drift silently.
+ */
+function lmstudioEndpoint(env: NodeJS.ProcessEnv): string {
+  return env.LMSTUDIO_BASE_URL?.trim() || 'http://localhost:1234/v1';
 }
 
 function providerCheck(

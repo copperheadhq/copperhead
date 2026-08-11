@@ -160,6 +160,11 @@ export interface ResolvedModel {
  *               `claude-opus-4-5`. Anything starting with `claude` routes here.
  * - `codex`   : the locally installed Codex CLI using its saved ChatGPT login.
  * - `codex:*` : Codex CLI with an explicit model id, e.g. `codex:gpt-5.6`.
+ * - `lmstudio`     : a local LM Studio server (OpenAI-compatible, default
+ *                    `http://localhost:1234/v1`, override with
+ *                    `LMSTUDIO_BASE_URL`) on whichever model it has loaded.
+ *                    Needs NO API key. Requires a tool-capable model.
+ * - `lmstudio:<id>`: the same server on a specific loaded model id.
  * - `gpt-5`   : the OpenAI provider on its default model.
  * - anything else: sent to the OpenAI provider verbatim as a model id, e.g.
  *               `gpt-5-mini` or `o3`.
@@ -170,9 +175,14 @@ export interface ResolvedModel {
  * released after this build still works without a code change. The cost is that
  * a typo like `claud-sonnet-5` silently routes to OpenAI and fails there.
  * Anthropic and direct OpenAI providers require their API keys; `codex` requires
- * a locally installed and authenticated Codex CLI, and `claude-code` requires a
- * Claude Code login (CLAUDE_CODE_OAUTH_TOKEN); `cursor` requires `agent login`.
- * None of the saved-login providers need a model API key.
+ * a locally installed and authenticated Codex CLI, `claude-code` requires a
+ * Claude Code login (CLAUDE_CODE_OAUTH_TOKEN), `cursor` requires `agent login`,
+ * and `lmstudio` requires a running local LM Studio server. None of the
+ * saved-login or local providers need a model API key.
+ *
+ * There is deliberately no localhost auto-detection in the fallback chain below:
+ * this function is synchronous and contractually network-free, so a local server
+ * must be selected explicitly.
  */
 export function resolveModel(flag: string | undefined, config: CopperheadConfig, env = process.env): ResolvedModel {
   if (flag) return { model: flag, source: 'flag' };

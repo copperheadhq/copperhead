@@ -23,8 +23,22 @@ const PATTERNS: RegExp[] = [
   /gsk_[A-Za-z0-9]{20,}/g,
 ];
 
+/**
+ * Credentials embedded in a URL's userinfo (`scheme://user:secret@host`). A
+ * self-hosted endpoint behind basic auth is the realistic source: copperhead
+ * prints the configured endpoint into `doctor` output and into provider error
+ * messages, so a URL carrying a password reaches a transcript without ever
+ * looking like an API key to the patterns above.
+ *
+ * Handled separately because this one keeps a capture: the host is the useful
+ * half of the diagnostic ("which endpoint did it try?") and only the userinfo is
+ * the secret, so the replacement preserves the scheme and everything after `@`.
+ * Requires an actual `:password` — a bare `user@host` is not a credential.
+ */
+const URL_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)[^\s/:@]+:[^\s/@]+@/gi;
+
 export function redactSecrets(text: string): string {
   let out = text;
   for (const re of PATTERNS) out = out.replace(re, '[REDACTED]');
-  return out;
+  return out.replace(URL_USERINFO, '$1[REDACTED]@');
 }

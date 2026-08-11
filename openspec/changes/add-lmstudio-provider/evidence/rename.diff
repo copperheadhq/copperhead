@@ -1,0 +1,45 @@
+commit caa4d069a7ea39328f4c1ecf28ab5467ae4cb9a9
+Author: <REDACTED>
+Date:   Sat Jul 25 00:22:27 2026 +0530
+
+    copperhead: rename net KEY_DAH to KEY_DASH
+    
+    Renamed net KEY_DAH to KEY_DASH in both PINOUT.md and hardware/open-key.kicad_sch to correct a typo. Verified with check_drift and ERC.
+    
+    Verification: ERC clean
+
+diff --git a/docs/PINOUT.md b/docs/PINOUT.md
+index 5762cd8..c46ef46 100644
+--- a/docs/PINOUT.md
++++ b/docs/PINOUT.md
+@@ -9,7 +9,7 @@ reassigning pins.
+ | U1 | 2 | EN | EN | |
+ | U1 | 3 | GPIO0 |  | |
+ | U1 | 4 | GPIO3 |  | |
+-| U1 | 5 | GPIO14 | KEY_DAH | |
++| U1 | 5 | GPIO14 | KEY_DASH | |
+ | U1 | 6 | GPIO18 |  | |
+ | U1 | 7 | GPIO21 |  | |
+ | U1 | 8 | GND | GND | |
+diff --git a/hardware/open-key.kicad_sch b/hardware/open-key.kicad_sch
+index 6130be0..c5d88d6 100644
+--- a/hardware/open-key.kicad_sch
++++ b/hardware/open-key.kicad_sch
+@@ -122,7 +122,7 @@
+       (effects (font (size 1.27 1.27)) (justify right) hide)
+     )
+   )
+-  (global_label "KEY_DAH" (shape input) (at 127 101.6 180) (fields_autoplaced yes)
++  (global_label "KEY_DASH" (shape input) (at 127 101.6 180) (fields_autoplaced yes)
+     (effects (font (size 1.27 1.27)) (justify right))
+     (uuid "0c0c0c0c-0000-4000-8000-000000000003")
+     (property "Intersheetrefs" "${INTERSHEET_REFS}" (at 114.7064 101.1886 0)
+@@ -150,7 +150,7 @@
+       (effects (font (size 1.27 1.27)) (justify right) hide)
+     )
+   )
+-  (global_label "KEY_DAH" (shape input) (at 96.52 106.68 90) (fields_autoplaced yes)
++  (global_label "KEY_DASH" (shape input) (at 96.52 106.68 90) (fields_autoplaced yes)
+     (effects (font (size 1.27 1.27)) (justify left))
+     (uuid "0c0c0c0c-0000-4000-8000-000000000007")
+     (property "Intersheetrefs" "${INTERSHEET_REFS}" (at 96.6014 102.3364 90)

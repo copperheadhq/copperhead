@@ -73,7 +73,8 @@ copperhead/
 │   │   ├── providers/
 │   │   │   ├── openai.ts   # GPT-5 via OpenAI SDK (tool calling)
 │   │   │   ├── anthropic.ts# Claude via Anthropic SDK
-│   │   │   └── codex.ts    # local Codex CLI via official SDK + saved login
+│   │   │   ├── codex.ts    # local Codex CLI via official SDK + saved login
+│   │   │   └── lmstudio.ts # local LM Studio server (OpenAI-compatible, no key)
 │   │   ├── prompts.ts      # system prompt + task templates
 │   │   └── tools.ts        # tool schemas + dispatch
 │   ├── kicad/
@@ -92,7 +93,7 @@ copperhead/
 ├── docs/                   # this spec, architecture notes
 ├── package.json            # bin: { "copperhead": "dist/cli.js" }
 ├── tsconfig.json
-├── .env.example            # OPENAI_API_KEY= / ANTHROPIC_API_KEY= / CLAUDE_CODE_OAUTH_TOKEN=
+├── .env.example            # OPENAI_API_KEY= / ANTHROPIC_API_KEY= / CLAUDE_CODE_OAUTH_TOKEN= / LMSTUDIO_BASE_URL=
 └── LICENSE                 # Apache-2.0
 ```
 
@@ -263,7 +264,7 @@ copperhead init [--path hardware/]
     extracted from the schematic. Idempotent; never overwrites
     hand-edited docs without --force.
 
-copperhead do "<change request>" [--model codex|gpt-5|claude] [--max-turns N]
+copperhead do "<change request>" [--model codex|gpt-5|claude|claude-code|lmstudio] [--max-turns N]
     The core loop. See §4.
 
 copperhead check          (alias: copperhead verify)
@@ -356,9 +357,10 @@ interface Provider {
 - `anthropic.ts`: Claude via messages API + tool use
 - `codex.ts`: locally installed Codex CLI via the official SDK and saved `codex login` authentication; Codex runs read-only and returns structured Copperhead tool requests
 - `claude-code.ts`: saved-login Claude Code via the Claude Agent SDK: a reasoning-only backend (no SDK tools, built-ins disabled, isolated cwd) mapped onto the single-turn `Provider` seam so the loop stays the driver. Selected by `--model claude-code` / `claude-code:<id>` (routed ahead of the `claude*` prefix); needs no `ANTHROPIC_API_KEY` (uses `CLAUDE_CODE_OAUTH_TOKEN` / the logged-in CLI); never falls back to a keyed provider. `@anthropic-ai/claude-agent-sdk` ships as an `optionalDependency` (its `@anthropic-ai/sdk >=0.93.0` peer is satisfied by copperhead's bumped core SDK), lazily imported and only loaded when `claude-code` is selected.
+- `lmstudio.ts`: a local OpenAI-compatible model server (LM Studio, and via `LMSTUDIO_BASE_URL` also Ollama/vLLM/llama.cpp). Subclasses `openai.ts` to reuse its chat and tool-call mapping, changing only the endpoint (default `http://localhost:1234/v1`), the credential, and local-server diagnostics. Selected by `--model lmstudio` / `lmstudio:<id>` (routed ahead of the catch-all OpenAI route); needs **no API key of any kind** and no vendor account — the credential sent is a literal placeholder, never `OPENAI_API_KEY`, so a local run cannot carry a cloud key to the configured host; never falls back to a keyed provider. Bare `lmstudio` discovers the loaded model once per run so the real id reaches run metadata and the response-cache key. Requires a tool-capable model; no new dependency (reuses the required `openai` package).
+- `openai.ts` compatible-endpoint mode: `--model compat:<id>` points the same provider at an explicitly configured OpenAI-compatible endpoint via `baseURL` + `apiKeyEnv` (config, or `COPPERHEAD_BASE_URL` / `COPPERHEAD_API_KEY_ENV`). Only the `compat` route reads `baseURL`; a loopback endpoint needs no credential and never falls back to a paid provider.
 - `cursor.ts`: saved-login Cursor Agent CLI subprocess (`agent login`), reasoning-only (plan mode, sandbox, isolated workspace, JSON tool protocol, session resume via `--resume`). Selected by `--model cursor` / `cursor:<id>`; needs no model API keys; never falls back to a keyed provider. Optional `COPPERHEAD_CURSOR_PATH` (default `agent` on PATH).
-- `openai.ts` compatible-endpoint mode: `--model compat:<id>` points the same provider at any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini's compat endpoint, a local Ollama) via `baseURL` + `apiKeyEnv` (config, or `COPPERHEAD_BASE_URL` / `COPPERHEAD_API_KEY_ENV`). Only the `compat` route reads `baseURL`, so a stray value never redirects a `gpt-5` run; a loopback endpoint needs no credential.
-- Selection: `--model` flag > `COPPERHEAD_MODEL` env > config.json > the available key, but **only when exactly one of `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` is set**; with two or more present and no explicit selection, resolution refuses with an actionable error rather than silently favoring one (breaking change from "first key wins")
+- Selection: `--model` flag > `COPPERHEAD_MODEL` env > config.json > the available key, but **only when exactly one of `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` is set**; with two or more present and no explicit selection, resolution refuses with an actionable error rather than silently favoring one (breaking change from "first key wins"). Local and compatible endpoints are never auto-detected; they must be selected explicitly.
 - All providers must pass the same integration test on the fixture repo
 
 ### 4.5 Budgets & failure modes
@@ -366,7 +368,7 @@ interface Provider {
 - `maxTurns` default 40; `maxRepairCycles` 5; per-run token budget logged
 - On turn-budget exhaustion in an attended (TTY) run: print run stats (turns, files touched, open obligations, token usage) and ask whether to continue with more turns; declining, or a non-TTY run, fails as below. The extension can repeat; each is a fresh decision with fresh numbers.
 - On any unrecoverable failure: preserve the touched work as a git stash entry named `copperhead failed run <run-id>`, restore the snapshot, print the stash ref and transcript path, exit 1
-- Rate-limit (429): exponential backoff ×3, then fail over to the other **keyed** provider (`openai` ↔ `anthropic`) if a key exists; saved-login providers (`codex`, `claude-code`, `cursor`) never fail over to a keyed or alternate provider
+- Rate-limit (429): exponential backoff ×3, then fail over to the other **keyed** provider (`openai` ↔ `anthropic`) if a key exists; the saved-login and local providers (`codex`, `claude-code`, `cursor`, `lmstudio`) never fail over to a keyed or alternate provider (AC-3.11, AC-3.12, AC-3.13)
 - The Anthropic provider marks `cache_control` breakpoints (system prompt, last tool, last message block) so the resent conversation prefix is cached; reported input tokens include cache reads/writes
 
 ---
@@ -433,11 +435,12 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 
 ### AC-2 · `copperhead check`
 
-- **AC-2.1** On a clean fixture: exit 0, prints ERC ✓ DRC ✓ drift ✓, makes zero LLM calls (assert: no network to api.* hosts).
+- **AC-2.1** On a clean fixture: exit 0, prints ERC ✓ DRC ✓ drift ✓, makes zero LLM calls and zero network requests to **any** host, not merely `api.*` ones. A provider may legitimately be configured against `localhost` or any other endpoint (`lmstudio`, `LMSTUDIO_BASE_URL`), so a host-pattern assertion is not sufficient; the guarantee is structural (AC-2.6).
 - **AC-2.2** With a deliberately broken schematic (unconnected pin): exit non-zero, violation printed with sheet/location.
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+- **AC-2.6 (offline by construction)** Nothing reachable in the transitive import graph of `copperhead check` or `copperhead export bom` imports a model provider, a model SDK, or any network client (`node:http`/`node:https`, `undici`, `axios`, `got`, or `fetch`). Both commands are therefore incapable of contacting any host, regardless of configured model or endpoint. `execa` is permitted: `kicad-cli` is a subprocess, not a network client. Asserted by a static scan over both entrypoints.
 
 ### AC-3 · `copperhead do` — core loop
 
@@ -450,7 +453,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-3.7 (surgical edits)** For every run above: the `.kicad_sch` diff touches only the s-expressions relevant to the change — file not regenerated (assert: < 5% of lines changed for AC-3.1).
 - **AC-3.8 (dirty tree)** With uncommitted changes and no `--allow-dirty`: refuses to start. Holds for `repl` as well as `do`, since `repl` is the default command. With `--allow-dirty`, a rollback restores both the tracked modifications and the untracked files that were present before the run.
 - **AC-3.9 (dry run)** `--dry-run` prints the proposed diff and writes nothing.
-- **AC-3.10 (provider parity)** AC-3.1 passes with `--model codex`, `--model gpt-5`, `--model claude`, `--model claude-code`, `--model cursor`, and `--model compat:<id>` when each provider is configured.
+- **AC-3.10 (provider parity)** AC-3.1 passes with `--model codex`, `--model gpt-5`, `--model claude`, `--model claude-code`, `--model cursor`, `--model lmstudio`, and `--model compat:<id>` when each provider is configured.
 - **AC-3.11 (saved login)** With `--model claude-code`, a logged-in Claude Code (`CLAUDE_CODE_OAUTH_TOKEN` set) and **no** `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`, a `do` run completes through the normal verify/commit path; copperhead reads no credential store; and no key material appears in the transcript, summary, or tree (AC-4.1 holds). A missing optional dependency or an unauthenticated install fails through the rollback path with an actionable error, not a raw stack trace.
 - **AC-3.12 (cursor saved login)** With `--model cursor`, a logged-in Cursor Agent CLI (`agent login`) and **no** model API keys, a `do` run completes through the normal verify/commit path; copperhead never reads Cursor credentials; unauthenticated or missing CLI installs fail with an actionable message and rollback.
 - **AC-3.13 (compat credential resolution)** With `baseURL` and `apiKeyEnv` configured (via `.copperhead/config.json` or `COPPERHEAD_BASE_URL`/`COPPERHEAD_API_KEY_ENV`) and the named variable set, `--model compat:<id>` issues its requests to that endpoint using that credential; a credential present under a different variable name does not satisfy it.
@@ -461,6 +464,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-3.18 (compat never fails over to a paid key)** A rate limit against a `compat:<id>` endpoint never fails over to `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, even when one is present in the environment: the compat provider is not `'openai'` by name, so the same isolation that protects `codex`/`claude-code`/`cursor` (AC-3.11, AC-3.12) applies to it too.
 - **AC-3.19 (ambiguous auto-selection refuses)** With no `--model`, no `COPPERHEAD_MODEL`, and no `model` in config, model resolution refuses with an actionable "ambiguous" error naming every credential found when two or more of `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` are set; with exactly one, that provider is selected as before. **Breaking change**: an environment with both keys set that previously auto-selected `OPENAI_API_KEY` now fails `do`/`sync`/`create`/`demo` until a model is chosen explicitly (`repl` degrades gracefully via its interactive picker instead).
 - **AC-3.20 (compat cache is endpoint-scoped)** Re-running a cached `compat:<id>` request against a different `baseURL` calls the new endpoint rather than replaying the previous one's turns: one model id can be served by several hosts, so the id alone no longer identifies the backend. The endpoint enters the cache key only for the `compat` route, so a non-`compat` run's existing cache entries still replay unchanged.
+- **AC-3.21 (local model)** With `--model lmstudio`, a local LM Studio server serving a tool-capable model, and **no** `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, a `do` run completes through the normal verify/commit path with zero requests to any host other than the configured endpoint. The credential sent to the local endpoint is a fixed placeholder, never the value of `OPENAI_API_KEY` even when one is set, and a failing or rate-limited local run never fails over to a keyed provider (`otherProvider` returns null for it). Bare `lmstudio` discovers the model once and records that id plus the configured endpoint in the response-cache key; `lmstudio:<id>` skips discovery. Discovery reads the OpenAI `/v1/models` endpoint, which reports what a server can serve rather than what it has loaded, and no field distinguishing the two is portable across LM Studio, Ollama, and vLLM; when the server lists more than one model the run SHALL take the first, report which id it took and how many alternatives existed, and name that id in any tool-calling error, so a mis-picked model is visible rather than silently designing the board. The probe is bounded independently of the turn timeout, since it runs before the turn loop's watchdog and heartbeat exist. When it fails, the run continues on the routing string but response caching is disabled for that run: keying the cache on the routing string would let a later run on a different local model replay these turns, which is the hazard the discovered id exists to prevent. An unreachable server, a server with no model loaded, and a model that rejects tool calls each fail through the rollback path with an actionable error naming the endpoint, not a raw stack trace; every other error keeps its status for retry classification. `LMSTUDIO_BASE_URL` redirects requests to any configured OpenAI-compatible endpoint. Remote and cloud-hosted endpoints are permitted and deliberately unvalidated: the override exists so a self-hosted server on another machine (Ollama, vLLM, llama.cpp) is reachable, and copperhead does not require the endpoint to be loopback. What is guaranteed is the destination, not the distance: requests go to the configured endpoint and to no other host, and the credential sent is always the placeholder, so pointing the override at a remote or vendor host cannot authenticate a billed account or leak `OPENAI_API_KEY`. Choosing a non-local endpoint means design content leaves the machine, and is the operator's decision to make. `check` and `export bom` make no request to the configured endpoint or any other host (AC-2.1, AC-2.6).
 
 ### AC-4 · Safety
 

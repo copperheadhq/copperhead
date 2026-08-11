@@ -33,18 +33,18 @@ const providers: { model: string; key: string | undefined }[] = [
     model: process.env.COPPERHEAD_TEST_CURSOR_MODEL ?? 'cursor',
     key: process.env.COPPERHEAD_TEST_CURSOR === '1' ? 'saved-cursor-login' : undefined,
   },
-  // OpenAI-compatible endpoint: Groq, OpenRouter, Gemini's compat endpoint,
-  // or a local Ollama. Runs only when both the
-  // endpoint and its model id are configured, so it stays skipped by default.
-  // This is the gate the documented zero-cost stack has to pass before it can
-  // be recommended: weaker free-tier models are worse at byte-exact anchored
-  // edits, so AC-3.x is where that shows up rather than in review.
+  // Local LM Studio (AC-3.10, AC-3.21): opt-in, because it needs a running local
+  // server with a tool-capable model loaded and there is no credential whose
+  // presence could imply that. Same shape as the COPPERHEAD_TEST_CODEX gate.
+  {
+    model: process.env.COPPERHEAD_TEST_LMSTUDIO_MODEL ?? 'lmstudio',
+    key: process.env.COPPERHEAD_TEST_LMSTUDIO === '1' ? 'local-lmstudio-server' : undefined,
+  },
   {
     model: process.env.COPPERHEAD_TEST_COMPAT_MODEL ?? 'compat',
-    key:
-      process.env.COPPERHEAD_TEST_COMPAT_MODEL && process.env.COPPERHEAD_BASE_URL
-        ? (process.env[process.env.COPPERHEAD_API_KEY_ENV ?? 'OPENAI_API_KEY'] ?? 'local-endpoint-no-key')
-        : undefined,
+    key: process.env.COPPERHEAD_TEST_COMPAT_MODEL && process.env.COPPERHEAD_BASE_URL
+      ? (process.env[process.env.COPPERHEAD_API_KEY_ENV ?? 'OPENAI_API_KEY'] ?? 'local-endpoint-no-key')
+      : undefined,
   },
 ];
 
@@ -197,34 +197,25 @@ async function scanTreeForSecret(dir: string, pattern: RegExp, root = dir): Prom
 }
 
 describe.skipIf(!providers.some((p) => p.key))('safety net', () => {
-  it(
-    'AC-4.1: no API key material anywhere in the tree after a real run',
-    async () => {
-      // Scanning a freshly created repo that no run ever touched cannot fail
-      // for the reason this test exists — there is nothing in it to leak. Run
-      // one real turn first so the transcript and summary this check is meant
-      // to guard actually exist on disk before the scan.
-      const { model } = providers.find((p) => p.key)!;
-      const { repo, cleanup } = await setupRepo();
-      try {
-        // One turn is enough: edit tools are gated off on the first turn for
-        // every provider (spec-gated-in), so this fails fast and deterministically
-        // while still writing a transcript + summary under .copperhead/runs/.
-        await runAgentLoop({
-          repoRoot: repo,
-          request: 'rename net KEY_DAH to KEY_DASH',
-          model,
-          maxTurns: 1,
-          log: () => {},
-        });
-        const matches = await scanTreeForSecret(repo, /sk-[A-Za-z0-9_-]+/);
-        expect(matches).toEqual([]);
-      } finally {
-        await cleanup();
-      }
-    },
-    600_000,
-  );
+  it('AC-4.1: no API key material anywhere in the tree after a real run', async () => {
+    // A pristine repo has no transcript or summary to scan. One turn is enough
+    // to create both artifacts while the structural edit gate keeps the run fast.
+    const { model } = providers.find((p) => p.key)!;
+    const { repo, cleanup } = await setupRepo();
+    try {
+      await runAgentLoop({
+        repoRoot: repo,
+        request: 'rename net KEY_DAH to KEY_DASH',
+        model,
+        maxTurns: 1,
+        log: () => {},
+      });
+      const matches = await scanTreeForSecret(repo, /sk-[A-Za-z0-9_-]+/);
+      expect(matches).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  }, 600_000);
 });
 
 function diffLineCount(a: string, b: string): number {

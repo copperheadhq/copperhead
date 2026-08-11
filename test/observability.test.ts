@@ -10,7 +10,7 @@ import { tempFixtureRepo } from './helpers.js';
 
 /** Replays a fixed script of turns; the last turn repeats forever. */
 class ScriptedProvider implements Provider {
-  readonly name = 'scripted';
+  readonly name: string = 'scripted';
   private i = 0;
   constructor(private readonly turns: Turn[]) {}
   async chat(): Promise<Turn> {
@@ -87,6 +87,92 @@ describe('run metadata on the three surfaces (tasks 3.2/3.4)', () => {
       expect(summary).toContain('## Environment');
       expect(summary).toContain('schematic null');
     } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('resolved model id reaches the run (F6 wiring)', () => {
+  /** A provider that discovers its model id, like the local endpoint does. */
+  class DiscoveringProvider extends ScriptedProvider {
+    override readonly name = 'discovering';
+    constructor(
+      turns: Turn[],
+      private readonly discover: () => Promise<string>,
+    ) {
+      super(turns);
+    }
+    async resolvedModelId(log?: (line: string) => void): Promise<string> {
+      log?.('discovery note');
+      return this.discover();
+    }
+  }
+
+  it('records the discovered id, not the routing string', async () => {
+    // The whole point of the hook: run metadata has to say which model designed
+    // the board, and the routing string cannot.
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const lines: string[] = [];
+      const provider = new DiscoveringProvider([finishTurn('done', 'ok')], async () => 'real/model-7b');
+      const res = await runAgentLoop(loopOpts(repo, provider, lines, { model: 'lmstudio', maxTurns: 2 }));
+      const start = (await transcriptEvents(res.transcriptDir)).find((e) => e.type === 'run-start')!.data;
+      expect(start.model).toBe('real/model-7b');
+      // and whatever the provider wanted to say about how it chose reaches the log
+      expect(lines.join('\n')).toContain('discovery note');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('falls back to the routing string when discovery fails, and says caching is off', async () => {
+    // The dangerous half of the fallback: if the probe fails but chat() works,
+    // caching under the routing string would let a later run on a different
+    // model replay these turns. The run continues; the cache does not.
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const lines: string[] = [];
+      const provider = new DiscoveringProvider([finishTurn('done', 'ok')], async () => {
+        throw new Error('models.list timed out');
+      });
+      const res = await runAgentLoop(loopOpts(repo, provider, lines, { model: 'lmstudio', maxTurns: 2 }));
+      const start = (await transcriptEvents(res.transcriptDir)).find((e) => e.type === 'run-start')!.data;
+      expect(start.model).toBe('lmstudio');
+      expect(res.outcome).toBe('success');
+      const log = lines.join('\n');
+      expect(log).toContain('could not resolve the model id');
+      expect(log).toContain('response caching is off for this run');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a rate-limited local run fails instead of failing over to a billed provider', async () => {
+    // AC-3.21's no-fallback guarantee, driven through the real failover path
+    // rather than asserted by proxy on the provider name. Both cloud keys are
+    // set, so a provider that did fail over would visibly switch here.
+    const { repo, cleanup } = await tempFixtureRepo();
+    const saved = { o: process.env.OPENAI_API_KEY, a: process.env.ANTHROPIC_API_KEY };
+    process.env.OPENAI_API_KEY = 'sk-test-openai';
+    process.env.ANTHROPIC_API_KEY = 'sk-test-anthropic';
+    try {
+      const lines: string[] = [];
+      class RateLimited extends ScriptedProvider {
+        override readonly name = 'lmstudio';
+        override async chat(): Promise<Turn> {
+          throw Object.assign(new Error('429 too many requests'), { status: 429 });
+        }
+      }
+      const res = await runAgentLoop(
+        loopOpts(repo, new RateLimited([finishTurn('done', 'ok')]), lines, { model: 'lmstudio', maxTurns: 2 }),
+      );
+      expect(res.outcome).toBe('failure');
+      expect(lines.join('\n')).not.toContain('failing over');
+    } finally {
+      if (saved.o === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = saved.o;
+      if (saved.a === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = saved.a;
       await cleanup();
     }
   });

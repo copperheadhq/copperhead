@@ -1,54 +1,103 @@
 import { DEFAULT_API_KEY_ENV, isLocalEndpoint } from '../../config.js';
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn, ToolCall } from '../types.js';
 
-/** Pointing the provider at an OpenAI-compatible endpoint (design D1). */
+/** The slice of an OpenAI-compatible chat completion this provider reads. */
+export interface ChatCompletionLike {
+  choices: Array<{ message: { content?: string | null; tool_calls?: unknown[] } }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+}
+
+/** The request body this provider sends. Named so the fields stay compile-checked
+ *  even though the client itself is only structurally typed. */
+export interface ChatRequestLike {
+  model: string;
+  max_completion_tokens: number;
+  messages: unknown[];
+  tools?: Array<{
+    type: 'function';
+    function: { name: string; description: string; parameters: unknown };
+  }>;
+}
+
+/**
+ * Structural subset of the `openai` SDK client we depend on. Declared locally so
+ * tests can inject a fake and run with no network — the same seam
+ * `CodexProviderOptions.client` gives the Codex path.
+ */
+export interface ChatClientLike {
+  chat: { completions: { create(body: ChatRequestLike): Promise<ChatCompletionLike> } };
+  models: { list(): Promise<{ data: Array<{ id: string }> }> };
+}
+
 export interface OpenAIProviderOptions {
-  /** Endpoint base URL; omitted means the client's own default (OpenAI). */
-  baseURL?: string | undefined;
-  /** Name of the env var holding the key. Never the key itself. */
-  apiKeyEnv?: string | undefined;
+  /** Model id. Defaults to `gpt-5` for this provider. */
+  model?: string;
+  /** Defaults to `OPENAI_API_KEY`. Must be non-empty. */
+  apiKey?: string;
+  /** Named environment variable from which a compatible endpoint reads its key. */
+  apiKeyEnv?: string;
+  /** Override the API host. Omitted for the real OpenAI API; set by subclasses
+   *  that talk to an OpenAI-compatible server (see `lmstudio.ts`). */
+  baseURL?: string;
+  /** Production leaves this unset and the SDK client is built lazily; tests
+   *  inject a fake so no network call is made. */
+  client?: ChatClientLike;
 }
 
 export class OpenAIProvider implements Provider {
+  // Widened to `string` so a subclass can narrow it to its own provider name.
+  // The name is load-bearing: `otherProvider` in loop.ts only fails over between
+  // 'openai' and 'anthropic', so any other name is structurally no-fallback.
   readonly name: string;
-  private readonly apiKey: string | undefined;
-  private readonly baseURL: string | undefined;
+
+  protected readonly model: string | undefined;
+  protected readonly apiKey: string | undefined;
+  protected readonly baseURL: string | undefined;
+  private readonly injectedClient: ChatClientLike | undefined;
+  /** Memoized so a run builds one client instead of one per turn. */
+  private clientPromise: Promise<ChatClientLike> | undefined;
 
   constructor(
-    private readonly model = 'gpt-5',
-    opts: OpenAIProviderOptions = {},
+    modelOrOpts: string | OpenAIProviderOptions = {},
+    positionalOpts: OpenAIProviderOptions = {},
     env: NodeJS.ProcessEnv = process.env,
   ) {
-    // Credentials are always resolved through a named env var, never accepted
-    // as a literal value: the one way to supply a key keeps application code
-    // from ever holding one directly (mirrors AC-4.1 elsewhere). Tests inject
-    // fake values through the `env` argument, not through opts.
+    const opts = typeof modelOrOpts === 'string' ? { ...positionalOpts, model: modelOrOpts } : modelOrOpts;
+    this.model = opts.model;
     const keyEnv = opts.apiKeyEnv ?? DEFAULT_API_KEY_ENV;
+    this.apiKey = opts.apiKey ?? env[keyEnv];
     this.baseURL = opts.baseURL;
-    // A compat endpoint must be structurally ineligible for the paid
-    // OpenAI/Anthropic failover in otherProvider() (loop.ts) — it is not
-    // OpenAI, and a rate limit there must never silently redirect a run the
-    // user deliberately pointed elsewhere to someone else's paid API.
+    this.injectedClient = opts.client;
     this.name = this.baseURL ? 'openai-compat' : 'openai';
-    this.apiKey = env[keyEnv];
-    // A loopback endpoint (Ollama) serves the same API with no credential, and
-    // it is the one backend that is both free and fully local — requiring a
-    // dummy key there would be a papercut on the most useful config (D4).
-    if (!this.apiKey && !isLocalEndpoint(this.baseURL)) {
-      throw new Error(`${keyEnv} is not set`);
+    // Subclasses that authenticate differently satisfy this by passing their own
+    // non-empty placeholder (the SDK requires a string), never a cloud key.
+    if (!this.apiKey && !isLocalEndpoint(this.baseURL)) throw new Error(`${keyEnv} is not set`);
+  }
+
+  protected async client(): Promise<ChatClientLike> {
+    if (this.injectedClient) return this.injectedClient;
+    if (!this.clientPromise) {
+      this.clientPromise = (async () => {
+        const { default: OpenAI } = await import('openai');
+        return new OpenAI({
+          apiKey: this.apiKey ?? 'no-key-required',
+          ...(this.baseURL ? { baseURL: this.baseURL } : {}),
+        }) as unknown as ChatClientLike;
+      })();
     }
+    return this.clientPromise;
+  }
+
+  /** The model id to send. Overridable so a backend that hosts whatever model
+   *  the user has loaded can discover it at call time (see `lmstudio.ts`). */
+  protected async resolveModelId(_client: ChatClientLike): Promise<string> {
+    return this.model ?? 'gpt-5';
   }
 
   async chat(messages: Msg[], tools: ToolSchema[], opts: ChatOpts = {}): Promise<Turn> {
-    const { default: OpenAI } = await import('openai');
-    const client = new OpenAI({
-      // A local endpoint may legitimately have no key, but the client still
-      // wants a non-empty string, so send a placeholder it will never check.
-      apiKey: this.apiKey ?? 'no-key-required',
-      ...(this.baseURL ? { baseURL: this.baseURL } : {}),
-    });
+    const client = await this.client();
     const res = await client.chat.completions.create({
-      model: this.model,
+      model: await this.resolveModelId(client),
       max_completion_tokens: opts.maxTokens ?? 8192,
       messages: messages.map((m) => {
         switch (m.role) {
