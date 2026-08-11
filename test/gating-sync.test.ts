@@ -13,6 +13,7 @@ import {
   reopenDeferredAffects,
 } from '../src/memory/constraints.js';
 import { syncVerify } from '../src/commands/sync.js';
+import { openspecValidate } from '../src/openspec/cli.js';
 import { tempFixtureRepo } from './helpers.js';
 
 async function makeCtx(repo: string): Promise<RunContext> {
@@ -60,11 +61,31 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
         what_changes: '- nothing real',
         tasks: '- [ ] test',
       });
+      const openspecYaml = await readFile(path.join(repo, 'openspec', 'changes', 'test-change', '.openspec.yaml'), 'utf8');
+      expect(openspecYaml).toContain('schema: spec-driven');
+      expect(openspecYaml).toContain('skip_specs: true');
+
       const validated = await dispatchTool(ctx, 'validate_change', {});
       expect(validated).toContain('unlocked');
       expect(ctx.editsUnlocked).toBe(true);
       expect(names()).toContain('edit_file');
       expect(names()).toContain('write_file');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('openspecValidate forms correct CLI flags for changes and --all (#142)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const resWithId = await openspecValidate(repo, 'my-change');
+      expect(resWithId).toHaveProperty('ok');
+      expect(resWithId).toHaveProperty('output');
+
+      const resAll = await openspecValidate(repo);
+      expect(resAll).toHaveProperty('ok');
+      expect(resAll).toHaveProperty('output');
     } finally {
       await cleanup();
     }

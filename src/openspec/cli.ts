@@ -36,7 +36,7 @@ export async function openspecInit(repo: string): Promise<OpenSpecResult> {
 }
 
 export function openspecValidate(repo: string, changeId?: string): Promise<OpenSpecResult> {
-  return openspec(repo, changeId ? ['validate', changeId] : ['validate']);
+  return openspec(repo, changeId ? ['validate', '--type', 'change', changeId] : ['validate', '--all']);
 }
 
 export function openspecArchive(repo: string, changeId: string): Promise<OpenSpecResult> {
