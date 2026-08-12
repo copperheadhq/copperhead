@@ -438,6 +438,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+- **AC-2.6 (configured schematic absent)** With `schematic` set in config to a path that does not exist, `check` exits non-zero and names the configured path in every skip reason it prints; it does not exit 0 reporting "no schematic configured".
 
 ### AC-3 · `copperhead do` — core loop
 
