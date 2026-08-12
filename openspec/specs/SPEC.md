@@ -475,7 +475,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-7.3 (never resolve a violation silently)** With an inconsistency that reflects a requirement violation (e.g. a part whose leakage breaks the sleep-current budget), `sync` does **not** rewrite either side to agree; it flags the violation with both sides and the governing spec/budget, and exits non-zero.
 - **AC-7.4 (dry run)** `sync --dry-run` prints every detected inconsistency (doc, claim, actual, proposed resolution) and writes nothing (`git status` unchanged).
 - **AC-7.5 (clean and idempotent)** On a consistent repo, `sync` exits 0 with "no inconsistencies", makes no edits and no commit; running `sync` twice in a row makes the second run a no-op.
-- **AC-7.6 (configured schematic absent)** With `schematic` set in config to a path that does not exist, `sync` reports the missing file and the checks it disarmed (drift, forbidden pins) and exits non-zero; it does not report "no inconsistencies", and the missing file is not handed to the resolve phase. `check` fails the same repo state for the same reason.
+- **AC-7.6 (configured schematic absent)** With `schematic` set in config to a path that does not exist, `sync` reports the missing file and the checks it disarmed (drift, forbidden pins) and exits non-zero; it does not report "no inconsistencies", and the missing file is not handed to the resolve phase.
 
 ### AC-15 · Turn-budget continue & loop efficiency (issue #15)
 
