@@ -200,7 +200,7 @@ describe('CodexProvider', () => {
     });
   });
 
-  it('rejects malformed JSON tool arguments', async () => {
+  it('surfaces malformed JSON tool arguments as a tool-level error nudge', async () => {
     const invalid = {
       finalResponse: JSON.stringify({
         text: '',
@@ -211,27 +211,90 @@ describe('CodexProvider', () => {
     const run = vi
       .fn()
       .mockResolvedValueOnce(invalid)
-      .mockResolvedValueOnce(invalid)
-      .mockResolvedValueOnce({
-        finalResponse: JSON.stringify({ text: 'recovered', toolCalls: [] }),
-        usage: null,
-      });
+      .mockResolvedValueOnce(invalid);
     const provider = new CodexProvider({
       workingDirectory: process.cwd(),
       client: { startThread: () => ({ run }) },
     });
 
-    await expect(provider.chat([{ role: 'user', content: 'read' }], [readTool])).rejects.toThrow(
-      'invalid JSON arguments',
-    );
+    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
     expect(run).toHaveBeenCalledTimes(2);
     expect(run.mock.calls[1]![0]).toContain('invalid JSON arguments');
-    expect(run.mock.calls[1]![0]).not.toContain('"content":"read"');
+    expect(turn.toolCalls).toEqual([]);
+    expect(turn.nudge).toContain('Codex tool call arguments were malformed or invalid');
+  });
 
-    await expect(provider.chat([{ role: 'user', content: 'read' }], [readTool])).resolves.toMatchObject({
-      text: 'recovered',
+  it('parses valid single-encoded object arguments directly', async () => {
+    const run = vi.fn().mockResolvedValue({
+      finalResponse: JSON.stringify({
+        text: 'Inspecting...',
+        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: { path: 'docs/SPEC.md' } }],
+      }),
+      usage: { input_tokens: 50, output_tokens: 10 },
     });
-    expect(run.mock.calls[2]![0]).toContain('"kind":"user","content":"read"');
+    const provider = new CodexProvider({
+      workingDirectory: process.cwd(),
+      client: { startThread: () => ({ run }) },
+    });
+
+    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
+    expect(turn.toolCalls).toEqual([{ id: 'call-1', name: 'read_file', args: { path: 'docs/SPEC.md' } }]);
+  });
+
+  it('parses legacy double-encoded string arguments with trailing content leniently', async () => {
+    const run = vi.fn().mockResolvedValue({
+      finalResponse: JSON.stringify({
+        text: '',
+        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: '{"path":"docs/SPEC.md"} trailing content after json' }],
+      }),
+      usage: null,
+    });
+    const provider = new CodexProvider({
+      workingDirectory: process.cwd(),
+      client: { startThread: () => ({ run }) },
+    });
+
+    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
+    expect(turn.toolCalls).toEqual([{ id: 'call-1', name: 'read_file', args: { path: 'docs/SPEC.md' } }]);
+  });
+
+  it('issue #235 regression: decision_symbols payload with trailing content at offset is parsed leniently', async () => {
+    const decisionSymbolsTool: ToolSchema = {
+      name: 'decision_symbols',
+      description: 'Record decision symbols',
+      parameters: {
+        type: 'object',
+        properties: { symbols: { type: 'array' } },
+        required: ['symbols'],
+      },
+    };
+    const run = vi.fn().mockResolvedValue({
+      finalResponse: JSON.stringify({
+        text: 'Deciding symbols',
+        toolCalls: [
+          {
+            id: 'call-dec-1',
+            name: 'decision_symbols',
+            arguments:
+              '{"symbols":[{"ref":"U1","lib_id":"MCU_ST:STM32F103C8T6"}]} trailing content killed stage 3 at position 706',
+          },
+        ],
+      }),
+      usage: null,
+    });
+    const provider = new CodexProvider({
+      workingDirectory: process.cwd(),
+      client: { startThread: () => ({ run }) },
+    });
+
+    const turn = await provider.chat([{ role: 'user', content: 'decide' }], [decisionSymbolsTool]);
+    expect(turn.toolCalls).toEqual([
+      {
+        id: 'call-dec-1',
+        name: 'decision_symbols',
+        args: { symbols: [{ ref: 'U1', lib_id: 'MCU_ST:STM32F103C8T6' }] },
+      },
+    ]);
   });
 
   it('retries arguments that do not match the selected tool schema', async () => {

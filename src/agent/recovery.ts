@@ -203,6 +203,39 @@ export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap
 }
 
 /**
+ * Detects whether a stage failure is a deterministic tool argument parse or schema error
+ * that reproduced across attempts (or on a retry attempt). Such failures are not transient
+ * and should not trigger a full stage retry loop.
+ */
+export function detectDeterministicParseError(
+  failure: string,
+  excerpt: string,
+  attempt: number,
+): StageDiagnosis | null {
+  if (attempt <= 1) return null;
+
+  const combined = `${failure}\n${excerpt}`;
+  const isParseOrSchemaError = /(?:invalid JSON arguments|arguments do not match .* schema|invalid structured output|malformed or invalid)/i.test(combined);
+  if (!isParseOrSchemaError) return null;
+
+  const schemaMatch = combined.match(/arguments do not match\s+["`']?([A-Za-z0-9_-]+)["`']?\s+schema/i);
+  const callingMatch = combined.match(/calling\s+["`']?([A-Za-z0-9_-]+)["`']?/i);
+  const genericToolMatch = combined.match(/(?:tool|schema)\s+["`']?([A-Za-z0-9_-]+)["`']?/i);
+  const toolName = schemaMatch?.[1] ?? callingMatch?.[1] ?? genericToolMatch?.[1] ?? null;
+
+  const offsetMatch = combined.match(/(?:position|offset|at index|line)\s+(\d+)/i);
+  const offset = offsetMatch ? offsetMatch[1] : null;
+
+  const toolInfo = toolName ? ` on tool "${toolName}"` : '';
+  const offsetInfo = offset ? ` at offset ${offset}` : '';
+
+  return {
+    verdict: 'abort',
+    reason: `Deterministic parse/schema error${toolInfo}${offsetInfo} reproduced across attempts.`,
+  };
+}
+
+/**
  * Ask the model whether a failed/incomplete stage is worth retrying, and if so
  * how. Uses a fresh, tool-less provider turn (the same saved-login backend the
  * pipeline runs on), so no extra credentials or config are needed. Any error or
@@ -223,6 +256,9 @@ export async function diagnoseStageFailure(
     symbolFacts?: string;
   },
 ): Promise<StageDiagnosis> {
+  const deterministicDiagnosis = detectDeterministicParseError(input.failure, input.excerpt, input.attempt);
+  if (deterministicDiagnosis) return deterministicDiagnosis;
+
   const system =
     'You are the recovery supervisor for an automated KiCad PCB-design pipeline. ' +
     'A stage just failed or ended without meeting its completion contract. Judge whether ' +
@@ -240,7 +276,7 @@ export async function diagnoseStageFailure(
     'Reply with ONLY a JSON object, no prose:\n' +
     '{"verdict":"retry"|"abort","reason":"<one sentence>","guidance":"<if retry: concrete, specific instructions to prepend to the next attempt so it avoids this failure; otherwise empty>"}\n' +
     '- "retry" if the failure looks transient or fixable with clearer instructions (a dropped or locked tool call, an empty/no-op edit, a skipped step, a timeout, a formatting slip).\n' +
-    '- "abort" if repeating the same attempt will not help and a human should look (missing inputs, a genuine dead-end, or the same failure already seen on a prior attempt).\n' +
+    '- "abort" if repeating the same attempt will not help and a human should look (missing inputs, a genuine dead-end, a deterministic parse/schema error, or the same failure already seen on a prior attempt).\n' +
     '- an agent\'s claim that a symbol or library is absent is NOT evidence: agents dead-ended by wrong library nicknames routinely conclude whole libraries are missing. If the machine-verified facts contradict the failure\'s premise (a cited-absent lib_id RESOLVES, or the part is installed under another library), the verdict is "retry", with guidance quoting the correct lib_ids.';
   const messages: Msg[] = [
     { role: 'system', content: system },

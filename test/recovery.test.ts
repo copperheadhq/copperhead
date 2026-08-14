@@ -97,6 +97,32 @@ describe('diagnoseStageFailure', () => {
     });
     expect(d.verdict).toBe('abort');
   });
+
+  it('classifies repeating tool argument parse/schema errors on retries as deterministic abort without calling the provider', async () => {
+    let called = false;
+    const provider: Provider = {
+      name: 'fake',
+      async chat() {
+        called = true;
+        return turn('{"verdict":"retry"}');
+      },
+    };
+
+    const d = await diagnoseStageFailure(provider, {
+      stageName: 'part-selection',
+      stageGoal: 'select parts',
+      failure: 'the run ended as "failure" (provider-error): Codex tool call call-dec-1 has invalid JSON arguments: Unexpected token at position 452',
+      excerpt: '[assistant] calling decision_symbols...',
+      attempt: 2,
+      maxAttempts: 3,
+    });
+
+    expect(called).toBe(false); // fast-path without LLM call
+    expect(d.verdict).toBe('abort');
+    expect(d.reason).toContain('Deterministic parse/schema error');
+    expect(d.reason).toContain('decision_symbols');
+    expect(d.reason).toContain('452');
+  });
 });
 
 describe('CachingProvider', () => {
