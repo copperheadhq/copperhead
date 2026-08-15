@@ -233,10 +233,7 @@ function turnSchema(tools: ToolSchema[]): Record<string, unknown> {
           properties: {
             id: { type: 'string' },
             name: names.length ? { type: 'string', enum: names } : { type: 'string' },
-            arguments: {
-              type: 'object',
-              additionalProperties: true,
-            },
+            arguments: { type: 'string' },
           },
           required: ['id', 'name', 'arguments'],
           additionalProperties: false,
