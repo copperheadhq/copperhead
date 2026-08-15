@@ -61,6 +61,7 @@ With `--json`, commands SHALL emit machine-readable results with stable keys.
 #### Scenario: Configured schematic absent (AC-7.6)
 - **WHEN** `sync` runs on a repo whose configured `schematic` names a file that is not on disk
 - **THEN** it reports the missing file and the checks it disarmed (drift, forbidden pins), exits non-zero rather than reporting no inconsistencies, and does not hand the missing file to the resolve phase
+- **AND** any resolvable items found alongside it are reported as deferred rather than unfixable
 
 ### Requirement: Dry-run mode
 With `--dry-run`, `do` SHALL print the proposed diff and write no files.

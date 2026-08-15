@@ -97,6 +97,7 @@
 - [x] 10.3 Implement the resolve phase: spec-gated agent run seeded with the report, truth precedence (KiCad = as-built facts, specs/budgets = requirements), single commit with DECISIONS/CHANGELOG entries (AC-7.1, AC-7.2)
 - [x] 10.4 Implement violation flagging: inconsistencies that imply a requirement violation are reported with both sides and the governing spec, never rewritten, exit non-zero (AC-7.3)
 - [x] 10.6 Implement the configured-but-absent schematic case: report the missing file and the disarmed checks, exit non-zero, never hand it to the resolve phase (AC-7.6)
+- [x] 10.7 Report resolvable items found alongside a missing schematic as deferred rather than unfixable (AC-7.6)
 - [ ] 10.5 Tests: doc-drift fixture resolved then `check` clean; dual-write gap repaired both directions; violation fixture flagged not rewritten; clean repo no-op and double-run idempotence (AC-7.5)
 
 ## 11. Submission readiness
