@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
-import { CodexProvider } from '../src/agent/providers/codex.js';
+import { CodexProvider, extractFirstJsonSubstring, parseArguments } from '../src/agent/providers/codex.js';
 import { makeProvider } from '../src/agent/loop.js';
 import type { Msg, ToolSchema } from '../src/agent/types.js';
 
@@ -83,9 +83,19 @@ describe('CodexProvider', () => {
     expect(run.mock.calls[0]![0]).toContain('system policy');
     expect(run.mock.calls[0]![0]).toContain('read_file');
     const schema = run.mock.calls[0]![1].outputSchema as {
-      properties: { toolCalls: { items: { properties: { name: { enum: string[] } } } } };
+      properties: {
+        toolCalls: {
+          items: {
+            properties: {
+              name: { enum: string[] };
+              arguments: { type: string };
+            };
+          };
+        };
+      };
     };
     expect(schema.properties.toolCalls.items.properties.name.enum).toEqual(['read_file']);
+    expect(schema.properties.toolCalls.items.properties.arguments.type).toBe('object');
     expect(turn).toEqual({
       text: 'I will inspect the design.',
       toolCalls: [{ id: 'call-1', name: 'read_file', args: { path: 'docs/SPEC.md' } }],
@@ -200,7 +210,7 @@ describe('CodexProvider', () => {
     });
   });
 
-  it('surfaces malformed JSON tool arguments as a tool-level error nudge', async () => {
+  it('surfaces malformed JSON tool arguments as a tool-level error nudge without advancing message cursor', async () => {
     const invalid = {
       finalResponse: JSON.stringify({
         text: '',
@@ -211,7 +221,11 @@ describe('CodexProvider', () => {
     const run = vi
       .fn()
       .mockResolvedValueOnce(invalid)
-      .mockResolvedValueOnce(invalid);
+      .mockResolvedValueOnce(invalid)
+      .mockResolvedValueOnce({
+        finalResponse: JSON.stringify({ text: 'recovered', toolCalls: [] }),
+        usage: null,
+      });
     const provider = new CodexProvider({
       workingDirectory: process.cwd(),
       client: { startThread: () => ({ run }) },
@@ -220,8 +234,42 @@ describe('CodexProvider', () => {
     const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
     expect(run).toHaveBeenCalledTimes(2);
     expect(run.mock.calls[1]![0]).toContain('invalid JSON arguments');
+    expect(run.mock.calls[1]![0]).not.toContain('"content":"read"');
     expect(turn.toolCalls).toEqual([]);
     expect(turn.nudge).toContain('Codex tool call arguments were malformed or invalid');
+
+    await expect(provider.chat([{ role: 'user', content: 'read' }], [readTool])).resolves.toMatchObject({
+      text: 'recovered',
+    });
+    expect(run.mock.calls[2]![0]).toContain('"kind":"user","content":"read"');
+  });
+
+  it('sums usage token accounting across correction attempts on the nudge path', async () => {
+    const invalid1 = {
+      finalResponse: JSON.stringify({
+        text: '',
+        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: '{invalid' }],
+      }),
+      usage: { input_tokens: 15, output_tokens: 5 },
+    };
+    const invalid2 = {
+      finalResponse: JSON.stringify({
+        text: '',
+        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: '{still invalid' }],
+      }),
+      usage: { input_tokens: 20, output_tokens: 10 },
+    };
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce(invalid1)
+      .mockResolvedValueOnce(invalid2);
+    const provider = new CodexProvider({
+      workingDirectory: process.cwd(),
+      client: { startThread: () => ({ run }) },
+    });
+
+    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
+    expect(turn.usage).toEqual({ inputTokens: 35, outputTokens: 15 });
   });
 
   it('parses valid single-encoded object arguments directly', async () => {
@@ -241,7 +289,7 @@ describe('CodexProvider', () => {
     expect(turn.toolCalls).toEqual([{ id: 'call-1', name: 'read_file', args: { path: 'docs/SPEC.md' } }]);
   });
 
-  it('parses legacy double-encoded string arguments with trailing content leniently', async () => {
+  it('parses legacy double-encoded string arguments with trailing content leniently and records warning in extra', async () => {
     const run = vi.fn().mockResolvedValue({
       finalResponse: JSON.stringify({
         text: '',
@@ -255,7 +303,34 @@ describe('CodexProvider', () => {
     });
 
     const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
-    expect(turn.toolCalls).toEqual([{ id: 'call-1', name: 'read_file', args: { path: 'docs/SPEC.md' } }]);
+    expect(turn.toolCalls).toEqual([
+      {
+        id: 'call-1',
+        name: 'read_file',
+        args: { path: 'docs/SPEC.md' },
+        extra: {
+          discardedTrailingChars: 28,
+          warning: 'Codex tool call call-1 discarded 28 trailing character(s)',
+        },
+      },
+    ]);
+  });
+
+  it('does not attach discarded trailing chars extra on clean payloads', async () => {
+    const run = vi.fn().mockResolvedValue({
+      finalResponse: JSON.stringify({
+        text: '',
+        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: { path: 'docs/SPEC.md' } }],
+      }),
+      usage: null,
+    });
+    const provider = new CodexProvider({
+      workingDirectory: process.cwd(),
+      client: { startThread: () => ({ run }) },
+    });
+
+    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
+    expect(turn.toolCalls[0]!.extra).toBeUndefined();
   });
 
   it('issue #235 regression: decision_symbols payload with trailing content at offset is parsed leniently', async () => {
@@ -293,6 +368,10 @@ describe('CodexProvider', () => {
         id: 'call-dec-1',
         name: 'decision_symbols',
         args: { symbols: [{ ref: 'U1', lib_id: 'MCU_ST:STM32F103C8T6' }] },
+        extra: {
+          discardedTrailingChars: 48,
+          warning: 'Codex tool call call-dec-1 discarded 48 trailing character(s)',
+        },
       },
     ]);
   });
@@ -348,5 +427,50 @@ describe('CodexProvider', () => {
     await expect(provider.chat([{ role: 'user', content: 'read' }], [readTool])).rejects.toThrow(
       'codex login status',
     );
+  });
+});
+
+describe('extractFirstJsonSubstring', () => {
+  it('extracts JSON object from a fenced json code block', () => {
+    const text = '```json\n{"path":"docs/SPEC.md"}\n```';
+    expect(extractFirstJsonSubstring(text)).toBe('{"path":"docs/SPEC.md"}');
+  });
+
+  it('extracts JSON array from an array-valued payload with trailing content', () => {
+    const text = '[1, 2, 3] trailing content after array';
+    expect(extractFirstJsonSubstring(text)).toBe('[1, 2, 3]');
+  });
+
+  it('returns null for a payload with no json container at all', () => {
+    const text = 'some plain text without any json braces';
+    expect(extractFirstJsonSubstring(text)).toBeNull();
+  });
+
+  it('returns null for unbalanced braces', () => {
+    const text = '{"path": "docs/SPEC.md"';
+    expect(extractFirstJsonSubstring(text)).toBeNull();
+  });
+});
+
+describe('parseArguments', () => {
+  it('unwraps single-encoded object directly', () => {
+    const result = parseArguments({ path: 'docs/SPEC.md' }, 'call-1');
+    expect(result).toEqual({ args: { path: 'docs/SPEC.md' } });
+  });
+
+  it('unwraps double-encoded JSON string', () => {
+    const result = parseArguments('{"path":"docs/SPEC.md"}', 'call-1');
+    expect(result).toEqual({ args: { path: 'docs/SPEC.md' } });
+  });
+
+  it('unwraps second/triple-encoded string payloads', () => {
+    const triple = JSON.stringify(JSON.stringify(JSON.stringify({ path: 'docs/SPEC.md' })));
+    const result = parseArguments(triple, 'call-1');
+    expect(result).toEqual({ args: { path: 'docs/SPEC.md' } });
+  });
+
+  it('throws on non-object JSON values such as arrays or primitives', () => {
+    expect(() => parseArguments('[1, 2]', 'call-1')).toThrow('arguments must encode a JSON object');
+    expect(() => parseArguments(42, 'call-1')).toThrow('arguments must encode a JSON object');
   });
 });

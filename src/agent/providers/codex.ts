@@ -105,7 +105,6 @@ export class CodexProvider implements Provider {
     }
 
     if (!parsed) {
-      this.messageCursor = messages.length;
       return {
         text: null,
         toolCalls: [],
@@ -220,7 +219,7 @@ function renderCorrectionPrompt(tools: ToolSchema[], validationError: string): s
   ].join('\n\n');
 }
 
-function turnSchema(tools: ToolSchema[]): Record<string, unknown> {
+export function turnSchema(tools: ToolSchema[]): Record<string, unknown> {
   const names = tools.map((tool) => tool.name);
   return {
     type: 'object',
@@ -233,7 +232,7 @@ function turnSchema(tools: ToolSchema[]): Record<string, unknown> {
           properties: {
             id: { type: 'string' },
             name: names.length ? { type: 'string', enum: names } : { type: 'string' },
-            arguments: { type: 'string' },
+            arguments: { type: 'object' },
           },
           required: ['id', 'name', 'arguments'],
           additionalProperties: false,
@@ -245,22 +244,20 @@ function turnSchema(tools: ToolSchema[]): Record<string, unknown> {
   };
 }
 
-function parseArguments(rawArgs: unknown, callId: string): Record<string, unknown> {
+export function parseArguments(
+  rawArgs: unknown,
+  callId: string,
+): { args: Record<string, unknown>; discardedTrailingChars?: number } {
   let val: unknown = rawArgs;
+  let discardedChars = 0;
 
-  if (typeof val === 'string') {
+  while (typeof val === 'string') {
     try {
-      val = parseJsonLenient(val);
+      const res = parseJsonLenient(val);
+      val = res.value;
+      if (res.discardedTrailingChars) discardedChars += res.discardedTrailingChars;
     } catch (err) {
       throw new Error(`Codex tool call ${callId} has invalid JSON arguments: ${(err as Error).message}`);
-    }
-  }
-
-  if (typeof val === 'string') {
-    try {
-      val = parseJsonLenient(val);
-    } catch {
-      // keep val as string, validation below will catch non-object
     }
   }
 
@@ -268,18 +265,26 @@ function parseArguments(rawArgs: unknown, callId: string): Record<string, unknow
     throw new Error(`Codex tool call ${callId} arguments must encode a JSON object`);
   }
 
-  return val as Record<string, unknown>;
+  return {
+    args: val as Record<string, unknown>,
+    ...(discardedChars > 0 ? { discardedTrailingChars: discardedChars } : {}),
+  };
 }
 
-function parseJsonLenient(str: string): unknown {
+export function parseJsonLenient(str: string): { value: unknown; discardedTrailingChars?: number } {
   const trimmed = str.trim();
   try {
-    return JSON.parse(trimmed);
+    return { value: JSON.parse(trimmed) };
   } catch (directErr) {
     const extracted = extractFirstJsonSubstring(trimmed);
     if (extracted !== null) {
       try {
-        return JSON.parse(extracted);
+        const value = JSON.parse(extracted);
+        const discardedTrailingChars = trimmed.length - extracted.length;
+        return {
+          value,
+          ...(discardedTrailingChars > 0 ? { discardedTrailingChars } : {}),
+        };
       } catch {
         // fall back to directErr
       }
@@ -288,9 +293,35 @@ function parseJsonLenient(str: string): unknown {
   }
 }
 
-function extractFirstJsonSubstring(text: string): string | null {
-  const start = text.indexOf('{');
-  if (start < 0) return null;
+export function extractFirstJsonSubstring(text: string): string | null {
+  const objStart = text.indexOf('{');
+  const arrStart = text.indexOf('[');
+  let start = -1;
+  let openChar = '{';
+  let closeChar = '}';
+
+  if (objStart >= 0 && arrStart >= 0) {
+    if (objStart < arrStart) {
+      start = objStart;
+      openChar = '{';
+      closeChar = '}';
+    } else {
+      start = arrStart;
+      openChar = '[';
+      closeChar = ']';
+    }
+  } else if (objStart >= 0) {
+    start = objStart;
+    openChar = '{';
+    closeChar = '}';
+  } else if (arrStart >= 0) {
+    start = arrStart;
+    openChar = '[';
+    closeChar = ']';
+  } else {
+    return null;
+  }
+
   let depth = 0;
   let inStr = false;
   let esc = false;
@@ -302,9 +333,11 @@ function extractFirstJsonSubstring(text: string): string | null {
       else if (ch === '"') inStr = false;
       continue;
     }
-    if (ch === '"') inStr = true;
-    else if (ch === '{') depth++;
-    else if (ch === '}') {
+    if (ch === '"') {
+      inStr = true;
+    } else if (ch === openChar) {
+      depth++;
+    } else if (ch === closeChar) {
       depth--;
       if (depth === 0) {
         return text.slice(start, i + 1);
@@ -332,12 +365,19 @@ function parseStructuredTurn(raw: string, toolCatalog: Map<string, ToolSchema>):
     if (!tool) {
       throw new Error(`Codex requested unavailable tool "${call.name}"`);
     }
-    const args = parseArguments(call.arguments, call.id);
+    const { args, discardedTrailingChars } = parseArguments(call.arguments, call.id);
     const schemaError = validateJsonSchema(args, tool.parameters);
     if (schemaError) {
       throw new Error(`Codex tool call ${call.id} arguments do not match ${call.name} schema: ${schemaError}`);
     }
-    return { id: call.id, name: call.name, args };
+    const toolCall: ToolCall = { id: call.id, name: call.name, args };
+    if (discardedTrailingChars) {
+      toolCall.extra = {
+        discardedTrailingChars,
+        warning: `Codex tool call ${call.id} discarded ${discardedTrailingChars} trailing character(s)`,
+      };
+    }
+    return toolCall;
   });
   return { text: parsed.text, toolCalls };
 }
