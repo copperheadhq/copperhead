@@ -276,11 +276,11 @@ export function parseJsonLenient(str: string): { value: unknown; discardedTraili
   try {
     return { value: JSON.parse(trimmed) };
   } catch (directErr) {
-    const extracted = extractFirstJsonSubstring(trimmed);
-    if (extracted !== null) {
+    const match = extractFirstJsonMatch(trimmed);
+    if (match !== null) {
       try {
-        const value = JSON.parse(extracted);
-        const discardedTrailingChars = trimmed.length - extracted.length;
+        const value = JSON.parse(match.substring);
+        const discardedTrailingChars = countDiscardedTrailingChars(trimmed, match.endIndex, match.startIndex);
         return {
           value,
           ...(discardedTrailingChars > 0 ? { discardedTrailingChars } : {}),
@@ -293,7 +293,27 @@ export function parseJsonLenient(str: string): { value: unknown; discardedTraili
   }
 }
 
-export function extractFirstJsonSubstring(text: string): string | null {
+function countDiscardedTrailingChars(trimmed: string, endIndex: number, startIndex: number): number {
+  const isFenced = /^```(?:json)?\s*/i.test(trimmed.slice(0, startIndex));
+  const rawTrailing = trimmed.slice(endIndex);
+  if (!rawTrailing) return 0;
+
+  if (isFenced) {
+    // If the input was fenced, strip the matching closing fence if present
+    const afterClosingFence = rawTrailing.replace(/^\s*```\s*/, '');
+    return afterClosingFence.length;
+  }
+
+  return rawTrailing.length;
+}
+
+export interface ExtractedJsonMatch {
+  substring: string;
+  startIndex: number;
+  endIndex: number;
+}
+
+export function extractFirstJsonMatch(text: string): ExtractedJsonMatch | null {
   const objStart = text.indexOf('{');
   const arrStart = text.indexOf('[');
   let start = -1;
@@ -340,11 +360,20 @@ export function extractFirstJsonSubstring(text: string): string | null {
     } else if (ch === closeChar) {
       depth--;
       if (depth === 0) {
-        return text.slice(start, i + 1);
+        return {
+          substring: text.slice(start, i + 1),
+          startIndex: start,
+          endIndex: i + 1,
+        };
       }
     }
   }
   return null;
+}
+
+export function extractFirstJsonSubstring(text: string): string | null {
+  const match = extractFirstJsonMatch(text);
+  return match ? match.substring : null;
 }
 
 function parseStructuredTurn(raw: string, toolCatalog: Map<string, ToolSchema>): { text: string; toolCalls: ToolCall[] } {

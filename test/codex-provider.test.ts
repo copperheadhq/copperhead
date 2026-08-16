@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
-import { CodexProvider, extractFirstJsonSubstring, parseArguments } from '../src/agent/providers/codex.js';
+import { CodexProvider, extractFirstJsonSubstring, parseArguments, parseJsonLenient } from '../src/agent/providers/codex.js';
 import { makeProvider } from '../src/agent/loop.js';
 import type { Msg, ToolSchema } from '../src/agent/types.js';
 
@@ -333,6 +333,51 @@ describe('CodexProvider', () => {
     expect(turn.toolCalls[0]!.extra).toBeUndefined();
   });
 
+  it('does not attach discarded trailing chars extra on clean fenced payloads', async () => {
+    const run = vi.fn().mockResolvedValue({
+      finalResponse: JSON.stringify({
+        text: '',
+        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: '```json\n{"path":"docs/SPEC.md"}\n```' }],
+      }),
+      usage: null,
+    });
+    const provider = new CodexProvider({
+      workingDirectory: process.cwd(),
+      client: { startThread: () => ({ run }) },
+    });
+
+    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
+    expect(turn.toolCalls[0]!.extra).toBeUndefined();
+    expect(turn.toolCalls[0]!.args).toEqual({ path: 'docs/SPEC.md' });
+  });
+
+  it('correctly counts only trailing suffix after a fenced JSON payload', async () => {
+    const run = vi.fn().mockResolvedValue({
+      finalResponse: JSON.stringify({
+        text: '',
+        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: '```json\n{"path":"docs/SPEC.md"}\n``` some extra text' }],
+      }),
+      usage: null,
+    });
+    const provider = new CodexProvider({
+      workingDirectory: process.cwd(),
+      client: { startThread: () => ({ run }) },
+    });
+
+    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
+    expect(turn.toolCalls).toEqual([
+      {
+        id: 'call-1',
+        name: 'read_file',
+        args: { path: 'docs/SPEC.md' },
+        extra: {
+          discardedTrailingChars: 15,
+          warning: 'Codex tool call call-1 discarded 15 trailing character(s)',
+        },
+      },
+    ]);
+  });
+
   it('issue #235 regression: decision_symbols payload with trailing content at offset is parsed leniently', async () => {
     const decisionSymbolsTool: ToolSchema = {
       name: 'decision_symbols',
@@ -472,5 +517,29 @@ describe('parseArguments', () => {
   it('throws on non-object JSON values such as arrays or primitives', () => {
     expect(() => parseArguments('[1, 2]', 'call-1')).toThrow('arguments must encode a JSON object');
     expect(() => parseArguments(42, 'call-1')).toThrow('arguments must encode a JSON object');
+  });
+});
+
+describe('parseJsonLenient', () => {
+  it('parses clean unfenced JSON object without discarded characters', () => {
+    const result = parseJsonLenient('{"a":1}');
+    expect(result).toEqual({ value: { a: 1 } });
+    expect(result.discardedTrailingChars).toBeUndefined();
+  });
+
+  it('parses clean fenced JSON block without counting fence prefix or suffix as discarded', () => {
+    const result = parseJsonLenient('```json\n{"a":1}\n```');
+    expect(result).toEqual({ value: { a: 1 } });
+    expect(result.discardedTrailingChars).toBeUndefined();
+  });
+
+  it('counts only trailing suffix for fenced payload with trailing content', () => {
+    const result = parseJsonLenient('```json\n{"a":1}\n``` some extra text');
+    expect(result).toEqual({ value: { a: 1 }, discardedTrailingChars: 15 });
+  });
+
+  it('counts trailing characters for unfenced payload with trailing content', () => {
+    const result = parseJsonLenient('{"a":1} trailing');
+    expect(result).toEqual({ value: { a: 1 }, discardedTrailingChars: 9 });
   });
 });
