@@ -351,6 +351,30 @@ describe('CodexProvider', () => {
     expect(turn.toolCalls[0]!.args).toEqual({ path: 'docs/SPEC.md' });
   });
 
+  it('does not attach discarded trailing chars extra when prose precedes fenced JSON payload', async () => {
+    const run = vi.fn().mockResolvedValue({
+      finalResponse: JSON.stringify({
+        text: '',
+        toolCalls: [
+          {
+            id: 'call-1',
+            name: 'read_file',
+            arguments: 'Here is the call:\n```json\n{"path":"docs/SPEC.md"}\n```',
+          },
+        ],
+      }),
+      usage: null,
+    });
+    const provider = new CodexProvider({
+      workingDirectory: process.cwd(),
+      client: { startThread: () => ({ run }) },
+    });
+
+    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
+    expect(turn.toolCalls[0]!.extra).toBeUndefined();
+    expect(turn.toolCalls[0]!.args).toEqual({ path: 'docs/SPEC.md' });
+  });
+
   it('correctly counts only trailing suffix after a fenced JSON payload', async () => {
     const run = vi.fn().mockResolvedValue({
       finalResponse: JSON.stringify({
@@ -529,6 +553,12 @@ describe('parseJsonLenient', () => {
 
   it('parses clean fenced JSON block without counting fence prefix or suffix as discarded', () => {
     const result = parseJsonLenient('```json\n{"a":1}\n```');
+    expect(result).toEqual({ value: { a: 1 } });
+    expect(result.discardedTrailingChars).toBeUndefined();
+  });
+
+  it('parses fenced JSON block preceded by prose without counting closing fence as discarded', () => {
+    const result = parseJsonLenient('Here is the call:\n```json\n{"a":1}\n```');
     expect(result).toEqual({ value: { a: 1 } });
     expect(result.discardedTrailingChars).toBeUndefined();
   });

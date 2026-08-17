@@ -294,7 +294,7 @@ export function parseJsonLenient(str: string): { value: unknown; discardedTraili
 }
 
 function countDiscardedTrailingChars(trimmed: string, endIndex: number, startIndex: number): number {
-  const isFenced = /^```(?:json)?\s*/i.test(trimmed.slice(0, startIndex));
+  const isFenced = /```(?:json)?\s*$/i.test(trimmed.slice(0, startIndex));
   const rawTrailing = trimmed.slice(endIndex);
   if (!rawTrailing) return 0;
 
