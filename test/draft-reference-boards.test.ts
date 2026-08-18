@@ -5,14 +5,17 @@ import { mkdtemp, cp, rm, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { checkLegibility } from '../src/kicad/legibility.js';
-import { runErc } from '../src/kicad/cli.js';
+import { runErc, kicadLoadError } from '../src/kicad/cli.js';
 
 /**
  * Reference boards (manual-tests/reference-boards/): committed reference projects with
  * symbols vendored from the REAL KiCad standard libraries. Hermetic by
  * construction — every draft resolves from the committed sym-lib-cache, never
- * from the machine's installed libraries — so the byte contract holds on any
- * machine. Regenerate references with `npm run refboards -- --update`.
+ * from the machine's installed libraries — so the emitted bytes are identical
+ * on any machine. ERC parsing is not version-independent: the cache vendors
+ * whatever symbol format the KiCad that generated it spoke, so an incompatible
+ * kicad-cli causes only the ERC assertion to be skipped with an actionable
+ * reason. Regenerate references with `npm run refboards -- --update`.
  */
 
 const CONTROL = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'manual-tests', 'reference-boards');
@@ -21,7 +24,7 @@ describe('reference boards: the engine reproduces the committed pinned outputs',
   const boards = (await readdir(CONTROL, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);
 
   for (const board of boards) {
-    it(`${board}: byte-identical draft, clean ERC, clean legibility`, async () => {
+    it(`${board}: byte-identical draft, clean ERC, clean legibility`, async (ctx) => {
       const src = path.join(CONTROL, board);
       const repo = await mkdtemp(path.join(tmpdir(), `copperhead-refboard-${board}-`));
       try {
@@ -45,6 +48,21 @@ describe('reference boards: the engine reproduces the committed pinned outputs',
 
         const leg = await checkLegibility(res.schematicPath, { docsDir: path.join(repo, 'docs') });
         expect(leg.findings.filter((f) => f.severity === 'error')).toEqual([]);
+
+        // ERC is only meaningful if this kicad-cli can parse the committed
+        // fixture. The reference boards vendor symbols from the real KiCad
+        // libraries in the format of the KiCad that generated them; an older
+        // kicad-cli rejects that format with an opaque "Failed to load
+        // schematic" that reads like an engine bug when it is really a version
+        // mismatch. Probe the committed reference (byte-identical to the draft
+        // checked above) and skip ERC rather than fail misleadingly.
+        const loadError = await kicadLoadError(path.join(src, 'reference', path.basename(config.schematic)));
+        if (loadError) {
+          ctx.skip(
+            `installed kicad-cli cannot load the committed reference fixture (${loadError}); ` +
+              `ERC is skipped because of a KiCad compatibility issue — run under a compatible KiCad version`,
+          );
+        }
 
         const erc = await runErc(res.schematicPath);
         expect(erc.violations).toEqual([]);
