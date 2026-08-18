@@ -87,33 +87,14 @@ export class CodexProvider implements Provider {
     let result = await this.runThread(renderTurnPrompt(messages, cursor, tools), schema);
     attempts.push(result);
 
-    const maxAttempts = 2;
-    let parsed: ReturnType<typeof parseStructuredTurn> | null = null;
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      if (attempt > 0) {
-        result = await this.runThread(renderCorrectionPrompt(tools, lastError!.message), schema);
-        attempts.push(result);
-      }
-      try {
-        parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
-        break;
-      } catch (err) {
-        lastError = err as Error;
-      }
-    }
-
-    if (!parsed) {
-      return {
-        text: null,
-        toolCalls: [],
-        usage: {
-          inputTokens: attempts.reduce((sum, attempt) => sum + (attempt.usage?.input_tokens ?? 0), 0),
-          outputTokens: attempts.reduce((sum, attempt) => sum + (attempt.usage?.output_tokens ?? 0), 0),
-        },
-        nudge: `Codex tool call arguments were malformed or invalid: ${lastError?.message}. Re-emit the tool call with valid JSON arguments matching the tool schema.`,
-      };
+    let parsed: ReturnType<typeof parseStructuredTurn>;
+    try {
+      parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
+    } catch (err) {
+      const validationError = (err as Error).message;
+      result = await this.runThread(renderCorrectionPrompt(tools, validationError), schema);
+      attempts.push(result);
+      parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
     }
 
     // The input remains unseen until Copperhead accepts a structured turn.

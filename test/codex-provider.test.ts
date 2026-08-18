@@ -210,7 +210,7 @@ describe('CodexProvider', () => {
     });
   });
 
-  it('surfaces malformed JSON tool arguments as a tool-level error nudge without advancing message cursor', async () => {
+  it('rejects malformed JSON tool arguments', async () => {
     const invalid = {
       finalResponse: JSON.stringify({
         text: '',
@@ -231,45 +231,17 @@ describe('CodexProvider', () => {
       client: { startThread: () => ({ run }) },
     });
 
-    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
+    await expect(provider.chat([{ role: 'user', content: 'read' }], [readTool])).rejects.toThrow(
+      'invalid JSON arguments',
+    );
     expect(run).toHaveBeenCalledTimes(2);
     expect(run.mock.calls[1]![0]).toContain('invalid JSON arguments');
     expect(run.mock.calls[1]![0]).not.toContain('"content":"read"');
-    expect(turn.toolCalls).toEqual([]);
-    expect(turn.nudge).toContain('Codex tool call arguments were malformed or invalid');
 
     await expect(provider.chat([{ role: 'user', content: 'read' }], [readTool])).resolves.toMatchObject({
       text: 'recovered',
     });
     expect(run.mock.calls[2]![0]).toContain('"kind":"user","content":"read"');
-  });
-
-  it('sums usage token accounting across correction attempts on the nudge path', async () => {
-    const invalid1 = {
-      finalResponse: JSON.stringify({
-        text: '',
-        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: '{invalid' }],
-      }),
-      usage: { input_tokens: 15, output_tokens: 5 },
-    };
-    const invalid2 = {
-      finalResponse: JSON.stringify({
-        text: '',
-        toolCalls: [{ id: 'call-1', name: 'read_file', arguments: '{still invalid' }],
-      }),
-      usage: { input_tokens: 20, output_tokens: 10 },
-    };
-    const run = vi
-      .fn()
-      .mockResolvedValueOnce(invalid1)
-      .mockResolvedValueOnce(invalid2);
-    const provider = new CodexProvider({
-      workingDirectory: process.cwd(),
-      client: { startThread: () => ({ run }) },
-    });
-
-    const turn = await provider.chat([{ role: 'user', content: 'read' }], [readTool]);
-    expect(turn.usage).toEqual({ inputTokens: 35, outputTokens: 15 });
   });
 
   it('parses valid single-encoded object arguments directly', async () => {
