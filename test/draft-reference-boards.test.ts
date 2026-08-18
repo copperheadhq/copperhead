@@ -5,7 +5,7 @@ import { mkdtemp, cp, rm, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { checkLegibility } from '../src/kicad/legibility.js';
-import { runErc, kicadLoadError } from '../src/kicad/cli.js';
+import { runErc, probeKicadLoad } from '../src/kicad/cli.js';
 
 /**
  * Reference boards (manual-tests/reference-boards/): committed reference projects with
@@ -55,13 +55,16 @@ describe('reference boards: the engine reproduces the committed pinned outputs',
         // kicad-cli rejects that format with an opaque "Failed to load
         // schematic" that reads like an engine bug when it is really a version
         // mismatch. Probe the committed reference (byte-identical to the draft
-        // checked above) and skip ERC rather than fail misleadingly.
-        const loadError = await kicadLoadError(path.join(src, 'reference', path.basename(config.schematic)));
-        if (loadError) {
+        // checked above): skip ERC on the canonical load failure, fail on any
+        // unexpected probe error.
+        const probe = await probeKicadLoad(path.join(src, 'reference', path.basename(config.schematic)));
+        if (probe.status === 'unloadable') {
           ctx.skip(
-            `installed kicad-cli cannot load the committed reference fixture (${loadError}); ` +
+            `installed kicad-cli cannot load the committed reference fixture (${probe.detail}); ` +
               `ERC is skipped because of a KiCad compatibility issue — run under a compatible KiCad version`,
           );
+        } else if (probe.status === 'unexpected') {
+          throw new Error(`unexpected kicad-cli load failure on the committed reference fixture: ${probe.detail}`);
         }
 
         const erc = await runErc(res.schematicPath);
