@@ -132,7 +132,7 @@ export async function makeProvider(
       ...(codexModel ? { model: codexModel } : {}),
       client: new Codex({
         // Use the user's installed CLI and its saved login rather than a model API key.
-        codexPathOverride: process.env.COPPERHEAD_CODEX_PATH || 'codex',
+        ...(process.env.COPPERHEAD_CODEX_PATH ? { codexPathOverride: process.env.COPPERHEAD_CODEX_PATH } : {}),
       }),
     });
   }

@@ -21,6 +21,44 @@ describe('CodexProvider', () => {
     await expect(makeProvider('codex:')).rejects.toThrow('codex model override cannot be empty');
   });
 
+  it('constructs Codex SDK without codexPathOverride by default, preserving native binary resolution', async () => {
+    const originalEnv = process.env.COPPERHEAD_CODEX_PATH;
+    try {
+      delete process.env.COPPERHEAD_CODEX_PATH;
+      const provider = await makeProvider('codex');
+      expect(provider.name).toBe('codex');
+      // Verify internal client has resolved executable path (not the string literal 'codex')
+      const client = (provider as unknown as { client: { exec: { executablePath: string } } }).client;
+      expect(client.exec.executablePath).not.toBe('codex');
+      if (process.platform === 'win32') {
+        expect(client.exec.executablePath.endsWith('.exe')).toBe(true);
+      }
+    } finally {
+      if (originalEnv !== undefined) {
+        process.env.COPPERHEAD_CODEX_PATH = originalEnv;
+      } else {
+        delete process.env.COPPERHEAD_CODEX_PATH;
+      }
+    }
+  });
+
+  it('passes COPPERHEAD_CODEX_PATH override when explicitly set in environment', async () => {
+    const originalEnv = process.env.COPPERHEAD_CODEX_PATH;
+    try {
+      process.env.COPPERHEAD_CODEX_PATH = 'custom-codex-binary';
+      const provider = await makeProvider('codex');
+      expect(provider.name).toBe('codex');
+      const client = (provider as unknown as { client: { exec: { executablePath: string } } }).client;
+      expect(client.exec.executablePath).toBe('custom-codex-binary');
+    } finally {
+      if (originalEnv !== undefined) {
+        process.env.COPPERHEAD_CODEX_PATH = originalEnv;
+      } else {
+        delete process.env.COPPERHEAD_CODEX_PATH;
+      }
+    }
+  });
+
   it('allocates a unique temporary working directory per provider instance', async () => {
     const directories: string[] = [];
     const client = {
@@ -95,7 +133,7 @@ describe('CodexProvider', () => {
       };
     };
     expect(schema.properties.toolCalls.items.properties.name.enum).toEqual(['read_file']);
-    expect(schema.properties.toolCalls.items.properties.arguments.type).toBe('object');
+    expect(schema.properties.toolCalls.items.properties.arguments.type).toBe('string');
     expect(turn).toEqual({
       text: 'I will inspect the design.',
       toolCalls: [{ id: 'call-1', name: 'read_file', args: { path: 'docs/SPEC.md' } }],
