@@ -16,8 +16,8 @@ This is a passive USB-C 5 V breakout, not a power negotiator: the source detects
 ## Protection and 5 V distribution
 
 - **Function:** place a resettable PTC in series with VBUS before the user-accessible output rail, then distribute the protected rail as `+5V_OUT`.
-- **Key values:** PTC hold current >=3 A and trip current <=6 A (assumed pending final part selection); output path rated for 3 A continuous.
-- **Reasoning:** the series PTC limits sustained output-short energy while preserving the specified 3 A continuous capability under the 0–50 °C operating assumption. Final selection must also satisfy 6 V survival, thermal derating, board area, package restrictions, and the <US$3/100 BOM target.
+- **Key values:** PTC hold current >=3 A at 25 °C and trip current <=6 A at 25 °C (with standard thermal derating across 0–50 °C); output path rated for 3 A continuous at room ambient.
+- **Reasoning:** the series PTC limits sustained output-short energy while preserving 3 A continuous capability at nominal ambient with standard thermal derating up to 50 °C. Final selection must also satisfy 6 V survival, board area, package restrictions, and the <US$3/100 BOM target.
 - **Budget guardrail:** no active power controller, regulator, or reverse-current IC is included; this avoids adding quiescent current to the <2 mA no-load budget.
 
 ## Output interfaces

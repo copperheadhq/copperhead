@@ -10,17 +10,17 @@ A compact USB-C power-only sink breakout. It accepts default USB-C VBUS at 5 V a
 - Fit one 5.1 kOhm Rd pull-down from CC1 to GND and one from CC2 to GND; this is the standard default-sink presentation that enables VBUS from a compliant source.
 - Route VBUS and GND to both output connectors.
 - Provide a visible power-present LED.
-- Protect against an output short circuit. **ASSUMED:** use a resettable PTC with >=3 A hold current and <=6 A trip current; final selection must meet voltage, thermal, area, and cost limits.
+- Protect against an output short circuit. **ASSUMED:** use a resettable PTC with >=3 A hold current at 25 °C and <=6 A trip current at 25 °C (with standard thermal derating across the 0 to 50 °C ambient range); final selection must meet voltage, thermal, area, and cost limits.
 
 ## Electrical budgets
 
 | Constraint | Requirement | Status |
 |---|---:|---|
 | Input voltage | 5 V nominal; survive 6 V | Stated |
-| Output-current capability | 3 A continuous through connector, protection, copper, and output terminals | Stated |
+| Output-current capability | 3 A continuous at 25 °C through connector, protection, copper, and output terminals (standard thermal derating up to 50 °C) | Stated |
 | No-load quiescent current | <2 mA total, including LED | Stated |
 | CC termination | 5.1 kOhm Rd from each CC pin to GND | ASSUMED standard USB-C value |
-| Short protection | Resettable PTC: >=3 A hold, <=6 A trip | ASSUMED |
+| Short protection | Resettable PTC: >=3 A hold at 25 °C, <=6 A trip at 25 °C (derated over 0-50 °C) | ASSUMED |
 | Ambient operating range | 0 to 50 °C | ASSUMED |
 
 ### USB-C current availability

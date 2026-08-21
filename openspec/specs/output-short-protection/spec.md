@@ -1,11 +1,17 @@
-# Output Short Protection
+## Purpose
+Define output short-circuit protection for the USB-C 5 V power breakout.
 
 ## Requirements
+### Requirement: Output short current limiting
+The device SHALL limit sustained fault current when the output terminals are shorted to GND.
 
-### Short response
+#### Scenario: Output short circuit
+- **WHEN** an output terminal (+5V_OUT) is shorted to GND
+- **THEN** the series resettable PTC shall trip and limit sustained fault current.
 
-Given either output is shorted to GND, when fault current flows, then a protection element shall restrict sustained fault current.
+### Requirement: PTC rating and thermal specification
+The protection element SHALL provide a resettable PTC with >=3 A hold current at 25 °C reference temperature and <=6 A trip current at 25 °C, with standard thermal derating across the 0 to 50 °C ambient range.
 
-### Default protection choice
-
-Given no one-shot service model is specified, when protection is selected, then an ASSUMED resettable PTC shall provide at least 3 A hold current and no more than 6 A trip current, subject to thermal validation.
+#### Scenario: Normal 3 A operation at room temperature
+- **WHEN** continuous load current up to 3 A is drawn at 25 °C ambient
+- **THEN** the PTC remains in the conductive un-tripped state.

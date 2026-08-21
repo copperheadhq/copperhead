@@ -14,10 +14,11 @@ A small breakout board that takes USB-C 5V from a normal charger and presents it
 
 ## Budgets
 
-- Output current: the board must be rated for 3A continuous.
+- Output current: the board must be rated for 3A continuous at 25°C reference (with standard PTC thermal derating across 0-50°C).
 - Input voltage: 5V nominal, survive 6V.
 - Quiescent current with no load: under 2mA including the LED.
 - Board area: 30mm x 20mm or smaller.
+- Short protection: resettable PTC with hold >=3A at 25°C and trip <=6A at 25°C.
 
 ## Constraints
 

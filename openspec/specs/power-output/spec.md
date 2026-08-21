@@ -1,15 +1,17 @@
-# Power Output
+## Purpose
+Define power output distribution interfaces and power indicator.
 
 ## Requirements
+### Requirement: Power distribution interfaces
+The board SHALL route protected 5 V and GND to a 2-pin 3.5 mm screw terminal and a 2x2 2.54 mm header.
 
-### Dual output presentation
+#### Scenario: Output power available
+- **WHEN** 5 V is present on VBUS
+- **THEN** 5 V is delivered to both screw terminals and header pins.
 
-Given protected 5 V is present, when the board is powered, then it shall present 5 V and GND on both a 2-pin 3.5 mm screw terminal and a 2×2 2.54 mm header.
+### Requirement: Power-present indication
+The board SHALL provide a visible power indicator drawing <2 mA no-load quiescent current.
 
-### Current capability
-
-Given an appropriately rated source and load, when 3 A is drawn continuously, then connectors, protection, and copper shall each be rated for at least 3 A continuous operation.
-
-### Indicator
-
-Given protected 5 V is present, when the board is energized, then a visible LED shall indicate power while total no-load current remains below 2 mA.
+#### Scenario: LED power indication
+- **WHEN** 5 V input is supplied
+- **THEN** the power LED illuminates while total no-load quiescent current remains under 2 mA.

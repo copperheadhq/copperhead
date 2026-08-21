@@ -1,15 +1,10 @@
-# USB-C 5 V Sink
+## Purpose
+Define USB-C sink connector and CC pull-down termination.
 
 ## Requirements
+### Requirement: 5 V USB-C sink presentation
+The board SHALL accept 5 V from a USB-C receptacle and terminate CC1 and CC2 with 5.1 kOhm pull-down resistors.
 
-### Valid sink presentation
-
-Given a compliant USB-C source is connected, when the board presents 5.1 kOhm Rd from CC1 and CC2 to GND, then the source can detect a sink and enable 5 V VBUS.
-
-### Power-only interface
-
-Given the board operates normally, when connected to USB-C, then it shall use VBUS, GND, CC1, and CC2 only and shall not provide data pass-through or USB-PD negotiation.
-
-### Current disclosure
-
-Given the board does not read Rp, when a source advertises less than 3 A, then the board shall not claim to negotiate or guarantee 3 A availability.
+#### Scenario: VBUS enabled on plug-in
+- **WHEN** connected to a compliant USB-C power source
+- **THEN** the source detects Rd pull-downs and asserts 5 V on VBUS.

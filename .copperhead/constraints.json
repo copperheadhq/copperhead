@@ -41,7 +41,7 @@
     ]
   },
   "protection.ptc_hold_trip_a": {
-    "value": "hold >=3 A; trip <=6 A (ASSUMED)",
+    "value": "hold >=3 A at 25 °C; trip <=6 A at 25 °C (ASSUMED, standard thermal derating over 0-50 °C ambient)",
     "source": "docs/SPEC.md — Electrical budgets",
     "affects": [
       "future schematic and PCB"
