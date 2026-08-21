@@ -112,7 +112,11 @@ export class CodexProvider implements Provider {
   async close(): Promise<void> {
     this.thread = null;
     if (this.ownsWorkingDirectory && this.workingDirectory) {
-      await rm(this.workingDirectory, { recursive: true, force: true });
+      try {
+        await rm(this.workingDirectory, { recursive: true, force: true });
+      } catch {
+        // Ignored: temporary directory cleanup on Windows can transiently encounter EBUSY
+      }
       this.workingDirectory = null;
     }
   }
