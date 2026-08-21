@@ -1,0 +1,1 @@
+- 2026-08-21 [run 2026-08-21T16-37-27-664Z] Use one 5.1 kOhm Rd resistor from each USB-C CC pin to GND. | why: A compliant USB-C source enables VBUS only after detecting Rd on CC1 or CC2; 5.1 kOhm is the standard default-sink termination. | affects: USB-C CC1/CC2, future R_CC1/R_CC2, docs/SPEC.md
