@@ -92,7 +92,15 @@ async function kicadCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
     const raw = await probe();
     const match = raw.match(/(\d+)\.\d+/);
     const major = match ? Number(match[1]) : NaN;
-    if (Number.isFinite(major) && major < MIN_KICAD_MAJOR) {
+    if (!Number.isFinite(major)) {
+      return {
+        name: 'kicad-cli',
+        status: 'fail',
+        detail: raw || 'could not parse version',
+        hint: `copperhead needs KiCad >= ${MIN_KICAD_MAJOR}; install or configure a compatible kicad-cli.`,
+      };
+    }
+    if (major < MIN_KICAD_MAJOR) {
       return {
         name: 'kicad-cli',
         status: 'fail',

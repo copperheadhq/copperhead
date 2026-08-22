@@ -124,6 +124,41 @@ describe('copperhead doctor', () => {
     }
   });
 
+  it('fails when KiCad version response is empty or unparseable', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const rEmpty = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => '',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(rEmpty.ok).toBe(false);
+      const kicadEmpty = rEmpty.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadEmpty.status).toBe('fail');
+      expect(kicadEmpty.detail).toBe('could not parse version');
+      expect(kicadEmpty.hint).toContain('copperhead needs KiCad >= 8');
+
+      const rGarbage = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'unknown version string',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(rGarbage.ok).toBe(false);
+      const kicadGarbage = rGarbage.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadGarbage.status).toBe('fail');
+      expect(kicadGarbage.detail).toBe('unknown version string');
+      expect(kicadGarbage.hint).toContain('copperhead needs KiCad >= 8');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('a corrupted .copperhead/config.json fails the project check, not the whole command', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
