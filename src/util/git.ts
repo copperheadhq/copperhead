@@ -336,6 +336,58 @@ export async function preserveFailedRun(repo: string, runId: string): Promise<st
   }
 }
 
+/** Where a stage's work-in-progress checkpoints live, one ref per stage. */
+export function wipRef(stage: string): string {
+  return `refs/copperhead/wip/${stage}`;
+}
+
+/**
+ * Commit the current working state to a side ref, without touching the branch,
+ * the index, or the working tree (issue #208).
+ *
+ * A failed stage attempt rolls the tree back, and the accepted work it had
+ * produced survives only as a stash of *tracked* files: anything the agent left
+ * untracked is destroyed outright, and a retry restarts from zero. This writes
+ * everything the repo would commit — tracked changes and untracked files alike,
+ * `.gitignore` still respected — to `refs/copperhead/wip/<stage>` first, so the
+ * work stays visible, diffable and recoverable after the rollback.
+ *
+ * The branch is untouched, so the verification-gated-out invariant holds
+ * verbatim: the only commits on it remain the stage-complete ones, and nothing
+ * uncertified can be mistaken for approved output. The checkpoint is reachable
+ * only by its own ref.
+ *
+ * Uses a temporary index so the caller's staged state is never disturbed, which
+ * matters because this runs mid-pipeline rather than between commands.
+ *
+ * Returns the checkpoint commit, or null when there is nothing to record.
+ */
+export async function checkpoint(repo: string, stage: string, message: string): Promise<string | null> {
+  const tmpIndex = path.join(await mkdtemp(path.join(tmpdir(), 'copperhead-wip-')), 'index');
+  try {
+    if (!(await isDirty(repo))) return null;
+    await ensureIgnored(repo, GIT_ADD_EXCLUDES);
+    const env = { ...process.env, GIT_INDEX_FILE: tmpIndex };
+    // Seed the temporary index from HEAD so the checkpoint is a normal commit
+    // against it rather than an orphan holding only the changed paths.
+    await execa('git', ['read-tree', 'HEAD'], { cwd: repo, env });
+    await execa('git', ['add', '-A'], { cwd: repo, env });
+    const { stdout: tree } = await execa('git', ['write-tree'], { cwd: repo, env });
+    const head = await headCommit(repo);
+    const { stdout: commit } = await execa('git', ['commit-tree', tree.trim(), '-p', head, '-m', message], {
+      cwd: repo,
+    });
+    await git(repo, ['update-ref', wipRef(stage), commit.trim()]);
+    return commit.trim();
+  } catch {
+    // A checkpoint is a safety net, never a gate: failing to take one must not
+    // fail the stage that was about to be rolled back anyway.
+    return null;
+  } finally {
+    await rm(path.dirname(tmpIndex), { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 /** Current branch name, or "HEAD" when detached. Read-only metadata probe. */
 export async function branchName(repo: string): Promise<string> {
   return git(repo, ['rev-parse', '--abbrev-ref', 'HEAD']);
