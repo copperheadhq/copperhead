@@ -58,8 +58,8 @@ export class KicadCliBadOverrideError extends PreflightError {
         : 'on Linux the binary typically lives at /usr/bin/kicad-cli';
 
     const confirmHint = isWin
-      ? 'confirm with "& \'$env:COPPERHEAD_KICAD_CLI\' version", then rerun'
-      : 'confirm with "$COPPERHEAD_KICAD_CLI version", then rerun';
+      ? 'confirm with "& $env:COPPERHEAD_KICAD_CLI version", then rerun'
+      : 'confirm with "$COPPERHEAD_KICAD_CLI" version, then rerun';
 
     super(
       `COPPERHEAD_KICAD_CLI points to a path that does not exist: ${configured}`,

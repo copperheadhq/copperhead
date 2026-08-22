@@ -249,13 +249,16 @@ describe('kicad-cli binary resolution', () => {
     expect(winErr.message).toContain(badPath);
     expect(winErr.remedy.some((h) => h.includes('Test-Path'))).toBe(true);
     expect(winErr.remedy.some((h) => h.includes('Program Files'))).toBe(true);
+    expect(winErr.remedy.some((h) => h.includes('& $env:COPPERHEAD_KICAD_CLI version'))).toBe(true);
 
     const macErr = new KicadCliBadOverrideError('/bad/path', 'darwin');
     expect(macErr.remedy.some((h) => h.includes('ls -l'))).toBe(true);
     expect(macErr.remedy.some((h) => h.includes('KiCad.app'))).toBe(true);
+    expect(macErr.remedy.some((h) => h.includes('"$COPPERHEAD_KICAD_CLI" version'))).toBe(true);
 
     const linuxErr = new KicadCliBadOverrideError('/bad/path', 'linux');
     expect(linuxErr.remedy.some((h) => h.includes('ls -l'))).toBe(true);
     expect(linuxErr.remedy.some((h) => h.includes('/usr/bin'))).toBe(true);
+    expect(linuxErr.remedy.some((h) => h.includes('"$COPPERHEAD_KICAD_CLI" version'))).toBe(true);
   });
 });

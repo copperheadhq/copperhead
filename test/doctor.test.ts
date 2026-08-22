@@ -70,6 +70,60 @@ describe('copperhead doctor', () => {
     }
   });
 
+  it('fails when KiCad version is below 8 (e.g. KiCad 7.x)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'kicad-cli 7.0.10',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r.ok).toBe(false);
+      const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad.status).toBe('fail');
+      expect(kicad.detail).toContain('(< 8)');
+      expect(kicad.hint).toContain('copperhead needs KiCad >= 8');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('passes when KiCad version is >= 8', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r8 = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => '8.0.4',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r8.ok).toBe(true);
+      const kicad8 = r8.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad8.status).toBe('ok');
+      expect(kicad8.detail).toBe('8.0.4');
+
+      const r10 = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'kicad-cli 10.0.5',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r10.ok).toBe(true);
+      const kicad10 = r10.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad10.status).toBe('ok');
+      expect(kicad10.detail).toBe('kicad-cli 10.0.5');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('a corrupted .copperhead/config.json fails the project check, not the whole command', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

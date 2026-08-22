@@ -85,9 +85,22 @@ function nodeCheck(version: string): DoctorCheck {
   };
 }
 
+const MIN_KICAD_MAJOR = 8;
+
 async function kicadCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
   try {
-    return { name: 'kicad-cli', status: 'ok', detail: await probe() };
+    const raw = await probe();
+    const match = raw.match(/(\d+)\.\d+/);
+    const major = match ? Number(match[1]) : NaN;
+    if (Number.isFinite(major) && major < MIN_KICAD_MAJOR) {
+      return {
+        name: 'kicad-cli',
+        status: 'fail',
+        detail: `${raw} (< ${MIN_KICAD_MAJOR})`,
+        hint: `copperhead needs KiCad >= ${MIN_KICAD_MAJOR}; upgrade KiCad (https://www.kicad.org/download/).`,
+      };
+    }
+    return { name: 'kicad-cli', status: 'ok', detail: raw };
   } catch {
     return {
       name: 'kicad-cli',
