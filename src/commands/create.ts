@@ -8,7 +8,7 @@ import { exportSvg, runErc } from '../kicad/cli.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
-import { isDirty, commitAll, changedFiles } from '../util/git.js';
+import { isDirty, commitAll, changedFiles, checkpoint, wipRef } from '../util/git.js';
 import type { CompatSettings, CopperheadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
 import { runAgentLoop, makeProvider, type BudgetExhaustedStats } from '../agent/loop.js';
@@ -914,6 +914,25 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       if (!failure) {
         stageDone = true;
         break;
+      }
+
+      // The attempt did not complete the stage, so its work has already been
+      // rolled back. Record whatever survived to a side ref before the next
+      // attempt overwrites the tree, so accepted work is recoverable and a
+      // human can diff what the attempt actually produced (issue #208). The
+      // branch is untouched: only stage-complete commits ever land on it.
+      const wip = await checkpoint(
+        opts.repoRoot,
+        stage.name,
+        `copperhead: WIP ${stage.name} attempt ${attempt} — NOT CERTIFIED, stage did not complete`,
+      );
+      if (wip) {
+        opts.log(
+          stageLine(
+            stage.name,
+            `attempt ${attempt} work checkpointed at ${wipRef(stage.name)} (${wip.slice(0, 10)}); inspect with \`git show ${wip.slice(0, 10)}\``,
+          ),
+        );
       }
 
       if (attempt > config.maxStageRetries) {
