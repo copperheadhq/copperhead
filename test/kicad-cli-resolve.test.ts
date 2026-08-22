@@ -6,6 +6,8 @@ import {
   resolveKicadCli,
   resetKicadCliCache,
   setKicadFallbackBinaries,
+  setKicadFallbackWinRoots,
+  defaultFallbackBinaries,
   kicadCliVersion,
   KicadCliBadOverrideError,
   KicadCliMissingError,
@@ -16,6 +18,20 @@ import {
  * so it is testable without KiCad installed. `check` depends on it, and check
  * is contractually LLM-free and network-free: nothing here reaches out.
  */
+async function writeMockExecutable(binPath: string, output = '9.0.1'): Promise<string> {
+  await mkdir(path.dirname(binPath), { recursive: true });
+  if (process.platform === 'win32') {
+    const isBat = binPath.endsWith('.bat') || binPath.endsWith('.cmd');
+    const target = isBat ? binPath : `${binPath}.cmd`;
+    await writeFile(target, `@echo ${output}\r\n`, 'utf8');
+    return target;
+  } else {
+    await writeFile(binPath, `#!/bin/sh\necho "${output}"\n`, 'utf8');
+    await chmod(binPath, 0o755);
+    return binPath;
+  }
+}
+
 describe('kicad-cli binary resolution', () => {
   const saved = process.env.COPPERHEAD_KICAD_CLI;
   let dir: string;
@@ -30,6 +46,7 @@ describe('kicad-cli binary resolution', () => {
     else process.env.COPPERHEAD_KICAD_CLI = saved;
     resetKicadCliCache();
     setKicadFallbackBinaries();
+    setKicadFallbackWinRoots();
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -77,12 +94,11 @@ describe('kicad-cli binary resolution', () => {
 
   it('reports the binary as missing when PATH has no kicad-cli and no bundle matches', async () => {
     // Drives the real ENOENT chain: PATH lookup fails, fallbackAfterMissing
-    // finds no macOS app bundle, and the run is refused with the install
-    // instructions rather than a raw spawn error.
+    // finds no macOS app bundle or Windows install, and the run is refused
+    // with install instructions rather than a raw spawn error.
     delete process.env.COPPERHEAD_KICAD_CLI;
     // The probe list is emptied rather than left to the host: with the real
-    // list, this assertion would fail on any macOS machine that has KiCad in
-    // /Applications, because the fallback would resolve and the run succeed.
+    // list, this assertion would fail on any machine that has KiCad installed.
     setKicadFallbackBinaries([]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir; // an empty directory: nothing resolvable on it
@@ -98,10 +114,8 @@ describe('kicad-cli binary resolution', () => {
     // probe at a fixture. Covers the retry: the first spawn ENOENTs on the
     // bare PATH name, the second runs the resolved bundle binary.
     delete process.env.COPPERHEAD_KICAD_CLI;
-    const bundle = path.join(dir, 'KiCad.app', 'Contents', 'MacOS', 'kicad-cli');
-    await mkdir(path.dirname(bundle), { recursive: true });
-    await writeFile(bundle, '#!/bin/sh\necho "9.0.1"\n', 'utf8');
-    await chmod(bundle, 0o755);
+    const bundleBase = path.join(dir, 'KiCad.app', 'Contents', 'MacOS', 'kicad-cli');
+    const bundle = await writeMockExecutable(bundleBase, '9.0.1');
     setKicadFallbackBinaries([path.join(dir, 'absent', 'kicad-cli'), bundle]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
@@ -121,14 +135,11 @@ describe('kicad-cli binary resolution', () => {
     // that could still succeed. Reaching KicadCliMissingError therefore proves
     // the fallback was never attempted, rather than attempted and also empty.
     const onPath = path.join(dir, 'path-bin');
-    await mkdir(onPath, { recursive: true });
-    const pathBinary = path.join(onPath, 'kicad-cli');
-    await writeFile(pathBinary, '#!/bin/sh\necho "8.0.4"\n', 'utf8');
-    await chmod(pathBinary, 0o755);
+    const pathBinaryBase = path.join(onPath, 'kicad-cli');
+    await writeMockExecutable(pathBinaryBase, '8.0.4');
 
-    const override = path.join(dir, 'custom-kicad'); // deliberately not "kicad-cli"
-    await writeFile(override, '#!/bin/sh\necho "9.9.9"\n', 'utf8');
-    await chmod(override, 0o755);
+    const overrideBase = path.join(dir, 'custom-kicad'); // deliberately not "kicad-cli"
+    const override = await writeMockExecutable(overrideBase, '9.9.9');
 
     setKicadFallbackBinaries([]);
     const savedPath = process.env.PATH;
@@ -163,5 +174,88 @@ describe('kicad-cli binary resolution', () => {
     expect(resolveKicadCli()).toBe('kicad-cli');
     resetKicadCliCache();
     expect(resolveKicadCli()).toBe(bin);
+  });
+
+  it('discovers kicad-cli from standard Windows versioned installation paths', async () => {
+    delete process.env.COPPERHEAD_KICAD_CLI;
+    const winRoot = path.join(dir, 'KiCad');
+    const binBase = path.join(winRoot, '10.0', 'bin', 'kicad-cli');
+    const bin = await writeMockExecutable(binBase, '10.0.5');
+
+    setKicadFallbackWinRoots([winRoot]);
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir;
+    try {
+      expect(await kicadCliVersion()).toBe('10.0.5');
+      expect(resolveKicadCli()).toBe(bin);
+    } finally {
+      process.env.PATH = savedPath;
+    }
+  });
+
+  it('prefers the newest version when multiple Windows versions are installed', async () => {
+    delete process.env.COPPERHEAD_KICAD_CLI;
+    const winRoot = path.join(dir, 'KiCad');
+    const bin8 = path.join(winRoot, '8.0', 'bin', 'kicad-cli.exe');
+    const bin9 = path.join(winRoot, '9.0', 'bin', 'kicad-cli.exe');
+    const bin10 = path.join(winRoot, '10.0', 'bin', 'kicad-cli.exe');
+
+    for (const b of [bin8, bin9, bin10]) {
+      await mkdir(path.dirname(b), { recursive: true });
+      await writeFile(b, '#!/bin/sh\nexit 0\n', 'utf8');
+      await chmod(b, 0o755);
+    }
+
+    setKicadFallbackWinRoots([winRoot]);
+    const candidates = defaultFallbackBinaries([winRoot]);
+    const winCandidates = candidates.filter((c) => c.startsWith(winRoot));
+
+    expect(winCandidates[0]).toBe(bin10);
+    expect(winCandidates[4]).toBe(bin9);
+    expect(winCandidates[8]).toBe(bin8);
+  });
+
+  it('falls back to unversioned Windows installation path (bin/kicad-cli.exe)', async () => {
+    delete process.env.COPPERHEAD_KICAD_CLI;
+    const winRoot = path.join(dir, 'KiCad');
+    const binBase = path.join(winRoot, 'bin', 'kicad-cli');
+    const bin = await writeMockExecutable(binBase, '8.0.0');
+
+    setKicadFallbackWinRoots([winRoot]);
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir;
+    try {
+      expect(await kicadCliVersion()).toBe('8.0.0');
+      expect(resolveKicadCli()).toBe(bin);
+    } finally {
+      process.env.PATH = savedPath;
+    }
+  });
+
+  it('formats platform-specific hints in KicadCliMissingError', () => {
+    const winErr = new KicadCliMissingError('win32');
+    expect(winErr.remedy.some((h) => h.includes('kicad-cli.exe') && h.includes('Program Files'))).toBe(true);
+
+    const macErr = new KicadCliMissingError('darwin');
+    expect(macErr.remedy.some((h) => h.includes('KiCad.app'))).toBe(true);
+
+    const linuxErr = new KicadCliMissingError('linux');
+    expect(linuxErr.remedy.some((h) => h.includes('/usr/bin/kicad-cli'))).toBe(true);
+  });
+
+  it('formats platform-specific hints in KicadCliBadOverrideError', () => {
+    const badPath = 'C:\\bad\\path\\kicad-cli.exe';
+    const winErr = new KicadCliBadOverrideError(badPath, 'win32');
+    expect(winErr.message).toContain(badPath);
+    expect(winErr.remedy.some((h) => h.includes('Test-Path'))).toBe(true);
+    expect(winErr.remedy.some((h) => h.includes('Program Files'))).toBe(true);
+
+    const macErr = new KicadCliBadOverrideError('/bad/path', 'darwin');
+    expect(macErr.remedy.some((h) => h.includes('ls -l'))).toBe(true);
+    expect(macErr.remedy.some((h) => h.includes('KiCad.app'))).toBe(true);
+
+    const linuxErr = new KicadCliBadOverrideError('/bad/path', 'linux');
+    expect(linuxErr.remedy.some((h) => h.includes('ls -l'))).toBe(true);
+    expect(linuxErr.remedy.some((h) => h.includes('/usr/bin'))).toBe(true);
   });
 });
