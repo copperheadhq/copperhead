@@ -427,7 +427,11 @@ export const TOOLS: ToolDef[] = [
       const { findings, checked, skipped } = await verifySchematicSymbols(
         path.join(ctx.repoRoot, ctx.config.schematic),
       );
-      if (!findings.length) {
+      if (!findings.length || findings.every((f) => f.kind === 'no-library')) {
+        ctx.ledger.clear('symbol-verification');
+        if (skipped > 0) {
+          return `verify_symbols: ${checked} symbol(s) verified, ${skipped} skipped (libraries not installed). No divergences.`;
+        }
         return `verify_symbols: ${checked} symbol(s) match the installed KiCad library. No divergences.`;
       }
       const lines = findings.map((f) => `  - [${f.kind}] ${f.detail}`);

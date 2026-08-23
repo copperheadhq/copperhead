@@ -88,8 +88,9 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
       expect(blocked).toContain('ERC');
       expect(ctx.finishRequest).toBeNull();
 
-      // satisfy the gates: ERC + drift (BOM must be updated to match)
+      // satisfy the gates: ERC + drift + symbol-verification (BOM must be updated to match)
       await dispatchTool(ctx, 'run_erc', {});
+      await dispatchTool(ctx, 'verify_symbols', {});
       const bom = await readFile(path.join(repo, 'docs', 'BOM.md'), 'utf8');
       await writeFile(path.join(repo, 'docs', 'BOM.md'), bom.replace('| R2 | 1k |', '| R2 | 2.2k |'), 'utf8');
       const driftRes = await dispatchTool(ctx, 'check_drift', {});

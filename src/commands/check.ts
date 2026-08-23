@@ -9,6 +9,7 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { verifySchematicSymbols } from '../kicad/symlib.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -19,6 +20,7 @@ export interface CheckResult {
   erc: { ok: boolean; violations: number } | null;
   drc: { ok: boolean; violations: number } | null;
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
+  symbols: { ok: boolean; findings: number; skipped?: number } | null;
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
   /**
@@ -66,6 +68,18 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     // deserves a visible note rather than a silent green.
     driftWarning = await emptySchematicWarning(repoRoot, config.docs, config.schematic);
     if (driftWarning) log(`drift warning: ${driftWarning}`);
+  }
+
+  let symbols: { ok: boolean; findings: number; skipped?: number } | null = null;
+  if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
+    const { findings, skipped } = await verifySchematicSymbols(path.join(repoRoot, config.schematic));
+    const mismatches = findings.filter((f) => f.kind !== 'no-library');
+    symbols = { ok: mismatches.length === 0, findings: mismatches.length, ...(skipped > 0 ? { skipped } : {}) };
+    log(
+      mismatches.length === 0
+        ? `symbols ✓${skipped > 0 ? ` (${skipped} skipped)` : ''}`
+        : `symbols: ${mismatches.length} divergence(s) from installed KiCad libraries`,
+    );
   }
 
   let openspec: { ok: boolean; detail: string } | null = null;
@@ -126,6 +140,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
+    (symbols?.ok ?? true) &&
     (openspec?.ok ?? true) &&
     constraintViolations.length === 0;
 
@@ -134,6 +149,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     erc: erc ? { ok: erc.ok, violations: erc.violations.length } : null,
     drc: drc ? { ok: drc.ok, violations: drc.violations.length } : null,
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
+    symbols,
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,

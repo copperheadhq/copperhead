@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 
 describe('sync-obligations ledger (design D13)', () => {
-  it('a schematic edit opens erc, drift, and changelog obligations', () => {
+  it('a schematic edit opens erc, symbol-verification, drift, and changelog obligations', () => {
     const l = new ObligationsLedger();
     l.onKicadEdit('hardware/x.kicad_sch');
     const kinds = l.openObligations.map((o) => o.kind);
     expect(kinds).toContain('erc');
+    expect(kinds).toContain('symbol-verification');
     expect(kinds).toContain('drift');
     expect(kinds).toContain('changelog');
     expect(kinds).not.toContain('drc');
@@ -32,6 +33,7 @@ describe('sync-obligations ledger (design D13)', () => {
     l.onKicadEdit('a.kicad_sch');
     expect(l.isClear).toBe(false);
     l.clear('erc');
+    l.clear('symbol-verification');
     l.clear('drift');
     l.clear('legibility');
     l.clear('changelog');
