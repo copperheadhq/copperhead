@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { execSync } from 'node:child_process';
 import { dispatchTool, type RunContext } from '../src/agent/tools.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import { Transcript } from '../src/agent/transcript.js';
@@ -9,12 +10,12 @@ import { checkDrift, emptySchematicWarning } from '../src/memory/drift.js';
 import { loadConfig } from '../src/config.js';
 import { tempFixtureRepo } from './helpers.js';
 
-/**
- * Offline tests for the create-pipeline hardening (#19, #21, #23, #25) and
- * its re-review fixes: KiCad edit probe validation scoped to probeable files,
- * incremental repair of already-corrupt files, and the drift bootstrap
- * exemption with its check-side warning.
- */
+let hasKicad = true;
+try {
+  execSync('kicad-cli version', { stdio: 'ignore' });
+} catch {
+  hasKicad = false;
+}
 
 const SCH = path.join('hardware', 'open-key.kicad_sch');
 
@@ -50,7 +51,7 @@ describe('KiCad edit probe validation (AC-15.20..15.22)', () => {
     expect(isProbeableKicadFile('a.kicad_mod')).toBe(false);
   });
 
-  it('kicadLoadError: null on a good schematic, text on a corrupt one, null on unprobeable kinds', async () => {
+  it.runIf(hasKicad)('kicadLoadError: null on a good schematic, text on a corrupt one, null on unprobeable kinds', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const sch = path.join(repo, SCH);
@@ -85,7 +86,7 @@ describe('KiCad edit probe validation (AC-15.20..15.22)', () => {
     }
   }, 60_000);
 
-  it('an edit that corrupts a loadable schematic is reverted with the kicad-cli reason (AC-15.20)', async () => {
+  it.runIf(hasKicad)('an edit that corrupts a loadable schematic is reverted with the kicad-cli reason (AC-15.20)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const sch = path.join(repo, SCH);
@@ -104,7 +105,7 @@ describe('KiCad edit probe validation (AC-15.20..15.22)', () => {
     }
   }, 60_000);
 
-  it('an already-unloadable schematic keeps repair edits instead of deadlocking (AC-15.22)', async () => {
+  it.runIf(hasKicad)('an already-unloadable schematic keeps repair edits instead of deadlocking (AC-15.22)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const sch = path.join(repo, SCH);

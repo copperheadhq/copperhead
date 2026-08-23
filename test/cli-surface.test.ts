@@ -36,7 +36,7 @@ describe('--repo resolution', () => {
   });
 
   it('passes an absolute path through unchanged', () => {
-    expect(repoOf({ repo: '/tmp/some-repo' })).toBe('/tmp/some-repo');
+    expect(repoOf({ repo: '/tmp/some-repo' })).toBe(path.resolve('/tmp/some-repo'));
   });
 
   it('defaults to the working directory', () => {

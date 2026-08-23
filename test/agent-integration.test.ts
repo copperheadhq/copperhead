@@ -5,7 +5,6 @@ import path from 'node:path';
 import { execa } from 'execa';
 import { runAgentLoop } from '../src/agent/loop.js';
 import { runInit } from '../src/memory/scaffold.js';
-import { toolSearch } from '../src/agent/filetools.js';
 import { saveConstraint } from '../src/memory/constraints.js';
 import { tempFixtureRepo } from './helpers.js';
 
@@ -163,6 +162,27 @@ for (const { model, key } of providers) {
           const { stdout: status } = await execa('git', ['status', '--porcelain'], { cwd: repo });
           expect(status).toBe('');
           expect(res.transcriptDir).toContain('.copperhead');
+        } finally {
+          await cleanup();
+        }
+      },
+      600_000,
+    );
+
+    it(
+      'AC-4.1: no API key material anywhere in the tree after runs',
+      async () => {
+        const { repo, cleanup } = await setupRepo();
+        try {
+          await runAgentLoop({
+            repoRoot: repo,
+            request: 'rename net KEY_DAH to KEY_DASH',
+            model,
+            maxTurns: 1,
+            log: () => {},
+          });
+          const matches = await scanTreeForSecret(repo, /sk-[A-Za-z0-9_-]+/);
+          expect(matches).toEqual([]);
         } finally {
           await cleanup();
         }

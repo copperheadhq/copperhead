@@ -20,8 +20,9 @@ describe('path sandbox (AC-4.2)', () => {
   });
 
   it('accepts repo-relative paths including the root itself', () => {
-    expect(resolveInRepo('/repo', 'docs/BOM.md')).toBe(path.resolve('/repo', 'docs/BOM.md'));
-    expect(resolveInRepo('/repo', '.')).toBe(path.resolve('/repo'));
+    const root = path.resolve('/repo');
+    expect(path.relative(root, resolveInRepo('/repo', 'docs/BOM.md'))).toBe(path.join('docs', 'BOM.md'));
+    expect(resolveInRepo('/repo', '.')).toBe(root);
   });
 
   it('does not treat sibling dirs with a shared prefix as inside', () => {
@@ -263,8 +264,8 @@ describe('git guard (AC-3.8, AC-3.6)', () => {
 
       // The user's uncommitted edit and both untracked files come back...
       expect(await readFile(sch, 'utf8')).toBe(tracked.replace('KEY_DAH', 'KEY_EDITED'));
-      expect(await readFile(path.join(repo, 'hand-written-notes.md'), 'utf8')).toBe('do not lose me\n');
-      expect(await readFile(path.join(repo, 'docs', 'new-doc.md'), 'utf8')).toBe('nested and untracked\n');
+      expect((await readFile(path.join(repo, 'hand-written-notes.md'), 'utf8')).replace(/\r\n/g, '\n')).toBe('do not lose me\n');
+      expect((await readFile(path.join(repo, 'docs', 'new-doc.md'), 'utf8')).replace(/\r\n/g, '\n')).toBe('nested and untracked\n');
       // ...and the failed run's own scratch file does not.
       expect(existsSync(path.join(repo, 'agent-scratch.txt'))).toBe(false);
     } finally {
@@ -307,7 +308,7 @@ describe('git guard (AC-3.8, AC-3.6)', () => {
     }
   });
 
-  it('refuses the run, naming the file, when an untracked path cannot be read', async () => {
+  it.skipIf(process.platform === 'win32')('refuses the run, naming the file, when an untracked path cannot be read', async () => {
     // Regression: every untracked path went straight into `git update-index`,
     // which aborts the whole batch on the first it cannot open. snapshot() runs
     // before the first turn, so one stray root-owned or mode-000 file refused

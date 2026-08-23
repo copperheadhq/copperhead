@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execa } from 'execa';
+import { execSync } from 'node:child_process';
 import { runInit, InitError } from '../src/memory/scaffold.js';
 import { runCheck } from '../src/commands/check.js';
 import { checkDrift } from '../src/memory/drift.js';
@@ -12,6 +13,13 @@ import { resolveModel, DEFAULTS, loadConfig } from '../src/config.js';
 import { tempFixtureRepo } from './helpers.js';
 
 const silent = (): void => {};
+
+let hasKicad = true;
+try {
+  execSync('kicad-cli version', { stdio: 'ignore' });
+} catch {
+  hasKicad = false;
+}
 
 describe('copperhead init (AC-1)', () => {
   it('scaffolds docs, config, transparency files, and pre-commit hook (AC-1.1)', async () => {
@@ -77,7 +85,7 @@ describe('copperhead init (AC-1)', () => {
 });
 
 describe('copperhead check (AC-2)', () => {
-  it('clean fixture: everything green (AC-2.1) and stable JSON keys (AC-2.4)', async () => {
+  it.runIf(hasKicad)('clean fixture: everything green (AC-2.1) and stable JSON keys (AC-2.4)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
@@ -95,7 +103,7 @@ describe('copperhead check (AC-2)', () => {
     }
   }, 60_000);
 
-  it('broken schematic (unconnected pin): fails with location (AC-2.2)', async () => {
+  it.runIf(hasKicad)('broken schematic (unconnected pin): fails with location (AC-2.2)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
@@ -127,7 +135,7 @@ describe('copperhead check (AC-2)', () => {
     }
   });
 
-  it('pre-commit hook blocks a desynced hand edit at git commit', async () => {
+  it.runIf(hasKicad)('pre-commit hook blocks a desynced hand edit at git commit', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
@@ -177,7 +185,7 @@ describe('check is LLM-free by construction (AC-2.1)', () => {
 });
 
 describe('fab export (create stage 6 tooling)', () => {
-  it('produces gerbers, drill, dxf, and svg for the fixture board', async () => {
+  it.runIf(hasKicad)('produces gerbers, drill, dxf, and svg for the fixture board', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const { exportFab } = await import('../src/kicad/cli.js');

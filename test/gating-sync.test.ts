@@ -1,8 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
 import { writeFile, readFile } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
+
+vi.mock('../src/kicad/cli.js', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  runErc: async () => ({ ok: true, violations: [], rules: {} }),
+  runDrc: async () => ({ ok: true, violations: [], rules: {} }),
+  kicadLoadError: async () => null,
+}));
 import { availableTools, dispatchTool, type RunContext } from '../src/agent/tools.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import { Transcript } from '../src/agent/transcript.js';

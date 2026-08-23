@@ -1,8 +1,34 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtemp, mkdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+
+const customTmpDir = vi.hoisted(() => {
+  // Use a sub-directory in the OS temp directory to isolate this test's temp files
+  // from concurrent sweeps performed by other CLI tests.
+  const isWin = process.platform === 'win32';
+  const tmp = process.env.TEMP || process.env.TMP || (isWin ? 'C:\\Windows\\Temp' : '/tmp');
+  const sep = isWin ? '\\' : '/';
+  return `${tmp}${sep}copperhead-isolated-sweep-${process.pid}`;
+});
+
+vi.mock('node:os', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:os')>();
+  return {
+    ...original,
+    tmpdir: () => customTmpDir,
+  };
+});
+
+beforeAll(async () => {
+  await mkdir(customTmpDir, { recursive: true });
+});
+
+afterAll(async () => {
+  await rm(customTmpDir, { recursive: true, force: true });
+});
+
 import { sweepStaleTempDirs, pruneHistoryDir, TEMP_PREFIX } from '../src/util/tmp.js';
 
 // These exercise the I8 startup sweep. They create real `copperhead-*` dirs in
