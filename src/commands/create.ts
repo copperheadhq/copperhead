@@ -3,20 +3,24 @@ import { existsSync } from 'node:fs';
 import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { loadConfig, resolveCompatSettings } from '../config.js';
-import { bootstrapKicadProject } from '../kicad/bootstrap.js';
+import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
 import { exportSvg, runErc } from '../kicad/cli.js';
 import { listSymbols } from '../kicad/sexp.js';
+import { checkLegibility } from '../kicad/legibility.js';
+import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
 import { isDirty, commitAll, changedFiles } from '../util/git.js';
 import type { CompatSettings, CopperheadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
 import { runAgentLoop, makeProvider, type BudgetExhaustedStats } from '../agent/loop.js';
-import { diagnoseStageFailure, transcriptExcerpt, withTimeout, type StageDiagnosis } from '../agent/recovery.js';
+import { diagnoseStageFailure, transcriptExcerpt, withTimeout, symbolAvailabilityFacts, type StageDiagnosis } from '../agent/recovery.js';
 import type { Provider } from '../agent/types.js';
 import type { RunMetaInput } from '../agent/runmeta.js';
 import { fmtDuration, fmtTokens, type ProgressRenderer } from '../agent/render.js';
 import { copper, dim, ok, stageLine, warn } from '../agent/theme.js';
 import { openspecInit } from '../openspec/cli.js';
 import { sweepStaleTempDirs, pruneHistoryDir } from '../util/tmp.js';
+import { bomSymbolDossier } from '../kicad/dossier.js';
+import { symbolSearchDirs } from '../kicad/symlib.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
@@ -55,6 +59,32 @@ async function docHasHeading(repoRoot: string, rel: string, word: string): Promi
   return re.test(await readFile(p, 'utf8'));
 }
 
+export async function writeBriefHash(
+  repoRoot: string,
+  docsDir: string,
+  briefMeta: { path: string; sha256: string },
+): Promise<void> {
+  const file = path.join(repoRoot, docsDir, 'BRIEF.sha256');
+
+  await mkdir(path.dirname(file), { recursive: true });
+
+  try {
+    await writeFile(
+      file,
+      `brief: ${briefMeta.path}
+sha256: ${briefMeta.sha256}
+`,
+      {
+        encoding: 'utf8',
+        flag: 'wx',
+      },
+    );
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code !== 'EEXIST') throw err;
+  }
+}
+
 /**
  * Returns true when a directory exists and contains at least one file
  * matching the optional glob-style extension list (case-insensitive).
@@ -86,16 +116,23 @@ export const STAGES: Stage[] = [
       const p = path.join(root, docs, 'SPEC.md');
       if (!existsSync(p)) return false;
       const text = await readFile(p, 'utf8');
-      const budgetsMatch = /^#{1,6}\s.*\bBudgets?\b/im.test(text);
-      if (!budgetsMatch) return false;
-      // Find the Budgets section and strip HTML comments (single or multi-line)
-      const afterBudgets = text.split(/^#{1,6}\s.*\bBudgets?\b/im)[1] ?? '';
-      const firstNewline = afterBudgets.indexOf('\n');
-      const afterHeadingLine = firstNewline >= 0 ? afterBudgets.slice(firstNewline + 1) : '';
-      const nextSection = afterHeadingLine.search(/^#{1,6}\s/m);
+      const heading = /^(#{1,6})\s.*\bBudgets?\b.*$/im.exec(text);
+      if (!heading) return false;
+      // The section runs to the next heading of the SAME OR SHALLOWER depth, not to
+      // the next heading of any depth (I17): a real spec routinely splits its budgets
+      // into subsections — "## 3. Electrical budgets" followed immediately by
+      // "### 3.1 Input and rails" — which leaves the parent's own body empty and read
+      // as an unfilled placeholder. Subheadings are part of the section, not its end.
+      const depth = heading[1]!.length;
+      const afterHeadingLine = text.slice(heading.index + heading[0].length);
+      const nextSection = afterHeadingLine.search(new RegExp(`^#{1,${depth}}\\s`, 'm'));
       const section = nextSection >= 0 ? afterHeadingLine.slice(0, nextSection) : afterHeadingLine;
+      // Strip HTML comments (single or multi-line); headings inside the section are
+      // structure, not content, so a section of nothing but subheadings still fails.
       const cleanSection = section.replace(/<!--[\s\S]*?-->/g, '');
-      const realLines = cleanSection.split('\n').filter((l) => l.trim().length > 0);
+      const realLines = cleanSection
+        .split('\n')
+        .filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
       return realLines.length > 0;
     },
     prompt: (brief) =>
@@ -148,7 +185,7 @@ export const STAGES: Stage[] = [
       });
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. Run check_drift before finishing.',
+      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins and substitute if it reports more than one unit — the drafting engine refuses multi-unit symbols (gate packs, dual opamps), so prefer the single-unit variant. Run check_drift before finishing.',
   },
   {
     name: 'schematic',
@@ -174,10 +211,35 @@ export const STAGES: Stage[] = [
       // schematic, advancing the pipeline against unverified work. Returning
       // false here keeps the stage active so it re-runs, fixes ERC, and commits
       // through the normal finish gate.
-      return (await runErc(p)).ok;
+      if (!(await runErc(p)).ok) return false;
+      // Legibility is the one stage-4 output no electrical gate sees (AC-16.22):
+      // an ERC-clean sheet with text over symbol bodies passes everything above
+      // while being unreviewable. Error-severity findings keep the stage active;
+      // advisories never block.
+      const legibility = await checkLegibility(p, {
+        docsDir: path.join(root, config.docs),
+        ...(config.legibility ? { config: config.legibility } : {}),
+      });
+      if (legibility.counts.error !== 0) return false;
+      // Drafting mode: the schematic must match a re-draft of the current IR
+      // (AC-16.20) — an intent edited after the last draft_schematic call means
+      // the sheet on disk no longer reflects the design and the stage stays
+      // active until a re-draft.
+      const intentRel = defaultIntentPath(config.schematic);
+      if (existsSync(path.join(root, intentRel))) {
+        const dry = await draftSchematicToText({
+          repoRoot: root,
+          schematic: config.schematic,
+          intentPath: intentRel,
+          docsDir: config.docs,
+        });
+        if (!dry.ok) return false;
+        if (dry.text !== (await readFile(p, 'utf8'))) return false;
+      }
+      return true;
     },
     prompt: () =>
-      'Stage 4: schematic. An empty KiCad project has already been scaffolded and wired into .copperhead/config.json (an empty schematic and a blank board with a default outline). Populate the existing schematic with edit_file — write_file refuses KiCad files, so add lib_symbols, symbols, and connectivity by anchored edits into the file that already exists. Work ONE part at a time, not in large blocks: add a symbol (its lib_symbols entry if new, then its placement), run run_erc, fix any violation, then move to the next part — small incremental edits keep a geometry or grid slip local instead of forcing a full-block rewrite. When you add a lib_symbols entry, use the exact canonical KiCad lib_id (e.g. Device:R, Connector:USB_C_Receptacle_USB2.0_16P) and reproduce the real part\'s pins faithfully — never invent pin numbers, names, or electrical types. Once symbols are placed, run verify_symbols and reconcile every divergence it reports (a wrong lib_id or pin set passes ERC but is still wrong); if it flags a renamed symbol, adopt the real name it suggests. Build subsystem by subsystem from BOM.md and SUBSYSTEMS.md. Same net names and refdes everywhere. Two KiCad rules the pipeline has repeatedly tripped on: (1) a net label placed on a pin only NAMES the net — it is NOT an electrical connection unless a wire actually reaches the pin; ERC will report the pin unconnected until you draw the wire. (2) Place every symbol origin and every wire endpoint on the 1.27mm (50mil) grid; an off-grid pin silently fails to connect and costs turns to diagnose. Update PINOUT.md as you assign pins; check the strapping table first.',
+      'Stage 4: schematic. An empty KiCad project has already been scaffolded and wired into .copperhead/config.json. You author INTENT, never geometry: write the netlist-intent IR and call draft_schematic — the deterministic engine computes every coordinate, wire, label, power symbol, and group box, and the sheet it draws satisfies the drafting standard by construction (captioned group boxes per SUBSYSTEMS.md subsystem, left-to-right flow, rails up and grounds down, net labels between groups, filled title block). The IR (schematic.intent.json) is JSON: {"version": 1, "parts": [{"ref", "libId", "value", "footprint", "group"}], "nets": [{"name", "pins": ["REF.PIN", …], "kind"?}], "noConnect": ["REF.PIN", …], "hints"?: {"groupOrder"?, "paper"?, "date"?}}. Build it from BOM.md (same refdes and values — validation cross-checks and refuses mismatches) and SUBSYSTEMS.md (every non-power part names one subsystem heading as its group). Use exact canonical KiCad lib_ids (e.g. Device:R) and REAL pin numbers from the library: the pin dossier below (when present) already lists every BOM part\'s installed symbol and its real pins — work from it and from symbol_pins rather than reading .kicad_sym files, and validation lists a part\'s actual pins when you name one that does not exist. Declare every deliberately unused pin in noConnect; power rails are recognized from pin types automatically (override with "kind" only when the inference is wrong — the draft report lists every net\'s resolved class). Pass the full IR as intent_json to draft_schematic; the report embeds the legibility findings and the score for the fresh sheet. To repair ANY finding (ERC, legibility, validation), fix the IR and call draft_schematic again — edit_file is refused on the drafted sheet. Text-collision findings scale with TEXT LENGTH: a net label, part value, or SUBSYSTEMS heading that is shorter draws a smaller box, so renaming a colliding net (and updating PINOUT.md) or tightening a long heading is a real repair lever; paper size and declaration order are not (placement is grid-derived). When the draft is clean run run_erc and check_drift, update PINOUT.md to match the IR\'s pin assignments, and finish.',
   },
   {
     name: 'layout-draft',
@@ -259,6 +321,36 @@ async function emitJlcpcbAfterOutputs(stageName: string, opts: CreateOptions): P
   if (out) opts.log(stageLine('outputs', `emitted ${out} (JLCPCB assembly BOM)`, 'ok'));
 }
 
+/**
+ * The generic "contract not met" line names no defect. For the schematic stage
+ * the most common gap after the electrical gates go green is legibility, so
+ * name the finding counts by kind — the resume then starts on the actual work
+ * instead of rediscovering it.
+ */
+async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
+  const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
+  if (stageName !== 'schematic' || !config.schematic) return generic;
+  const p = path.join(root, config.schematic);
+  if (!existsSync(p)) return generic;
+  try {
+    const report = await checkLegibility(p, {
+      docsDir: path.join(root, config.docs),
+      ...(config.legibility ? { config: config.legibility } : {}),
+    });
+    if (report.counts.error > 0) {
+      const byKind = new Map<string, number>();
+      for (const f of report.findings.filter((f) => f.severity === 'error')) {
+        byKind.set(f.kind, (byKind.get(f.kind) ?? 0) + 1);
+      }
+      const counts = [...byKind].map(([k, n]) => `${k}: ${n}`).join(', ');
+      return `the schematic stage contract is not met: ${report.counts.error} error-severity legibility finding(s) remain (${counts}); resume to reconcile them`;
+    }
+  } catch {
+    // fall through: an unreadable schematic already fails earlier contract steps
+  }
+  return generic;
+}
+
 /** Stages whose output is a KiCad file worth rendering to an image (5.4). */
 const KICAD_STAGES = new Set(['schematic', 'layout-draft', 'outputs']);
 
@@ -278,7 +370,10 @@ function isManagedPath(f: string, config: CopperheadConfig): boolean {
     f.startsWith('openspec/') ||
     f.startsWith('outputs/') ||
     f.startsWith('firmware/') ||
+    f.startsWith('sym-lib-cache/') ||
     f === '.gitignore' ||
+    path.basename(f) === 'sym-lib-table' ||
+    path.basename(f) === 'schematic.intent.json' ||
     /\.(kicad_sch|kicad_pcb|kicad_pro|kicad_prl)$/.test(f)
   );
 }
@@ -387,15 +482,22 @@ async function diagnose(input: {
     const p = provider;
     const excerpt = await transcriptExcerpt(input.transcriptDir);
     return await withTimeout(
-      () =>
-        diagnoseStageFailure(p, {
+      async () => {
+        // Fact-check symbol-availability claims before the model judges them: a
+        // refusal narrating "library not installed" is adjudicated from the
+        // machine's actual libraries, not from the narration (I15/#197). Inside
+        // the watchdog, so a wedged filesystem scan cannot outlive timeoutMs.
+        const symbolFacts = await symbolAvailabilityFacts(`${input.failure}\n${excerpt}`).catch(() => '');
+        return diagnoseStageFailure(p, {
           stageName: input.stageName,
           stageGoal: input.stageGoal,
           failure: input.failure,
           excerpt,
           attempt: input.attempt,
           maxAttempts: input.maxAttempts,
-        }),
+          ...(symbolFacts ? { symbolFacts } : {}),
+        });
+      },
       input.timeoutMs,
       () => p.close?.(),
     );
@@ -643,7 +745,16 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
   const brief = await readFile(path.resolve(opts.briefPath), 'utf8');
   // Hashed from the content already in hand: a brief edited mid-pipeline shows
   // up as a different sha256 in the next stage's metadata (AC-8.1).
-  const briefMeta = { path: opts.briefPath, sha256: createHash('sha256').update(brief).digest('hex') };
+  const resolvedBrief = path.resolve(opts.briefPath);
+  const relativeBrief = path.relative(opts.repoRoot, resolvedBrief);
+  const briefPath =
+    relativeBrief.startsWith('..') || path.isAbsolute(relativeBrief)
+      ? `external:${path.basename(resolvedBrief)}`
+      : relativeBrief;
+  const briefMeta = {
+    path: briefPath,
+    sha256: createHash('sha256').update(brief).digest('hex'),
+  };
   const config = await loadConfig(opts.repoRoot);
   // Fail fast on a nearly-full disk (4.1): a create run writes fab outputs and
   // KiCad local history and can otherwise fill the disk mid-stage, failing with
@@ -663,6 +774,11 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
   const pruned = await pruneHistoryDir(opts.repoRoot);
   if (pruned) opts.log(dim(`startup: pruned ${pruned} old .history/ entrie(s) to cap local-history growth`));
   await openspecInit(opts.repoRoot);
+  // Stamp the repo create-produced before any stage runs: the marker scopes the
+  // legibility finish gate and the fab release gate, and it must hold on
+  // resumed runs whose project predates the marker (bootstrapKicadProject
+  // no-ops on those, so it cannot be the only writer).
+  await markCreateOrigin(opts.repoRoot);
   const completed: string[] = [];
   const stageCosts: StageCost[] = [];
 
@@ -682,6 +798,15 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       opts.log(stageLine(stage.name, 'already complete (resuming past it)', 'ok'));
       await commitResumedStage(opts, config, stage.name);
       completed.push(stage.name);
+      if (stage.name === 'spec-seed') {
+        try {
+          await writeBriefHash(opts.repoRoot, config.docs, briefMeta);
+        } catch (err) {
+          opts.log(
+            `warning: could not record brief provenance (${(err as Error).message})`,
+          );
+        }
+      }
       stageCosts.push({ name: stage.name, resumed: true, wallMs: 0, turns: 0, tokensIn: 0, tokensOut: 0, cacheHits: 0 });
       await emitJlcpcbAfterOutputs(stage.name, opts);
       continue;
@@ -721,13 +846,38 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           `running${attempt > 1 ? ` (attempt ${attempt}/${config.maxStageRetries + 1})` : ''}`,
         ),
       );
+      // The BOM freezes before this stage, so every part's real pins are
+      // computable before the first turn — recomputed per attempt, since a
+      // rolled-back retry can run against a different BOM than its
+      // predecessor. Advisory only: any failure degrades to no block.
+      let dossierBlock = '';
+      if (stage.name === 'schematic') {
+        try {
+          const bomPath = path.join(opts.repoRoot, config.docs, 'BOM.md');
+          if (existsSync(bomPath)) {
+            // Bounded: a slow or wedged library scan must delay the stage by a
+            // fixed cost at most — on timeout the stage simply runs dossier-less.
+            const dossier = await withTimeout(
+              async () => bomSymbolDossier(await readFile(bomPath, 'utf8'), await symbolSearchDirs()),
+              60_000,
+            );
+            if (dossier) {
+              dossierBlock =
+                '\n\n## Installed-symbol pin dossier (machine-verified)\nEach BOM part resolved against the KiCad libraries installed on THIS machine: the top name-match lib_id and its REAL pins (number=name/electrical-type). Confirm the match fits the BOM part; alternatives are listed. Passives (R/C/L) draw from their canonical Device symbols and are omitted. Use these pins for REF.PIN endpoints instead of reading .kicad_sym files; for any part not listed, call symbol_pins.\n' +
+                dossier;
+            }
+          }
+        } catch {
+          // the dossier is context, never a gate — the stage runs without it
+        }
+      }
       const res = await runAgentLoop({
         repoRoot: opts.repoRoot,
         model: opts.model,
         request: `create pipeline stage: ${stage.name}`,
         stagePrompt: guidance
-          ? `${basePrompt}\n\n## Recovery guidance (a previous attempt did not complete this stage — do this differently)\n${guidance}`
-          : basePrompt,
+          ? `${basePrompt}${dossierBlock}\n\n## Recovery guidance (a previous attempt did not complete this stage — do this differently)\n${guidance}`
+          : `${basePrompt}${dossierBlock}`,
         interactive: opts.interactive ?? false,
         allowDirty: true, // stages build on each other's uncommitted state within the pipeline
         ...(stageTurns !== undefined ? { maxTurns: stageTurns } : {}),
@@ -759,7 +909,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         res.outcome !== 'success'
           ? `the run ended as "${res.outcome}" (${res.exitPath})`
           : !(await stage.isComplete(opts.repoRoot, config.docs))
-            ? 'the run finished but the stage completion contract is not met — no usable artifact was produced'
+            ? await contractGapDetail(stage.name, opts.repoRoot, config)
             : null;
       if (!failure) {
         stageDone = true;
@@ -818,6 +968,15 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       return { ok: false, completed };
     }
     completed.push(stage.name);
+    if (stage.name === 'spec-seed') {
+      try {
+        await writeBriefHash(opts.repoRoot, config.docs, briefMeta);
+      } catch (err) {
+        opts.log(
+          `warning: could not record brief provenance (${(err as Error).message})`,
+        );
+      }
+    }
     await renderStageArtifacts(opts, stage.name, stageTranscriptDir);
     await emitJlcpcbAfterOutputs(stage.name, opts);
     logCumulative(opts, stageCosts);

@@ -33,6 +33,7 @@ describe('sync-obligations ledger (design D13)', () => {
     expect(l.isClear).toBe(false);
     l.clear('erc');
     l.clear('drift');
+    l.clear('legibility');
     l.clear('changelog');
     expect(l.isClear).toBe(true);
     expect(l.describe()).toContain('satisfied');

@@ -22,6 +22,8 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `do` | [Edit an existing board](/workflows/edit-existing-board/) | Yes | One change: propose, edit, verify, propagate, commit. |
 | `create` | [Design from a brief](/workflows/create-from-brief/) | Yes | Full pipeline from a markdown brief to an output package. |
 | `sync` | Either | Verify phase no, resolve phase yes | Reconciles docs, files, and constraints. |
+| `draft` | [Design from a brief](/workflows/create-from-brief/) | No | Deterministically draws the schematic from `schematic.intent.json`. |
+| `score` | Either | No | Quantitative legibility score for the schematic (0-100, advisory). |
 
 ## Global options
 
@@ -120,7 +122,29 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `0` | Everything agrees. |
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, and `constraints`.
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+
+## `copperhead draft schematic`
+
+```bash
+copperhead draft schematic
+copperhead draft schematic --intent hardware/schematic.intent.json
+```
+
+Regenerates the configured schematic deterministically from the netlist-intent IR. The verb takes the artifact as a noun (`draft pcb` is reserved for layout drafting), so `draft` alone never has to guess what it applies to: parts, nets, groups, and no-connects in; placement, wires, labels, power symbols, and captioned group boxes out. Same intent, same bytes, every run. Makes no LLM calls and no network requests. See [How schematics are drafted](/reference/schematic-drafting/).
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Drafted and written (also writes the vendored `sym-lib-cache/`, `sym-lib-table`, and a minimal `.kicad_pro` when absent). |
+| `1` | Intent validation failed; the numbered findings are printed and the previous schematic is untouched. |
+
+## `copperhead score schematic`
+
+```bash
+copperhead score schematic
+```
+
+Prints the quantitative legibility score: a 0-100 composite with the per-metric breakdown (crossings, bends, wire length, alignment, spacing uniformity, symmetry, balance, and more). Error-severity legibility findings cap the composite. Advisory by design: the exit code never depends on the score. Makes no LLM calls and no network requests.
 
 ## `copperhead doctor`
 

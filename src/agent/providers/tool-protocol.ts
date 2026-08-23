@@ -85,9 +85,14 @@ export interface ParsedToolTurn {
  * split so only an inner `{args}` with no `tool` key balanced), not the tool
  * being broken. Returns a one-line steer to re-emit it, or undefined when the
  * absence of a call is genuine (plain prose, no tool named).
+ *
+ * Also covers the mirror case (I18): well-formed JSON naming a tool that is NOT in
+ * the catalog — withheld by the edit lock, or invented. That call is correctly not
+ * dispatched, but it must not be silent either.
  */
 function detectMalformedCall(text: string, catalog: Set<string>): string | undefined {
   const re = /"tool"\s*:\s*"([^"]+)"/g;
+  const offCatalog: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const name = m[1]!;
@@ -98,6 +103,23 @@ function detectMalformedCall(text: string, catalog: Set<string>): string | undef
         'Re-emit it as exactly one complete JSON object: {"tool": "...", "args": { ... }}.'
       );
     }
+    if (!offCatalog.includes(name)) offCatalog.push(name);
+  }
+  // A well-formed call naming a tool the turn did not advertise — a locked edit or
+  // drafting tool before propose_change/validate_change, or an invented name.
+  // `toToolCall` is right to refuse it (the lock is structural, D2), but dropping it
+  // to prose tells the model NOTHING, and it fills that silence: fabricating the
+  // result it never got (I15), or concluding the engine is absent from the build and
+  // refusing the stage outright (I18). Withholding the tool is the invariant; hiding
+  // the reason never was, so name it and print the real catalog.
+  if (offCatalog.length) {
+    const named = offCatalog.map((n) => `"${n}"`).join(', ');
+    return (
+      `No call ran: ${named} ${offCatalog.length > 1 ? 'are' : 'is'} not in this turn's tool ` +
+      'catalog. Edit and drafting tools are withheld until a proposal validates — call ' +
+      'propose_change, then validate_change, and they appear. Do not conclude a tool is ' +
+      `missing from the build. Available this turn: ${[...catalog].join(', ')}.`
+    );
   }
   return undefined;
 }

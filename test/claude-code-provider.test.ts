@@ -177,6 +177,45 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(turn.nudge).toMatch(/malformed|re-emit/i);
   });
 
+  // I18: the mirror of the near-miss above. A WELL-FORMED call naming a tool the
+  // turn withheld (the edit lock) parsed fine and was correctly not dispatched —
+  // and said nothing. The model filled the silence by inventing a "Tool not found.
+  // Available tools: …" error, concluded the drafting engine was absent from the
+  // build, and refused stage 4. The lock still withholds; it just says so now.
+  it('nudges with the real catalog when a well-formed call names a withheld tool (#I18)', async () => {
+    const reply = '```json\n{"tool":"draft_schematic","args":{"intent_json":"schematic.intent.json"}}\n```';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools); // catalog = read_file, finish
+    expect(turn.toolCalls).toHaveLength(0); // still not dispatched — the lock is structural
+    expect(turn.nudge).toMatch(/draft_schematic/);
+    expect(turn.nudge).toMatch(/propose_change/);
+    expect(turn.nudge).toMatch(/validate_change/);
+    // The real catalog, so the model cannot invent one.
+    expect(turn.nudge).toMatch(/read_file/);
+    expect(turn.nudge).toMatch(/finish/);
+  });
+
+  it('names every withheld tool when a turn calls more than one (#I18)', async () => {
+    const reply =
+      '```json\n{"tool":"write_file","args":{"path":"a","content":"x"}}\n```\n' +
+      '```json\n{"tool":"draft_schematic","args":{}}\n```';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.toolCalls).toHaveLength(0);
+    expect(turn.nudge).toMatch(/write_file/);
+    expect(turn.nudge).toMatch(/draft_schematic/);
+  });
+
+  it('prefers the malformed steer when one named tool is in the catalog and another is not (#I18)', async () => {
+    // A near-miss on a catalog tool is the more actionable defect: fix the JSON.
+    const reply =
+      '```json\n{"tool":"read_file","args":{"path":"a"}\n```\n' +
+      '```json\n{"tool":"draft_schematic","args":{}}\n```';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.nudge).toMatch(/malformed|re-emit/i);
+  });
+
   it('does not nudge on ordinary prose with no intended tool call (#I10)', async () => {
     const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('Let me think about the design.'), result()]));
     const turn = await provider.chat(messages, tools);

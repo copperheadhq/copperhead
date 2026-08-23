@@ -69,9 +69,6 @@ The constraint registry: machine-readable counterparts to the constraints stated
 | `COPPERHEAD_BASE_URL` | Optional. Overrides `baseURL`. Only the `compat` route reads it, so it never redirects a `gpt-5` run. |
 | `COPPERHEAD_API_KEY_ENV` | Optional. Overrides `apiKeyEnv`, e.g. `GROQ_API_KEY`. |
 | `NO_COLOR` | Optional. Disables ANSI colors in `doctor` output; colors are also skipped automatically when stdout is not a terminal. |
-| `SYNAP_API_KEY` | Optional. Enables cross-run memory. Absent, copperhead behaves exactly as before and makes no Synap calls. |
-| `SYNAP_USER_ID` | Optional memory scope. Defaults to your `git config user.email`. |
-| `SYNAP_CUSTOMER_ID` | Optional memory scope. Defaults to `copperhead`; only matters on B2B Synap instances. |
 
 A `.env` file in the working directory is read at startup, before any command resolves a model or a provider. A real environment variable always wins over the file. Copy `.env.example` to get started.
 
@@ -95,29 +92,69 @@ If `codex` is not on `PATH`, point `COPPERHEAD_CODEX_PATH` at an executable expl
 
 If none of these produce a model, the command exits with an error telling you the available ways to set one. `check` never needs a model, since it makes no LLM calls at all.
 
-Accepted model values (routing is by prefix; `makeProvider` checks `codex`, then `claude-code`, then `cursor`, then `claude`, then OpenAI):
+Accepted model values (routing is by prefix; `makeProvider` checks `compat`, then `codex`, then `claude-code`, then `cursor`, then `claude`, then OpenAI):
+
+Two rows below both mention "OpenAI," but mean different things - worth pulling apart before the table:
+
+- **`gpt-5`** talks to OpenAI's own service, running OpenAI's own models. Needs `OPENAI_API_KEY`.
+- **`compat:<id>`** talks to somebody else's service - Google's Gemini servers, Groq's servers, OpenRouter's servers, or your own machine running Ollama. None of them are OpenAI. They're called "OpenAI-**compatible**" only because those companies chose to format their requests the same way OpenAI does, so copperhead can talk to them with the same code it already has for `gpt-5` - just pointed at a different address (`baseURL`) with a different key.
+
+So every other row below is a dedicated integration for one specific vendor's login or API. `compat:<id>` is the odd one out: a generic bridge that works for any of them, precisely because it assumes nothing about which one you're using.
 
 | Value | Provider | Key |
 | --- | --- | --- |
+| `compat:<id>` | Any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, Ollama) | the variable named by `apiKeyEnv`; none for a local endpoint |
 | `codex` / `codex:<id>` | Codex CLI, saved login | none (local Codex login) |
 | `claude-code` / `claude-code:<id>` | Claude Code, saved login | none (uses `CLAUDE_CODE_OAUTH_TOKEN` / your logged-in CLI) |
 | `cursor` / `cursor:<id>` | Cursor Agent CLI, saved login | none (`agent login`) |
-| `compat:<id>` | Any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, Ollama) | the variable named by `apiKeyEnv`; none for a local endpoint |
 | `claude` / `claude-<id>` | Anthropic API | `ANTHROPIC_API_KEY` |
 | `gpt-5` / anything else | OpenAI API | `OPENAI_API_KEY` |
 
 `claude-code` is matched before the `claude` prefix, so it is never captured by the Anthropic API route. Cursor runs report 0 token usage (CLI JSON has no usage fields).
 
-For `compat:<id>`, set `baseURL` and `apiKeyEnv` together — either as `COPPERHEAD_BASE_URL`/`COPPERHEAD_API_KEY_ENV`, or as `baseURL`/`apiKeyEnv` in `.copperhead/config.json`:
+For `compat:<id>`, set `baseURL` (env `COPPERHEAD_BASE_URL` or `.copperhead/config.json`) and, if the endpoint needs a key, `apiKeyEnv` (env `COPPERHEAD_API_KEY_ENV` or config). Each resolves independently - env wins over config for whichever one it sets - so you can mix sources, e.g. `baseURL` in config with `COPPERHEAD_API_KEY_ENV` as an env var. `baseURL` is required for every compat endpoint. Non-local endpoints (Gemini, Groq, OpenRouter) also need the actual key, held in the variable `apiKeyEnv` names (defaults to `OPENAI_API_KEY` if left unset) - a local endpoint (Ollama) can skip the key entirely. The three pieces below are always: the endpoint, the name of the env var holding the key, and that env var itself.
+
+**Gemini:**
+
+```bash
+export COPPERHEAD_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+export COPPERHEAD_API_KEY_ENV=GEMINI_API_KEY
+export GEMINI_API_KEY=...
+export COPPERHEAD_MODEL=compat:<model-id>   # or pass --model compat:<model-id> instead, per command
+copperhead do "..."
+```
+
+**Groq:**
+
+```bash
+export COPPERHEAD_BASE_URL=https://api.groq.com/openai/v1
+export COPPERHEAD_API_KEY_ENV=GROQ_API_KEY
+export GROQ_API_KEY=...
+export COPPERHEAD_MODEL=compat:<model-id>   # or pass --model compat:<model-id> instead, per command
+copperhead do "..."
+```
+
+**OpenRouter:**
 
 ```bash
 export COPPERHEAD_BASE_URL=https://openrouter.ai/api/v1
 export COPPERHEAD_API_KEY_ENV=OPENROUTER_API_KEY
-export OPENROUTER_API_KEY=sk-or-v1-...
-copperhead do "..." --model compat:<model-id>
+export OPENROUTER_API_KEY=...
+export COPPERHEAD_MODEL=compat:<model-id>   # or pass --model compat:<model-id> instead, per command
+copperhead do "..."
 ```
 
-A local endpoint (Ollama) needs no key: `COPPERHEAD_BASE_URL=http://localhost:11434/v1` and no `apiKeyEnv` at all. Only the `compat` route reads `baseURL`, so leaving these set does not affect `gpt-5` or any other model.
+**Ollama (local, no key):**
+
+```bash
+export COPPERHEAD_BASE_URL=http://localhost:11434/v1
+export COPPERHEAD_MODEL=compat:<model-id>   # or pass --model compat:<model-id> instead, per command
+copperhead do "..."
+```
+
+A local endpoint needs no key of its own, but `COPPERHEAD_API_KEY_ENV` still defaults to `OPENAI_API_KEY` when left unset, and whatever that variable holds is sent to the endpoint as a bearer token - including over the LAN if `baseURL` points at another machine (e.g. a `.local` hostname), not just loopback. If you have `OPENAI_API_KEY` exported for normal `gpt-5` use, as in the example `.env` above, that key will be sent to Ollama too unless you point `COPPERHEAD_API_KEY_ENV` at an unset variable to suppress it. Only the `compat` route reads `baseURL`, so leaving any of these set does not affect `gpt-5` or any other model.
+
+The model id after `compat:` is whatever that provider calls it (check their model list - ids and availability change over the ones shown above). `baseURL` must be the OpenAI-compatible base path specifically (the `/v1`, or `/v1beta/openai/` for Gemini), not the provider's general API root.
 
 ### Saved login (Claude Code)
 
@@ -148,11 +185,3 @@ If `agent` is not on `PATH`, set `COPPERHEAD_CURSOR_PATH`. A rate-limited `curso
 | `.copperhead/constraints.json` | Yes | Constraint registry. |
 | `.copperhead/README.md` | Yes | Self-describing docs for the above. |
 | `.copperhead/runs/<ts>/` | No | JSONL transcript plus a human-readable `summary.md`. Gitignored. |
-
-## Cross-run memory
-
-With `SYNAP_API_KEY` set, each run recalls relevant context from earlier runs, on this board and others, into the system prompt, then records its outcome, decisions, and refusals back.
-
-In-repo docs and the KiCad files stay the source of truth. Recalled memory is advisory context layered on top, never a substitute for reading `docs/`.
-
-It needs the optional `@maximem/synap-js-sdk` package and a Python 3.11+ runtime on the host, since the JS SDK drives a Python bridge as a subprocess. If either is missing, copperhead logs a line and continues without memory.

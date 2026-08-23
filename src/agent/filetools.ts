@@ -75,6 +75,31 @@ export interface SearchMatch {
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', '.copperhead']);
 
+/**
+ * Longest match line returned to the model, in characters.
+ *
+ * The file-size bound in `toolSearch` (5 MB) bounds the file, not the line, and
+ * on a one-object-per-line document those are very different limits. A
+ * `transcript.jsonl` line is an entire `{ts, type, data}` record with tool
+ * output inline, so a few matches inside one file can be hundreds of thousands
+ * of tokens. A live run died on exactly that — `Prompt is too long · the
+ * request is ~1003121 tokens (limit 1000000) but this conversation is only
+ * ~403383 tokens`, the balance being search results — and it cost a stage
+ * attempt. The agent had done nothing wrong: it searched the repo it was told
+ * to work in, and a `run-logs/` directory happened to be sitting in it.
+ *
+ * A match is a pointer, not a payload — enough to see the hit and decide
+ * whether to read the file. Truncation is marked so a clipped line is
+ * distinguishable from a short one.
+ */
+const MAX_MATCH_CHARS = 400;
+
+/** Clip one match line to `MAX_MATCH_CHARS`, marking it when clipped. */
+function clipMatch(line: string): string {
+  const t = line.trim();
+  return t.length <= MAX_MATCH_CHARS ? t : `${t.slice(0, MAX_MATCH_CHARS)}… [+${t.length - MAX_MATCH_CHARS} chars]`;
+}
+
 export function globToRegex(glob: string): RegExp {
   let out = '';
   for (let i = 0; i < glob.length; i++) {
@@ -125,7 +150,7 @@ export async function toolSearch(
         if (text.includes('\u0000')) continue; // binary
         const lines = text.split('\n');
         for (let i = 0; i < lines.length && matches.length < maxMatches; i++) {
-          if (re.test(lines[i]!)) matches.push({ file: rel, line: i + 1, text: lines[i]!.trim() });
+          if (re.test(lines[i]!)) matches.push({ file: rel, line: i + 1, text: clipMatch(lines[i]!) });
         }
       }
       if (matches.length >= maxMatches) return;

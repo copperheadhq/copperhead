@@ -20,6 +20,21 @@ export const DRAFT_QUALITY_HEADING = '## Draft quality';
 /** Config marker: repos produced by `copperhead create` set `origin` to `"create"`. */
 export const CREATE_ORIGIN = 'create';
 
+/** Generator stamp carried by every schematic copperhead authors (the
+ * bootstrap scaffold and every emitter draft). */
+export const DRAFT_GENERATOR_MARKER = '(generator "copperhead-draft")';
+
+/**
+ * Is the schematic still copperhead-authored? True while the file carries the
+ * generator stamp. A human taking the sheet over in KiCad re-saves it with
+ * KiCad's own generator string, which is the deliberate one-way door out of
+ * drafting mode: the edit guard lifts and the legibility finish gate stops
+ * applying, because the drawing is no longer the engine's to defend.
+ */
+export function isEngineAuthoredSchematic(text: string): boolean {
+  return text.slice(0, 400).includes(DRAFT_GENERATOR_MARKER);
+}
+
 /**
  * True when `.copperhead/config.json` marks the repo as create-produced.
  * Accepts the raw parsed object (or a loaded config that retained `origin`).

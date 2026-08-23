@@ -111,6 +111,7 @@ their-board/
 │   ├── BOM.md              # every part: refdes, MPN, value, package, WHY chosen
 │   ├── PINOUT.md           # MCU pin assignment table + strapping/RTC notes
 │   ├── SUBSYSTEMS.md       # per-sheet values & reasoning (regulator, charger…)
+│   ├── BRIEF.sha256        # originating brief path + SHA-256; created on first successful spec-seed run, preserved thereafter
 │   └── LAYOUT.md           # placement/routing intent: keepouts, pours, ESD placement
 └── .copperhead/
     ├── config.json         # paths, model, budgets (see §5)

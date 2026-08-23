@@ -7,6 +7,7 @@ import { CachingProvider } from './response-cache.js';
 import { withTimeout, TurnTimeoutError } from './recovery.js';
 import { buildSystemPrompt } from './prompts.js';
 import { loadConstraints, reopenDeferredAffects } from '../memory/constraints.js';
+import { isCreateProducedRepo, isEngineAuthoredSchematic } from '../kicad/fab.js';
 import {
   loadConfig,
   CONFIG_DIR,
@@ -30,7 +31,6 @@ import { AnthropicProvider } from './providers/anthropic.js';
 import { CodexProvider } from './providers/codex.js';
 import { ClaudeCodeProvider } from './providers/claude-code.js';
 import { CursorProvider } from './providers/cursor.js';
-import { openSynapMemory, type RunRecord, type SynapMemory } from '../memory/synap.js';
 
 /** What the user sees at the moment they decide whether to keep going. */
 export interface BudgetExhaustedStats {
@@ -202,16 +202,10 @@ async function appendChangelog(
   await writeFile(p, lines.join('\n'), 'utf8');
 }
 
-/**
- * Owns the Synap session for one run. The bridge is a subprocess, so the
- * shutdown in `finally` is what lets the CLI exit; without it the process
- * hangs after a successful run.
- */
 export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
-  const memory = await openSynapMemory({ repoRoot: opts.repoRoot, log: opts.log });
   const providers = new Set<Provider>();
   try {
-    return await runWithMemory(opts, memory, providers);
+    return await runWithProviders(opts, providers);
   } finally {
     for (const provider of providers) {
       try {
@@ -220,15 +214,10 @@ export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
         opts.log?.(`warning: ${provider.name} provider cleanup failed (${(err as Error).message})`);
       }
     }
-    await memory?.close();
   }
 }
 
-async function runWithMemory(
-  opts: RunOptions,
-  memory: SynapMemory | null,
-  providers: Set<Provider>,
-): Promise<RunResult> {
+async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Promise<RunResult> {
   const r = opts.renderer ?? plainRenderer(opts.log ?? ((l: string) => console.log(l)));
   const log = (l: string): void => r.log(l);
   const repoRoot = opts.repoRoot;
@@ -240,11 +229,28 @@ async function runWithMemory(
 
   const transcript = new Transcript(repoRoot);
   await transcript.init();
+  // Legibility gates finish only where copperhead authored the sheet; a
+  // hand-drawn repo gets findings as information, never as a wedge (C6).
+  // Both conditions matter: the create-origin marker scopes the gate to repos
+  // this tool produced, and the generator stamp scopes it to sheets copperhead
+  // still owns. A human taking the sheet over in KiCad re-saves it under
+  // KiCad's generator, and from then on the gate must not defend a drawing
+  // the engine can no longer regenerate. A create repo whose schematic is not
+  // yet scaffolded keeps the gate: the sheet stage 4 will produce is
+  // copperhead-authored by construction.
+  let gateLegibility = isCreateProducedRepo(config);
+  if (gateLegibility && config.schematic) {
+    try {
+      gateLegibility = isEngineAuthoredSchematic(await readFile(path.join(repoRoot, config.schematic), 'utf8'));
+    } catch {
+      // schematic configured but absent (pre-scaffold): keep the gate
+    }
+  }
   const ctx: RunContext = {
     repoRoot,
     config,
     transcript,
-    ledger: new ObligationsLedger(),
+    ledger: new ObligationsLedger(gateLegibility),
     runId: path.basename(transcript.dir),
     interactive: opts.interactive ?? false,
     confirm: opts.confirm ?? (async () => true),
@@ -254,6 +260,8 @@ async function runWithMemory(
     filesTouched: new Set(),
     decisions: [],
     lastErc: null,
+    lastLegibility: null,
+    lastScore: null,
     lastDrc: null,
     repairCycles: 0,
     finishRequest: null,
@@ -328,36 +336,11 @@ async function runWithMemory(
       ...reopened.map((r) => `- ${r.key} affects ${r.item}`),
     ].join('\n');
   }
-  // Cross-run memory is appended after the repo's own docs and constraints so
-  // that the in-repo sources of truth are what the model reads first.
-  const recalled = memory ? await memory.recall(opts.request) : null;
-  if (recalled) {
-    await transcript.event('synap-recall', { chars: recalled.length });
-    log('recalled prior context from Synap memory');
-  }
-  const system = recalled ? `${basePrompt}\n\n${recalled}` : basePrompt;
   const messages: Msg[] = [
-    { role: 'system', content: system },
+    { role: 'system', content: basePrompt },
     { role: 'user', content: opts.stagePrompt ? `${opts.stagePrompt}\n\nRequest: ${opts.request}` : opts.request },
   ];
   await transcript.event('run-start', meta);
-
-  /**
-   * A memory write that fails is reported rather than swallowed, but it does
-   * not change the run's outcome: discarding a verified commit because a
-   * third-party write failed would be the worse trade.
-   */
-  const remember = async (run: RunRecord): Promise<void> => {
-    if (!memory) return;
-    try {
-      await memory.record(run);
-      await transcript.event('synap-record', { outcome: run.outcome });
-    } catch (err) {
-      const message = (err as Error).message;
-      log(`warning: Synap memory write failed (${message}); this run was not recorded`);
-      await transcript.event('synap-record-failed', { error: message });
-    }
-  };
 
   let tokensIn = 0;
   let tokensOut = 0;
@@ -416,6 +399,8 @@ async function runWithMemory(
       filesTouched: [...ctx.filesTouched],
       ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : `${ctx.lastErc.violations.length} violations`) : null,
       drcResult: ctx.lastDrc ? (ctx.lastDrc.ok ? 'clean' : `${ctx.lastDrc.violations.length} violations`) : null,
+      legibilityResult: ctx.lastLegibility ? `${ctx.lastLegibility.error} error, ${ctx.lastLegibility.advisory} advisory` : null,
+      scoreResult: ctx.lastScore !== null ? `${ctx.lastScore}/100` : null,
       decisions: ctx.decisions,
       tokensIn,
       tokensOut,
@@ -648,17 +633,6 @@ async function runWithMemory(
           env: meta,
           stats: runStats,
         });
-        // Refusals are the most valuable thing to remember: they encode a budget
-        // or constraint that this user's designs keep running into.
-        await remember({
-          request: opts.request,
-          outcome: 'refused',
-          summary,
-          changeId: ctx.changeId,
-          filesTouched: [],
-          decisions: ctx.decisions,
-          verification: 'n/a (refused before verification)',
-        });
         log(`refused: ${summary}`);
         r.finish(outcomeLine(runStats));
         return {
@@ -777,6 +751,8 @@ async function runWithMemory(
         filesTouched: files,
         ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : 'FAILING') : 'not run',
         drcResult: ctx.lastDrc ? (ctx.lastDrc.ok ? 'clean' : 'FAILING') : 'not run',
+        legibilityResult: ctx.lastLegibility ? `${ctx.lastLegibility.error} error, ${ctx.lastLegibility.advisory} advisory` : null,
+        scoreResult: ctx.lastScore !== null ? `${ctx.lastScore}/100` : null,
         decisions: ctx.decisions,
         tokensIn,
         tokensOut,
@@ -784,15 +760,6 @@ async function runWithMemory(
         openObligations: null,
         env: meta,
         stats: runStats,
-      });
-      await remember({
-        request: opts.request,
-        outcome: 'success',
-        summary,
-        changeId: ctx.changeId,
-        filesTouched: files,
-        decisions: ctx.decisions,
-        verification,
       });
       log(`committed ${commit.slice(0, 10)} (${files.length} file(s))`);
       r.finish(outcomeLine(runStats, `committed ${commit.slice(0, 10)}`));

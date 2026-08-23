@@ -35,6 +35,10 @@ export interface RunSummaryData {
   filesTouched: string[];
   ercResult: string | null;
   drcResult: string | null;
+  /** e.g. "0 error, 3 advisory finding(s)"; null when the checker never ran. */
+  legibilityResult?: string | null;
+  /** e.g. "87.5/100"; null when the scorer never ran (AC-16.21). */
+  scoreResult?: string | null;
   decisions: string[];
   tokensIn: number;
   tokensOut: number;
@@ -111,6 +115,8 @@ export class Transcript {
       ``,
       `- ERC: ${s.ercResult ?? 'not run'}`,
       `- DRC: ${s.drcResult ?? 'not run'}`,
+      `- legibility: ${s.legibilityResult ?? 'not run'}`,
+      `- score: ${s.scoreResult ?? 'not run'}`,
       ``,
       `## Decisions`,
       ``,

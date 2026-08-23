@@ -16,6 +16,7 @@ function deps(over: Partial<DoctorDeps> = {}): Partial<DoctorDeps> {
     nodeVersion: 'v20.0.0',
     kicadVersion: async () => 'kicad-cli 9.0.0',
     gitVersion: async () => 'git version 2.43.0',
+    openspecVersion: async () => 'openspec 1.8.0',
     env: {},
     ...over,
   };
@@ -238,6 +239,55 @@ describe('copperhead doctor', () => {
     }
   });
 
+  it('reports a missing openspec as a failure with an install hint (does not throw)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'claude-code',
+        deps: deps({
+          openspecVersion: async () => {
+            throw Object.assign(new Error('spawn openspec ENOENT'), { code: 'ENOENT' });
+          },
+        }),
+      });
+      const os = r.checks.find((c) => c.name === 'openspec')!;
+      expect(os.status).toBe('fail');
+      expect(os.hint).toContain('@fission-ai/openspec');
+      expect(r.ok).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a raw multi-line shell error never reaches the report unflattened (regression)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      // A shell-shaped error (exit 127, not ENOENT) is not the "not found"
+      // case the probe itself can produce (execa yields ENOENT for that on
+      // every platform), but any unexpected error must still land as a
+      // single line so it cannot break formatDoctor's column layout.
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'claude-code',
+        deps: deps({
+          openspecVersion: async () => {
+            throw Object.assign(
+              new Error('Command failed: openspec --version\n/bin/sh: 1: openspec: not found\n'),
+              { code: 127 },
+            );
+          },
+        }),
+      });
+      const os = r.checks.find((c) => c.name === 'openspec')!;
+      expect(os.status).toBe('fail');
+      expect(os.detail).toContain('openspec: not found');
+      expect(os.detail).not.toContain('\n');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('with a config present, the project check reports the wired schematic and board', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -318,11 +368,12 @@ describe('doctor — OpenAI-compatible endpoints (issue #110)', () => {
   });
 
   it('strips a Gemini-shaped key (AIza..., not sk-...) from the endpoint URL — regression', () => {
-    // redactSecrets' key-shape patterns (sk-, Bearer, npm_, gh*_) don't match
-    // Gemini's AIza... format or Groq's gsk_... format, and Gemini's own
-    // compat endpoint puts the key in the URL as ?key=.... Dropping the whole
-    // query/userinfo (not pattern-matching the key) is what makes this hold
-    // for every provider's key shape, not just the ones tested here.
+    // redactSecrets covers known key shapes (sk-, Bearer, npm_, gh*_, AIza,
+    // gsk_...), but a key embedded in a URL query isn't reliably one of them,
+    // and Gemini's own compat endpoint puts the key in the URL as ?key=....
+    // Dropping the whole query/userinfo (not pattern-matching the key) is
+    // what makes this hold for every provider's key shape, not just the ones
+    // tested here.
     const gemini = {
       baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai?key=AIzaSyABCDEF1234567890shouldnotleak',
       apiKeyEnv: 'GEMINI_API_KEY',

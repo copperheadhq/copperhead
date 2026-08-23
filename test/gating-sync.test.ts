@@ -101,6 +101,11 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
       await writeFile(path.join(repo, 'docs', 'BOM.md'), bom.replace('| R2 | 1k |', '| R2 | 2.2k |'), 'utf8');
       const driftRes = await dispatchTool(ctx, 'check_drift', {});
       expect(driftRes).toBe('drift: clean');
+      // the fixture's group caption must name a documented subsystem
+      const subs = await readFile(path.join(repo, 'docs', 'SUBSYSTEMS.md'), 'utf8');
+      await writeFile(path.join(repo, 'docs', 'SUBSYSTEMS.md'), subs + '\n## Keyer\n\nKey input block.\n', 'utf8');
+      const legRes = await dispatchTool(ctx, 'check_legibility', {});
+      expect(legRes).toContain('0 error'); // advisories inform but never block finish
 
       const done = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'done' });
       expect(done).toContain('all gates satisfied');

@@ -22,7 +22,11 @@ export function parseSexp(text: string): SexpNode[] {
       let s = '';
       while (j < text.length && text[j] !== '"') {
         if (text[j] === '\\' && j + 1 < text.length) {
-          s += text[j + 1];
+          // KiCad writes multi-line text as `\n` (and tabs as `\t`) inside the
+          // quoted atom; mapping the escape to the literal letter would give
+          // the legibility width model a one-line `line1nline2` string.
+          const e = text[j + 1];
+          s += e === 'n' ? '\n' : e === 't' ? '\t' : e!;
           j += 2;
         } else {
           s += text[j];
@@ -280,6 +284,251 @@ export interface PinNet {
   pinNumber: string;
   pinName: string;
   net: string | null;
+}
+
+// ---------- Read-only geometry accessors for the legibility checker ----------
+
+export interface Bounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface WireSeg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface TextItem {
+  text: string;
+  x: number;
+  y: number;
+  rot: number;
+  /** Font height in mm (KiCad `(size h w)`); 1.27 when unstated. */
+  height: number;
+  hidden: boolean;
+}
+
+export interface LabelItem {
+  name: string;
+  kind: 'label' | 'global_label' | 'hierarchical_label';
+  x: number;
+  y: number;
+  rot: number;
+  height: number;
+  /** Horizontal component of `(justify …)`, or null when unspecified. KiCad
+   * normalizes angles 180/270 to 0/90 at draw time and the stored justify
+   * describes that DRAWN frame, so a leftward label appears as angle 180 (no
+   * justify), angle 180 + justify right, or angle 0 + justify right — all the
+   * same box. */
+  justify: 'left' | 'right' | null;
+}
+
+export interface RectItem {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  strokeType: string;
+}
+
+export interface PlacedSymbolGeom {
+  ref: string;
+  libId: string;
+  value: string;
+  at: { x: number; y: number; rot: number };
+  mirror: 'x' | 'y' | null;
+  isPower: boolean;
+  /** Reference and Value property text (absolute schematic coordinates). */
+  props: TextItem[];
+}
+
+export interface SheetGeometry {
+  filePath: string;
+  sheetName: string;
+  /** `(paper …)`: standard name, or explicit size when the file states one. */
+  paper: { name: string | null; width: number | null; height: number | null; portrait: boolean };
+  titleBlock: { title: string; date: string; rev: string } | null;
+  symbols: PlacedSymbolGeom[];
+  wires: WireSeg[];
+  labels: LabelItem[];
+  /** Free `(text …)` items (group captions live here). */
+  texts: TextItem[];
+  /** Sheet-level `(rectangle …)` graphics (group boxes live here). */
+  rectangles: RectItem[];
+  /** Union bounds of each lib symbol's body graphics, symbol space; null when the entry draws nothing. */
+  libBounds: Map<string, Bounds | null>;
+  libPins: Map<string, PinDef[]>;
+}
+
+const num = (n: SexpNode[] | undefined, idx: number, fallback = 0): number => {
+  const v = atomAt(n, idx);
+  return v === undefined ? fallback : parseFloat(v);
+};
+
+function effectsOf(node: SexpNode[]): { height: number; hidden: boolean } {
+  const effects = child(node, 'effects');
+  const font = effects ? child(effects, 'font') : undefined;
+  const size = font ? child(font, 'size') : undefined;
+  // hidden: legacy bare `hide` atom, or v9 `(hide yes)`
+  const hideNode = effects ? child(effects, 'hide') : undefined;
+  const hidden =
+    (effects?.some((c) => c === 'hide') ?? false) || (hideNode !== undefined && atomAt(hideNode, 1) !== 'no');
+  return { height: size ? num(size, 1, 1.27) : 1.27, hidden };
+}
+
+function libBodyBounds(root: SexpNode[]): Map<string, Bounds | null> {
+  const map = new Map<string, Bounds | null>();
+  const libs = child(root, 'lib_symbols');
+  if (!libs) return map;
+  for (const sym of children(libs, 'symbol')) {
+    const name = atomAt(sym, 1);
+    if (!name) continue;
+    let b: Bounds | null = null;
+    const extend = (x: number, y: number): void => {
+      if (!b) b = { minX: x, minY: y, maxX: x, maxY: y };
+      else {
+        b.minX = Math.min(b.minX, x);
+        b.minY = Math.min(b.minY, y);
+        b.maxX = Math.max(b.maxX, x);
+        b.maxY = Math.max(b.maxY, y);
+      }
+    };
+    const walk = (n: SexpNode): void => {
+      if (!isList(n)) return;
+      const t = tag(n);
+      if (t === 'rectangle') {
+        const s = child(n, 'start');
+        const e = child(n, 'end');
+        extend(num(s, 1), num(s, 2));
+        extend(num(e, 1), num(e, 2));
+      } else if (t === 'circle') {
+        const c = child(n, 'center');
+        const r = num(child(n, 'radius'), 1);
+        extend(num(c, 1) - r, num(c, 2) - r);
+        extend(num(c, 1) + r, num(c, 2) + r);
+      } else if (t === 'arc') {
+        for (const part of ['start', 'mid', 'end']) {
+          const p = child(n, part);
+          if (p) extend(num(p, 1), num(p, 2));
+        }
+      } else if (t === 'polyline') {
+        for (const xy of children(child(n, 'pts') ?? [], 'xy')) extend(num(xy, 1), num(xy, 2));
+      }
+      // pin/text graphics are deliberately excluded from the body box (design C2)
+      if (t !== 'pin' && t !== 'text') for (const c of n) walk(c);
+    };
+    walk(sym);
+    map.set(name, b);
+  }
+  return map;
+}
+
+function textItemsOf(sym: SexpNode[]): TextItem[] {
+  const out: TextItem[] = [];
+  for (const p of children(sym, 'property')) {
+    const key = atomAt(p, 1);
+    if (key !== 'Reference' && key !== 'Value') continue;
+    const at = child(p, 'at');
+    const fx = effectsOf(p);
+    out.push({
+      text: atomAt(p, 2) ?? '',
+      x: num(at, 1),
+      y: num(at, 2),
+      rot: num(at, 3),
+      height: fx.height,
+      hidden: fx.hidden,
+    });
+  }
+  return out;
+}
+
+/**
+ * Everything the legibility checker needs to see per sheet, extracted read-only.
+ * Never serializes and never mutates the file.
+ */
+export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[]> {
+  const sheets = await loadSheets(rootSch);
+  const powerSyms = collectPowerSymbols(sheets);
+  return sheets.map((sheet) => {
+    const paperNode = child(sheet.root, 'paper');
+    const paperName = atomAt(paperNode, 1) ?? null;
+    const portrait = paperNode?.includes('portrait') ?? false;
+    const explicitW = num(paperNode, 2, NaN);
+    const explicitH = num(paperNode, 3, NaN);
+    const tb = child(sheet.root, 'title_block');
+    const tbField = (name: string): string => (tb ? (atomAt(child(tb, name), 1) ?? '') : '');
+    const wires: WireSeg[] = [];
+    for (const w of children(sheet.root, 'wire')) {
+      const pts = children(child(w, 'pts') ?? [], 'xy');
+      for (let i = 1; i < pts.length; i++) {
+        wires.push({ x1: num(pts[i - 1], 1), y1: num(pts[i - 1], 2), x2: num(pts[i], 1), y2: num(pts[i], 2) });
+      }
+    }
+    const labels: LabelItem[] = [];
+    for (const kind of ['label', 'global_label', 'hierarchical_label'] as const) {
+      for (const l of children(sheet.root, kind)) {
+        const at = child(l, 'at');
+        const effects = child(l, 'effects');
+        const justify = effects ? child(effects, 'justify') : undefined;
+        labels.push({
+          name: atomAt(l, 1) ?? '',
+          kind,
+          x: num(at, 1),
+          y: num(at, 2),
+          rot: num(at, 3),
+          height: effectsOf(l).height,
+          justify: justify?.some((c) => c === 'right') ? 'right' : justify?.some((c) => c === 'left') ? 'left' : null,
+        });
+      }
+    }
+    const texts: TextItem[] = children(sheet.root, 'text').map((t) => {
+      const at = child(t, 'at');
+      const fx = effectsOf(t);
+      return { text: atomAt(t, 1) ?? '', x: num(at, 1), y: num(at, 2), rot: num(at, 3), height: fx.height, hidden: fx.hidden };
+    });
+    const rectangles: RectItem[] = children(sheet.root, 'rectangle').map((r) => {
+      const s = child(r, 'start');
+      const e = child(r, 'end');
+      const stroke = child(r, 'stroke');
+      return {
+        x1: num(s, 1),
+        y1: num(s, 2),
+        x2: num(e, 1),
+        y2: num(e, 2),
+        strokeType: atomAt(child(stroke ?? [], 'type'), 1) ?? 'default',
+      };
+    });
+    return {
+      filePath: sheet.filePath,
+      sheetName: sheet.sheetName,
+      paper: {
+        name: paperName,
+        width: Number.isNaN(explicitW) ? null : explicitW,
+        height: Number.isNaN(explicitH) ? null : explicitH,
+        portrait,
+      },
+      titleBlock: tb ? { title: tbField('title'), date: tbField('date'), rev: tbField('rev') } : null,
+      symbols: symbolsOf(sheet).map(({ sym, mirror, node }) => ({
+        ref: sym.ref,
+        libId: sym.libId,
+        value: sym.value,
+        at: sym.at,
+        mirror,
+        isPower: isPowerSymbol(sym.libId, powerSyms),
+        props: textItemsOf(node),
+      })),
+      wires,
+      labels,
+      texts,
+      rectangles,
+      libBounds: libBodyBounds(sheet.root),
+      libPins: libPinDefs(sheet.root),
+    };
+  });
 }
 
 /**

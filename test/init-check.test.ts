@@ -89,12 +89,15 @@ describe('copperhead check (AC-2)', () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
+      const subs = await readFile(path.join(repo, 'docs', 'SUBSYSTEMS.md'), 'utf8');
+      await writeFile(path.join(repo, 'docs', 'SUBSYSTEMS.md'), subs + '\n## Keyer\n\nKey input block.\n', 'utf8');
       const res = await runCheck(repo, silent);
       expect(res.ok).toBe(true);
       expect(res.erc).toEqual({ ok: true, violations: 0 });
       expect(res.drc).toEqual({ ok: true, violations: 0 });
       expect(res.drift.ok).toBe(true);
-      expect(Object.keys(res).sort()).toEqual(['constraints', 'drc', 'drift', 'erc', 'ok', 'openspec']);
+      expect(Object.keys(res).sort()).toEqual(['constraints', 'drc', 'drift', 'erc', 'legibility', 'ok', 'openspec']);
+      expect(res.legibility.counts.error).toBe(0);
     } finally {
       await cleanup();
     }

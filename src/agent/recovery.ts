@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Msg, Provider } from './types.js';
+import { resolveLibrarySymbol, searchInstalledSymbols, symbolSearchDirs, listInstalledLibraries } from '../kicad/symlib.js';
 
 /** Thrown when a single provider turn blows past its watchdog deadline. */
 export class TurnTimeoutError extends Error {
@@ -117,6 +118,91 @@ export async function transcriptExcerpt(transcriptDir: string, maxChars = 4000):
 }
 
 /**
+ * Deterministically re-probe every lib_id named in a failure narrative against
+ * the installed libraries, so the diagnostician judges symbol-availability
+ * claims from machine facts instead of the agent's prose. An agent that has
+ * been dead-ended by wrong library nicknames concludes — and records — that
+ * whole libraries are absent when they are installed; a refusal built on that
+ * premise reads exactly like a genuine environmental gap, and the one thing
+ * that distinguishes them is re-checking the named lib_ids, which costs no
+ * LLM turn. Never throws; on any probe error it reports what it could.
+ */
+export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap = 8): Promise<string> {
+  const ids: string[] = [];
+  // A library nickname is its `.kicad_sym` filename stem, so it can carry `-`
+  // and `.` as well as `_` (`Custom-Parts`, `MyCorp.RF`) — a nickname the regex
+  // truncates is probed as the wrong lib_id and reported absent, which is the
+  // false negative this whole fact block exists to prevent. Separators are
+  // interior only, so a trailing sentence period is not swallowed.
+  for (const m of text.matchAll(/\b([A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_])?):([A-Za-z0-9][A-Za-z0-9_.+-]*)/g)) {
+    const lib = m[1]!;
+    const name = m[2]!;
+    // Require letters on both sides: drops file:line refs ("create.ts:311"),
+    // times and bare numbers. Engine-generated power symbols are not library
+    // facts.
+    if (!/[A-Za-z]/.test(lib) || !/[A-Za-z]/.test(name) || lib === 'copperhead_power') continue;
+    const libId = `${lib}:${name}`;
+    if (!ids.includes(libId)) ids.push(libId);
+  }
+  if (!ids.length) return '';
+  // Collection is unbounded but probing is capped, so a probe-heavy transcript
+  // stays cheap. The overflow is named rather than dropped: the supervisor is
+  // told these facts are ground truth, and silently probing 8 of 30 lib_ids
+  // would let it read "unprobed" as "absent".
+  const probed = ids.slice(0, cap);
+  const unprobed = ids.slice(cap);
+  let searchDirs: string[];
+  try {
+    searchDirs = dirs ?? (await symbolSearchDirs());
+  } catch {
+    return '';
+  }
+  if (!searchDirs.length) return '';
+  // A directory with no readable library means nothing was checked: emitting
+  // "not installed" lines as ground truth from that state is the exact false
+  // absence this block exists to prevent (same guard as bomSymbolDossier).
+  if (!(await listInstalledLibraries(searchDirs)).size) return '';
+  const lines: string[] = [];
+  for (const libId of probed) {
+    const name = libId.slice(libId.indexOf(':') + 1);
+    try {
+      const r = await resolveLibrarySymbol(libId, searchDirs);
+      if (r.status === 'ok') {
+        lines.push(`- ${libId}: RESOLVES on this machine (${r.pins.length} pins)`);
+      } else if (r.status === 'found-elsewhere') {
+        // The resolver already located the part under another lib_id; saying
+        // "not installed" here would be the exact false absence claim this
+        // block exists to prevent.
+        lines.push(`- ${libId}: not at that lib_id, but installed as: ${r.libIds.slice(0, 4).join(', ')}`);
+      } else {
+        const elsewhere = await searchInstalledSymbols(name, searchDirs, 4);
+        const inThat =
+          r.status === 'no-symbol' && r.candidates.length
+            ? ` (closest in that library: ${r.candidates.slice(0, 4).join(', ')})`
+            : '';
+        const where = elsewhere.length
+          ? `; installed as: ${elsewhere.join(', ')}`
+          : `; no installed symbol matches "${name}" in any library`;
+        lines.push(
+          r.status === 'no-symbol'
+            ? `- ${libId}: not in that library${inThat}${where}`
+            : `- ${libId}: no library of that nickname is installed${where}`,
+        );
+      }
+    } catch {
+      // a single unreadable library must not sink the fact block
+    }
+  }
+  if (!lines.length) return '';
+  if (unprobed.length) {
+    lines.push(
+      `- NOT RE-PROBED (probe limit ${cap}): ${unprobed.join(', ')} — these were named in the text but not checked, so nothing above says whether they exist.`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
  * Ask the model whether a failed/incomplete stage is worth retrying, and if so
  * how. Uses a fresh, tool-less provider turn (the same saved-login backend the
  * pipeline runs on), so no extra credentials or config are needed. Any error or
@@ -132,6 +218,9 @@ export async function diagnoseStageFailure(
     excerpt: string;
     attempt: number;
     maxAttempts: number;
+    /** Deterministic re-probe results for lib_ids named in the failure/excerpt
+     *  (`symbolAvailabilityFacts`); authoritative over the transcript's claims. */
+    symbolFacts?: string;
   },
 ): Promise<StageDiagnosis> {
   const system =
@@ -145,10 +234,14 @@ export async function diagnoseStageFailure(
     `Failure: ${input.failure}\n` +
     `This was attempt ${input.attempt} of ${input.maxAttempts}.\n\n` +
     `Recent transcript (most recent last):\n${input.excerpt}\n\n` +
+    (input.symbolFacts
+      ? `Machine-verified symbol facts — a deterministic re-probe of the lib_ids named above, run just now against this machine's installed KiCad libraries. Each line reported below is ground truth and overrides anything the transcript claims about that symbol's availability. Coverage may be partial: a lib_id listed as NOT RE-PROBED, or absent from this block entirely, is unknown, never confirmed absent.\n${input.symbolFacts}\n\n`
+      : '') +
     'Reply with ONLY a JSON object, no prose:\n' +
     '{"verdict":"retry"|"abort","reason":"<one sentence>","guidance":"<if retry: concrete, specific instructions to prepend to the next attempt so it avoids this failure; otherwise empty>"}\n' +
     '- "retry" if the failure looks transient or fixable with clearer instructions (a dropped or locked tool call, an empty/no-op edit, a skipped step, a timeout, a formatting slip).\n' +
-    '- "abort" if repeating the same attempt will not help and a human should look (missing inputs, a genuine dead-end, or the same failure already seen on a prior attempt).';
+    '- "abort" if repeating the same attempt will not help and a human should look (missing inputs, a genuine dead-end, or the same failure already seen on a prior attempt).\n' +
+    '- an agent\'s claim that a symbol or library is absent is NOT evidence: agents dead-ended by wrong library nicknames routinely conclude whole libraries are missing. If the machine-verified facts contradict the failure\'s premise (a cited-absent lib_id RESOLVES, or the part is installed under another library), the verdict is "retry", with guidance quoting the correct lib_ids.';
   const messages: Msg[] = [
     { role: 'system', content: system },
     { role: 'user', content: user },
