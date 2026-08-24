@@ -254,7 +254,9 @@ describe('kicad-cli binary resolution', () => {
     const badPath = 'C:\\bad\\path\\kicad-cli.exe';
     const winErr = new KicadCliBadOverrideError(badPath, 'win32');
     expect(winErr.message).toContain(badPath);
-    expect(winErr.remedy.some((h) => h.includes('Test-Path'))).toBe(true);
+    // Test-Path is a PowerShell cmdlet; the hint must say "PowerShell", not "PowerShell/cmd".
+    expect(winErr.remedy.some((h) => h.includes('PowerShell') && h.includes('Test-Path'))).toBe(true);
+    expect(winErr.remedy.some((h) => !h.includes('PowerShell/cmd'))).toBe(true);
     expect(winErr.remedy.some((h) => h.includes('Program Files'))).toBe(true);
     expect(winErr.remedy.some((h) => h.includes('& $env:COPPERHEAD_KICAD_CLI version'))).toBe(true);
 
@@ -296,12 +298,15 @@ describe('kicad-cli binary resolution', () => {
     const fakeRoot = path.join(dir, 'not-a-dir');
     await writeFile(fakeRoot, 'not a directory', 'utf8');
 
-    // Create the unversioned binary under a parallel real root so we can
-    // prove it is reached. We use the same fakeRoot path as the root but
-    // the unversioned probe target is bin/kicad-cli inside it — which would
-    // never exist because fakeRoot is a file. Instead, construct a wrapper:
-    // use a sibling dir that acts as the real installation root so the
-    // unversioned probe can actually resolve.
+    // Direct candidate-generation assertion: even though readdirSync(fakeRoot)
+    // throws ENOTDIR, the unversioned bin/kicad-cli.exe must still be generated
+    // in the candidate list because the push is outside the try/catch.
+    const fakeCandidates = defaultFallbackBinaries([fakeRoot]);
+    expect(fakeCandidates).toContain(path.join(fakeRoot, 'bin', 'kicad-cli.exe'));
+
+    // Resolution assertion: prove scanning continues to later valid roots.
+    // Create a binary under a parallel real root; it must be found despite
+    // the fakeRoot appearing first in the list.
     const realRoot = path.join(dir, 'KiCad-real');
     const binBase = path.join(realRoot, 'bin', 'kicad-cli');
     await writeMockExecutable(binBase, '9.0.1');

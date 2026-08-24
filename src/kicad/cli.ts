@@ -48,7 +48,7 @@ export class KicadCliBadOverrideError extends PreflightError {
     const isMac = platform === 'darwin';
 
     const checkHint = isWin
-      ? `check the path in PowerShell/cmd: Test-Path "${configured}"`
+      ? `check the path in PowerShell: Test-Path "${configured}"`
       : `check the path: ls -l "${configured}"`;
 
     const locationHint = isWin
