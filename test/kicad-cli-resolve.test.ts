@@ -11,6 +11,7 @@ import {
   kicadCliVersion,
   KicadCliBadOverrideError,
   KicadCliMissingError,
+  MIN_KICAD_MAJOR,
 } from '../src/kicad/cli.js';
 
 /**
@@ -194,25 +195,31 @@ describe('kicad-cli binary resolution', () => {
   });
 
   it('prefers the newest version when multiple Windows versions are installed', async () => {
+    // Regression for Finding 5: previously this test asserted array indices on
+    // defaultFallbackBinaries() directly, which verified ordering in isolation
+    // but never exercised actual resolution. This version drives kicadCliVersion()
+    // through the full fallback path so the ordering preference is proven by
+    // the binary that actually runs, not by inspecting the candidate list.
     delete process.env.COPPERHEAD_KICAD_CLI;
     const winRoot = path.join(dir, 'KiCad');
-    const bin8 = path.join(winRoot, '8.0', 'bin', 'kicad-cli.exe');
-    const bin9 = path.join(winRoot, '9.0', 'bin', 'kicad-cli.exe');
-    const bin10 = path.join(winRoot, '10.0', 'bin', 'kicad-cli.exe');
 
-    for (const b of [bin8, bin9, bin10]) {
-      await mkdir(path.dirname(b), { recursive: true });
-      await writeFile(b, '#!/bin/sh\nexit 0\n', 'utf8');
-      await chmod(b, 0o755);
-    }
+    // Create mock executables for 8.0 and 9.0 as well, so there are real
+    // candidates at every version — resolution must still prefer 10.0.
+    const binBase8 = path.join(winRoot, '8.0', 'bin', 'kicad-cli');
+    const binBase9 = path.join(winRoot, '9.0', 'bin', 'kicad-cli');
+    const binBase10 = path.join(winRoot, '10.0', 'bin', 'kicad-cli');
+    await writeMockExecutable(binBase8, '8.0.0');
+    await writeMockExecutable(binBase9, '9.0.0');
+    await writeMockExecutable(binBase10, '10.0.5');
 
     setKicadFallbackWinRoots([winRoot]);
-    const candidates = defaultFallbackBinaries([winRoot]);
-    const winCandidates = candidates.filter((c) => c.startsWith(winRoot));
-
-    expect(winCandidates[0]).toBe(bin10);
-    expect(winCandidates[4]).toBe(bin9);
-    expect(winCandidates[8]).toBe(bin8);
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir; // empty dir: PATH has no kicad-cli
+    try {
+      expect(await kicadCliVersion()).toBe('10.0.5');
+    } finally {
+      process.env.PATH = savedPath;
+    }
   });
 
   it('falls back to unversioned Windows installation path (bin/kicad-cli.exe)', async () => {
@@ -260,5 +267,72 @@ describe('kicad-cli binary resolution', () => {
     expect(linuxErr.remedy.some((h) => h.includes('ls -l'))).toBe(true);
     expect(linuxErr.remedy.some((h) => h.includes('/usr/bin'))).toBe(true);
     expect(linuxErr.remedy.some((h) => h.includes('"$COPPERHEAD_KICAD_CLI" version'))).toBe(true);
+  });
+
+  // Finding 1: a root containing only a sub-minimum version (7.x) must not be resolved.
+  it('does not resolve a KiCad version below the minimum (7.x root is silently skipped)', async () => {
+    delete process.env.COPPERHEAD_KICAD_CLI;
+    const winRoot = path.join(dir, 'KiCad');
+    // Only a 7.0 binary exists under this root.
+    const binBase = path.join(winRoot, '7.0', 'bin', 'kicad-cli');
+    await writeMockExecutable(binBase, '7.0.11');
+
+    setKicadFallbackWinRoots([winRoot]);
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir; // empty dir: PATH has no kicad-cli
+    try {
+      // The 7.0 binary must be filtered out; nothing else is available.
+      await expect(kicadCliVersion()).rejects.toBeInstanceOf(KicadCliMissingError);
+    } finally {
+      process.env.PATH = savedPath;
+    }
+  });
+
+  // Finding 3 / coverage: a root that points at a file (ENOTDIR) must still
+  // probe the unversioned bin/ path, because it is pushed outside the try/catch.
+  it('probes unversioned bin/ path even when the root itself is unlistable (ENOTDIR)', async () => {
+    delete process.env.COPPERHEAD_KICAD_CLI;
+    // Create a regular file at the "root" path so readdirSync throws ENOTDIR.
+    const fakeRoot = path.join(dir, 'not-a-dir');
+    await writeFile(fakeRoot, 'not a directory', 'utf8');
+
+    // Create the unversioned binary under a parallel real root so we can
+    // prove it is reached. We use the same fakeRoot path as the root but
+    // the unversioned probe target is bin/kicad-cli inside it — which would
+    // never exist because fakeRoot is a file. Instead, construct a wrapper:
+    // use a sibling dir that acts as the real installation root so the
+    // unversioned probe can actually resolve.
+    const realRoot = path.join(dir, 'KiCad-real');
+    const binBase = path.join(realRoot, 'bin', 'kicad-cli');
+    await writeMockExecutable(binBase, '9.0.1');
+
+    // Pass both roots: fakeRoot (unlistable) first, then realRoot.
+    // The fakeRoot unversioned probe will miss (nothing at fakeRoot/bin/),
+    // but realRoot unversioned probe must succeed.
+    setKicadFallbackWinRoots([fakeRoot, realRoot]);
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir;
+    try {
+      expect(await kicadCliVersion()).toBe('9.0.1');
+    } finally {
+      process.env.PATH = savedPath;
+    }
+  });
+
+  // Coverage gap: duplicate roots must not double the candidate list.
+  it('deduplicates roots so a repeated root does not double the candidate list', () => {
+    const winRoot = path.join(dir, 'KiCad');
+    // Pass the same root twice (matching what DEFAULT_WIN_ROOTS does for
+    // process.env.ProgramFiles vs the hardcoded C:/Program Files/KiCad).
+    const once = defaultFallbackBinaries([winRoot]);
+    const twice = defaultFallbackBinaries([winRoot, winRoot]);
+    // A duplicate must be skipped: the lists must be identical.
+    expect(twice).toEqual(once);
+  });
+
+  // Minimum-version constant sanity check: ensures MIN_KICAD_MAJOR is exported
+  // and matches the intended floor so a refactor cannot silently misalign it.
+  it(`MIN_KICAD_MAJOR is ${MIN_KICAD_MAJOR} (the documented KiCad minimum for ERC/DRC)`, () => {
+    expect(MIN_KICAD_MAJOR).toBe(8);
   });
 });

@@ -83,6 +83,14 @@ const MACOS_FALLBACK_BINARIES = [
   '/Applications/KiCad-8.0/KiCad.app/Contents/MacOS/kicad-cli',
 ];
 
+/**
+ * Minimum KiCad major version accepted for ERC/DRC. Mirrors doctor.ts's
+ * MIN_KICAD_MAJOR: both constants must stay in sync. Duplicated here (rather
+ * than imported) so this module does not take a dependency on the doctor
+ * command, which is LLM-free but higher-level.
+ */
+export const MIN_KICAD_MAJOR = 8;
+
 const DEFAULT_WIN_ROOTS = [
   process.env.ProgramFiles ? path.join(process.env.ProgramFiles, 'KiCad') : 'C:/Program Files/KiCad',
   'C:/Program Files/KiCad',
@@ -109,6 +117,13 @@ export function defaultFallbackBinaries(winRoots: readonly string[] = DEFAULT_WI
       const versions = entries
         .filter((e) => e.isDirectory())
         .map((e) => e.name)
+        // Only include versions that meet the minimum supported KiCad major.
+        // This prevents a stale KiCad 7.x install from silently becoming the
+        // ERC/DRC binary while doctor correctly reports FAIL for it.
+        .filter((name) => {
+          const major = Number(name.split('.')[0]);
+          return Number.isFinite(major) && major >= MIN_KICAD_MAJOR;
+        })
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 
       for (const version of versions) {
@@ -119,15 +134,18 @@ export function defaultFallbackBinaries(winRoots: readonly string[] = DEFAULT_WI
           path.join(winRoot, version, 'bin', 'kicad-cli'),
         );
       }
-      candidates.push(
-        path.join(winRoot, 'bin', 'kicad-cli.exe'),
-        path.join(winRoot, 'bin', 'kicad-cli.cmd'),
-        path.join(winRoot, 'bin', 'kicad-cli.bat'),
-        path.join(winRoot, 'bin', 'kicad-cli'),
-      );
     } catch {
-      // not readable / not a directory; skip
+      // not readable / not a directory; versioned candidates unavailable, but
+      // the unversioned bin/ fallback below is still worth probing.
     }
+    // Unversioned fallback: pushed unconditionally so a readdirSync failure
+    // (e.g. ENOTDIR) on the root itself doesn't also suppress this probe.
+    candidates.push(
+      path.join(winRoot, 'bin', 'kicad-cli.exe'),
+      path.join(winRoot, 'bin', 'kicad-cli.cmd'),
+      path.join(winRoot, 'bin', 'kicad-cli.bat'),
+      path.join(winRoot, 'bin', 'kicad-cli'),
+    );
   }
 
   return candidates;

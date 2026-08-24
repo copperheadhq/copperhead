@@ -124,6 +124,31 @@ describe('copperhead doctor', () => {
     }
   });
 
+  it('resolves the correct major when stdout contains a spurious N.N before the real version (Finding 4 regression)', async () => {
+    // An unanchored regex would match "OpenGL 3.2" and yield major 3, causing
+    // doctor to report "KiCad 3 is too old" for a perfectly good KiCad 9.
+    // The anchored regex must skip prefix noise on earlier lines.
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          // Simulate a kicad-cli that emits a warning line before its version.
+          kicadVersion: async () => 'OpenGL 3.2 unsupported\n9.0.1',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad.status).toBe('ok');
+      // The detail must carry the full raw string, not just the match.
+      expect(kicad.detail).toContain('9.0.1');
+      expect(r.ok).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('fails when KiCad version response is empty or unparseable', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

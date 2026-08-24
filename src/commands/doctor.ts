@@ -85,12 +85,23 @@ function nodeCheck(version: string): DoctorCheck {
   };
 }
 
+// MIN_KICAD_MAJOR enforces the minimum supported KiCad version for ERC/DRC.
+// Behaviour note: kicadCheck() returns status: 'fail' (exit non-zero) for any
+// kicad-cli version below this threshold, and for output that contains no
+// parseable N.N version token. This is intentional user-visible behaviour and
+// is NOT a no-op hint correction: users on KiCad 7 will see doctor fail where
+// it previously succeeded. The gate mirrors the README's stated requirement and
+// follows the same pattern as MIN_NODE_MAJOR above.
 const MIN_KICAD_MAJOR = 8;
 
 async function kicadCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
   try {
     const raw = await probe();
-    const match = raw.match(/(\d+)\.\d+/);
+    // Anchored match: require a version-shaped token at the start of a line so
+    // an incidental N.N elsewhere in stdout (e.g. "OpenGL 3.2 unsupported")
+    // does not shadow the real KiCad version. The `m` flag makes ^ match
+    // line-starts within a multi-line string.
+    const match = raw.match(/(?:^|\n)\s*(?:kicad-cli\s+)?v?(\d+)\.\d+/m);
     const major = match ? Number(match[1]) : NaN;
     if (!Number.isFinite(major)) {
       return {
