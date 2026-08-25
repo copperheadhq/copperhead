@@ -256,7 +256,7 @@ describe('kicad-cli binary resolution', () => {
     expect(winErr.message).toContain(badPath);
     // Test-Path is a PowerShell cmdlet; the hint must say "PowerShell", not "PowerShell/cmd".
     expect(winErr.remedy.some((h) => h.includes('PowerShell') && h.includes('Test-Path'))).toBe(true);
-    expect(winErr.remedy.some((h) => !h.includes('PowerShell/cmd'))).toBe(true);
+    expect(winErr.remedy.every((h) => !h.includes('PowerShell/cmd'))).toBe(true);
     expect(winErr.remedy.some((h) => h.includes('Program Files'))).toBe(true);
     expect(winErr.remedy.some((h) => h.includes('& $env:COPPERHEAD_KICAD_CLI version'))).toBe(true);
 
