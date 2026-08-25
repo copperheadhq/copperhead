@@ -325,8 +325,9 @@ describe('kicad-cli binary resolution', () => {
   });
 
   // Coverage gap: duplicate roots must not double the candidate list.
-  it('deduplicates roots so a repeated root does not double the candidate list', () => {
+  it('deduplicates roots so a repeated root does not double the candidate list', async () => {
     const winRoot = path.join(dir, 'KiCad');
+    await mkdir(path.join(winRoot, '9.0', 'bin'), { recursive: true });
     // Pass the same root twice (matching what DEFAULT_WIN_ROOTS does for
     // process.env.ProgramFiles vs the hardcoded C:/Program Files/KiCad).
     const once = defaultFallbackBinaries([winRoot]);

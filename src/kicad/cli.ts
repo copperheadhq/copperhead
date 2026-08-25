@@ -84,10 +84,9 @@ const MACOS_FALLBACK_BINARIES = [
 ];
 
 /**
- * Minimum KiCad major version accepted for ERC/DRC. Mirrors doctor.ts's
- * MIN_KICAD_MAJOR: both constants must stay in sync. Duplicated here (rather
- * than imported) so this module does not take a dependency on the doctor
- * command, which is LLM-free but higher-level.
+ * Minimum KiCad major version accepted for ERC/DRC and candidate discovery.
+ * Re-used by doctor.ts to ensure CLI discovery and environment preflight
+ * enforce the same version floor.
  */
 export const MIN_KICAD_MAJOR = 8;
 

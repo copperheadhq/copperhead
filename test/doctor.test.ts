@@ -8,6 +8,7 @@ import {
   formatDoctor,
   type DoctorDeps,
 } from '../src/commands/doctor.js';
+import { MIN_KICAD_MAJOR } from '../src/kicad/cli.js';
 import { tempFixtureRepo } from './helpers.js';
 
 // Deps that make every host-dependent probe deterministic.
@@ -119,6 +120,38 @@ describe('copperhead doctor', () => {
       const kicad10 = r10.checks.find((c) => c.name === 'kicad-cli')!;
       expect(kicad10.status).toBe('ok');
       expect(kicad10.detail).toBe('kicad-cli 10.0.5');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('enforces the MIN_KICAD_MAJOR floor exported from kicad/cli', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const below = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => `kicad-cli ${MIN_KICAD_MAJOR - 1}.99.0`,
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(below.ok).toBe(false);
+      const kicadBelow = below.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadBelow.status).toBe('fail');
+      expect(kicadBelow.detail).toContain(`(< ${MIN_KICAD_MAJOR})`);
+
+      const at = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => `kicad-cli ${MIN_KICAD_MAJOR}.0.0`,
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(at.ok).toBe(true);
+      const kicadAt = at.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadAt.status).toBe('ok');
     } finally {
       await cleanup();
     }

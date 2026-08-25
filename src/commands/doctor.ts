@@ -13,7 +13,7 @@ import {
   type CompatSettings,
   type CopperheadConfig,
 } from '../config.js';
-import { kicadCliVersion } from '../kicad/cli.js';
+import { kicadCliVersion, MIN_KICAD_MAJOR } from '../kicad/cli.js';
 import { redactSecrets } from '../util/redact.js';
 import { isNotFoundError } from '../util/preflight.js';
 
@@ -85,14 +85,13 @@ function nodeCheck(version: string): DoctorCheck {
   };
 }
 
-// MIN_KICAD_MAJOR enforces the minimum supported KiCad version for ERC/DRC.
+// MIN_KICAD_MAJOR (imported from kicad/cli.ts) enforces the minimum supported KiCad version for ERC/DRC.
 // Behaviour note: kicadCheck() returns status: 'fail' (exit non-zero) for any
 // kicad-cli version below this threshold, and for output that contains no
 // parseable N.N version token. This is intentional user-visible behaviour and
 // is NOT a no-op hint correction: users on KiCad 7 will see doctor fail where
 // it previously succeeded. The gate mirrors the README's stated requirement and
 // follows the same pattern as MIN_NODE_MAJOR above.
-const MIN_KICAD_MAJOR = 8;
 
 async function kicadCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
   try {
