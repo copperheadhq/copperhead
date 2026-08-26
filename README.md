@@ -57,6 +57,7 @@ The script is conservative by design: it never runs `sudo` and never edits shell
 
 - Node.js ≥ 20
 - [KiCad](https://www.kicad.org/) ≥ 8 with `kicad-cli` on PATH
+- git, and a repository — copperhead snapshots before it edits and rolls back to that snapshot when verification fails
 - One model backend: a locally installed, ChatGPT-authenticated [Codex CLI](https://learn.chatgpt.com/docs/codex/cli), a logged-in [Cursor Agent CLI](#saved-login-cursor-agent) (`agent login`), logged-in Claude Code (see [Saved login](#saved-login-claude-code)), or `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` in the environment. `check` never calls an LLM.
 
 ## Quick start
@@ -64,6 +65,7 @@ The script is conservative by design: it never runs `sudo` and never edits shell
 In an existing KiCad repository:
 
 ```bash
+copperhead doctor              # what's missing: kicad-cli, git, node, model credential (no LLM)
 export ANTHROPIC_API_KEY=...   # or OPENAI_API_KEY; optional: with no key, `copperhead` offers a model picker
 copperhead init                # scaffold docs/ from the schematic; idempotent
 copperhead                     # interactive agent shell (Claude Code–style REPL)
@@ -74,7 +76,16 @@ copperhead do "add reverse-polarity protection on VIN"
 copperhead check               # ERC + DRC + doc drift; no LLM, CI-safe
 ```
 
+Run `copperhead doctor` first: it reports every prerequisite in one pass and exits 0 only when the machine is ready. Two things it commonly catches:
+
+- **`kicad-cli` not on PATH.** Every KiCad-dependent command probes it before doing anything, so `init`, `do`, `check`, `sync`, and `create` all refuse until this is fixed. (`doctor` is the deliberate exception: it reports the missing tool instead of throwing.) On macOS: `export PATH="/Applications/KiCad/KiCad.app/Contents/MacOS:$PATH"`.
+- **Both `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` exported.** copperhead refuses to guess between two credentials rather than silently send your design to a provider you did not pick. Name one with `export COPPERHEAD_MODEL=claude` (or `--model`).
+
+Note that `copperhead check` skips ERC and DRC — and still exits 0 — until `init` has pointed `.copperhead/config.json` at your files. Read its output lines, not just the exit code.
+
 Starting from nothing instead? Write a product brief and run `copperhead create --brief brief.md`. The [examples/](examples/) directory has ready-made briefs sorted by difficulty, plus a note on which one is designed to fail.
+
+New to the tool? [Your first run](https://docs.copperhead.sh/getting-started/first-run/) walks this path slowly, with the failure modes.
 
 ### Use your existing Codex login
 

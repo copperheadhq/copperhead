@@ -93,7 +93,7 @@ async function kicadCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
       name: 'kicad-cli',
       status: 'fail',
       detail: 'not found on PATH',
-      hint: 'install KiCad >= 9 (bundles kicad-cli); ERC/DRC gates need it.',
+      hint: 'install KiCad >= 8 (bundles kicad-cli); ERC/DRC gates need it.',
     };
   }
 }

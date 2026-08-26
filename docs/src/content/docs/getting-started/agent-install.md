@@ -2,7 +2,7 @@
 title: Agent install
 description: Onboard and configure copperhead using a single pasteable prompt inside your AI assistant.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 ## Onboarding Prompt: Install and Configure copperhead

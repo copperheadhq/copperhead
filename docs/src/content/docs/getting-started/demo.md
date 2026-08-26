@@ -2,7 +2,7 @@
 title: Simple demo
 description: Run the create pipeline end to end against the USB-C power breakout brief.
 sidebar:
-  order: 4
+  order: 5
 ---
 
 The quickest end-to-end demo uses the USB-C power breakout brief. It is intentionally small: one connector, passives, a power LED, and output protection.
