@@ -1,6 +1,6 @@
 {
   "name": "copperhead",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Cursor for circuit boards: an AI agent that designs, documents, and validates real PCBs on KiCad repositories",
   "license": "Apache-2.0",
   "author": "Animesh Chouhan <animeshchouhan@outlook.com>",
