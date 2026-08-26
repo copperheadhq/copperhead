@@ -4,7 +4,7 @@ import path from 'node:path';
 import { emitSchematic } from '../emit.js';
 import { SymbolSource } from './symsource.js';
 import { parseIntent, validateIntent, formatIrFindings, INTENT_FILENAME, type IrFinding } from './ir.js';
-import { draftSchematicPlacement, type SchematicDraftReport } from './engine.js';
+import { draftSchematicPlacement, type SchematicDraftReport, type NetClass, type NetClassBasis } from './engine.js';
 
 /**
  * Draft orchestration: intent file in, schematic out. Deterministic, LLM-free,
@@ -147,9 +147,23 @@ export function formatSchematicDraftReport(report: SchematicDraftReport): string
     `drafted: ${report.groups.length} group(s), ${report.wireCount} wire segment(s), ${report.labelCount} label(s), ${report.noConnects} no-connect(s) on ${report.paper}`,
   ];
   for (const g of report.groups) lines.push(`  group "${g.name}": ${g.members.join(', ') || '(empty)'}`);
-  const overridden = report.netClasses.filter((n) => n.overridden);
+  // The basis is part of the class, not decoration: `~` marks a class no pin
+  // attests, inferred from the net's NAME alone, which is the one inference a
+  // reader has to check and the IR's `kind` is there to correct.
+  // `~` marks the one classification no pin attests: a POWER class taken from
+  // the net's name alone. A signal is what a net is when nothing said
+  // otherwise, so marking every defaulted signal would decorate almost the
+  // whole line and tell a reader nothing.
+  const nameInferred = (n: { overridden: boolean; class: NetClass; basis: NetClassBasis }): boolean =>
+    !n.overridden && n.basis === 'name' && n.class !== 'signal';
+  const mark = (n: { overridden: boolean; class: NetClass; basis: NetClassBasis }): string =>
+    n.overridden ? '*' : nameInferred(n) ? '~' : '';
+  const legend = [
+    report.netClasses.some((n) => n.overridden) ? '*=IR override' : '',
+    report.netClasses.some(nameInferred) ? '~=inferred from the net name, not from any pin type' : '',
+  ].filter(Boolean);
   lines.push(
-    `  net classes: ${report.netClasses.map((n) => `${n.name}=${n.class}${n.overridden ? '*' : ''}`).join(', ')}${overridden.length ? ' (*=IR override)' : ''}`,
+    `  net classes: ${report.netClasses.map((n) => `${n.name}=${n.class}${mark(n)}`).join(', ')}${legend.length ? ` (${legend.join(', ')})` : ''}`,
   );
   if (report.pwrFlags.length) lines.push(`  PWR_FLAG synthesized on: ${report.pwrFlags.join(', ')}`);
   for (const n of report.notes) lines.push(`  note: ${n}`);

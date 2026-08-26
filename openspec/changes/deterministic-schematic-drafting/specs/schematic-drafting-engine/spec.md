@@ -71,21 +71,37 @@ The engine SHALL place each unit of a multi-unit symbol (an opamp, a gate pack, 
 
 ### Requirement: Deterministic power-net recognition
 
-The engine SHALL classify a net as a power rail or ground by a stated deterministic rule: a net is power-class when it touches any pin whose library electrical type is `power_in` or `power_out`, or when the IR declares its kind; an IR declaration SHALL override the inference. Ground-class nets orient their symbols down, all other power-class nets up. The draft report SHALL list every net's resolved class so a misclassification is visible and correctable through the IR.
+The engine SHALL classify a net as a power rail or ground by a stated deterministic rule, applied in a fixed precedence: (1) an IR `kind` declaration, which SHALL override everything below it; (2) the library electrical type of a pin the net touches, power-class when any is `power_in` or `power_out`; (3) failing both, the net's NAME against a fixed set of supply-name shapes, so that a board whose supplies arrive on `passive` pins only is not drafted as a field of labels. Ground-class nets orient their symbols down, all other power-class nets up.
+
+The name shapes SHALL be narrow in one direction: a rail read as a signal draws labels, which is a legibility cost, while a signal read as a rail makes the sheet assert a supply the design does not have. An underscore in a rail name SHALL therefore join a voltage suffix only (`VDD_3V3`, `VCC_1V8`), so that measurement nodes named after the supply they watch (`VBUS_DET`, `VCC_SENSE`, `VDD_MON`) stay signals.
+
+The draft report SHALL list every net's resolved class AND the basis that decided it — declared, pin-type, or name — so a misclassification is visible and correctable through the IR, and so the one basis no pin attests is distinguishable from the two that are.
 
 #### Scenario: Odd rail name is still recognized
 
 - **WHEN** a net named `VBAT` connects to an IC's `power_in` pin
-- **THEN** it is classified power-class without any IR declaration and is reduced to per-pin power symbols
+- **THEN** it is classified power-class without any IR declaration and is reduced to per-pin power symbols, with a `pin-type` basis in the report
 
 #### Scenario: IR override wins
 
 - **WHEN** the IR declares a net's kind as `signal` although it touches a `power_in` pin
 - **THEN** the engine routes it as a signal net and the draft report notes the override
 
+#### Scenario: A supply on passive pins only is recognized by name
+
+- **WHEN** a net named `GNDD` reaches only pins whose library electrical type is `passive`, and the IR declares no kind
+- **THEN** it is classified ground-class from its name, reduced to per-pin power symbols, and the draft report records its basis as `name`
+
+#### Scenario: A measurement node named after a supply stays a signal
+
+- **WHEN** a net named `VBUS_DET` reaches only `passive` pins, and the IR declares no kind
+- **THEN** it is classified signal-class, drafted with net labels and no power symbol, and remains correctable to a rail by an IR `kind` declaration
+
 ### Requirement: Reductions precede layout
 
-Before placement the engine SHALL: replace power-class nets with per-pin power symbols (rails oriented up, grounds down, at uniform heights); classify decoupling capacitors (a two-pin capacitor between a power-class net and ground) and place them as a row beside their associated IC, ownership resolved deterministically (same group first, then most shared connections, then refdes order); assign connectors to sheet edges honoring direction hints; and partition remaining symbols by their IR group into the drafting standard's captioned group boxes.
+Before placement the engine SHALL: replace power-class nets with per-pin power symbols (rails oriented up, grounds down, at uniform heights); classify decoupling elements (a two-pin part between a power-class net and ground) and place them as a row beside their associated IC, ownership resolved deterministically (same group first, then most shared connections, then refdes order); assign connectors to sheet edges honoring direction hints; and partition remaining symbols by their IR group into the drafting standard's captioned group boxes.
+
+The decoupling test SHALL be structural, not name-based: the part's pin count and what its pins connect to, never its `lib_id`. Real boards carry their capacitors under embedded, renamed library ids that no name test matches, and a rail-clamp part drawn beside the caps is how a hand-drawn sheet shows it too.
 
 #### Scenario: Power nets are never routed (AC-16.8)
 
@@ -96,6 +112,11 @@ Before placement the engine SHALL: replace power-class nets with per-pin power s
 
 - **WHEN** the IR contains four 100nF capacitors each between VCC and GND, associated with U1 by shared nets and group
 - **THEN** the drafted sheet places them as a single row adjacent to U1's group position with a rail label
+
+#### Scenario: A non-capacitor two-pin part on the same rail joins the row
+
+- **WHEN** the IR contains a two-pin part that is not a capacitor (a rail-clamp TVS, say) between VCC and GND alongside U1's decoupling capacitors
+- **THEN** it is placed in the same row rather than left in the placement columns, by the same structural test
 
 #### Scenario: Shared rail resolves ownership deterministically
 
