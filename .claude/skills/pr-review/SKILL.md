@@ -2,7 +2,7 @@
 name: pr-review
 description: Review a copperhead pull request against the repo's invariants and spec workflow. Use when the user asks to review a PR, e.g. /pr-review 28 or /pr-review <url>.
 allowed-tools: AskUserQuestion, Bash(gh:*), Bash(git:*), Bash(node:*), Bash(openspec:*), Bash(npm:*), Bash(npx:*)
-compatibility: Requires the gh CLI, authenticated against chouhanindustries/copperhead.
+compatibility: Requires the gh CLI, authenticated against copperheadhq/copperhead.
 metadata:
   author: copperhead
   version: "2.2"

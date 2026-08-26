@@ -9,7 +9,7 @@ Implementable items are planned as OpenSpec changes (proposal, design, delta spe
 | Roadmap item | OpenSpec change |
 | --- | --- |
 | Phase 0 (housekeeping) + Phase 1 items 2-4 (evidence, benchmark, CI) | [prove-live-acceptance](openspec/changes/prove-live-acceptance/) |
-| Model benchmarking, the task suite, and the whitepaper | [copperhead-benchmarks](https://github.com/chouhanindustries/copperhead-benchmarks) (separate repository) |
+| Model benchmarking, the task suite, and the whitepaper | [copperbench](https://github.com/copperheadhq/copperbench) (separate repository) |
 | Phase 1 item 1 (run the live suite) | remaining tasks in [build-copperhead-phase-1](openspec/changes/build-copperhead-phase-1/tasks.md) |
 | Phase 2 item 1 (fab release gate) | [add-fab-release-gate](openspec/changes/add-fab-release-gate/) |
 | Phase 2 item 2 (supplier BOM export) | [add-supplier-bom-export](openspec/changes/add-supplier-bom-export/) |

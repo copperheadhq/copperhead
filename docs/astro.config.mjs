@@ -2,7 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLlmsTxt from 'starlight-llms-txt';
 
-const REPO = 'https://github.com/chouhanindustries/copperhead';
+const REPO = 'https://github.com/copperheadhq/copperhead';
 
 // Served at the root of its own subdomain, docs.copperhead.sh. The apex,
 // copperhead.sh, is a separate Cloudflare Worker (the copperhead-site repo),

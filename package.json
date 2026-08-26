@@ -7,10 +7,10 @@
   "homepage": "https://copperhead.sh",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chouhanindustries/copperhead.git"
+    "url": "git+https://github.com/copperheadhq/copperhead.git"
   },
   "bugs": {
-    "url": "https://github.com/chouhanindustries/copperhead/issues"
+    "url": "https://github.com/copperheadhq/copperhead/issues"
   },
   "keywords": [
     "kicad",
