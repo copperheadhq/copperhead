@@ -47,6 +47,14 @@ export interface DraftPin {
   angle: number;
 }
 
+/** One placeable unit of a multi-unit symbol: its own pins and drawn body
+ * (unit graphics merged with the symbol's common unit-0 graphics). */
+export interface SymbolUnitView {
+  unit: number;
+  pins: DraftPin[];
+  body: Bounds | null;
+}
+
 export interface ResolvedSymbol {
   libId: string;
   /** Verbatim `(symbol "Name" …)` block from the vendored source. */
@@ -56,10 +64,21 @@ export interface ResolvedSymbol {
   body: Bounds | null;
   isPower: boolean;
   /** True when the library symbol defines more than one unit (an opamp, a
-   * gate pack). The engine places single instances only, and a multi-unit
-   * symbol's units share symbol-space pin coordinates, so drafting one would
-   * silently merge unrelated nets; validation refuses these. */
+   * gate pack). Units share symbol-space pin coordinates, so a single placed
+   * instance would overlay unrelated pins on one point; the engine places
+   * each unit as its own instance instead, using `units` below. */
   multiUnit: boolean;
+  /** Per-unit views (pins and body), present iff `multiUnit`. Only the
+   * default body style (`_<unit>_0`/`_<unit>_1` children) contributes — a
+   * de Morgan alternate (style ≥ 2) repeats the same pins at other
+   * coordinates and would double them. Common (`_0_*`) pins are included in
+   * EVERY unit's view, because KiCad draws them on every placed unit. */
+  units?: SymbolUnitView[];
+  /** Pin numbers defined in the COMMON unit (`_0_*` children) — the classic
+   * home of a gate pack's power pins (an LM358's V+/V-). Each is drawn on
+   * every placed unit, so the engine wires it at every instance; the shared
+   * net makes the appearances electrically one point. */
+  commonUnitPins?: string[];
 }
 
 /** Extract the top-level `(symbol "name" …)` block from library text, verbatim. */
@@ -100,6 +119,48 @@ function maxUnitOf(sym: SexpNode[]): number {
     if (m) max = Math.max(max, Number(m[1]));
   }
   return max;
+}
+
+const mergeBounds = (a: Bounds | null, b: Bounds | null): Bounds | null => {
+  if (!a) return b ? { ...b } : null;
+  if (!b) return { ...a };
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY),
+  };
+};
+
+/**
+ * Per-unit views of a multi-unit block. Each unit's pins and body come from
+ * its own `_<unit>_<style>` children; the common `_0_*` graphics are merged
+ * into every unit's body because KiCad draws them on every unit. Only body
+ * styles 0 and 1 contribute — style ≥ 2 is the de Morgan alternate, which
+ * repeats the same pins at other coordinates and would double them.
+ */
+function unitViewsOf(sym: SexpNode[]): { units: SymbolUnitView[]; commonUnitPins: string[] } {
+  const byUnit = new Map<number, SexpNode[][]>();
+  for (const c of children(sym, 'symbol')) {
+    const name = atomAt(c, 1);
+    const m = name ? /_(\d+)_(\d+)$/.exec(name) : null;
+    if (!m || Number(m[2]) >= 2) continue;
+    const u = Number(m[1]);
+    byUnit.set(u, [...(byUnit.get(u) ?? []), c]);
+  }
+  const common = byUnit.get(0) ?? [];
+  const commonPins = common.flatMap((c) => pinsOf(c));
+  const commonUnitPins = commonPins.map((p) => p.number);
+  const commonBody = common.reduce<Bounds | null>((b, c) => mergeBounds(b, bodyOf(c)), null);
+  const units: SymbolUnitView[] = [...byUnit.keys()]
+    .filter((u) => u >= 1)
+    .sort((a, b) => a - b)
+    .map((u) => ({
+      unit: u,
+      pins: [...byUnit.get(u)!.flatMap((n) => pinsOf(n)), ...commonPins],
+      body: byUnit.get(u)!.reduce<Bounds | null>((b, n) => mergeBounds(b, bodyOf(n)), commonBody),
+    }));
+  return { units, commonUnitPins };
 }
 
 function parseSymbolNode(block: string): SexpNode[] {
@@ -296,7 +357,16 @@ export class SymbolSource {
     // the stack gives out, mid-draft, with no attributable message.
     if (depth >= MAX_EXTENDS_DEPTH) throw new SymbolResolutionError(libId, 'derived-unsupported');
     const base = await this.resolve(`${lib}:${baseName}`, depth + 1);
-    return { libId, sourceText: base.sourceText, pins: base.pins, body: base.body, isPower: base.isPower, multiUnit: base.multiUnit };
+    return {
+      libId,
+      sourceText: base.sourceText,
+      pins: base.pins,
+      body: base.body,
+      isPower: base.isPower,
+      multiUnit: base.multiUnit,
+      units: base.units,
+      commonUnitPins: base.commonUnitPins,
+    };
   }
 
   /** Resolve a lib_id: vendored copy first, else installed library (then vendor it). */
@@ -361,13 +431,15 @@ export class SymbolSource {
         await writeFile(vendored, appendToVendorLib(existing, vendorBlock), 'utf8');
       }
     }
+    const multiUnit = maxUnitOf(node) >= 2;
     const resolved: ResolvedSymbol = inherited ?? {
       libId,
       sourceText: block,
       pins: pinsOf(node),
       body: bodyOf(node),
       isPower: child(node, 'power') !== undefined || libId.startsWith('power:'),
-      multiUnit: maxUnitOf(node) >= 2,
+      multiUnit,
+      ...(multiUnit ? unitViewsOf(node) : {}),
     };
     this.cache.set(libId, resolved);
     return resolved;

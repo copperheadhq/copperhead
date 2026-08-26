@@ -120,10 +120,10 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(d).toContain('2=SDA/bidirectional');
     });
 
-    it('flags multi-unit symbols as ones the engine refuses', async () => {
+    it('flags multi-unit symbols as unit-per-instance placements', async () => {
       const d = await bomSymbolDossier(BOM, [libDir]);
       expect(d).toContain('MULTI-UNIT (2 units)');
-      expect(d).toMatch(/U2 \(SN74LVC2G17\).*refuses/);
+      expect(d).toMatch(/U2 \(SN74LVC2G17\).*places each unit separately/);
     });
 
     it('falls back to the Value column when the MPN is empty', async () => {
@@ -229,10 +229,10 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(out).not.toContain('WARNING');
     });
 
-    it('warns on a multi-unit symbol', async () => {
+    it('notes unit-per-instance placement on a multi-unit symbol', async () => {
       const out = await dispatchTool(ctx(), 'symbol_pins', { lib_id: 'Logic:SN74LVC2G17' });
       expect(out).toContain('2 unit(s)');
-      expect(out).toContain('refuses multi-unit symbols');
+      expect(out).toContain('places each unit separately');
     });
 
     it('redirects a wrong-library guess to where the symbol lives', async () => {

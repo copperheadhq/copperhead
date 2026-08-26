@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
   readSheetGeometry,
   pinAbsolute,
+  pinsOfUnit,
   type Bounds,
   type SheetGeometry,
   type TextItem,
@@ -326,7 +327,12 @@ export async function checkLegibility(rootSch: string, opts: CheckLegibilityOpti
   const kept: LegibilityFinding[] = [];
   const perKey = new Map<string, number>();
   for (const f of raw) {
-    const key = `${f.kind} ${f.sheet}`;
+    // Separator written as an escape, never as a literal NUL byte: a raw NUL in
+    // the source makes git-grep, ripgrep and most editors classify this whole file
+    // as binary and silently skip it, so a search for anything in here comes back
+    // empty with no error rather than no match. Same string at runtime, and still a
+    // separator no kind or sheet name can contain.
+    const key = `${f.kind}\u0000${f.sheet}`;
     const n = (perKey.get(key) ?? 0) + 1;
     perKey.set(key, n);
     if (n <= th.familyCap) kept.push(f);
@@ -366,8 +372,10 @@ function checkSheet(
 
   // --- geometry prep ---
   const syms: SymbolGeom[] = sheet.symbols.map((sym) => {
-    const lib = sheet.libBounds.get(sym.libId) ?? null;
-    const pins = (sheet.libPins.get(sym.libId) ?? []).map((p) => pinAbsolute(sym.at, sym.mirror, p));
+    // a placed unit of a multi-unit symbol draws only its own unit's body and
+    // pins; measuring it with the whole package would flag phantom collisions
+    const lib = sheet.libBounds.get(`${sym.libId}#${sym.unit}`) ?? sheet.libBounds.get(sym.libId) ?? null;
+    const pins = pinsOfUnit(sheet.libPins.get(sym.libId) ?? [], sym.unit).map((p) => pinAbsolute(sym.at, sym.mirror, p));
     // A body-less symbol (graphics-free lib entry) falls back to its pin extent
     // so geometric families still see it; a symbol with neither is skipped.
     const body = lib

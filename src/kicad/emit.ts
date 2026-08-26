@@ -47,8 +47,12 @@ export interface EmitSymbol {
   /** Power-port symbols hide their reference text. */
   hideRef?: boolean;
   hideValue?: boolean;
-  /** Pin numbers, for the per-pin uuid entries KiCad requires. */
+  /** Pin numbers, for the per-pin uuid entries KiCad requires. For a
+   * multi-unit instance these are that UNIT's pins only. */
   pinNumbers: string[];
+  /** KiCad unit number for one placed unit of a multi-unit symbol. Several
+   * entries may share a `ref`, one per unit; omitted means unit 1. */
+  unit?: number;
 }
 
 export interface PlacementModel {
@@ -179,15 +183,20 @@ export function emitSchematic(model: PlacementModel): string {
     L.push('\t)');
   }
 
-  const syms = [...model.symbols].sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
+  const syms = [...model.symbols].sort(
+    (a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }) || (a.unit ?? 1) - (b.unit ?? 1),
+  );
   for (const s of syms) {
-    const sid = id(`symbol/${s.ref}`);
+    const unit = s.unit ?? 1;
+    // unit 1 keeps the historical uuid path so single-unit boards stay
+    // byte-identical; further units get their own stable path
+    const sid = id(unit === 1 ? `symbol/${s.ref}` : `symbol/${s.ref}/unit/${unit}`);
     const hideRef = s.hideRef ? ' hide' : '';
     const hideValue = s.hideValue ? ' hide' : '';
     L.push('\t(symbol');
     L.push(`\t\t(lib_id ${q(s.libId)})`);
     L.push(`\t\t(at ${knum(s.at.x)} ${knum(s.at.y)} ${knum(s.at.rot)})`);
-    L.push('\t\t(unit 1)');
+    L.push(`\t\t(unit ${unit})`);
     L.push('\t\t(exclude_from_sim no)');
     L.push('\t\t(in_bom yes)');
     L.push('\t\t(on_board yes)');
@@ -206,11 +215,14 @@ export function emitSchematic(model: PlacementModel): string {
     L.push('\t\t\t(effects (font (size 1.27 1.27)) hide)');
     L.push('\t\t)');
     for (const pin of s.pinNumbers) {
-      L.push(`\t\t(pin ${q(pin)} (uuid ${q(id(`symbol/${s.ref}/pin/${pin}`))}))`);
+      // units ≥ 2 scope their pin uuids: a common (unit-0) pin appears on
+      // every placed unit, and identical paths would mint duplicate uuids
+      const pinPath = unit === 1 ? `symbol/${s.ref}/pin/${pin}` : `symbol/${s.ref}/unit/${unit}/pin/${pin}`;
+      L.push(`\t\t(pin ${q(pin)} (uuid ${q(id(pinPath))}))`);
     }
     L.push('\t\t(instances');
     L.push(`\t\t\t(project ${q(model.projectName)}`);
-    L.push(`\t\t\t\t(path ${q('/' + rootUuid)} (reference ${q(s.ref)}) (unit 1))`);
+    L.push(`\t\t\t\t(path ${q('/' + rootUuid)} (reference ${q(s.ref)}) (unit ${unit}))`);
     L.push('\t\t\t)');
     L.push('\t\t)');
     L.push('\t)');

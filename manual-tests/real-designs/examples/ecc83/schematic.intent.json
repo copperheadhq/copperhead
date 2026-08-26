@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "C1",
+      "libId": "ecc83-pp:CP",
+      "value": "10uF",
+      "footprint": "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
+      "group": "Main"
+    },
+    {
+      "ref": "C2",
+      "libId": "ecc83-pp:C",
+      "value": "680nF",
+      "footprint": "Capacitor_THT:C_Disc_D4.7mm_W2.5mm_P5.00mm",
+      "group": "Main"
+    },
+    {
+      "ref": "P1",
+      "libId": "ecc83-pp:CONN_2",
+      "value": "IN",
+      "footprint": "Footprints:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "Main"
+    },
+    {
+      "ref": "P2",
+      "libId": "ecc83-pp:CONN_2",
+      "value": "OUT",
+      "footprint": "Footprints:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "Main"
+    },
+    {
+      "ref": "P3",
+      "libId": "ecc83-pp:CONN_2",
+      "value": "POWER",
+      "footprint": "Footprints:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "Main"
+    },
+    {
+      "ref": "P4",
+      "libId": "ecc83-pp:CONN_2",
+      "value": "CONN_2",
+      "footprint": "Footprints:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "Main"
+    },
+    {
+      "ref": "P5",
+      "libId": "ecc83-pp:CONN_1",
+      "value": "MOUNTING_HOLE",
+      "footprint": "Footprints:MountingHole_3.2mm_M3_DIN965_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "P6",
+      "libId": "ecc83-pp:CONN_1",
+      "value": "MOUNTING_HOLE",
+      "footprint": "Footprints:MountingHole_3.2mm_M3_DIN965_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "P7",
+      "libId": "ecc83-pp:CONN_1",
+      "value": "MOUNTING_HOLE",
+      "footprint": "Footprints:MountingHole_3.2mm_M3_DIN965_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "P8",
+      "libId": "ecc83-pp:CONN_1",
+      "value": "MOUNTING_HOLE",
+      "footprint": "Footprints:MountingHole_3.2mm_M3_DIN965_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "R1",
+      "libId": "ecc83-pp:R",
+      "value": "1.5K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R2",
+      "libId": "ecc83-pp:R",
+      "value": "1.5K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R3",
+      "libId": "ecc83-pp:R",
+      "value": "100K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R4",
+      "libId": "ecc83-pp:R",
+      "value": "47K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "U1",
+      "libId": "ecc83-pp:ECC83",
+      "value": "ECC83",
+      "footprint": "Footprints:Valve_ECC-83-1",
+      "group": "Main"
+    }
+  ],
+  "nets": [
+    {
+      "name": "GND",
+      "pins": [
+        "C1.2",
+        "P1.1",
+        "P2.2",
+        "P3.2",
+        "R2.2",
+        "R3.2",
+        "R4.2"
+      ]
+    },
+    {
+      "name": "Net-(P1-PM)",
+      "pins": [
+        "P1.2",
+        "R4.1",
+        "U1.2"
+      ]
+    },
+    {
+      "name": "Net-(P2-P1)",
+      "pins": [
+        "C2.1",
+        "P2.1",
+        "R3.1"
+      ]
+    },
+    {
+      "name": "Net-(P3-P1)",
+      "pins": [
+        "C1.1",
+        "P3.1",
+        "U1.6"
+      ]
+    },
+    {
+      "name": "Net-(P4-P1)",
+      "pins": [
+        "P4.1",
+        "U1.9"
+      ]
+    },
+    {
+      "name": "Net-(P4-PM)",
+      "pins": [
+        "P4.2",
+        "U1.4",
+        "U1.5"
+      ]
+    },
+    {
+      "name": "Net-(U1A-G)",
+      "pins": [
+        "R1.1",
+        "U1.1",
+        "U1.7"
+      ]
+    },
+    {
+      "name": "Net-(U1A-K)",
+      "pins": [
+        "C2.2",
+        "R1.2",
+        "U1.8"
+      ]
+    },
+    {
+      "name": "Net-(U1B-K)",
+      "pins": [
+        "R2.1",
+        "U1.3"
+      ]
+    }
+  ]
+}

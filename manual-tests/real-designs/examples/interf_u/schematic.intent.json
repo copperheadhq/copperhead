@@ -1,0 +1,1035 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "BUS1",
+      "libId": "interf_u:Bus_ISA_8bit",
+      "value": "BUSPC",
+      "footprint": "interf_u:BUS_PC",
+      "group": "Main"
+    },
+    {
+      "ref": "C1",
+      "libId": "interf_u:CP",
+      "value": "47uF",
+      "footprint": "Capacitor_THT:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C2",
+      "libId": "interf_u:C",
+      "value": "47pF",
+      "footprint": "Capacitor_THT:C_Disc_D3.0mm_W2.0mm_P2.50mm",
+      "group": "Main"
+    },
+    {
+      "ref": "C3",
+      "libId": "interf_u:C",
+      "value": "47pF",
+      "footprint": "Capacitor_THT:C_Disc_D3.0mm_W2.0mm_P2.50mm",
+      "group": "Main"
+    },
+    {
+      "ref": "C4",
+      "libId": "interf_u:CP",
+      "value": "47uF",
+      "footprint": "Capacitor_THT:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C5",
+      "libId": "interf_u:CP",
+      "value": "47uF",
+      "footprint": "Capacitor_THT:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C6",
+      "libId": "interf_u:CP",
+      "value": "47uF",
+      "footprint": "Capacitor_THT:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "D1",
+      "libId": "interf_u:LED",
+      "value": "LED",
+      "footprint": "LED_THT:LED_D5.0mm",
+      "group": "Main"
+    },
+    {
+      "ref": "D2",
+      "libId": "interf_u:LED",
+      "value": "LED",
+      "footprint": "LED_THT:LED_D5.0mm",
+      "group": "Main"
+    },
+    {
+      "ref": "JP1",
+      "libId": "interf_u:Conn_02x08_Odd_Even",
+      "value": "CONN_8X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x08_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "P1",
+      "libId": "interf_u:DB25_Female",
+      "value": "DB25FEMELLE",
+      "footprint": "Connector_Dsub:DSUB-25_Female_Horizontal_P2.77x2.84mm_EdgePinOffset9.90mm_Housed_MountingHolesOffset11.32mm",
+      "group": "Main"
+    },
+    {
+      "ref": "R1",
+      "libId": "interf_u:R",
+      "value": "100K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R2",
+      "libId": "interf_u:R",
+      "value": "1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R3",
+      "libId": "interf_u:R",
+      "value": "10K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R4",
+      "libId": "interf_u:R",
+      "value": "330",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R5",
+      "libId": "interf_u:R",
+      "value": "330",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "RR1",
+      "libId": "interf_u:RR9",
+      "value": "9x1K",
+      "footprint": "Resistor_THT:R_Array_SIP10",
+      "group": "Main"
+    },
+    {
+      "ref": "U1",
+      "libId": "interf_u:74LS245",
+      "value": "74LS245",
+      "footprint": "Package_DIP:DIP-20_W7.62mm",
+      "group": "Main"
+    },
+    {
+      "ref": "U2",
+      "libId": "interf_u:74LS688",
+      "value": "74LS688",
+      "footprint": "Package_DIP:DIP-20_W7.62mm",
+      "group": "Main"
+    },
+    {
+      "ref": "U3",
+      "libId": "interf_u:74LS541",
+      "value": "74LS541",
+      "footprint": "Package_DIP:DIP-20_W7.62mm",
+      "group": "Main"
+    },
+    {
+      "ref": "U5",
+      "libId": "interf_u:628128",
+      "value": "628128",
+      "footprint": "Package_DIP:DIP-32_W15.24mm",
+      "group": "Main"
+    },
+    {
+      "ref": "U8",
+      "libId": "interf_u:EP600",
+      "value": "EP600",
+      "footprint": "Package_DIP:DIP-24_W7.62mm",
+      "group": "Main"
+    },
+    {
+      "ref": "U9",
+      "libId": "interf_u:4003APG120",
+      "value": "4003APG120",
+      "footprint": "interf_u:PGA120",
+      "group": "Main"
+    },
+    {
+      "ref": "X1",
+      "libId": "interf_u:Crystal",
+      "value": "8MHz",
+      "footprint": "Crystal:Crystal_HC18-U_Horizontal",
+      "group": "Main"
+    }
+  ],
+  "nets": [
+    {
+      "name": "/8MH-OUT",
+      "pins": [
+        "R2.1",
+        "U9.K1"
+      ]
+    },
+    {
+      "name": "/ACK",
+      "pins": [
+        "P1.10",
+        "U9.K13"
+      ]
+    },
+    {
+      "name": "/AUTOFD-",
+      "pins": [
+        "P1.14",
+        "U9.C12"
+      ]
+    },
+    {
+      "name": "/BIT0",
+      "pins": [
+        "P1.2",
+        "U9.D12"
+      ]
+    },
+    {
+      "name": "/BIT1",
+      "pins": [
+        "P1.3",
+        "U9.E13"
+      ]
+    },
+    {
+      "name": "/BIT2",
+      "pins": [
+        "P1.4",
+        "U9.F12"
+      ]
+    },
+    {
+      "name": "/BIT3",
+      "pins": [
+        "P1.5",
+        "U9.G13"
+      ]
+    },
+    {
+      "name": "/BIT4",
+      "pins": [
+        "P1.6",
+        "U9.H13"
+      ]
+    },
+    {
+      "name": "/BIT5",
+      "pins": [
+        "P1.7",
+        "U9.H12"
+      ]
+    },
+    {
+      "name": "/BIT6",
+      "pins": [
+        "P1.8",
+        "U9.J13"
+      ]
+    },
+    {
+      "name": "/BIT7",
+      "pins": [
+        "P1.9",
+        "U9.H11"
+      ]
+    },
+    {
+      "name": "/BUST+",
+      "pins": [
+        "P1.11",
+        "U9.J12"
+      ]
+    },
+    {
+      "name": "/CLKLCA",
+      "pins": [
+        "U8.16",
+        "U9.L4",
+        "U9.M4"
+      ]
+    },
+    {
+      "name": "/CS1-",
+      "pins": [
+        "U5.22",
+        "U9.A10"
+      ]
+    },
+    {
+      "name": "/D0",
+      "pins": [
+        "U1.18",
+        "U8.21",
+        "U9.N2"
+      ]
+    },
+    {
+      "name": "/D1",
+      "pins": [
+        "U1.17",
+        "U9.N8"
+      ]
+    },
+    {
+      "name": "/D2",
+      "pins": [
+        "U1.16",
+        "U9.N9"
+      ]
+    },
+    {
+      "name": "/D3",
+      "pins": [
+        "U1.15",
+        "U9.M9"
+      ]
+    },
+    {
+      "name": "/D4",
+      "pins": [
+        "U1.14",
+        "U9.M10"
+      ]
+    },
+    {
+      "name": "/D5",
+      "pins": [
+        "U1.13",
+        "U9.N11"
+      ]
+    },
+    {
+      "name": "/D6",
+      "pins": [
+        "U1.12",
+        "U9.M11"
+      ]
+    },
+    {
+      "name": "/D7",
+      "pins": [
+        "U1.11",
+        "U9.L12"
+      ]
+    },
+    {
+      "name": "/DIR",
+      "pins": [
+        "U1.1",
+        "U8.17"
+      ]
+    },
+    {
+      "name": "/DONE",
+      "pins": [
+        "U8.20",
+        "U9.L11"
+      ]
+    },
+    {
+      "name": "/ENBBUF",
+      "pins": [
+        "U1.19",
+        "U8.22"
+      ]
+    },
+    {
+      "name": "/ERROR-",
+      "pins": [
+        "P1.15",
+        "U9.D13"
+      ]
+    },
+    {
+      "name": "/INIT-",
+      "pins": [
+        "P1.16",
+        "U9.E12"
+      ]
+    },
+    {
+      "name": "/LED1",
+      "pins": [
+        "R4.2",
+        "U9.M3"
+      ]
+    },
+    {
+      "name": "/LED2",
+      "pins": [
+        "R5.2",
+        "U9.F13"
+      ]
+    },
+    {
+      "name": "/MA0",
+      "pins": [
+        "U5.12",
+        "U9.A11"
+      ]
+    },
+    {
+      "name": "/MA1",
+      "pins": [
+        "U5.11",
+        "U9.B2"
+      ]
+    },
+    {
+      "name": "/MA2",
+      "pins": [
+        "U5.10",
+        "U9.D3"
+      ]
+    },
+    {
+      "name": "/MA3",
+      "pins": [
+        "U5.9",
+        "U9.C2"
+      ]
+    },
+    {
+      "name": "/MA4",
+      "pins": [
+        "U5.8",
+        "U9.E1"
+      ]
+    },
+    {
+      "name": "/MA5",
+      "pins": [
+        "U5.7",
+        "U9.C13"
+      ]
+    },
+    {
+      "name": "/MA6",
+      "pins": [
+        "U5.6",
+        "U9.F2"
+      ]
+    },
+    {
+      "name": "/MA7",
+      "pins": [
+        "U5.5",
+        "U9.B3"
+      ]
+    },
+    {
+      "name": "/MA8",
+      "pins": [
+        "U5.27",
+        "U9.G1"
+      ]
+    },
+    {
+      "name": "/MA9",
+      "pins": [
+        "U5.26",
+        "U9.A4"
+      ]
+    },
+    {
+      "name": "/MA10",
+      "pins": [
+        "U5.23",
+        "U9.C9"
+      ]
+    },
+    {
+      "name": "/MA11",
+      "pins": [
+        "U5.25",
+        "U9.D2"
+      ]
+    },
+    {
+      "name": "/MA12",
+      "pins": [
+        "U5.4",
+        "U9.F3"
+      ]
+    },
+    {
+      "name": "/MA13",
+      "pins": [
+        "U5.28",
+        "U9.C1"
+      ]
+    },
+    {
+      "name": "/MA14",
+      "pins": [
+        "U5.3",
+        "U9.D1"
+      ]
+    },
+    {
+      "name": "/MA15",
+      "pins": [
+        "U5.31",
+        "U9.F1"
+      ]
+    },
+    {
+      "name": "/MA16",
+      "pins": [
+        "U5.2",
+        "U9.C8"
+      ]
+    },
+    {
+      "name": "/MATCHL",
+      "pins": [
+        "U2.19",
+        "U8.2"
+      ]
+    },
+    {
+      "name": "/MD0",
+      "pins": [
+        "U5.13",
+        "U9.C6"
+      ]
+    },
+    {
+      "name": "/MD1",
+      "pins": [
+        "U5.14",
+        "U9.A5"
+      ]
+    },
+    {
+      "name": "/MD2",
+      "pins": [
+        "U5.15",
+        "U9.B6"
+      ]
+    },
+    {
+      "name": "/MD3",
+      "pins": [
+        "U5.17",
+        "U9.A6"
+      ]
+    },
+    {
+      "name": "/MD4",
+      "pins": [
+        "U5.18",
+        "U9.A7"
+      ]
+    },
+    {
+      "name": "/MD5",
+      "pins": [
+        "U5.19",
+        "U9.A8"
+      ]
+    },
+    {
+      "name": "/MD6",
+      "pins": [
+        "U5.20",
+        "U9.A9"
+      ]
+    },
+    {
+      "name": "/MD7",
+      "pins": [
+        "U5.21",
+        "U9.B8"
+      ]
+    },
+    {
+      "name": "/OE-",
+      "pins": [
+        "U5.24",
+        "U9.B9"
+      ]
+    },
+    {
+      "name": "/PC-A0",
+      "pins": [
+        "BUS1.62",
+        "U3.3",
+        "U9.M6"
+      ]
+    },
+    {
+      "name": "/PC-A1",
+      "pins": [
+        "BUS1.61",
+        "U3.2",
+        "U9.N4"
+      ]
+    },
+    {
+      "name": "/PC-A2",
+      "pins": [
+        "BUS1.60",
+        "U3.4",
+        "U9.M5"
+      ]
+    },
+    {
+      "name": "/PC-A3",
+      "pins": [
+        "BUS1.59",
+        "U3.5",
+        "U9.K2"
+      ]
+    },
+    {
+      "name": "/PC-A4",
+      "pins": [
+        "BUS1.58",
+        "U2.17",
+        "U9.H3"
+      ]
+    },
+    {
+      "name": "/PC-A5",
+      "pins": [
+        "BUS1.57",
+        "U2.2",
+        "U9.J2"
+      ]
+    },
+    {
+      "name": "/PC-A6",
+      "pins": [
+        "BUS1.56",
+        "U2.15",
+        "U9.J1"
+      ]
+    },
+    {
+      "name": "/PC-A7",
+      "pins": [
+        "BUS1.55",
+        "U2.13",
+        "U9.H2"
+      ]
+    },
+    {
+      "name": "/PC-A8",
+      "pins": [
+        "BUS1.54",
+        "U2.4",
+        "U9.H1"
+      ]
+    },
+    {
+      "name": "/PC-A9",
+      "pins": [
+        "BUS1.53",
+        "U2.6",
+        "U9.N7"
+      ]
+    },
+    {
+      "name": "/PC-A10",
+      "pins": [
+        "BUS1.52",
+        "U2.11",
+        "U9.L8"
+      ]
+    },
+    {
+      "name": "/PC-A11",
+      "pins": [
+        "BUS1.51",
+        "U2.8"
+      ]
+    },
+    {
+      "name": "/PC-AEN",
+      "pins": [
+        "BUS1.42",
+        "U2.1",
+        "U9.N10"
+      ]
+    },
+    {
+      "name": "/PC-DB0",
+      "pins": [
+        "BUS1.40",
+        "U1.2"
+      ]
+    },
+    {
+      "name": "/PC-DB1",
+      "pins": [
+        "BUS1.39",
+        "U1.3"
+      ]
+    },
+    {
+      "name": "/PC-DB2",
+      "pins": [
+        "BUS1.38",
+        "U1.4"
+      ]
+    },
+    {
+      "name": "/PC-DB3",
+      "pins": [
+        "BUS1.37",
+        "U1.5"
+      ]
+    },
+    {
+      "name": "/PC-DB4",
+      "pins": [
+        "BUS1.36",
+        "U1.6"
+      ]
+    },
+    {
+      "name": "/PC-DB5",
+      "pins": [
+        "BUS1.35",
+        "U1.7"
+      ]
+    },
+    {
+      "name": "/PC-DB6",
+      "pins": [
+        "BUS1.34",
+        "U1.8"
+      ]
+    },
+    {
+      "name": "/PC-DB7",
+      "pins": [
+        "BUS1.33",
+        "U1.9"
+      ]
+    },
+    {
+      "name": "/PC-IOR",
+      "pins": [
+        "BUS1.14",
+        "U3.7"
+      ]
+    },
+    {
+      "name": "/PC-IOW",
+      "pins": [
+        "BUS1.13",
+        "U3.6"
+      ]
+    },
+    {
+      "name": "/PC-RD",
+      "pins": [
+        "U3.13",
+        "U8.14",
+        "U9.M8"
+      ]
+    },
+    {
+      "name": "/PC-RST",
+      "pins": [
+        "BUS1.2",
+        "U3.8",
+        "U3.9"
+      ]
+    },
+    {
+      "name": "/PC-WR",
+      "pins": [
+        "U3.14",
+        "U8.7",
+        "U9.N6"
+      ]
+    },
+    {
+      "name": "/PE+",
+      "pins": [
+        "P1.12",
+        "U9.L13"
+      ]
+    },
+    {
+      "name": "/PROG-",
+      "pins": [
+        "U8.19",
+        "U9.M12"
+      ]
+    },
+    {
+      "name": "/REF4",
+      "pins": [
+        "JP1.14",
+        "RR1.3",
+        "U2.18"
+      ]
+    },
+    {
+      "name": "/REF5",
+      "pins": [
+        "JP1.16",
+        "RR1.2",
+        "U2.3"
+      ]
+    },
+    {
+      "name": "/REF6",
+      "pins": [
+        "JP1.10",
+        "RR1.5",
+        "U2.16"
+      ]
+    },
+    {
+      "name": "/REF7",
+      "pins": [
+        "JP1.6",
+        "RR1.7",
+        "U2.14"
+      ]
+    },
+    {
+      "name": "/REF8",
+      "pins": [
+        "JP1.12",
+        "RR1.4",
+        "U2.5"
+      ]
+    },
+    {
+      "name": "/REF9",
+      "pins": [
+        "JP1.8",
+        "RR1.6",
+        "U2.7"
+      ]
+    },
+    {
+      "name": "/REF10",
+      "pins": [
+        "JP1.2",
+        "RR1.9",
+        "U2.12"
+      ]
+    },
+    {
+      "name": "/REF11",
+      "pins": [
+        "JP1.4",
+        "RR1.8",
+        "U2.9"
+      ]
+    },
+    {
+      "name": "/RSTL",
+      "pins": [
+        "U3.12",
+        "U8.11"
+      ]
+    },
+    {
+      "name": "/SEL_LPT",
+      "pins": [
+        "U8.18",
+        "U9.L2"
+      ]
+    },
+    {
+      "name": "/SLCT+",
+      "pins": [
+        "P1.13",
+        "U9.N13"
+      ]
+    },
+    {
+      "name": "/SLCTIN-",
+      "pins": [
+        "P1.17",
+        "U9.F11"
+      ]
+    },
+    {
+      "name": "/STROBE",
+      "pins": [
+        "P1.1",
+        "U9.A12"
+      ]
+    },
+    {
+      "name": "/WR-",
+      "pins": [
+        "U5.29",
+        "U9.A13"
+      ]
+    },
+    {
+      "name": "/WR_REG",
+      "pins": [
+        "U8.13",
+        "U8.15"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "BUS1.1",
+        "BUS1.31",
+        "C1.2",
+        "C2.2",
+        "C3.2",
+        "C4.2",
+        "C5.2",
+        "C6.2",
+        "D1.1",
+        "D2.1",
+        "JP1.1",
+        "JP1.11",
+        "JP1.13",
+        "JP1.15",
+        "JP1.3",
+        "JP1.5",
+        "JP1.7",
+        "JP1.9",
+        "P1.18",
+        "P1.19",
+        "P1.20",
+        "P1.21",
+        "P1.22",
+        "P1.23",
+        "P1.24",
+        "P1.25",
+        "U1.10",
+        "U2.10",
+        "U3.1",
+        "U3.10",
+        "U3.19",
+        "U5.16",
+        "U8.1",
+        "U8.12",
+        "U9.B7",
+        "U9.C10",
+        "U9.C4",
+        "U9.G11",
+        "U9.G2",
+        "U9.K11",
+        "U9.K3",
+        "U9.L7"
+      ]
+    },
+    {
+      "name": "Net-(C3-Pad1)",
+      "pins": [
+        "C3.1",
+        "R1.1",
+        "R2.2",
+        "X1.2"
+      ]
+    },
+    {
+      "name": "Net-(D1-A)",
+      "pins": [
+        "D1.2",
+        "R4.1"
+      ]
+    },
+    {
+      "name": "Net-(D2-A)",
+      "pins": [
+        "D2.2",
+        "R5.1"
+      ]
+    },
+    {
+      "name": "Net-(U3-Y0)",
+      "pins": [
+        "U3.18",
+        "U8.3"
+      ]
+    },
+    {
+      "name": "Net-(U3-Y1)",
+      "pins": [
+        "U3.17",
+        "U8.4"
+      ]
+    },
+    {
+      "name": "Net-(U3-Y2)",
+      "pins": [
+        "U3.16",
+        "U8.5"
+      ]
+    },
+    {
+      "name": "Net-(U3-Y3)",
+      "pins": [
+        "U3.15",
+        "U8.6"
+      ]
+    },
+    {
+      "name": "Net-(U5-CS2)",
+      "pins": [
+        "R3.1",
+        "U5.30"
+      ]
+    },
+    {
+      "name": "Net-(U9-P{slash}A3)",
+      "pins": [
+        "C2.1",
+        "R1.2",
+        "U9.L1",
+        "X1.1"
+      ]
+    },
+    {
+      "name": "VCC",
+      "pins": [
+        "BUS1.29",
+        "BUS1.3",
+        "C1.1",
+        "C4.1",
+        "C5.1",
+        "C6.1",
+        "R3.2",
+        "RR1.1",
+        "U1.20",
+        "U2.20",
+        "U3.20",
+        "U5.32",
+        "U8.23",
+        "U8.24",
+        "U9.B11",
+        "U9.B12",
+        "U9.C11",
+        "U9.C3",
+        "U9.D11",
+        "U9.G12",
+        "U9.L10",
+        "U9.L3",
+        "U9.M7"
+      ]
+    }
+  ]
+}

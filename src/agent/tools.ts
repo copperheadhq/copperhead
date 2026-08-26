@@ -394,7 +394,7 @@ export const TOOLS: ToolDef[] = [
           .map((p) => `  ${p.number}: ${p.name === '~' || !p.name ? '(unnamed)' : p.name} · ${p.type}`);
         const multi =
           r.units >= 2
-            ? `\nWARNING: this symbol defines ${r.units} units; the drafting engine refuses multi-unit symbols — choose a single-unit variant.`
+            ? `\nNOTE: this symbol defines ${r.units} units; the drafting engine places each unit separately under one refdes (U1A/U1B), and net endpoints keep plain package pin numbers.`
             : '';
         return `${libId} — ${r.pins.length} pin(s), ${r.units} unit(s):\n${pins.join('\n')}${multi}`;
       }

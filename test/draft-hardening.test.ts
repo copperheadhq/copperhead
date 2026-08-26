@@ -94,10 +94,13 @@ describe('derived (extends) symbols', () => {
     }
   }, 60000);
 
-  it('refuses a multi-unit symbol before it can merge nets', async () => {
+  it('places a multi-unit symbol one unit per instance, never as one overlay', async () => {
     // Units of a multi-unit symbol share symbol-space pin coordinates, so a
-    // single placed instance overlays unrelated pins on one point: a probe
-    // LM358 drafted with both amps fused OUT1 into OUT2 and reported ok.
+    // single placed instance would overlay unrelated pins on one point: a
+    // probe LM358 drafted with both amps fused OUT1 into OUT2 and reported
+    // ok. The engine now places each unit as its own instance (#218); this
+    // intent uses only unit 1, so exactly one instance is drawn and unit 2
+    // stays off the sheet.
     const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-multiunit-'));
     try {
       await writeFile(
@@ -116,9 +119,11 @@ describe('derived (extends) symbols', () => {
         'utf8',
       );
       const res = await draftSchematicToText({ repoRoot: repo, schematic: 'b.kicad_sch', symbolDirs: [SYMLIB] });
-      expect(res.ok).toBe(false);
-      if (res.ok) return;
-      expect(res.message).toContain('multi-unit symbol');
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      const instances = [...res.text.matchAll(/\(lib_id "CopperStack:DualBuf"\)/g)];
+      expect(instances).toHaveLength(1);
+      expect(res.text).not.toContain('(unit 2)');
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

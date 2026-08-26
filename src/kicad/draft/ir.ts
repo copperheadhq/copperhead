@@ -190,16 +190,44 @@ export async function validateIntent(
     partByRef.set(p.ref, p);
     try {
       const sym = await symsource.resolve(p.libId);
-      // A multi-unit symbol's units share symbol-space pin coordinates, so
-      // placing it as one instance overlays unrelated pins on one point and
-      // silently merges their nets (an LM358 drafted this way fused its two
-      // outputs). Refused until the engine can place units individually.
+      // A multi-unit symbol (an opamp, a gate pack) is placed one unit at a
+      // time: units share symbol-space pin coordinates, so a single placed
+      // instance would overlay unrelated pins on one point and silently merge
+      // their nets (an LM358 drafted that way fused its two outputs). Common
+      // (unit-0) pins are fine — KiCad draws them on every placed unit and
+      // the engine wires each appearance to the pin's one net. What is
+      // refused is a pin number repeated across NUMBERED units (an ambiguous
+      // endpoint), and a pin living only in a de Morgan alternate (it would
+      // vanish from the drawn sheet).
       if (sym.multiUnit) {
-        add(
-          `${p.ref}: "${p.libId}" is a multi-unit symbol (an opamp or gate pack), which the drafting engine ` +
-            `cannot place yet; use a single-unit part instead`,
+        const common = new Set(sym.commonUnitPins ?? []);
+        const owner = new Map<string, number>();
+        const shared = new Set<string>();
+        for (const u of sym.units ?? []) {
+          for (const pin of u.pins) {
+            if (common.has(pin.number)) continue;
+            const prev = owner.get(pin.number);
+            if (prev !== undefined && prev !== u.unit) shared.add(pin.number);
+            owner.set(pin.number, u.unit);
+          }
+        }
+        if (shared.size) {
+          add(
+            `${p.ref}: "${p.libId}" repeats pin(s) ${[...shared].sort().join(', ')} in more than one unit, so a ` +
+              `net endpoint cannot be mapped to a single placed unit; the drafting engine cannot place this symbol`,
+          );
+          continue;
+        }
+        const unmapped = [...new Set(sym.pins.map((pin) => pin.number))].filter(
+          (n) => !owner.has(n) && !common.has(n),
         );
-        continue;
+        if (unmapped.length) {
+          add(
+            `${p.ref}: "${p.libId}" defines pin(s) ${unmapped.sort().join(', ')} outside its default-style units, ` +
+              `so the drafting engine cannot place them; use a variant with conventional unit structure`,
+          );
+          continue;
+        }
       }
       symbols.set(p.ref, sym);
     } catch (e) {

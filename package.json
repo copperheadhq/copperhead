@@ -57,7 +57,8 @@
     "docs:dev": "npm --prefix docs run dev",
     "docs:build": "npm --prefix docs run build",
     "docs:preview": "npm --prefix docs run preview",
-    "refboards": "bash scripts/draft-reference-boards.sh"
+    "refboards": "bash scripts/draft-reference-boards.sh",
+    "realdesigns": "tsx scripts/draft-real-designs.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.113.0",

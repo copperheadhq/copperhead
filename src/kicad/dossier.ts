@@ -154,7 +154,7 @@ export async function bomSymbolDossier(
             // report the candidates without claiming pins we could not read.
             line = `- ${who}: candidates ${hits.join(', ')} — pins unreadable here; confirm with symbol_pins`;
           } else {
-            const multi = r.units >= 2 ? ` — MULTI-UNIT (${r.units} units): the drafting engine refuses this symbol; choose a single-unit variant` : '';
+            const multi = r.units >= 2 ? ` — MULTI-UNIT (${r.units} units): the drafting engine places each unit separately under this refdes` : '';
             const also = hits.length > 1 ? `\n  also installed: ${hits.slice(1).join(', ')}` : '';
             line = `- ${who}: ${top}${matchedBy} — ${r.pins.length} pin(s): ${pinTable(r.pins)}${multi}${also}`;
           }

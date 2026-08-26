@@ -1,0 +1,404 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "C1",
+      "libId": "sonde_xilinx:CP",
+      "value": "1uF",
+      "footprint": "Capacitor_THT:C_Axial_L5.1mm_D3.1mm_P12.50mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C2",
+      "libId": "sonde_xilinx:C",
+      "value": "100pF",
+      "footprint": "Capacitor_THT:C_Disc_D5.1mm_W3.2mm_P5.00mm",
+      "group": "Main"
+    },
+    {
+      "ref": "C3",
+      "libId": "sonde_xilinx:C",
+      "value": "100pF",
+      "footprint": "Capacitor_THT:C_Disc_D5.1mm_W3.2mm_P5.00mm",
+      "group": "Main"
+    },
+    {
+      "ref": "C4",
+      "libId": "sonde_xilinx:C",
+      "value": "100pF",
+      "footprint": "Capacitor_THT:C_Disc_D5.1mm_W3.2mm_P5.00mm",
+      "group": "Main"
+    },
+    {
+      "ref": "C5",
+      "libId": "sonde_xilinx:C",
+      "value": "100pF",
+      "footprint": "Capacitor_THT:C_Disc_D5.1mm_W3.2mm_P5.00mm",
+      "group": "Main"
+    },
+    {
+      "ref": "D1",
+      "libId": "sonde_xilinx:DIODESCH",
+      "value": "BAT46",
+      "footprint": "Diode_THT:D_A-405_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "D2",
+      "libId": "sonde_xilinx:DIODESCH",
+      "value": "BAT46",
+      "footprint": "Diode_THT:D_A-405_P7.62mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "J1",
+      "libId": "sonde_xilinx:DB25",
+      "value": "DB25MALE",
+      "footprint": "Connector_Dsub:DSUB-25_Male_EdgeMount_P2.77mm",
+      "group": "Main"
+    },
+    {
+      "ref": "J2",
+      "libId": "sonde_xilinx:DB9",
+      "value": "DB9MALE",
+      "footprint": "Connector_Dsub:DSUB-9_Male_EdgeMount_P2.77mm",
+      "group": "Main"
+    },
+    {
+      "ref": "P1",
+      "libId": "sonde_xilinx:CONN_6",
+      "value": "CONN_6",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "R1",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R2",
+      "libId": "sonde_xilinx:R",
+      "value": "5,1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R4",
+      "libId": "sonde_xilinx:R",
+      "value": "47",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R5",
+      "libId": "sonde_xilinx:R",
+      "value": "1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R6",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R7",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R8",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R9",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R10",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R11",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R12",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R13",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "R14",
+      "libId": "sonde_xilinx:R",
+      "value": "100",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "U1",
+      "libId": "copperhead_embedded:74LS125_1",
+      "value": "74LS125",
+      "footprint": "Package_DIP:DIP-14_W7.62mm_LongPads",
+      "group": "Main"
+    },
+    {
+      "ref": "U2",
+      "libId": "copperhead_embedded:74LS125_2",
+      "value": "74LS125",
+      "footprint": "Package_DIP:DIP-14_W7.62mm_LongPads",
+      "group": "Main"
+    }
+  ],
+  "nets": [
+    {
+      "name": "/CLK-D1",
+      "pins": [
+        "J1.3",
+        "R10.2"
+      ]
+    },
+    {
+      "name": "/CTRL-D3",
+      "pins": [
+        "J1.5",
+        "R8.2"
+      ]
+    },
+    {
+      "name": "/DONE-SELECT*",
+      "pins": [
+        "J1.13",
+        "R4.2"
+      ]
+    },
+    {
+      "name": "/PWR_3,3-5V",
+      "pins": [
+        "D2.1",
+        "J2.1",
+        "P1.1"
+      ]
+    },
+    {
+      "name": "/TCK-CCLK",
+      "pins": [
+        "J2.4",
+        "P1.5",
+        "R12.1"
+      ]
+    },
+    {
+      "name": "/TD0-DONE",
+      "pins": [
+        "J2.2",
+        "P1.3",
+        "R14.1"
+      ]
+    },
+    {
+      "name": "/TD0-PROG-D4",
+      "pins": [
+        "J1.6",
+        "R6.2"
+      ]
+    },
+    {
+      "name": "/TDI-DIN",
+      "pins": [
+        "J2.3",
+        "P1.4",
+        "R11.1"
+      ]
+    },
+    {
+      "name": "/TDI-DIN-D0",
+      "pins": [
+        "J1.2",
+        "R7.2"
+      ]
+    },
+    {
+      "name": "/TMS-PROG",
+      "pins": [
+        "J2.5",
+        "P1.6",
+        "R13.1"
+      ]
+    },
+    {
+      "name": "/TMS-PROG-D2",
+      "pins": [
+        "J1.4",
+        "R9.2"
+      ]
+    },
+    {
+      "name": "/VCC_SENSE-ERROR*",
+      "pins": [
+        "J1.15",
+        "R1.2"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C1.2",
+        "C2.2",
+        "C3.2",
+        "C4.2",
+        "C5.2",
+        "J1.20",
+        "J1.25",
+        "J2.6",
+        "J2.7",
+        "J2.8",
+        "J2.9",
+        "P1.2",
+        "R5.2",
+        "U1.2",
+        "U1.7",
+        "U2.1",
+        "U2.10",
+        "U2.12",
+        "U2.13",
+        "U2.4",
+        "U2.5",
+        "U2.7",
+        "U2.9"
+      ]
+    },
+    {
+      "name": "Net-(D1-K)",
+      "pins": [
+        "D1.2",
+        "R1.1"
+      ]
+    },
+    {
+      "name": "Net-(J1-Pad11)",
+      "pins": [
+        "J1.11",
+        "J1.12",
+        "J1.8"
+      ]
+    },
+    {
+      "name": "Net-(U1A-E)",
+      "pins": [
+        "R6.1",
+        "U1.1"
+      ]
+    },
+    {
+      "name": "Net-(U1A-O)",
+      "pins": [
+        "C3.1",
+        "R14.2",
+        "R2.2",
+        "U1.3",
+        "U2.2"
+      ]
+    },
+    {
+      "name": "Net-(U1B-D)",
+      "pins": [
+        "R7.1",
+        "U1.5"
+      ]
+    },
+    {
+      "name": "Net-(U1B-E)",
+      "pins": [
+        "R8.1",
+        "U1.10",
+        "U1.13",
+        "U1.4"
+      ]
+    },
+    {
+      "name": "Net-(U1B-O)",
+      "pins": [
+        "C2.1",
+        "R11.2",
+        "U1.6"
+      ]
+    },
+    {
+      "name": "Net-(U1C-D)",
+      "pins": [
+        "R10.1",
+        "U1.9"
+      ]
+    },
+    {
+      "name": "Net-(U1C-O)",
+      "pins": [
+        "C5.1",
+        "R12.2",
+        "U1.8"
+      ]
+    },
+    {
+      "name": "Net-(U1D-D)",
+      "pins": [
+        "R9.1",
+        "U1.12"
+      ]
+    },
+    {
+      "name": "Net-(U1D-O)",
+      "pins": [
+        "C4.1",
+        "R13.2",
+        "U1.11"
+      ]
+    },
+    {
+      "name": "Net-(U2A-O)",
+      "pins": [
+        "R4.1",
+        "U2.3"
+      ]
+    },
+    {
+      "name": "VCC",
+      "pins": [
+        "C1.1",
+        "D1.1",
+        "D2.2",
+        "R2.1",
+        "R5.1",
+        "U1.14",
+        "U2.14"
+      ]
+    }
+  ]
+}

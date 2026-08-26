@@ -12,6 +12,10 @@ Sandboxes for exercising the CLI end to end, by hand, against a real git reposit
 
 `manual-tests/reference-boards/` holds committed reference projects for the deterministic drafting engine, with symbols vendored from the real KiCad libraries. `npm run refboards` re-drafts each board, byte-compares against its reference, and renders a PNG for visual comparison; `npm run refboards -- --update` regenerates the references after a deliberate engine change. The byte contract also runs in CI (`test/draft-reference-boards.test.ts`). See [reference-boards/README.md](reference-boards/README.md).
 
+## Real designs
+
+`manual-tests/real-designs/` drafts boards nobody wrote for us, read from a local KiCad install, and puts the engine's drawing next to the one a person made of the same circuit. Nothing is committed and nothing is byte-compared: a human's schematic and the engine's are different drawings of the same netlist, so the netlist equality is checked by machine and the drawing by eye. `npm run realdesigns` runs the sweep into `manual-tests/runs/real-designs/`. See [real-designs/README.md](real-designs/README.md).
+
 ## Variants
 
 Each variant materializes a self-contained git repository under `manual-tests/runs/` (gitignored). Run everything from the repo root.
