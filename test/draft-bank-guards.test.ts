@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { interiorGridPoints, segCrossesStubGrowth, splitBankRuns, type Seg } from '../src/kicad/draft/engine.js';
+import { interiorGridPoints, segCrossesStubGrowth, splitBankRuns, type Seg, type SchematicDraftReport } from '../src/kicad/draft/engine.js';
+import { formatSchematicDraftReport } from '../src/kicad/draft/draft.js';
 
 /**
  * The geometric predicates behind two mechanisms whose failure mode is a net
@@ -153,5 +154,49 @@ describe('splitBankRuns: a member that cannot join cleanly splits the run', () =
 
   it('flushes a trailing run', () => {
     expect(splitBankRuns(['x', 'a', 'b'], (c) => c !== 'x', all)).toEqual([['a', 'b']]);
+  });
+});
+
+describe('the draft report marks the class no pin attests', () => {
+  const base = {
+    groups: [], wireCount: 0, labelCount: 0, pwrFlags: [], noConnects: 0, paper: 'A4', notes: [], mergedNets: [],
+  } as unknown as SchematicDraftReport;
+  const classes = (netClasses: SchematicDraftReport['netClasses']): string =>
+    formatSchematicDraftReport({ ...base, netClasses }).split('\n').find((l) => l.includes('net classes:'))!;
+
+  it('leaves an ordinary board unmarked: a defaulted signal is not an inference worth flagging', () => {
+    // Every signal net on a board reaches no power_in/power_out pin, so it
+    // arrives here with a `name` basis. Marking those would decorate almost
+    // the whole line and tell a reader nothing.
+    const line = classes([
+      { name: 'VCC', class: 'rail', overridden: false, basis: 'pin-type' },
+      { name: 'GND', class: 'ground', overridden: false, basis: 'pin-type' },
+      { name: 'SDA', class: 'signal', overridden: false, basis: 'name' },
+      { name: 'RESET_N', class: 'signal', overridden: false, basis: 'name' },
+    ]);
+    expect(line).toContain('SDA=signal');
+    expect(line).not.toContain('~');
+  });
+
+  it('marks a POWER class taken from the net name, and says what the mark means', () => {
+    const line = classes([
+      { name: 'GNDD', class: 'ground', overridden: false, basis: 'name' },
+      { name: '5V0', class: 'rail', overridden: false, basis: 'name' },
+      { name: 'SDA', class: 'signal', overridden: false, basis: 'name' },
+    ]);
+    expect(line).toContain('GNDD=ground~');
+    expect(line).toContain('5V0=rail~');
+    expect(line).toMatch(/SDA=signal(?!~)/); // the signal beside them is not marked
+    expect(line).toContain('~=inferred from the net name, not from any pin type');
+  });
+
+  it('keeps the IR override mark, which outranks the basis', () => {
+    const line = classes([
+      { name: 'VCC', class: 'signal', overridden: true, basis: 'declared' },
+      { name: 'GNDD', class: 'ground', overridden: false, basis: 'name' },
+    ]);
+    expect(line).toContain('VCC=signal*');
+    expect(line).toContain('*=IR override');
+    expect(line).toContain('~=inferred');
   });
 });

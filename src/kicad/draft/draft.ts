@@ -4,7 +4,7 @@ import path from 'node:path';
 import { emitSchematic } from '../emit.js';
 import { SymbolSource } from './symsource.js';
 import { parseIntent, validateIntent, formatIrFindings, INTENT_FILENAME, type IrFinding } from './ir.js';
-import { draftSchematicPlacement, type SchematicDraftReport } from './engine.js';
+import { draftSchematicPlacement, type SchematicDraftReport, type NetClass, type NetClassBasis } from './engine.js';
 
 /**
  * Draft orchestration: intent file in, schematic out. Deterministic, LLM-free,
@@ -150,10 +150,17 @@ export function formatSchematicDraftReport(report: SchematicDraftReport): string
   // The basis is part of the class, not decoration: `~` marks a class no pin
   // attests, inferred from the net's NAME alone, which is the one inference a
   // reader has to check and the IR's `kind` is there to correct.
-  const mark = (n: { overridden: boolean; basis: string }): string => (n.overridden ? '*' : n.basis === 'name' ? '~' : '');
+  // `~` marks the one classification no pin attests: a POWER class taken from
+  // the net's name alone. A signal is what a net is when nothing said
+  // otherwise, so marking every defaulted signal would decorate almost the
+  // whole line and tell a reader nothing.
+  const nameInferred = (n: { overridden: boolean; class: NetClass; basis: NetClassBasis }): boolean =>
+    !n.overridden && n.basis === 'name' && n.class !== 'signal';
+  const mark = (n: { overridden: boolean; class: NetClass; basis: NetClassBasis }): string =>
+    n.overridden ? '*' : nameInferred(n) ? '~' : '';
   const legend = [
     report.netClasses.some((n) => n.overridden) ? '*=IR override' : '',
-    report.netClasses.some((n) => !n.overridden && n.basis === 'name') ? '~=inferred from the net name, not from any pin type' : '',
+    report.netClasses.some(nameInferred) ? '~=inferred from the net name, not from any pin type' : '',
   ].filter(Boolean);
   lines.push(
     `  net classes: ${report.netClasses.map((n) => `${n.name}=${n.class}${mark(n)}`).join(', ')}${legend.length ? ` (${legend.join(', ')})` : ''}`,
