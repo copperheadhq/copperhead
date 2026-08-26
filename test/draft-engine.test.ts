@@ -293,7 +293,7 @@ describe('IR overrides', () => {
       expect(res.ok).toBe(true);
       if (!res.ok) return;
       const vcc = res.report.netClasses.find((n) => n.name === 'VCC');
-      expect(vcc).toEqual({ name: 'VCC', class: 'signal', overridden: true });
+      expect(vcc).toEqual({ name: 'VCC', class: 'signal', overridden: true, basis: 'declared' });
     } finally {
       await cleanup();
     }
@@ -313,6 +313,8 @@ describe('IR overrides', () => {
         name: 'VBAT',
         class: 'rail',
         overridden: false,
+        // the pin types said so, not the name: VBAT matches no supply shape
+        basis: 'pin-type',
       });
     } finally {
       await cleanup();

@@ -361,6 +361,110 @@ describe('passive banks chain on one trunk (#233, #220 phase 3)', () => {
     expect(Math.max(...trunk.map((w) => Math.max(w.x1, w.x2)))).toBeCloseTo(capXs[2]!, 5);
   });
 
+  /** Every wired-net label must sit on a wire of ITS OWN net: KiCad attaches a
+   * local label only where it lies on a wire, so a label anchored anywhere else
+   * leaves the net carrying whatever name KiCad invents for it. */
+  function assertLabelsOnTheirOwnWires(model: {
+    labels: { name: string; x: number; y: number }[];
+    wires: { x1: number; y1: number; x2: number; y2: number; net: string }[];
+  }): void {
+    const E = 0.005;
+    const on = (x: number, y: number, w: { x1: number; y1: number; x2: number; y2: number }): boolean =>
+      x >= Math.min(w.x1, w.x2) - E &&
+      x <= Math.max(w.x1, w.x2) + E &&
+      y >= Math.min(w.y1, w.y2) - E &&
+      y <= Math.max(w.y1, w.y2) + E &&
+      (Math.abs(w.x1 - w.x2) < E ? Math.abs(x - w.x1) < E : Math.abs(y - w.y1) < E);
+    for (const l of model.labels) {
+      const own = model.wires.filter((w) => w.net === l.name);
+      if (!own.length) continue; // a labelled stub the router never wired
+      expect(own.some((w) => on(l.x, l.y, w)), `label ${l.name} at (${l.x}, ${l.y}) sits on no wire of its own net`).toBe(
+        true,
+      );
+    }
+  }
+
+  it('every wired-net label sits on a wire of its own net', async () => {
+    // The de-collision passes may move a wired label anywhere along its run,
+    // and one of them walks the run's interior points. Walking the run's
+    // POINTS rather than its SEGMENTS interpolates between corners that share
+    // no wire, which anchors the label in open sheet and silently drops the
+    // net's name; this asserts the property those passes must preserve.
+    for (const intent of [banked, chainGroup(6), ribbon(4)]) {
+      const { model } = await place(intent);
+      assertLabelsOnTheirOwnWires(model);
+    }
+  });
+
+  it('a hinted sheet too small for the content overflows loudly, budgets and all', async () => {
+    // The last resort: the hint pins one candidate, the budgeted retries all
+    // fail, and the engine places on it anyway rather than silently choosing
+    // another sheet — with a note naming the overflow, which is the only
+    // honest output when the person asked for a sheet the drawing cannot fit.
+    const intent = { ...chainGroup(12), hints: { paper: 'A5' } } as SchematicIntent;
+    const { report } = await place(intent);
+    expect(report.paper).toBe('A5');
+    expect(
+      report.notes.some((n) => /does not fit the hinted sheet \(A5\).*will overflow the frame/.test(n)),
+      report.notes.join('; '),
+    ).toBe(true);
+  });
+
+  it('a two-pin part that is not a capacitor joins the decoupling row', async () => {
+    // The reduction is structural, not name-based: what makes a part a
+    // decoupling element is a rail on one pin, ground on the other, and an
+    // owner IC on the same rail — never its lib_id. Real boards carry their
+    // caps under embedded, renamed ids no name test matches, and a rail-clamp
+    // part drawn beside them is how a hand-drawn sheet shows it too.
+    const intent: SchematicIntent = {
+      version: 1,
+      parts: [
+        { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' },
+        { ref: 'C1', libId: 'Device:C', value: '100n', group: 'MAIN' },
+        { ref: 'C2', libId: 'Device:C', value: '100n', group: 'MAIN' },
+        { ref: 'R9', libId: 'Device:R', value: '10k', group: 'MAIN' },
+      ],
+      nets: [
+        { name: 'VCC', pins: ['U1.1', 'C1.1', 'C2.1', 'R9.1'] },
+        { name: 'GND', pins: ['U1.2', 'C1.2', 'C2.2', 'R9.2'] },
+        { name: 'SIG', pins: ['U1.4', 'U1.5'] },
+      ],
+      noConnect: ['U1.3', 'U1.6', 'U1.7', 'U1.8'],
+    };
+    const { model } = await place(intent);
+    const at = (ref: string) => model.symbols.find((s) => s.ref === ref)!.at;
+    expect(at('R9').y).toBeCloseTo(at('C1').y, 5);
+    expect(at('C2').y).toBeCloseTo(at('C1').y, 5);
+    // and the row sits under the circuit, not in it
+    expect(at('C1').y).toBeGreaterThan(at('U1').y);
+  });
+
+  it('a measurement node named like a supply is not drafted as a rail', async () => {
+    // The name fallback fires only where no pin's electrical type attests
+    // anything, and it is narrow in one direction on purpose: a rail read as a
+    // signal draws labels, while a signal read as a rail makes the sheet assert
+    // a supply the design does not have. VBUS_DET is a divider tap on a real
+    // board; VDD_3V3 beside it is the rail that feeds it.
+    const intent: SchematicIntent = {
+      version: 1,
+      parts: [
+        { ref: 'R1', libId: 'Device:R', value: '100k', group: 'MAIN' },
+        { ref: 'R2', libId: 'Device:R', value: '100k', group: 'MAIN' },
+      ],
+      nets: [
+        { name: 'VDD_3V3', pins: ['R1.1', 'R2.1'] },
+        { name: 'VBUS_DET', pins: ['R1.2', 'R2.2'] },
+      ],
+    };
+    const { model, report } = await place(intent);
+    const classOf = (n: string) => report.netClasses.find((c) => c.name === n);
+    expect(classOf('VDD_3V3')).toEqual({ name: 'VDD_3V3', class: 'rail', overridden: false, basis: 'name' });
+    expect(classOf('VBUS_DET')).toEqual({ name: 'VBUS_DET', class: 'signal', overridden: false, basis: 'name' });
+    // the rail gets power symbols and no label; the tap gets labels and no bar
+    expect(model.symbols.some((s) => s.value === 'VDD_3V3' && s.libId.startsWith('copperhead_power:'))).toBe(true);
+    expect(model.symbols.some((s) => s.value === 'VBUS_DET' && s.libId.startsWith('copperhead_power:'))).toBe(false);
+  });
+
   it('a supply-named net with only passive pins still drafts as power, not labels', async () => {
     // stickhub carries GND on embedded symbols whose pins are all `passive`:
     // 80 pins, no etype evidence anywhere, and it drafted as 80 labels with

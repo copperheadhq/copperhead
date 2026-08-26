@@ -91,10 +91,17 @@ const BANK_PITCH_MAX = 32;
 const COMPACT_UTILIZATION = 0.5;
 
 export type NetClass = 'rail' | 'ground' | 'signal';
+/**
+ * What decided a net's class: an IR `kind` declaration, the library electrical
+ * type of a pin it touches, or the last-resort supply-name shape. Reported per
+ * net so a name-inferred class — the one inference no pin actually attests —
+ * is visible and correctable through the IR.
+ */
+export type NetClassBasis = 'declared' | 'pin-type' | 'name';
 
 export interface SchematicDraftReport {
   groups: { name: string; members: string[] }[];
-  netClasses: { name: string; class: NetClass; overridden: boolean }[];
+  netClasses: { name: string; class: NetClass; overridden: boolean; basis: NetClassBasis }[];
   wireCount: number;
   labelCount: number;
   pwrFlags: string[];
@@ -214,6 +221,96 @@ export function findWireContactMerges(
   );
 }
 
+/** An orthogonal segment in schematic space, millimetres. */
+export interface Seg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/**
+ * Every on-grid point strictly BETWEEN the ends of each segment.
+ *
+ * Takes segments, never a bag of points: a label anchored at a point that lies
+ * on no wire of its own net is attached to nothing in KiCad, and the net
+ * silently loses the name the IR gave it. Callers that keep their points in
+ * some other order (anchor preference, say) must pass the segments themselves
+ * so the walk cannot interpolate between two points that share no wire.
+ */
+export function interiorGridPoints(segs: Seg[], step: number): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  for (const seg of segs) {
+    const steps = Math.round((Math.abs(seg.x2 - seg.x1) + Math.abs(seg.y2 - seg.y1)) / step);
+    const sx = Math.sign(seg.x2 - seg.x1);
+    const sy = Math.sign(seg.y2 - seg.y1);
+    for (let k = 1; k < steps; k++) out.push({ x: seg.x1 + sx * k * step, y: seg.y1 + sy * k * step });
+  }
+  return out;
+}
+
+/**
+ * Whether `seg` crosses the LINE a foreign pin's stub could grow along.
+ *
+ * `touchesForeign` predicts foreign stubs at their base length only, but a
+ * signal stub's clearance ladder may extend it further — jetson-agx-thor-
+ * baseboard shipped twelve trunk-on-stub contacts exactly that way, each a
+ * merged net the gate then refused. `reach` is that maximum growth, in mm.
+ * Both are orthogonal, so bounding-box overlap IS intersection, and it also
+ * catches collinear overlap, conservatively.
+ */
+export function segCrossesStubGrowth(
+  seg: Seg,
+  pin: { x: number; y: number },
+  o: { dx: number; dy: number },
+  reach: number,
+  eps: number,
+): boolean {
+  const ex = pin.x + o.dx * reach;
+  const ey = pin.y + o.dy * reach;
+  return (
+    Math.min(seg.x1, seg.x2) <= Math.max(pin.x, ex) + eps &&
+    Math.max(seg.x1, seg.x2) >= Math.min(pin.x, ex) - eps &&
+    Math.min(seg.y1, seg.y2) <= Math.max(pin.y, ey) + eps &&
+    Math.max(seg.y1, seg.y2) >= Math.min(pin.y, ey) - eps
+  );
+}
+
+/**
+ * Split one line of bank candidates into the runs that may share a trunk.
+ *
+ * `canStub` vets a member on its own (its stub must clear foreign points) and
+ * `canJoin` vets the join to the member before it. A member that fails either
+ * ends the run in progress — a bank never buys density with a merged net — and
+ * a run of one is no bank at all, so only runs of two or more come back.
+ * Pure, so the veto semantics are testable without a sheet to place.
+ */
+export function splitBankRuns<T>(line: T[], canStub: (c: T) => boolean, canJoin: (prev: T, c: T) => boolean): T[][] {
+  const runs: T[][] = [];
+  let run: T[] = [];
+  const flush = (): void => {
+    if (run.length >= 2) runs.push(run);
+    run = [];
+  };
+  for (const c of line) {
+    if (!canStub(c)) {
+      flush();
+      continue;
+    }
+    if (!run.length) {
+      run.push(c);
+      continue;
+    }
+    if (canJoin(run[run.length - 1]!, c)) run.push(c);
+    else {
+      flush();
+      run = [c];
+    }
+  }
+  flush();
+  return runs;
+}
+
 interface Placed {
   part: IntentPart;
   /** The drawn refdes (the part's ref, shared by every unit instance). */
@@ -268,10 +365,27 @@ function outward(pin: DraftPin): { dx: number; dy: number } {
   return { dx: 0, dy: -1 };
 }
 
-function classifyNet(net: IntentNet, pinsOf: (ep: string) => DraftPin | null): { cls: NetClass; overridden: boolean } {
-  if (net.kind === 'power') return { cls: 'rail', overridden: true };
-  if (net.kind === 'ground') return { cls: 'ground', overridden: true };
-  if (net.kind === 'signal') return { cls: 'signal', overridden: true };
+/**
+ * Supply-name shapes for the last-resort classification below. Deliberately
+ * narrow, and narrow in ONE direction: a rail misread as a signal draws labels
+ * (exactly what the engine did before the fallback existed), while a signal
+ * misread as a rail draws a power symbol and makes the sheet assert a supply
+ * the design does not have. So an underscore may join a VOLTAGE suffix
+ * (VDD_3V3, VCC_1V8) and nothing else — VBUS_DET, VCC_SENSE and VDD_MON are
+ * measurement nodes on real boards and stay signals. Anything the shapes miss
+ * is still correctable with an IR `kind` declaration, which outranks all of
+ * this, and the report names the basis so a miss is visible.
+ */
+const GROUND_NAME = /^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i;
+const RAIL_NAME = /^(?:[+-]?[0-9]+(?:\.[0-9]+)?v[0-9]*|(?:vcc|vdd|vbus|vee)[0-9a-z]*(?:_[0-9]+v[0-9]*)?)$/i;
+
+function classifyNet(
+  net: IntentNet,
+  pinsOf: (ep: string) => DraftPin | null,
+): { cls: NetClass; overridden: boolean; basis: NetClassBasis } {
+  if (net.kind === 'power') return { cls: 'rail', overridden: true, basis: 'declared' };
+  if (net.kind === 'ground') return { cls: 'ground', overridden: true, basis: 'declared' };
+  if (net.kind === 'signal') return { cls: 'signal', overridden: true, basis: 'declared' };
   const touchesPower = net.pins.some((ep) => {
     const p = pinsOf(ep);
     return p !== null && (p.etype === 'power_in' || p.etype === 'power_out');
@@ -281,13 +395,11 @@ function classifyNet(net: IntentNet, pinsOf: (ep: string) => DraftPin | null): {
     // on embedded symbols whose pins are all `passive` (stickhub's GND, 80
     // pins, drafted as 80 labels and zero ground bars). Fall back to the
     // unambiguous supply-name shapes only; anything else stays signal.
-    if (/^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i.test(net.name)) return { cls: 'ground', overridden: false };
-    if (/^[+-]?[0-9]+(\.[0-9]+)?v[0-9]*$/i.test(net.name) || /^(vcc|vdd|vbus|vee)[0-9a-z_]*$/i.test(net.name)) {
-      return { cls: 'rail', overridden: false };
-    }
-    return { cls: 'signal', overridden: false };
+    if (GROUND_NAME.test(net.name)) return { cls: 'ground', overridden: false, basis: 'name' };
+    if (RAIL_NAME.test(net.name)) return { cls: 'rail', overridden: false, basis: 'name' };
+    return { cls: 'signal', overridden: false, basis: 'name' };
   }
-  return { cls: /gnd|vss/i.test(net.name) ? 'ground' : 'rail', overridden: false };
+  return { cls: /gnd|vss/i.test(net.name) ? 'ground' : 'rail', overridden: false, basis: 'pin-type' };
 }
 
 const boundsOverlap = (a: Bounds, b: Bounds): boolean =>
@@ -420,7 +532,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     const sym = symbols.get(m[1]!);
     return sym?.pins.find((p) => p.number === m[2]) ?? null;
   };
-  const netClasses = new Map<string, { cls: NetClass; overridden: boolean }>();
+  const netClasses = new Map<string, { cls: NetClass; overridden: boolean; basis: NetClassBasis }>();
   for (const net of intent.nets) netClasses.set(net.name, classifyNet(net, pinLookup));
   const powerNets = intent.nets.filter((n) => netClasses.get(n.name)!.cls !== 'signal');
   const signalNets = intent.nets.filter((n) => netClasses.get(n.name)!.cls === 'signal');
@@ -432,7 +544,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // under embedded, renamed lib ids the old `Device:C` test never matched,
   // so their banks stayed in the columns as label islands; and a rail-clamp
   // TVS drawn beside the caps is how the hand-drawn sheets show it too.
-  const isCap = (p: IntentPart): boolean => (symbols.get(p.ref)?.pins.length ?? 0) === 2;
+  const isTwoPin = (p: IntentPart): boolean => (symbols.get(p.ref)?.pins.length ?? 0) === 2;
   const railsOf = (ref: string): string[] =>
     powerNets
       .filter((net) => netClasses.get(net.name)!.cls === 'rail' && net.pins.some((ep) => ep.startsWith(`${ref}.`)))
@@ -444,7 +556,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   const decapOwner = new Map<string, string>(); // cap ref -> owner IC ref
   for (const p of intent.parts) {
     const sym = symbols.get(p.ref)!;
-    if (sym.isPower || !isCap(p) || sym.pins.length !== 2) continue;
+    if (sym.isPower || !isTwoPin(p)) continue;
     const rail = railOf(p.ref);
     if (!rail || !touchesGround(p.ref)) continue;
     // owner: an IC (3+ pins) on the same rail — same group first, then most
@@ -1309,8 +1421,17 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     /** The net's own endpoints, so a clearance check can ignore them (#217). */
     pins: string[];
   }[] = [];
-  /** Wired-net labels with every wire point of their run as fallback anchors. */
-  const wiredLabels: { label: number; pts: { x: number; y: number }[] }[] = [];
+  /**
+   * Wired-net labels with every wire point of their run as fallback anchors.
+   * `pts` is sorted for anchor preference (topmost-leftmost first) and so says
+   * nothing about which point joins which; `segs` keeps the run's segments in
+   * emission order, which is what the interior walk must step along.
+   */
+  const wiredLabels: {
+    label: number;
+    pts: { x: number; y: number }[];
+    segs: Seg[];
+  }[] = [];
   let wireIdx = new Map<string, number>();
   const addWire = (net: string, x1: number, y1: number, x2: number, y2: number): void => {
     if (sameCoord(x1, x2) && sameCoord(y1, y2)) return; // zero-length once emitted
@@ -1475,32 +1596,17 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         });
       };
       /**
-       * A trunk may not cross the LINE a foreign stub could grow along.
-       * `touchesForeign` predicts foreign stubs at their base length only,
-       * but a signal stub's clearance ladder may extend it two units past
-       * that — jetson-agx-thor-baseboard shipped twelve trunk-on-stub
-       * contacts exactly that way, each a merged net the gate then refused.
-       * Orthogonal segments: bounding-box overlap IS intersection, and it
-       * also catches collinear overlap, conservatively.
+       * A trunk may not cross the LINE a foreign stub could grow along. The
+       * geometry is `segCrossesStubGrowth` (tested directly); this walks every
+       * foreign pin over it at the signal stub's maximum grown length.
        */
-      const crossesForeignStubLine = (seg: { x1: number; y1: number; x2: number; y2: number }): boolean => {
+      const crossesForeignStubLine = (seg: Seg): boolean => {
         for (const opl of placed.values()) {
           for (const pin of opl.sym.pins) {
             const ep = `${opl.refDes}.${pin.number}`;
             const onet = netByEndpoint.get(ep);
             if (!onet || onet.name === net.name) continue;
-            const o = outward(pin);
-            const p = pinAt(opl, pin);
-            const ex = p.x + o.dx * (STUB + 2) * U;
-            const ey = p.y + o.dy * (STUB + 2) * U;
-            if (
-              Math.min(seg.x1, seg.x2) <= Math.max(p.x, ex) + SEG_EPS &&
-              Math.max(seg.x1, seg.x2) >= Math.min(p.x, ex) - SEG_EPS &&
-              Math.min(seg.y1, seg.y2) <= Math.max(p.y, ey) + SEG_EPS &&
-              Math.max(seg.y1, seg.y2) >= Math.min(p.y, ey) - SEG_EPS
-            ) {
-              return true;
-            }
+            if (segCrossesStubGrowth(seg, pinAt(opl, pin), outward(pin), (STUB + 2) * U, SEG_EPS)) return true;
           }
         }
         return false;
@@ -1535,37 +1641,19 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         });
         for (const [j, c] of run.entries()) maybeFlag(c.i, ends[j]!.x, ends[j]!.y);
       };
+      const joinClear = (prev: (typeof cands)[number], c: (typeof cands)[number]): boolean => {
+        const y = c.ep.at.y + c.o.dy * STUB * U;
+        const seg = { x1: prev.ep.at.x, y1: y, x2: c.ep.at.x, y2: y };
+        return (
+          c.ep.at.x - prev.ep.at.x <= BANK_PITCH_MAX * U &&
+          !powerBodies.some((b) => segCrossesBody(seg.x1, seg.y1, seg.x2, seg.y2, b)) &&
+          !touchesForeign([seg], net.name, ownEps, { predictStubs: true }) &&
+          !crossesForeignStubLine(seg)
+        );
+      };
       for (const line of [...byLine.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v)) {
         line.sort((a, b) => a.ep.at.x - b.ep.at.x);
-        let run: typeof cands = [];
-        const flush = (): void => {
-          if (run.length >= 2) emitBank(run);
-          run = [];
-        };
-        for (const c of line) {
-          if (!stubClear(c)) {
-            flush();
-            continue;
-          }
-          if (!run.length) {
-            run.push(c);
-            continue;
-          }
-          const prev = run[run.length - 1]!;
-          const y = c.ep.at.y + c.o.dy * STUB * U;
-          const seg = { x1: prev.ep.at.x, y1: y, x2: c.ep.at.x, y2: y };
-          const clear =
-            c.ep.at.x - prev.ep.at.x <= BANK_PITCH_MAX * U &&
-            !powerBodies.some((b) => segCrossesBody(seg.x1, seg.y1, seg.x2, seg.y2, b)) &&
-            !touchesForeign([seg], net.name, ownEps, { predictStubs: true }) &&
-            !crossesForeignStubLine(seg);
-          if (clear) run.push(c);
-          else {
-            flush();
-            run = [c];
-          }
-        }
-        flush();
+        for (const run of splitBankRuns(line, stubClear, joinClear)) emitBank(run);
       }
     }
     eps.forEach((ep, i) => {
@@ -1794,7 +1882,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         ]);
         pts.sort((a, b) => a.y - b.y || a.x - b.x);
         labels.push({ name: net.name, x: pts[0]!.x, y: pts[0]!.y, rot: 0 });
-        wiredLabels.push({ label: labels.length - 1, pts });
+        wiredLabels.push({ label: labels.length - 1, pts, segs: candidate.map((c) => ({ ...c })) });
         wired++;
         if (eps.length > 2) {
           for (const s of stubs) {
@@ -2027,16 +2115,15 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     // own net's wires: walk the interior grid points of each segment too
     // (#220 phase 2). Endpoints stay the first choice so a run that used to
     // clear keeps its exact label point.
-    const interior: { x: number; y: number }[] = [];
-    for (let i = 0; i + 1 < rec.pts.length; i += 2) {
-      const a = rec.pts[i]!;
-      const b = rec.pts[i + 1]!;
-      const steps = Math.round((Math.abs(b.x - a.x) + Math.abs(b.y - a.y)) / U);
-      const sx = Math.sign(b.x - a.x);
-      const sy = Math.sign(b.y - a.y);
-      for (let k = 1; k < steps; k++) interior.push({ x: a.x + sx * k * U, y: a.y + sy * k * U });
-    }
-    const inner = interior.find((p) => clearWired(p.x, p.y));
+    //
+    // Walk `segs`, never `pts`: `pts` is sorted for anchor preference, so
+    // pairing it up interpolates between two points that share no wire and
+    // anchors the label in open sheet, where KiCad attaches nothing and the
+    // net silently carries whatever name KiCad invents for it instead of the
+    // one the IR gave it. Three corpus nets shipped exactly that way —
+    // Net-(F201-Pad1), Net-(U8-BIN) and Net-(U8-RIN), each anchored on no
+    // wire of its own run.
+    const inner = interiorGridPoints(rec.segs, U).find((p) => clearWired(p.x, p.y));
     if (inner) {
       lb.x = inner.x;
       lb.y = inner.y;
@@ -2364,7 +2451,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     })),
     netClasses: [...netClasses.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([name, c]) => ({ name, class: c.cls, overridden: c.overridden })),
+      .map(([name, c]) => ({ name, class: c.cls, overridden: c.overridden, basis: c.basis })),
     wireCount: wires.length,
     labelCount: labels.length,
     pwrFlags,

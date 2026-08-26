@@ -147,9 +147,16 @@ export function formatSchematicDraftReport(report: SchematicDraftReport): string
     `drafted: ${report.groups.length} group(s), ${report.wireCount} wire segment(s), ${report.labelCount} label(s), ${report.noConnects} no-connect(s) on ${report.paper}`,
   ];
   for (const g of report.groups) lines.push(`  group "${g.name}": ${g.members.join(', ') || '(empty)'}`);
-  const overridden = report.netClasses.filter((n) => n.overridden);
+  // The basis is part of the class, not decoration: `~` marks a class no pin
+  // attests, inferred from the net's NAME alone, which is the one inference a
+  // reader has to check and the IR's `kind` is there to correct.
+  const mark = (n: { overridden: boolean; basis: string }): string => (n.overridden ? '*' : n.basis === 'name' ? '~' : '');
+  const legend = [
+    report.netClasses.some((n) => n.overridden) ? '*=IR override' : '',
+    report.netClasses.some((n) => !n.overridden && n.basis === 'name') ? '~=inferred from the net name, not from any pin type' : '',
+  ].filter(Boolean);
   lines.push(
-    `  net classes: ${report.netClasses.map((n) => `${n.name}=${n.class}${n.overridden ? '*' : ''}`).join(', ')}${overridden.length ? ' (*=IR override)' : ''}`,
+    `  net classes: ${report.netClasses.map((n) => `${n.name}=${n.class}${mark(n)}`).join(', ')}${legend.length ? ` (${legend.join(', ')})` : ''}`,
   );
   if (report.pwrFlags.length) lines.push(`  PWR_FLAG synthesized on: ${report.pwrFlags.join(', ')}`);
   for (const n of report.notes) lines.push(`  note: ${n}`);
