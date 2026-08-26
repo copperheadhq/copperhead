@@ -99,5 +99,6 @@
 - [x] 12.1 Keep docs/reference/schematic-legibility.md in sync with implementation; write docs/reference/schematic-drafting.md explaining the engine's inner workings and rules
 - [x] 12.2 Document the IR schema, `draft`/`score` commands, and the golden corpus workflow (including `--update-goldens`)
 - [x] 12.3 Update .copperhead/README.md scaffold text for the `legibility` config block including score weights
-- [ ] 12.4 Merge delta specs into SPEC.md on archive; the AC-16.x criteria (AC-16.1 through AC-16.32, tagged on the delta-spec scenarios) join SPEC.md's acceptance-criteria table
+- [x] 12.4 Merge delta specs into SPEC.md on archive; the AC-16.x criteria (AC-16.1 through AC-16.32, tagged on the delta-spec scenarios) join SPEC.md's acceptance-criteria table
 - [ ] 12.5 Close #136 and #159 when archived; note the elkjs escape hatch and template-corpus successor in ROADMAP.md
+  - ROADMAP.md note written (Phase 4 item 3, plus the shipped entry under Current state). Issues #136 and #159 are still open: left for the maintainer to close.

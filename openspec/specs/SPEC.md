@@ -79,7 +79,10 @@ copperhead/
 │   ├── kicad/
 │   │   ├── cli.ts          # kicad-cli wrapper (erc, drc, export svg)
 │   │   ├── sexp.ts         # minimal s-expression reader (validation only)
-│   │   └── report.ts       # ERC/DRC .rpt / JSON parser → structured violations
+│   │   ├── report.ts       # ERC/DRC .rpt / JSON parser → structured violations
+│   │   ├── draft/          # deterministic drafting engine: IR → placement → routing → emission
+│   │   ├── legibility.ts   # drawing-quality checker (read-only, no subprocess)
+│   │   └── score.ts        # quantitative sheet score: metrics, weights, composite
 │   ├── memory/
 │   │   ├── scaffold.ts     # `init`: generate docs skeleton from schematic
 │   │   └── drift.ts        # doc-vs-schematic consistency checker
@@ -262,6 +265,17 @@ copperhead init [--path hardware/]
     generate docs/ skeleton pre-filled with the real BOM and pinout
     extracted from the schematic. Idempotent; never overwrites
     hand-edited docs without --force.
+
+copperhead draft schematic [--json]
+    Deterministically draft the schematic from its declared intent
+    (schematic.intent.json): the engine computes every coordinate, wire,
+    label, power symbol, and group box. No LLM, no network. Exits non-zero
+    with numbered findings on a refused intent and writes nothing.
+
+copperhead score schematic [--json]
+    Quantitative drawing-quality score for the sheet: per-metric breakdown,
+    weights, contributions, and the composite. Advisory only — the exit code
+    is 0 regardless of the composite. No LLM, no network.
 
 copperhead do "<change request>" [--model codex|gpt-5|claude] [--max-turns N]
     The core loop. See §4.
@@ -505,6 +519,60 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-8.8 (interactive on a TTY)** With stdout a TTY and neither `--json` nor `--plain`: a bottom-pinned status line redraws in place (spinner while a provider call is in flight, elapsed time, turn counter vs budget, cumulative tokens); assistant text and tool results scroll above it; the final outcome line replaces it; cursor and status line are restored/cleared on exit including Ctrl-C. A renderer reused across runs (the `create` pipeline) renders every stage: each outcome line releases the status line and the next stage re-establishes it. Interactive chrome may use muted SGR color (copper accent, dim secondary text, green/amber/red for outcome); color is never required for correctness.
 - **AC-8.9 (plain fallback)** With stdout piped, or `--json`, or the global `--plain` flag: output is line-oriented and contains zero ANSI escape sequences. With `--json`, progress lines go to stderr; stdout carries only the machine-readable result.
 - **AC-8.10 (redaction holds)** A string matching `sk-[A-Za-z0-9_-]+` planted in any metadata field appears redacted in both the persisted `run-start` event and `summary.md` (extends AC-4.1 to the new surfaces).
+
+### AC-16 · Deterministic schematic drafting (change: deterministic-schematic-drafting)
+
+Placement, routing, and legibility are computed from the netlist rather than sampled from a model. The engine owns every coordinate; the model authors intent only.
+
+**Engine — placement and routing**
+
+- **AC-16.1 (reproducible placement)** The same IR drafted twice on machines with identical vendored symbol sources yields byte-identical `.kicad_sch` files.
+- **AC-16.2 (on-grid by construction)** For any IR, every symbol origin and wire endpoint lies on the 1.27 mm grid, and the legibility checker's `off-grid` family reports zero findings.
+- **AC-16.3 (drafts are legible)** A Tier C reference IR drafts to output with zero error-severity legibility findings.
+- **AC-16.6 (unknown pin rejected)** An IR connecting `U1.99` when the resolved symbol has no pin 99 fails with a numbered finding naming U1, pin 99, and the symbol's actual pin range; the previous schematic is unchanged.
+- **AC-16.7 (BOM mismatch rejected)** An IR part whose refdes is absent from BOM.md, or whose value differs from BOM.md's, fails validation naming the refdes and both values, before any placement runs.
+- **AC-16.8 (power nets are never routed)** A power-class net reaching twelve pins draws one power symbol per reached pin and no wire spanning them.
+- **AC-16.9 (undriven rail gets a PWR_FLAG)** A power-class net sourced only by a connector pin carries exactly one synthesized `PWR_FLAG`, and ERC reports no undriven-power violation.
+- **AC-16.10 (declared no-connect passes ERC)** An IR declaring `U1.8` no-connect emits a `(no_connect …)` marker at that pin, and ERC reports no unconnected-pin violation for it.
+- **AC-16.11 (report embeds check and score)** A successful draft's report carries the checker's findings (or a clean statement) and the score composite with its breakdown, without separate tool calls.
+- **AC-16.31 (straight-through passives)** A series RC between two aligned pins, drafted within one group, puts both passives on the shared axis with zero bends in every wire of the chain.
+
+**Emission — determinism and fidelity**
+
+- **AC-16.4 (byte-identical regeneration)** Drafting the same IR, committing, and drafting again leaves `git diff` over the schematic empty.
+- **AC-16.5 (library upgrade is inert)** When the installed KiCad symbol library changes after a symbol was vendored, re-drafting the same IR is byte-identical to the pre-upgrade output, and `verify_symbols` reports the divergence between vendored and installed sources.
+- **AC-16.12 (output loads in kicad-cli)** Every golden IR drafted in CI loads in `kicad-cli` without error, and ERC runs to completion.
+- **AC-16.13 (connectivity matches intent)** Parsing a drafted reference IR yields a net list equal to the IR's connection list, with no-connect pins excluded.
+
+**Legibility checker**
+
+- **AC-16.27 (clean fixture is clean)** The checker reports zero findings at every severity on the well-drafted fixture schematic.
+- **AC-16.28 (checker is inert)** Running the checker leaves the schematic's bytes unchanged and makes no subprocess or network call.
+- **AC-16.29 (grid findings lead)** On a sheet with both `off-grid` findings and findings from other families, the `off-grid` findings appear before every other family in the report.
+- **AC-16.30 (family can be disabled)** With `legibility.severity.crowding` set to `off`, no `crowding` findings are produced and the family is listed as disabled in the report.
+
+**Scoring and the three-tier harness**
+
+- **AC-16.14 (scoring is reproducible)** Two scorer runs on the same schematic produce identical metrics and composite.
+- **AC-16.15 (error finding caps the score)** A sheet scoring well on every metric but carrying one error-severity legibility finding reports a composite capped below the Tier A floor, with the cap stated in the breakdown.
+- **AC-16.16 (Tier A catches false positives)** A checker or scorer change that raises an error-severity finding on a Tier A sheet fails CI, naming the sheet and the finding.
+- **AC-16.17 (Tier B catches detection regressions)** A change that stops a Tier B fixture's pinned finding from being reported fails CI, naming the fixture and the missing finding.
+- **AC-16.18 (Tier C catches engine regressions)** An engine change that alters a Tier C output's bytes or lowers its pinned score fails CI with the file diff or the score delta.
+- **AC-16.32 (aesthetic metrics are measured)** The breakdown reports axis-alignment ratio, spacing uniformity, straight-wire ratio, label alignment, whitespace balance, and pair symmetry as individual metrics with their weights and contributions.
+
+**Agent loop and create pipeline**
+
+- **AC-16.19 (model authors no geometry)** When the schematic stage completes in drafting mode, every geometry element was written by the engine and the transcript holds no `edit_file` call against the schematic.
+- **AC-16.20 (stale draft does not complete the stage)** When the schematic on disk does not match a re-draft of the current IR, `create` reports the stage contract as unmet with a resume hint to re-draft, and does not advance.
+- **AC-16.21 (score is recorded)** A schematic stage completing with an engine-drafted sheet records the score composite and per-metric breakdown in the run summary.
+- **AC-16.22 (illegible sheet does not complete the stage)** When the stage's run succeeds with symbols present and drift clean but the checker reports error-severity legibility findings, `create` reports the contract as unmet with finding counts by kind, does not advance, and a re-run resumes at the schematic stage.
+- **AC-16.23 (hand edit is redirected to the IR)** An `edit_file` call against an engine-drafted schematic during the schematic stage is refused naming `draft_schematic` as the correct path, and no file changes.
+- **AC-16.24 (`finish` refuses while illegible)** Calling `finish` with outcome "done" while error-severity legibility findings remain lists them as unmet obligations, and the run does not conclude as done.
+
+**CLI surface — legibility never gates `check`**
+
+- **AC-16.25 (illegible schematic still exits zero)** `check` on a repo with error-severity legibility findings but clean ERC and DRC prints them under a legibility heading and exits 0.
+- **AC-16.26 (score rides along without gating)** `check --json` on a repo with a drafted schematic and a low composite carries the `score` object with composite and breakdown, and the exit code is unaffected.
 
 ### AC-5 · Viewer (Phase 2 — only if built)
 
