@@ -3,7 +3,7 @@ import path from 'node:path';
 import { writeFile, readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execa } from 'execa';
-import { checkpoint, wipRef, snapshot, restore, headCommit, branchName } from '../src/util/git.js';
+import { checkpoint, checkpointTree, recordWipRef, wipRef, snapshot, restore, headCommit, branchName } from '../src/util/git.js';
 import { tempFixtureRepo } from './helpers.js';
 
 /**
@@ -149,5 +149,130 @@ describe('WIP checkpoints (issue #208)', () => {
     // A checkpoint is a safety net, never a gate: it must not fail the stage
     // that was about to be rolled back anyway.
     await expect(checkpoint(path.join('does', 'not', 'exist'), 'schematic', 'x')).resolves.toBeNull();
+  }, 60_000);
+
+  it('returns null rather than throwing when the temp directory cannot be allocated', async () => {
+    // Regression: mkdtemp() used to run outside the try block, so an
+    // allocation failure rejected instead of returning null like every other
+    // checkpoint failure. Forcing os.tmpdir() to resolve to a path that does
+    // not exist reproduces that allocation failure.
+    const { repo, cleanup } = await tempFixtureRepo();
+    const savedEnv = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
+    try {
+      await commitEverything(repo, 'base');
+      await writeFile(path.join(repo, 'NOTES.md'), 'in progress\n', 'utf8');
+
+      const bogus = path.join(repo, 'does-not-exist', 'nested');
+      process.env.TMPDIR = bogus;
+      process.env.TMP = bogus;
+      process.env.TEMP = bogus;
+
+      await expect(checkpointTree(repo, 'copperhead: WIP')).resolves.toBeNull();
+    } finally {
+      process.env.TMPDIR = savedEnv.TMPDIR;
+      process.env.TMP = savedEnv.TMP;
+      process.env.TEMP = savedEnv.TEMP;
+      await cleanup();
+    }
+  }, 60_000);
+
+  it('never edits .gitignore, even when it must exclude a path from the checkpoint', async () => {
+    // Regression: checkpoint() used to call ensureIgnored() to keep .history/
+    // out of the commit, which writes to the caller's .gitignore. That both
+    // pollutes the checkpoint with an unrelated edit (the next git add -A
+    // would pick the .gitignore change straight back up) and can produce a
+    // checkpoint out of nothing but that edit when the excluded path was the
+    // only pre-existing dirty content.
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await commitEverything(repo, 'base');
+      const gitignoreBefore = existsSync(path.join(repo, '.gitignore'))
+        ? await readFile(path.join(repo, '.gitignore'), 'utf8')
+        : null;
+
+      await mkdir(path.join(repo, '.history'), { recursive: true });
+      await writeFile(path.join(repo, '.history', 'scratch.txt'), 'excluded\n', 'utf8');
+      await writeFile(path.join(repo, 'NOTES.md'), 'in progress\n', 'utf8');
+
+      const sha = await checkpoint(repo, 'schematic', 'copperhead: WIP');
+      expect(sha, 'the non-excluded file should still produce a checkpoint').toBeTruthy();
+
+      const gitignoreAfter = existsSync(path.join(repo, '.gitignore'))
+        ? await readFile(path.join(repo, '.gitignore'), 'utf8')
+        : null;
+      expect(gitignoreAfter, '.gitignore must be byte-identical to before the checkpoint').toBe(gitignoreBefore);
+
+      const { stdout: files } = await git(repo, ['show', '--name-only', '--format=', sha!]);
+      expect(files).toContain('NOTES.md');
+      expect(files).not.toContain('.history/scratch.txt');
+      expect(files).not.toContain('.gitignore');
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+
+  it('produces no checkpoint when the only pre-existing dirty path is excluded', async () => {
+    // Regression: with the old ensureIgnored() call, writing .history/ into
+    // .gitignore was itself a dirty-tree change, so a tree whose only real
+    // content was under .history/ still produced a checkpoint — one holding
+    // nothing but the .gitignore edit.
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await commitEverything(repo, 'base');
+      await mkdir(path.join(repo, '.history'), { recursive: true });
+      await writeFile(path.join(repo, '.history', 'scratch.txt'), 'excluded\n', 'utf8');
+
+      await expect(checkpoint(repo, 'schematic', 'copperhead: WIP')).resolves.toBeNull();
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+
+  it('checkpointTree() before restore() captures the failed attempt; checkpoint() after does not', async () => {
+    // This is the bug the split exists to fix (issue #208 follow-up): the
+    // create pipeline used to call checkpoint() *after* runAgentLoop had
+    // already rolled the tree back on failure, so it checkpointed the clean,
+    // restored tree rather than the failed attempt. checkpointTree() lets a
+    // caller capture the dirty tree first — this test reproduces both the old
+    // bug and the fix in one place, with the exact call order each uses.
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await commitEverything(repo, 'base');
+      const snap = await snapshot(repo);
+
+      // The shape of a failed attempt's work: an accepted draft plus an
+      // untracked handoff note, exactly as runAgentLoop would leave it right
+      // before its own fail()/refused branch calls restore().
+      await writeFile(path.join(repo, 'DRAFT.md'), 'accepted draft content\n', 'utf8');
+      await writeFile(path.join(repo, 'HANDOFF.md'), 'what this attempt learned\n', 'utf8');
+
+      // The fix: runAgentLoop's failure paths now capture before rolling back.
+      const failedAttemptCommit = await checkpointTree(repo, 'copperhead: WIP checkpoint — NOT CERTIFIED (test)');
+      expect(failedAttemptCommit, 'the dirty tree should produce a checkpoint').toBeTruthy();
+
+      // The rollback runAgentLoop performs right after.
+      await restore(repo, snap);
+      expect(existsSync(path.join(repo, 'HANDOFF.md')), 'rollback should remove the untracked file').toBe(false);
+      expect(existsSync(path.join(repo, 'DRAFT.md')), 'rollback should remove the tracked draft').toBe(false);
+
+      // create.ts, once it knows the stage, points the ref at what was
+      // already captured — it does not re-derive from the (now clean) tree.
+      await recordWipRef(repo, 'schematic', failedAttemptCommit!);
+      const { stdout: resolved } = await git(repo, ['rev-parse', wipRef('schematic')]);
+      expect(resolved.trim()).toBe(failedAttemptCommit);
+
+      const { stdout: files } = await git(repo, ['show', '--name-only', '--format=', failedAttemptCommit!]);
+      expect(files, 'the checkpoint must hold the failed attempt, not the post-rollback tree').toContain('HANDOFF.md');
+      expect(files).toContain('DRAFT.md');
+
+      // The bug, reproduced: calling checkpoint() the old way — after the
+      // rollback, the way create.ts used to — finds a clean tree and records
+      // nothing, silently losing the attempt this whole feature exists to
+      // preserve.
+      const postRollbackAttempt = await checkpoint(repo, 'schematic', 'copperhead: WIP (post-rollback, buggy order)');
+      expect(postRollbackAttempt, 'checkpointing after restore() has nothing left to capture').toBeNull();
+    } finally {
+      await cleanup();
+    }
   }, 60_000);
 });
