@@ -169,9 +169,15 @@ describe('WIP checkpoints (issue #208)', () => {
 
       await expect(checkpointTree(repo, 'copperhead: WIP')).resolves.toBeNull();
     } finally {
-      process.env.TMPDIR = savedEnv.TMPDIR;
-      process.env.TMP = savedEnv.TMP;
-      process.env.TEMP = savedEnv.TEMP;
+      // `process.env.X = undefined` sets the literal string "undefined"
+      // rather than unsetting X — on a machine where one of these was never
+      // set (TMPDIR is commonly unset on Linux, falling back to /tmp), that
+      // would leave os.tmpdir() permanently broken for every test that runs
+      // after this one, in this same process.
+      for (const [key, value] of Object.entries(savedEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
       await cleanup();
     }
   }, 60_000);
