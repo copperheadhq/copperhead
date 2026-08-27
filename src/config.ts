@@ -23,11 +23,22 @@ export interface LegibilityUserConfig {
   };
 }
 
+/**
+ * Optional routing-engine configuration (issue #252). Local-only engines may run
+ * inside a gate; cloud routers stay opt-in and never on `check`'s path.
+ */
+export interface RoutingUserConfig {
+  /** Path to the Freerouting jar — absolute, or relative to the working directory. */
+  freeroutingJar?: string;
+}
+
 export interface CopperheadConfig {
   schematic: string | null;
   board: string | null;
   /** Schematic legibility checker thresholds and severity overrides. */
   legibility?: LegibilityUserConfig;
+  /** Routing-engine configuration (issue #252): local engine settings. */
+  routing?: RoutingUserConfig;
   docs: string;
   model: string | null;
   maxTurns: number;
@@ -130,6 +141,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
+    ...(raw.routing && typeof raw.routing === 'object' ? { routing: raw.routing } : {}),
   };
 }
 

@@ -16,6 +16,13 @@ export interface CheckReport {
   ok: boolean;
   source: 'erc' | 'drc';
   violations: Violation[];
+  /**
+   * DRC `unconnected_items` — nets left unrouted (ratsnest). Kept distinct from
+   * `violations` so the fab release gate can name each unrouted net and its
+   * location, while `ok` still counts them (a board with unrouted nets is not
+   * DRC-clean). Always `[]` for ERC, which has no such bucket.
+   */
+  unrouted: Violation[];
 }
 
 interface RawItem {
@@ -57,13 +64,18 @@ export function normalizeReport(raw: unknown, source: 'erc' | 'drc'): CheckRepor
     schematic_parity?: RawViolation[];
   };
   const violations: Violation[] = [];
+  const unrouted: Violation[] = [];
   for (const sheet of r.sheets ?? []) {
     for (const v of sheet.violations ?? []) violations.push(normViolation(v, sheet.path));
   }
   for (const v of r.violations ?? []) violations.push(normViolation(v));
-  for (const v of r.unconnected_items ?? []) violations.push(normViolation(v));
+  for (const v of r.unconnected_items ?? []) {
+    const nv = normViolation(v);
+    violations.push(nv);
+    unrouted.push(nv);
+  }
   for (const v of r.schematic_parity ?? []) violations.push(normViolation(v));
-  return { ok: violations.length === 0, source, violations };
+  return { ok: violations.length === 0, source, violations, unrouted };
 }
 
 export function formatViolations(report: CheckReport): string {
