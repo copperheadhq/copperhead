@@ -11,6 +11,24 @@ import {
   KicadCliMissingError,
 } from '../src/kicad/cli.js';
 
+const isWin = process.platform === 'win32';
+
+/**
+ * Writes a fake kicad-cli-like executable that prints `version` and returns
+ * the path actually used to run it. A bare shebang script has no Windows
+ * equivalent (execa spawns directly, and Windows only runs recognized
+ * executable extensions), so on win32 this appends `.cmd` and writes a batch
+ * file instead; callers must use the returned path, not `basePath`, for any
+ * assertion or fallback-list entry that needs to match what was written.
+ */
+async function writeFakeCli(basePath: string, version: string): Promise<string> {
+  const p = isWin ? `${basePath}.cmd` : basePath;
+  await mkdir(path.dirname(p), { recursive: true });
+  await writeFile(p, isWin ? `@echo ${version}\r\n` : `#!/bin/sh\necho "${version}"\n`, 'utf8');
+  if (!isWin) await chmod(p, 0o755);
+  return p;
+}
+
 /**
  * Binary resolution is pure local logic (an env var plus filesystem probes),
  * so it is testable without KiCad installed. `check` depends on it, and check
@@ -98,10 +116,7 @@ describe('kicad-cli binary resolution', () => {
     // probe at a fixture. Covers the retry: the first spawn ENOENTs on the
     // bare PATH name, the second runs the resolved bundle binary.
     delete process.env.COPPERHEAD_KICAD_CLI;
-    const bundle = path.join(dir, 'KiCad.app', 'Contents', 'MacOS', 'kicad-cli');
-    await mkdir(path.dirname(bundle), { recursive: true });
-    await writeFile(bundle, '#!/bin/sh\necho "9.0.1"\n', 'utf8');
-    await chmod(bundle, 0o755);
+    const bundle = await writeFakeCli(path.join(dir, 'KiCad.app', 'Contents', 'MacOS', 'kicad-cli'), '9.0.1');
     setKicadFallbackBinaries([path.join(dir, 'absent', 'kicad-cli'), bundle]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
@@ -121,14 +136,16 @@ describe('kicad-cli binary resolution', () => {
     // that could still succeed. Reaching KicadCliMissingError therefore proves
     // the fallback was never attempted, rather than attempted and also empty.
     const onPath = path.join(dir, 'path-bin');
-    await mkdir(onPath, { recursive: true });
-    const pathBinary = path.join(onPath, 'kicad-cli');
-    await writeFile(pathBinary, '#!/bin/sh\necho "8.0.4"\n', 'utf8');
-    await chmod(pathBinary, 0o755);
+    // Named exactly "kicad-cli" (the bare name production code spawns via
+    // PATH): on Windows this becomes kicad-cli.cmd, which execa's PATHEXT-aware
+    // bare-name resolution finds the same way it would find kicad-cli.exe.
+    await writeFakeCli(path.join(onPath, 'kicad-cli'), '8.0.4');
 
-    const override = path.join(dir, 'custom-kicad'); // deliberately not "kicad-cli"
+    // deliberately not "kicad-cli" — never actually spawned in this test (it's
+    // deleted before kicadCliVersion() reads it), so it needs to exist for
+    // existsSync(), not to be executable; plain content is fine on any OS.
+    const override = path.join(dir, 'custom-kicad');
     await writeFile(override, '#!/bin/sh\necho "9.9.9"\n', 'utf8');
-    await chmod(override, 0o755);
 
     setKicadFallbackBinaries([]);
     const savedPath = process.env.PATH;

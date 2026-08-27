@@ -106,7 +106,7 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('refuse outcome needs no gates (AC-3.4 mechanism)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();

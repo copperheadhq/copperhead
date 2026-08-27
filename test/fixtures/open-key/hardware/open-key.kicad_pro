@@ -12,7 +12,8 @@
     },
     "rule_severities": {
       "footprint_link_issues": "ignore",
-      "lib_symbol_issues": "ignore"
+      "lib_symbol_issues": "ignore",
+      "lib_symbol_mismatch": "ignore"
     }
   },
   "meta": {

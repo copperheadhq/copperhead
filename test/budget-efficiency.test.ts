@@ -104,7 +104,7 @@ describe('turn-budget exhaustion (AC-15.1..15.4)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('declining keeps fail-and-restore, but preserves the touched work in a stash (AC-15.16)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -143,7 +143,7 @@ describe('turn-budget exhaustion (AC-15.1..15.4)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('no callback (non-interactive) fails exactly as before, no stash for an untouched tree (AC-15.3, AC-15.17)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -163,7 +163,7 @@ describe('turn-budget exhaustion (AC-15.1..15.4)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('a throwing callback reads as declined: the run still restores instead of crashing past rollback', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -197,7 +197,7 @@ describe('turn-budget exhaustion (AC-15.1..15.4)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('the 5-turns-remaining nudge tells the model to batch tool calls (AC-15.6)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -213,7 +213,7 @@ describe('turn-budget exhaustion (AC-15.1..15.4)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('preserveFailedRun (safety-rails)', () => {
@@ -510,7 +510,7 @@ describe('empty-completion tolerance (agent loop)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('three consecutive tool-less turns still fail the run', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -532,5 +532,5 @@ describe('empty-completion tolerance (agent loop)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 });

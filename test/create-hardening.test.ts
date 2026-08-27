@@ -65,7 +65,7 @@ describe('KiCad edit probe validation (AC-15.20..15.22)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('an edit to a .kicad_pro is applied, not auto-reverted (AC-15.21)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -83,7 +83,7 @@ describe('KiCad edit probe validation (AC-15.20..15.22)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('an edit that corrupts a loadable schematic is reverted with the kicad-cli reason (AC-15.20)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -102,7 +102,7 @@ describe('KiCad edit probe validation (AC-15.20..15.22)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('an already-unloadable schematic keeps repair edits instead of deadlocking (AC-15.22)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -122,7 +122,7 @@ describe('KiCad edit probe validation (AC-15.20..15.22)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('drift bootstrap exemption and check warning (AC-15.25, AC-15.26)', () => {

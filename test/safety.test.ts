@@ -262,9 +262,16 @@ describe('git guard (AC-3.8, AC-3.6)', () => {
       await restore(repo, snap);
 
       // The user's uncommitted edit and both untracked files come back...
+      // (.replace(/\r\n/g, '\n'): git's stash apply / checkout round-trip can
+      // normalize line endings on Windows, same as elsewhere in this suite —
+      // only the line-ending representation is normalized, not the content.)
       expect(await readFile(sch, 'utf8')).toBe(tracked.replace('KEY_DAH', 'KEY_EDITED'));
-      expect(await readFile(path.join(repo, 'hand-written-notes.md'), 'utf8')).toBe('do not lose me\n');
-      expect(await readFile(path.join(repo, 'docs', 'new-doc.md'), 'utf8')).toBe('nested and untracked\n');
+      expect((await readFile(path.join(repo, 'hand-written-notes.md'), 'utf8')).replace(/\r\n/g, '\n')).toBe(
+        'do not lose me\n',
+      );
+      expect((await readFile(path.join(repo, 'docs', 'new-doc.md'), 'utf8')).replace(/\r\n/g, '\n')).toBe(
+        'nested and untracked\n',
+      );
       // ...and the failed run's own scratch file does not.
       expect(existsSync(path.join(repo, 'agent-scratch.txt'))).toBe(false);
     } finally {
@@ -307,7 +314,16 @@ describe('git guard (AC-3.8, AC-3.6)', () => {
     }
   });
 
-  it('refuses the run, naming the file, when an untracked path cannot be read', async () => {
+  // Windows has no POSIX permission bits: chmod(0o000) only toggles the
+  // read-only file *attribute*, which does not stop the owning process from
+  // reading its own file, so readableOnly()'s access(R_OK) check below never
+  // sees a failure to refuse on. Genuinely denying read access on Windows
+  // needs an ACL change (icacls), which is its own source of flakiness (needs
+  // the exact account name, and must be restored before tempFixtureRepo's
+  // cleanup can delete the file) for a scenario this suite already covers on
+  // POSIX — same call this codebase already makes for other permission-bit
+  // tests (e.g. the secret scanner's symlink handling).
+  it.skipIf(process.platform === 'win32')('refuses the run, naming the file, when an untracked path cannot be read', async () => {
     // Regression: every untracked path went straight into `git update-index`,
     // which aborts the whole batch on the first it cannot open. snapshot() runs
     // before the first turn, so one stray root-owned or mode-000 file refused

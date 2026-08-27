@@ -77,6 +77,11 @@ describe('copperhead init (AC-1)', () => {
 });
 
 describe('copperhead check (AC-2)', () => {
+  // Runs in ~25s isolated, but this test's two kicad-cli subprocess calls
+  // (ERC + DRC) contend with every other kicad-cli-invoking test file running
+  // in parallel across vitest's worker processes, which can push wall-clock
+  // time well past 120s on a full `npm test` run — 240s gives headroom for
+  // that contention without hiding a genuine hang.
   it('clean fixture: everything green (AC-2.1) and stable JSON keys (AC-2.4)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -93,7 +98,7 @@ describe('copperhead check (AC-2)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 240_000);
 
   it('broken schematic (unconnected pin): fails with location (AC-2.2)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -110,7 +115,7 @@ describe('copperhead check (AC-2)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 
   it('BOM value drift: names doc, claim, and actual (AC-2.3)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -152,7 +157,7 @@ describe('copperhead check (AC-2)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('check is LLM-free by construction (AC-2.1)', () => {
@@ -194,7 +199,7 @@ describe('fab export (create stage 6 tooling)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 120_000);
 });
 
 describe('model selection precedence (task 4.6)', () => {

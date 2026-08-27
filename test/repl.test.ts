@@ -24,7 +24,7 @@ import { fiducialBootFrames, prefersAnimation } from '../src/agent/animate.js';
 import { plainRenderer } from '../src/agent/render.js';
 import { setColorEnabled } from '../src/agent/theme.js';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 
@@ -203,7 +203,10 @@ describe('repl chrome', () => {
   it('shortens home paths and keeps banner / help readable', () => {
     setColorEnabled(false);
     process.env.COPPERHEAD_NO_ANIM = '1';
-    expect(shortPath(`${process.env.HOME}/OpenSource/circuits/copperhead`)).toMatch(/^~/);
+    // shortPath() matches against os.homedir() with path.sep, not
+    // process.env.HOME joined with a hardcoded '/' — the latter mismatches on
+    // Windows (HOME may differ from homedir(), and '/' isn't path.sep there).
+    expect(shortPath(path.join(homedir(), 'OpenSource', 'circuits', 'copperhead'))).toMatch(/^~/);
     const text = banner({
       repoRoot: '/tmp/demo-board',
       model: 'cursor',

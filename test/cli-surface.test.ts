@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import {
@@ -36,7 +37,12 @@ describe('--repo resolution', () => {
   });
 
   it('passes an absolute path through unchanged', () => {
-    expect(repoOf({ repo: '/tmp/some-repo' })).toBe('/tmp/some-repo');
+    // '/tmp/some-repo' is only absolute on POSIX; path.resolve() on Windows
+    // treats it as drive-relative and rewrites it. os.tmpdir() is absolute
+    // and platform-correct on either OS, so it exercises the same "already
+    // absolute -> untouched" behavior without hardcoding a POSIX path.
+    const abs = path.join(os.tmpdir(), 'some-repo');
+    expect(repoOf({ repo: abs })).toBe(abs);
   });
 
   it('defaults to the working directory', () => {
