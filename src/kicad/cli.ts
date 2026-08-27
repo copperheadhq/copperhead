@@ -219,6 +219,22 @@ export function runDrc(pcbPath: string): Promise<CheckReport> {
   return runCheck('drc', pcbPath);
 }
 
+/**
+ * Export the schematic netlist as a KiCad s-expression string
+ * (`kicad-cli sch export netlist --format kicadsexpr`). Read by the board
+ * population step (issue #252) to seed a `.kicad_pcb` with real parts and nets.
+ */
+export async function exportNetlist(schPath: string): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-net-'));
+  const out = path.join(dir, 'netlist.net');
+  try {
+    await runKicad(['sch', 'export', 'netlist', '--format', 'kicadsexpr', '--output', out, schPath]);
+    return await readFile(out, 'utf8');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 export interface FabExportResult {
   produced: string[];
   failed: { artifact: string; reason: string }[];

@@ -256,7 +256,7 @@ export const STAGES: Stage[] = [
       return docHasContent(root, path.join(docs, 'LAYOUT.md'), '## Draft quality');
     },
     prompt: () =>
-      'Stage 5: first-draft layout. Rule-driven placement written as real coordinates: connectors on edges, decoupling at IC pins, ESD at connectors, keepouts honored. Route power and short critical nets; leave the rest as ratsnest. Every routed net must pass run_drc. Then write the "## Draft quality" section in LAYOUT.md: exactly what is fine and what a human or specialist tool should redo. Non-optimal is acceptable; unlabeled non-optimal is not.',
+      'Stage 5: first-draft layout. Call layout_board to populate the board deterministically from the schematic netlist — it resolves real footprints (pad geometry + nets) from the installed KiCad libraries and places them on a grid; never hand-author coordinates. If a Freerouting jar is configured, call layout_board with route=true to route the nets (every SES import is DRC-checked and rolled back on hard violations). Then write the "## Draft quality" section in LAYOUT.md: exactly what is fine (grid placement, ratsnest) and what a human or specialist tool should redo before fab. Non-optimal is acceptable; unlabeled non-optimal is not.',
   },
   {
     name: 'outputs',

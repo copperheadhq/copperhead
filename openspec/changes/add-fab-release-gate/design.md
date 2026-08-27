@@ -41,3 +41,7 @@ Purely additive flag; no behavior change without `--fab`. Rollback is removing t
 ## Open Questions
 
 - Whether stage 6 should start writing the export hash record immediately (task here) or wait for a dedicated `copperhead export` command (Phase 3 idea); this change writes it in stage 6 and any future export path inherits the contract.
+
+## Issue #252 follow-on (placement/routing engine boundary)
+
+The routing-completeness gate (task 1.1) and the `--fab`/`--strict` CLI wiring (tasks 3.1–3.3) were delivered under issue #252; the remaining checks (BOM readiness, schematic-to-PCB match, output freshness — tasks 1.2–1.4) are unchanged and out of #252's scope. Issue #252 also landed the board half of `create` end to end: board population from the exported netlist (`src/kicad/board.ts`, `netlist.ts`, `fplib.ts`), a deterministic grid placer (`PlacementEngine`), a TypeScript Specctra DSN/SES bridge plus a local Freerouting adapter (`RoutingEngine`), and the `layout_board` agent tool driving populate → place → route → DRC → rollback. The routing-completeness gate is wired into the export step (`export_outputs`) so an unrouted board cannot silently reach fabrication without an explicit override. Connectivity-aware placement remains a deferred follow-up (#141), not part of #252.

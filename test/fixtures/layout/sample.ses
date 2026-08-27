@@ -1,0 +1,57 @@
+(session "open-key.ses"
+  (base_design "open-key.dsn")
+  (placement
+    (resolution um 10)
+    (component "U1"
+      (place U1 5000 -5000 front 0)
+    )
+    (component "R1"
+      (place R1 10000 -10000 front 90)
+    )
+  )
+  (was_is
+  )
+  (routes
+    (resolution um 10)
+    (library_out
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle F.Cu 600)
+        )
+        (shape
+          (circle B.Cu 600)
+        )
+        (attach off)
+      )
+    )
+    (network_out
+      (net "KEY_DAH"
+        (wire
+          (path F.Cu 250
+            9000 -8000
+            12000 -8000
+          )
+          (type protect)
+        )
+        (via "Via[0-1]_600:300_um" 12000 -8000)
+        (wire
+          (path B.Cu 250
+            12000 -8000
+            12000 -11000
+            14000 -11000
+          )
+          (type protect)
+        )
+      )
+      (net "GND"
+        (wire
+          (path F.Cu 400
+            2000 -2000
+            2000 -12000
+          )
+          (type protect)
+        )
+      )
+    )
+  )
+)

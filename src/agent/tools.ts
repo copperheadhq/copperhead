@@ -4,7 +4,7 @@ import type { ToolSchema } from './types.js';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from './filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
 import { runErc, runDrc, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
-import { formatViolations, type CheckReport } from '../kicad/report.js';
+import { formatViolations, hardViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
 import { scoreSchematic, formatScore } from '../kicad/score.js';
@@ -15,7 +15,8 @@ import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../m
 import { openspecValidate } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import type { CopperheadConfig } from '../config.js';
-import { isEngineAuthoredSchematic } from '../kicad/fab.js';
+import { isEngineAuthoredSchematic, checkRoutingCompleteness } from '../kicad/fab.js';
+import { runBoardLayout, formatBoardLayoutResult } from '../kicad/layout/layout.js';
 import { ObligationsLedger } from './ledger.js';
 import type { Transcript } from './transcript.js';
 
@@ -544,9 +545,44 @@ export const TOOLS: ToolDef[] = [
         return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
       const report = await runDrc(path.join(ctx.repoRoot, ctx.config.board));
       ctx.lastDrc = report;
-      if (report.ok) ctx.ledger.clear('drc');
+      // A ratsnest is not a hard violation — the agent may legitimately stop at
+      // an unrouted draft, and the fab release gate refuses that separately. The
+      // DRC obligation clears on "no hard violations", matching layout_board.
+      if (hardViolations(report).length === 0) ctx.ledger.clear('drc');
       else ctx.repairCycles++;
       return formatViolations(report);
+    },
+  },
+  {
+    schema: {
+      name: 'layout_board',
+      description:
+        'Populate the board deterministically from the schematic netlist: resolve footprints from the installed KiCad libraries, place them on a grid, and (with route=true) route through a local Freerouting jar. Writes the board and verifies with DRC, rolling back if the router introduces violations.',
+      parameters: {
+        type: 'object',
+        properties: { route: { type: 'boolean', description: 'route with a local Freerouting jar after placement (default false)' } },
+        required: [],
+      },
+    },
+    requiresUnlock: true,
+    handler: async (ctx, args) => {
+      if (!ctx.config.schematic || !ctx.config.board) return 'no schematic/board configured; layout_board does not apply yet';
+      // The jar is resolved inside runBoardLayout so the config/env precedence is
+      // honoured no matter who drives the flow; a missing jar surfaces as a typed
+      // routing failure in the result rather than aborting the tool call.
+      const result = await runBoardLayout({
+        schPath: path.join(ctx.repoRoot, ctx.config.schematic),
+        pcbPath: path.join(ctx.repoRoot, ctx.config.board),
+        route: args.route === true,
+        config: ctx.config,
+      });
+      ctx.filesTouched.add(ctx.config.board);
+      // Store the *real* DRC report for the final on-disk board, so a later
+      // run_drc on the same file can never disagree with what the agent saw.
+      ctx.lastDrc = result.drc;
+      if (hardViolations(result.drc).length === 0) ctx.ledger.clear('drc');
+      else ctx.repairCycles++;
+      return formatBoardLayoutResult(result);
     },
   },
   {
@@ -573,12 +609,33 @@ export const TOOLS: ToolDef[] = [
     schema: {
       name: 'export_outputs',
       description:
-        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Reports per-artifact success/failure.',
-      parameters: { type: 'object', properties: {}, required: [] },
+        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Refuses on an unrouted board unless allow_unrouted=true (a deliberately unrouted draft). Reports per-artifact success/failure.',
+      parameters: {
+        type: 'object',
+        properties: {
+          allow_unrouted: {
+            type: 'boolean',
+            description: 'proceed with the export even when the board has unrouted nets (explicit override for a deliberate draft)',
+          },
+        },
+        required: [],
+      },
     },
     requiresUnlock: true,
-    handler: async (ctx) => {
+    handler: async (ctx, args) => {
       if (!ctx.config.board) return 'no board configured';
+      // Routing gate (issue #252): a zero-copper / unrouted board must not
+      // silently proceed to fabrication. This is the same check `check --fab`
+      // runs, applied at the export boundary with an explicit override.
+      const drc = await runDrc(path.join(ctx.repoRoot, ctx.config.board));
+      const routing = checkRoutingCompleteness(drc);
+      if (routing.status !== 'pass' && args.allow_unrouted !== true) {
+        const nets = routing.violations.map((v) => v.actual).join(', ');
+        return (
+          `refusing to export: the board has unrouted nets (${nets}). ` +
+          `Route the board (layout_board route=true) or pass allow_unrouted=true to export a deliberate draft.`
+        );
+      }
       const outDir = path.join(ctx.repoRoot, 'outputs');
       await mkdir(outDir, { recursive: true });
       const res = await exportFab(
@@ -799,7 +856,9 @@ export const TOOLS: ToolDef[] = [
       if (touchedKicad) {
         if (!ctx.lastErc?.ok) problems.push('ERC has not passed since the last schematic edit (run run_erc)');
         const touchedPcb = [...ctx.filesTouched].some((f) => f.endsWith('.kicad_pcb'));
-        if (touchedPcb && !ctx.lastDrc?.ok) problems.push('DRC has not passed since the last board edit (run run_drc)');
+        if (touchedPcb && !ctx.lastDrc) problems.push('DRC has not run since the last board edit (run run_drc)');
+        else if (touchedPcb && hardViolations(ctx.lastDrc!).length > 0)
+          problems.push('DRC has not passed since the last board edit (run run_drc)');
       }
       // the changelog obligation is cleared by the commit path itself
       const blocking = ctx.ledger.openObligations.filter((o) => o.kind !== 'changelog');
