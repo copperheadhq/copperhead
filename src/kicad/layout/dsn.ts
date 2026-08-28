@@ -25,7 +25,11 @@
  * The SES side mirrors Freerouting's own writer (`SesWriter.java`): wires live
  * under `(routes (network_out (net "N" (wire (path <layer> <width> x y …)) …)))`,
  * a path names its layer *before* its width, and a via names a padstack rather
- * than carrying its own geometry.
+ * than carrying its own geometry. **SES coordinates are in resolution units, not
+ * raw units:** `SesWriter` emits the board's internal coordinates directly, and
+ * for `(resolution um 10)` those are 0.1 µm each (so 1 mm is `10000`, not
+ * `1000`). {@link unitsPerMmOf} applies that factor when reading a session; the
+ * DSN {@link emitDsn} writes raw micrometres, which Freerouting scales on ingest.
  *
  * End-to-end acceptance by a real jar is proven only by the gated integration
  * test (`COPPERHEAD_TEST_FREEROUTING_JAR`); the unit tests pin the grammar
@@ -356,15 +360,20 @@ function findScope(root: SexpNode, head: string): SexpNode[] | undefined {
 
 /**
  * DSN units per millimetre for a `(resolution <unit> <value>)` record. The unit
- * name sets the scale; `<value>` is granularity, not a divisor (see the module
- * header). Session files echo the design's resolution and a router may echo a
- * different unit, so this is read rather than assumed.
+ * name sets the base scale, and `<value>` is the granularity — Freerouting's
+ * `SesWriter` writes *resolution units* (one coordinate unit is 1/value of the
+ * named unit), so `(resolution um 10)` means 0.1 µm per unit (10 000 units/mm).
+ * Session files echo the design's resolution and a router may echo a different
+ * unit, so this is read rather than assumed.
  */
 function unitsPerMmOf(root: SexpNode): number {
   const res = findScope(root, 'resolution');
   const unit = res ? asString(res[1]) : undefined;
   const mmPerUnit = unit ? UNIT_MM[unit] : undefined;
-  return mmPerUnit === undefined ? DSN_UNITS_PER_MM : 1 / mmPerUnit;
+  const base = mmPerUnit === undefined ? DSN_UNITS_PER_MM : 1 / mmPerUnit;
+  const value = res ? Number(asString(res[2])) : NaN;
+  const resolution = Number.isFinite(value) && value > 0 ? value : 1;
+  return base * resolution;
 }
 
 /** Via geometry recovered from `library_out`, keyed by padstack name. */

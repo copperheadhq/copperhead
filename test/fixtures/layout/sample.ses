@@ -3,10 +3,10 @@
   (placement
     (resolution um 10)
     (component "U1"
-      (place U1 5000 -5000 front 0)
+      (place U1 50000 -50000 front 0)
     )
     (component "R1"
-      (place R1 10000 -10000 front 90)
+      (place R1 100000 -100000 front 90)
     )
   )
   (was_is
@@ -16,10 +16,10 @@
     (library_out
       (padstack "Via[0-1]_600:300_um"
         (shape
-          (circle F.Cu 600)
+          (circle F.Cu 6000 0 0)
         )
         (shape
-          (circle B.Cu 600)
+          (circle B.Cu 6000 0 0)
         )
         (attach off)
       )
@@ -27,27 +27,27 @@
     (network_out
       (net "KEY_DAH"
         (wire
-          (path F.Cu 250
-            9000 -8000
-            12000 -8000
+          (path F.Cu 2500
+            90000 -80000
+            120000 -80000
           )
           (type protect)
         )
-        (via "Via[0-1]_600:300_um" 12000 -8000)
+        (via "Via[0-1]_600:300_um" 120000 -80000)
         (wire
-          (path B.Cu 250
-            12000 -8000
-            12000 -11000
-            14000 -11000
+          (path B.Cu 2500
+            120000 -80000
+            120000 -110000
+            140000 -110000
           )
           (type protect)
         )
       )
       (net "GND"
         (wire
-          (path F.Cu 400
-            2000 -2000
-            2000 -12000
+          (path F.Cu 4000
+            20000 -20000
+            20000 -120000
           )
           (type protect)
         )
