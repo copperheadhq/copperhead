@@ -24,6 +24,10 @@ export interface FootprintPadDef {
   width: number;
   height: number;
   layers: string[];
+  /** Plated-through hole diameter (mm); absent for SMD pads. */
+  drill?: number;
+  /** Hole offset for slotted holes (`(drill d (offset x y))`); absent for round. */
+  drillOffset?: { x: number; y: number };
 }
 
 export interface FootprintDef {
@@ -44,6 +48,38 @@ const num = (n: SexpNode[] | undefined, i: number): number | undefined => {
   const f = parseFloat(v);
   return Number.isFinite(f) ? f : undefined;
 };
+
+/** A 2-D point read from an `(at|start|end|center|mid x y …)` node, or null. */
+const pointAt = (n: SexpNode[] | undefined): { x: number; y: number } | null => {
+  const x = num(n, 1);
+  const y = num(n, 2);
+  return x !== undefined && y !== undefined ? { x, y } : null;
+};
+
+/**
+ * The circle through three non-collinear points (circumcenter + radius), or
+ * null. Used to bound `fp_arc` courtyard segments: an arc's own endpoints only
+ * reach two extremes, so the full circle is the safe (superset) bound.
+ */
+function circleThrough(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  c: { x: number; y: number },
+): { x: number; y: number; r: number } | null {
+  const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+  if (!Number.isFinite(d) || Math.abs(d) < 1e-12) return null;
+  const x =
+    ((a.x * a.x + a.y * a.y) * (b.y - c.y) +
+      (b.x * b.x + b.y * b.y) * (c.y - a.y) +
+      (c.x * c.x + c.y * c.y) * (a.y - b.y)) /
+    d;
+  const y =
+    ((a.x * a.x + a.y * a.y) * (c.x - b.x) +
+      (b.x * b.x + b.y * b.y) * (a.x - c.x) +
+      (c.x * c.x + c.y * c.y) * (b.x - a.x)) /
+    d;
+  return { x, y, r: Math.hypot(a.x - x, a.y - y) };
+}
 
 /** Candidate directories holding `.pretty` footprint libraries. */
 export function footprintSearchDirs(env = process.env, winRoot = 'C:/Program Files/KiCad'): string[] {
@@ -75,16 +111,75 @@ export async function prettyDirs(root: string): Promise<string[]> {
 }
 
 /** Resolve a `Library:Footprint` lib_id to a `.kicad_mod` path, or null. */
-export async function resolveFootprintPath(libId: string, env = process.env): Promise<string | null> {
+export async function resolveFootprintPath(libId: string, env = process.env, projectDir?: string): Promise<string | null> {
+  // A bare footprint name (no library nickname) is KiCad's legacy form for a
+  // project-local footprint: match it against every library the project names.
   const colon = libId.indexOf(':');
-  if (colon < 0) return null;
+  if (colon < 0) {
+    if (!projectDir) return null;
+    for (const dir of (await projectFootprintDirs(projectDir, env)).values()) {
+      const candidate = path.join(dir, `${libId}.kicad_mod`);
+      if (existsSync(candidate)) return candidate;
+    }
+    return null;
+  }
   const lib = libId.slice(0, colon);
   const fp = libId.slice(colon + 1);
+  // Real designs ship private footprint libraries beside the project and name
+  // them in `fp-lib-table` (often `$(KIPRJMOD)/<lib>.pretty`). Search those
+  // first — a project-local footprint must win over a same-named global one.
+  if (projectDir) {
+    const localDir = (await projectFootprintDirs(projectDir, env)).get(lib);
+    if (localDir) {
+      const candidate = path.join(localDir, `${fp}.kicad_mod`);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
   for (const root of footprintSearchDirs(env)) {
     const candidate = path.join(root, `${lib}.pretty`, `${fp}.kicad_mod`);
     if (existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+/** Footprint variables the project `fp-lib-table` may name (KiCad 6 through 10). */
+const FOOTPRINT_DIR_VARS = [
+  'KICAD10_FOOTPRINT_DIR',
+  'KICAD9_FOOTPRINT_DIR',
+  'KICAD8_FOOTPRINT_DIR',
+  'KICAD7_FOOTPRINT_DIR',
+  'KICAD6_FOOTPRINT_DIR',
+  'KICAD_FOOTPRINT_DIR',
+];
+
+/** Library-nickname → absolute `.pretty` directory, read from the project `fp-lib-table`. */
+async function projectFootprintDirs(projectDir: string, env = process.env): Promise<Map<string, string>> {
+  const table = path.join(projectDir, 'fp-lib-table');
+  const map = new Map<string, string>();
+  if (!existsSync(table)) return map;
+  let text: string;
+  try {
+    text = await readFile(table, 'utf8');
+  } catch {
+    return map;
+  }
+  const root = parseSexp(text).find(isList);
+  if (!root) return map;
+  const global = footprintSearchDirs(env)[0] ?? '/usr/share/kicad/footprints';
+  const resolve = (uri: string): string => {
+    let u = uri;
+    u = u.split('$(KIPRJMOD)').join(projectDir).split('${KIPRJMOD}').join(projectDir);
+    for (const v of FOOTPRINT_DIR_VARS) {
+      u = u.split(`$(${v})`).join(global).split(`\${${v}}`).join(global);
+    }
+    return u;
+  };
+  for (const lib of children(root, 'lib')) {
+    const name = atom(child(lib, 'name'), 1);
+    const uri = atom(child(lib, 'uri'), 1);
+    if (name && uri) map.set(name, resolve(uri));
+  }
+  return map;
 }
 
 /** Parse a `.kicad_mod` footprint into pads + courtyard extent. */
@@ -105,40 +200,104 @@ export function parseFootprint(text: string, libId: string): FootprintDef {
       const width = num(size, 1) ?? 0;
       const height = num(size, 2) ?? width;
       const layers = layersList ? layersList.slice(1).filter((l): l is string => typeof l === 'string') : [];
-      pads.push({ number, type, shape, x, y, rot, width, height, layers });
+      // Through-hole pads carry a `(drill d)` (round) or `(drill d (offset x y))`
+      // (slotted) hole; SMD pads carry none. Missing here, a thru_hole pad would
+      // emit a zero-size hole and fail DRC (`drill_out_of_range`, `padstack_invalid`).
+      const drillNode = child(pad, 'drill');
+      const drill = num(drillNode, 1);
+      const offsetNode = drillNode ? child(drillNode, 'offset') : undefined;
+      pads.push({
+        number,
+        type,
+        shape,
+        x,
+        y,
+        rot,
+        width,
+        height,
+        layers,
+        ...(drill !== undefined ? { drill } : {}),
+        ...(offsetNode ? { drillOffset: { x: num(offsetNode, 1) ?? 0, y: num(offsetNode, 2) ?? 0 } } : {}),
+      });
     }
   }
 
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
+  const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  const grow = (x: number, y: number): void => {
+    box.minX = Math.min(box.minX, x);
+    box.minY = Math.min(box.minY, y);
+    box.maxX = Math.max(box.maxX, x);
+    box.maxY = Math.max(box.maxY, y);
+  };
   if (root) {
+    // KiCad 8 and earlier draw the courtyard with four `fp_line`s; KiCad 9/10
+    // regenerated libraries use the newer `fp_rect`/`fp_circle`/`fp_poly`/
+    // `fp_arc` primitives. The layer name is written either as a quoted string
+    // (`(layer "F.CrtYd")`) or a bare atom (`(layer F.CrtYd)`), so read it
+    // through `atom` rather than comparing the raw token.
+    const isCourtyard = (n: SexpNode[]): boolean => {
+      const layerName = atom(child(n, 'layer'), 1);
+      return layerName === 'F.CrtYd' || layerName === 'B.CrtYd';
+    };
     for (const line of children(root, 'fp_line')) {
-      const layer = child(line, 'layer');
-      const layerName = layer ? atom(layer, 1) : undefined;
-      if (layerName !== 'F.CrtYd' && layerName !== 'B.CrtYd') continue;
-      const start = child(line, 'start');
-      const end = child(line, 'end');
-      const x1 = num(start, 1);
-      const y1 = num(start, 2);
-      const x2 = num(end, 1);
-      const y2 = num(end, 2);
-      if (x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined) continue;
-      minX = Math.min(minX, x1, x2);
-      maxX = Math.max(maxX, x1, x2);
-      minY = Math.min(minY, y1, y2);
-      maxY = Math.max(maxY, y1, y2);
+      if (!isCourtyard(line)) continue;
+      const s = pointAt(child(line, 'start'));
+      const e = pointAt(child(line, 'end'));
+      if (s) grow(s.x, s.y);
+      if (e) grow(e.x, e.y);
+    }
+    for (const rect of children(root, 'fp_rect')) {
+      if (!isCourtyard(rect)) continue;
+      const s = pointAt(child(rect, 'start'));
+      const e = pointAt(child(rect, 'end'));
+      if (s) grow(s.x, s.y);
+      if (e) grow(e.x, e.y);
+    }
+    for (const circle of children(root, 'fp_circle')) {
+      if (!isCourtyard(circle)) continue;
+      const c = pointAt(child(circle, 'center'));
+      const e = pointAt(child(circle, 'end')); // a point on the circumference
+      if (c && e) {
+        const r = Math.hypot(e.x - c.x, e.y - c.y);
+        grow(c.x - r, c.y - r);
+        grow(c.x + r, c.y + r);
+      }
+    }
+    for (const arc of children(root, 'fp_arc')) {
+      if (!isCourtyard(arc)) continue;
+      const s = pointAt(child(arc, 'start'));
+      const m = pointAt(child(arc, 'mid'));
+      const e = pointAt(child(arc, 'end'));
+      const circle = s && m && e ? circleThrough(s, m, e) : null;
+      if (circle) {
+        grow(circle.x - circle.r, circle.y - circle.r);
+        grow(circle.x + circle.r, circle.y + circle.r);
+      } else {
+        if (s) grow(s.x, s.y);
+        if (m) grow(m.x, m.y);
+        if (e) grow(e.x, e.y);
+      }
+    }
+    for (const kind of ['fp_poly', 'fp_bezier'] as const) {
+      for (const poly of children(root, kind)) {
+        if (!isCourtyard(poly)) continue;
+        for (const xy of children(child(poly, 'pts') ?? [], 'xy')) {
+          const p = pointAt(xy);
+          if (p) grow(p.x, p.y);
+        }
+      }
     }
   }
-  const courtyard = Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
+  const courtyard = Number.isFinite(box.minX)
+    ? { minX: box.minX, minY: box.minY, maxX: box.maxX, maxY: box.maxY }
+    : null;
 
   return { libId, pads, courtyard };
 }
 
 /** Resolve a lib_id to parsed pad geometry, or null when the library is absent. */
-export async function resolveFootprint(libId: string, env = process.env): Promise<FootprintDef | null> {
-  const file = await resolveFootprintPath(libId, env);
+export async function resolveFootprint(libId: string, env = process.env, projectDir?: string): Promise<FootprintDef | null> {
+  const file = await resolveFootprintPath(libId, env, projectDir);
   if (!file) return null;
   try {
     return parseFootprint(await readFile(file, 'utf8'), libId);
@@ -150,8 +309,8 @@ export async function resolveFootprint(libId: string, env = process.env): Promis
 /** Cached by file mtime so repeated parts sharing a footprint are read once. */
 const cache = new Map<string, { mtimeMs: number; def: FootprintDef }>();
 
-export async function resolveFootprintCached(libId: string, env = process.env): Promise<FootprintDef | null> {
-  const file = await resolveFootprintPath(libId, env);
+export async function resolveFootprintCached(libId: string, env = process.env, projectDir?: string): Promise<FootprintDef | null> {
+  const file = await resolveFootprintPath(libId, env, projectDir);
   if (!file) return null;
   try {
     const { mtimeMs } = await stat(file);

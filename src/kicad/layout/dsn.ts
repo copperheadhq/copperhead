@@ -366,11 +366,12 @@ function findScope(root: SexpNode, head: string): SexpNode[] | undefined {
  * Session files echo the design's resolution and a router may echo a different
  * unit, so this is read rather than assumed.
  */
-function unitsPerMmOf(root: SexpNode): number {
+function unitsPerMmOf(root: SexpNode, resolutionUnits = true): number {
   const res = findScope(root, 'resolution');
   const unit = res ? asString(res[1]) : undefined;
   const mmPerUnit = unit ? UNIT_MM[unit] : undefined;
   const base = mmPerUnit === undefined ? DSN_UNITS_PER_MM : 1 / mmPerUnit;
+  if (!resolutionUnits) return base;
   const value = res ? Number(asString(res[2])) : NaN;
   const resolution = Number.isFinite(value) && value > 0 ? value : 1;
   return base * resolution;
@@ -414,6 +415,15 @@ function parseViaStacks(root: SexpNode, unitsPerMm: number): Map<string, ViaStac
 export interface SesParseOptions {
   /** Design rules used to fill in geometry the session does not carry (via drill). */
   rules?: DesignRules;
+  /**
+   * Coordinate convention of the session writer. Freerouting's `SesWriter` (the
+   * default) writes coordinates in Specctra *resolution units* — 0.1 µm each for
+   * `(resolution um 10)`, so 1 mm = 10 000 units. Other routers keep the raw DSN
+   * unit: the `freeroute` Python port echoes micrometre coordinates back
+   * unchanged (1 mm = 1000 units) while still declaring `(resolution um 10)`. Set
+   * this to `false` to read such a raw-unit session.
+   */
+  resolutionUnits?: boolean;
 }
 
 /**
@@ -441,7 +451,7 @@ export function parseSes(text: string, opts: SesParseOptions = {}): RoutedBoard 
   if (!session) throw new SesParseError('no s-expression content');
   if (session[0] !== 'session') throw new SesParseError(`expected a (session …) scope, got "${String(session[0])}"`);
 
-  const unitsPerMm = unitsPerMmOf(findScope(session, 'routes') ?? session);
+  const unitsPerMm = unitsPerMmOf(findScope(session, 'routes') ?? session, opts.resolutionUnits !== false);
   const viaStacks = parseViaStacks(session, unitsPerMm);
 
   const tracks: Track[] = [];

@@ -89,6 +89,46 @@ describe('board population (issue #252)', () => {
     expect(a).toEqual(b);
   });
 
+  it('parses the KiCad 10 courtyard primitives (fp_rect, fp_circle, fp_arc) — not just fp_line', () => {
+    // KiCad 9/10 regenerated libraries draw the courtyard with the newer
+    // fp_rect/fp_circle/fp_arc primitives; only fp_line existed in KiCad 8.
+    const rect = `(footprint "Test_Rect" (version 20260206) (generator "kicad-footprint-generator")
+  (layer "F.Cu") (attr smd)
+  (fp_rect (start -1.5 -0.8) (end 1.5 0.8) (stroke (width 0.05) (type solid)) (fill no) (layer "F.CrtYd"))
+  (pad "1" smd roundrect (at -1 0) (size 0.6 0.6) (layers "F.Cu" "F.Mask" "F.Paste") (roundrect_rratio 0.25))
+  (pad "2" smd roundrect (at 1 0) (size 0.6 0.6) (layers "F.Cu" "F.Mask" "F.Paste") (roundrect_rratio 0.25))
+)`;
+    expect(parseFootprint(rect, 'Test_Rect').courtyard).toEqual({ minX: -1.5, minY: -0.8, maxX: 1.5, maxY: 0.8 });
+
+    const circle = `(footprint "Test_Circle" (version 20260206) (generator "kicad-footprint-generator")
+  (layer "F.Cu") (attr smd)
+  (fp_circle (center 0 0) (end 2 0) (stroke (width 0.05) (type solid)) (fill no) (layer "F.CrtYd"))
+  (pad "1" smd roundrect (at 0 0) (size 0.6 0.6) (layers "F.Cu"))
+)`;
+    expect(parseFootprint(circle, 'Test_Circle').courtyard).toEqual({ minX: -2, minY: -2, maxX: 2, maxY: 2 });
+
+    // A circular courtyard drawn as a two-arc fp_arc pair still bounds the full
+    // circle (the mid point alone would under-estimate it).
+    const arc = `(footprint "Test_Arc" (version 20260206) (generator "kicad-footprint-generator")
+  (layer "F.Cu") (attr smd)
+  (fp_arc (start -2 0) (mid 0 2) (end 2 0) (stroke (width 0.05) (type solid)) (layer "F.CrtYd"))
+  (fp_arc (start 2 0) (mid 0 -2) (end -2 0) (stroke (width 0.05) (type solid)) (layer "F.CrtYd"))
+  (pad "1" smd roundrect (at 0 0) (size 0.6 0.6) (layers "F.Cu"))
+)`;
+    expect(parseFootprint(arc, 'Test_Arc').courtyard).toEqual({ minX: -2, minY: -2, maxX: 2, maxY: 2 });
+  });
+
+  it('reads courtyard layer names written as bare atoms (KiCad master format)', () => {
+    // KiCad's current generator writes `(layer F.CrtYd)` without quotes; the
+    // released 10.0.5 library still quotes it. Both must parse.
+    const bare = `(footprint "Test_Bare" (version 20260206) (generator "kicad-footprint-generator")
+  (layer "F.Cu") (attr smd)
+  (fp_rect (start -1 0) (end 1 1) (stroke (width 0.05) (type solid)) (fill no) (layer F.CrtYd))
+  (pad "1" smd roundrect (at 0 0) (size 0.6 0.6) (layers "F.Cu"))
+)`;
+    expect(parseFootprint(bare, 'Test_Bare').courtyard).toEqual({ minX: -1, minY: 0, maxX: 1, maxY: 1 });
+  });
+
   it('emits unique, deterministic UUIDs across multiple wires on the same net', () => {
     const board = {
       width: 10,

@@ -28,6 +28,10 @@ export interface Pad {
   shape?: string;
   /** Pad rotation in degrees. */
   rot?: number;
+  /** Plated-through hole diameter (mm); absent for SMD pads. */
+  drill?: number;
+  /** Hole offset for slotted holes; absent for round holes. */
+  drillOffset?: { x: number; y: number };
 }
 
 /** A footprint placed on the board (absolute origin + rotation). */

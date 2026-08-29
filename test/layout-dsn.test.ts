@@ -135,6 +135,57 @@ describe('Specctra DSN/SES bridge', () => {
     expect(gnd.width).toBeCloseTo(0.4, 9);
   });
 
+  it('reads a raw-unit session (freeroute convention) when resolutionUnits is false', () => {
+    // The `freeroute` Python port (PyPI) echoes DSN micrometre coordinates back
+    // unchanged while still declaring `(resolution um 10)`, unlike Freerouting's
+    // SesWriter which scales them to resolution units. The values below are taken
+    // verbatim from a live `freeroute --engine grid` run on a real board: path
+    // width 250 = 0.25 mm, via x 104400 = 104.4 mm.
+    const rawUnitsSes = `(session "x.ses"
+  (base_design "x.dsn")
+  (routes
+    (resolution um 10)
+    (network_out
+      (net "N$1"
+        (wire
+          (path F.Cu 250
+            0 0
+            104400 -20020
+          )
+        )
+        (via "Via[0-1]_600:300_um" 104400 -20020)
+      )
+    )
+  )
+)`;
+    const routed = parseSes(rawUnitsSes, { rules, resolutionUnits: false });
+    expect(routed.tracks).toHaveLength(1);
+    expect(routed.tracks[0]!.width).toBeCloseTo(0.25, 9);
+    expect(routed.tracks[0]!.points[1]).toEqual({ x: 104.4, y: 20.02 });
+    expect(routed.vias).toHaveLength(1);
+    expect(routed.vias[0]!.x).toBeCloseTo(104.4, 9);
+    expect(routed.vias[0]!.y).toBeCloseTo(20.02, 9);
+    // Via geometry is recovered from the units-independent padstack name.
+    expect(routed.vias[0]!.diameter).toBeCloseTo(0.6, 9);
+    expect(routed.vias[0]!.drill).toBeCloseTo(0.3, 9);
+  });
+
+  it('treats the same session as resolution units by default (Freerouting convention)', () => {
+    // The default is Freerouting's resolution-unit scale (1 mm = 10 000 units for
+    // `(resolution um 10)`), so the exact same raw-unit coordinates read 10× smaller.
+    const rawUnitsSes = `(session "x.ses"
+  (routes
+    (resolution um 10)
+    (network_out
+      (net "N$1" (via "Via[0-1]_600:300_um" 104400 -20020))
+    )
+  )
+)`;
+    const routed = parseSes(rawUnitsSes, { rules });
+    expect(routed.vias[0]!.x).toBeCloseTo(10.44, 9);
+    expect(routed.vias[0]!.y).toBeCloseTo(2.002, 9);
+  });
+
   it('rejects a non-session file and empty input', () => {
     expect(() => parseSes('(not-a-session)')).toThrow(SesParseError);
     expect(() => parseSes('')).toThrow(SesParseError);

@@ -41,6 +41,8 @@ function toPads(def: FootprintDef): Pad[] {
     type: p.type,
     shape: p.shape,
     rot: p.rot,
+    ...(p.drill !== undefined ? { drill: p.drill } : {}),
+    ...(p.drillOffset ? { drillOffset: p.drillOffset } : {}),
   }));
 }
 
@@ -168,9 +170,17 @@ export function emitBoard(board: BoardModel, name: string): string {
       const net = n > 0 ? ` (net ${n} ${q(pad.net)})` : '';
       const rr = shape === 'roundrect' ? ' (roundrect_rratio 0.25)' : '';
       const atRot = rot !== 0 ? ` ${Math.round(rot)}` : '';
+      // Through-hole pads must carry their hole; an omitted drill is read as a
+      // 0 mm hole and fails DRC (`drill_out_of_range`, `padstack_invalid`).
+      const drill =
+        pad.drill !== undefined
+          ? pad.drillOffset
+            ? ` (drill ${knum(pad.drill)} (offset ${knum(pad.drillOffset.x)} ${knum(pad.drillOffset.y)}))`
+            : ` (drill ${knum(pad.drill)})`
+          : '';
       line(
         2,
-        `(pad ${q(pad.number)} ${type} ${shape} (at ${knum(pad.x)} ${knum(pad.y)}${atRot}) (size ${knum(pad.width)} ${knum(pad.height)}) (layers ${layers})${rr}${net} (uuid ${q(uuidv5(`fp/${fp.ref}/pad/${pad.number}`))}))`,
+        `(pad ${q(pad.number)} ${type} ${shape} (at ${knum(pad.x)} ${knum(pad.y)}${atRot}) (size ${knum(pad.width)} ${knum(pad.height)})${drill} (layers ${layers})${rr}${net} (uuid ${q(uuidv5(`fp/${fp.ref}/pad/${pad.number}`))}))`,
       );
     }
     line(1, ')');

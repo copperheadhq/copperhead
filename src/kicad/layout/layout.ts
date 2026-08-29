@@ -34,7 +34,10 @@ export interface PopulateResult {
 /** Read the schematic netlist, resolve footprints, and place on a grid. */
 export async function populateBoard(schPath: string): Promise<PopulateResult> {
   const netlist = await readNetlist(schPath);
-  const { board, unresolved } = await buildBoard(netlist, (libId) => resolveFootprintCached(libId));
+  // Real designs ship private footprint libraries beside the project; resolve
+  // from the project's `fp-lib-table` before the global install.
+  const projectDir = path.dirname(path.resolve(schPath));
+  const { board, unresolved } = await buildBoard(netlist, (libId) => resolveFootprintCached(libId, process.env, projectDir));
   placeBoard(board);
   return { board, unresolved, componentCount: netlist.components.length };
 }
