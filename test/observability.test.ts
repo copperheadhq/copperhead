@@ -356,16 +356,16 @@ describe('--json routes progress to stderr (AC-2.4/8.9)', () => {
 describe('interactive chrome theme (AC-8.8/8.9)', () => {
   it('plain helpers emit zero SGR when color is off', () => {
     setColorEnabled(false);
-    expect(toolLine('run_erc', 'clean')).toBe('  ✓ run_erc  clean');
-    expect(toolLine('edit_file', 'replaced 1 region')).toBe('  ▸ edit_file  replaced 1 region');
+    expect(toolLine('run_erc', 'clean', true)).toBe('  ✓ run_erc  clean');
+    expect(toolLine('edit_file', 'replaced 1 region', false)).toBe('  ▸ edit_file  replaced 1 region');
     expect(stageLine('spec-seed', 'running')).toBe('stage spec-seed: running');
-    expect(toolLine('run_erc', 'clean')).not.toContain('\x1b');
+    expect(toolLine('run_erc', 'clean', true)).not.toContain('\x1b');
   });
 
   it('interactive tool lines pick ✓ for clean results when color is on', () => {
     setColorEnabled(true);
     try {
-      const line = toolLine('run_erc', 'ERC clean');
+      const line = toolLine('run_erc', 'ERC clean', true);
       expect(line).toContain('run_erc');
       expect(line).toContain('✓');
       expect(line).toContain('\x1b');

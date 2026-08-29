@@ -167,6 +167,7 @@ describe('check is LLM-free by construction (AC-2.1)', () => {
       seen.add(file);
       const text = await readFile(file, 'utf8');
       expect(text, file).not.toMatch(/providers\/|from 'openai'|@anthropic-ai/);
+      expect(file, file).not.toMatch(/capabilities/);
       for (const m of text.matchAll(/from '(\.[^']+)\.js'/g)) {
         queue.push(path.join(path.dirname(file), m[1]!) + '.ts');
       }

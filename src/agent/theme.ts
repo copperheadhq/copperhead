@@ -59,10 +59,9 @@ export function stageLine(name: string, detail: string, kind: 'info' | 'ok' | 'w
   return `${label} ${body}`;
 }
 
-/** Tool-result scrollback line: short glyph + name + first line of result. */
-export function toolLine(name: string, firstLine: string): string {
-  const clean = /\b(clean|ok|pass(?:ed)?|success|done)\b/i.test(firstLine) && !/\b(fail|error|violat)/i.test(firstLine);
-  const glyph = clean ? ok('✓') : copper('▸');
+/** Tool-result scrollback line: glyph from envelope `ok`, not a regex on prose. */
+export function toolLine(name: string, firstLine: string, succeeded = false): string {
+  const glyph = succeeded ? ok('✓') : copper('▸');
   return `  ${glyph} ${dim(name)}  ${firstLine}`;
 }
 

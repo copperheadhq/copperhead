@@ -3,7 +3,7 @@ import path from 'node:path';
 import { writeFile, readFile } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
-import { availableTools, dispatchTool, type RunContext } from '../src/agent/tools.js';
+import { availableTools, dispatchTool, dispatchToolResult, registry, type RunContext } from '../src/agent/tools.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import { Transcript } from '../src/agent/transcript.js';
 import {
@@ -33,6 +33,8 @@ async function makeCtx(repo: string): Promise<RunContext> {
     decisions: [],
     lastErc: null,
     lastDrc: null,
+    lastLegibility: null,
+    lastScore: null,
     repairCycles: 0,
     finishRequest: null,
   };
@@ -47,12 +49,17 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
       const names = (): string[] => availableTools(ctx).map((t) => t.schema.name);
       expect(names()).not.toContain('edit_file');
       expect(names()).not.toContain('write_file');
+      expect(registry.list(ctx).map((e) => e.name)).not.toContain('edit_file');
+      expect(registry.list(ctx).map((e) => e.name)).not.toContain('write_file');
       expect(names()).toContain('read_file');
       expect(names()).toContain('propose_change');
+      expect(names()).toContain('generate_report');
 
       const denied = await dispatchTool(ctx, 'edit_file', { path: 'docs/BOM.md', old_string: 'a', new_string: 'b' });
       expect(denied).toContain('not available');
       expect(denied).toContain('unlock');
+      const deniedEnv = await dispatchToolResult(ctx, 'edit_file', { path: 'docs/BOM.md', old_string: 'a', new_string: 'b' });
+      expect(deniedEnv.error?.kind).toBe('unavailable');
 
       await dispatchTool(ctx, 'propose_change', {
         id: 'test-change',

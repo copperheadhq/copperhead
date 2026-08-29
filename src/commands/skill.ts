@@ -1,0 +1,91 @@
+import { loadConfig, resolveModel } from '../config.js';
+import { flatten, type ToolResult } from '../agent/envelope.js';
+import { makeProvider } from '../agent/loop.js';
+import { registry, runSkillSubRun, type RunContext } from '../agent/tools.js';
+import type { Provider } from '../agent/types.js';
+import { Transcript } from '../agent/transcript.js';
+import { ObligationsLedger } from '../agent/ledger.js';
+
+export class SkillCliError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SkillCliError';
+  }
+}
+
+export function catalogNameFromCli(name: string): string {
+  return name.replace(/-/g, '_');
+}
+
+export async function listSkills(repoRoot: string): Promise<{ name: string; available: boolean; description: string }[]> {
+  const ctx = await minimalCtx(repoRoot);
+  const listed = new Set(registry.list(ctx).map((e) => e.name));
+  return registry.skills().map((s) => ({
+    name: s.name,
+    available: listed.has(s.name),
+    description: s.schema.description,
+  }));
+}
+
+export async function runSkill(opts: {
+  repoRoot: string;
+  name: string;
+  args?: Record<string, unknown>;
+  provider: Provider;
+}): Promise<ToolResult> {
+  const catalogName = catalogNameFromCli(opts.name);
+  const entry = registry.get(catalogName);
+  if (!entry || entry.kind !== 'skill') throw new SkillCliError(`unknown skill "${opts.name}"`);
+  const ctx = await minimalCtx(opts.repoRoot);
+  if (!registry.list(ctx).some((e) => e.name === catalogName)) {
+    throw new SkillCliError(`skill "${opts.name}" is not available in this repo`);
+  }
+  return runSkillSubRun({ ctx, skill: entry, args: opts.args ?? {}, provider: opts.provider });
+}
+
+export async function providerForSkillRun(repoRoot: string, modelFlag?: string): Promise<{ provider: Provider; model: string }> {
+  const config = await loadConfig(repoRoot);
+  try {
+    const { model } = resolveModel(modelFlag, config);
+    return { provider: await makeProvider(model), model };
+  } catch (err) {
+    const msg = (err as Error).message;
+    throw new SkillCliError(
+      msg.includes('no model') || msg.includes('API_KEY') || msg.includes('configured')
+        ? `${msg} — skill run needs OPENAI_API_KEY, ANTHROPIC_API_KEY, or --model for a saved-login provider (codex, claude-code, cursor).`
+        : msg,
+    );
+  }
+}
+
+export function formatSkillEnvelope(result: ToolResult, json: boolean): string {
+  if (json) return JSON.stringify(result, null, 2);
+  const body = flatten(result);
+  return result.ok ? body : `error: ${body}`;
+}
+
+async function minimalCtx(repoRoot: string): Promise<RunContext> {
+  const transcript = new Transcript(repoRoot);
+  await transcript.init();
+  return {
+    repoRoot,
+    config: await loadConfig(repoRoot),
+    transcript,
+    ledger: new ObligationsLedger(),
+    runId: 'skill',
+    interactive: false,
+    confirm: async () => true,
+    editsUnlocked: false,
+    changeId: null,
+    proposalValidated: false,
+    filesTouched: new Set(),
+    decisions: [],
+    lastErc: null,
+    lastDrc: null,
+    lastLegibility: null,
+    lastScore: null,
+    lastDrift: null,
+    repairCycles: 0,
+    finishRequest: null,
+  };
+}

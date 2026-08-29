@@ -2,7 +2,8 @@ import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { Msg, Provider, Turn } from './types.js';
-import { availableTools, dispatchTool, type RunContext } from './tools.js';
+import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
+import { flatten } from './envelope.js';
 import { CachingProvider } from './response-cache.js';
 import { withTimeout, TurnTimeoutError } from './recovery.js';
 import { buildSystemPrompt } from './prompts.js';
@@ -590,9 +591,10 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     nudges = 0;
 
     for (const call of res.toolCalls) {
-      const result = await dispatchTool(ctx, call.name, call.args);
-      await transcript.event('tool', { name: call.name, args: call.args, result });
-      r.toolResult(call.name, result.split('\n')[0] ?? '');
+      const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
+      const result = flatten(envelope);
+      await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
+      r.toolResult(call.name, envelope.summary, envelope.ok);
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
     }
 

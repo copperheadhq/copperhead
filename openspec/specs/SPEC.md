@@ -280,6 +280,13 @@ copperhead score schematic [--json]
 copperhead do "<change request>" [--model codex|gpt-5|claude] [--max-turns N]
     The core loop. See §4.
 
+copperhead skill list
+    Print registered skills and whether each is available. LLM-free, network-free.
+
+copperhead skill run <name> [--scope power|all] [--model …]
+    Run a skill (currently `generate-report`) via the nested sub-run. Needs a
+    model, same as `do`. Does not snapshot or commit.
+
 copperhead check          (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
@@ -346,6 +353,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |
 | `export_svg` | (sch\|pcb) → path | For viewer + before/after diffing |
 | `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic |
+| `generate_report` | (scope?: power\|all) → report | Skill: nested read-only sub-run; ERC/DRC/drift/nets. Always in the catalog. |
 
 ### 4.3 System prompt — key rules (verbatim requirements)
 

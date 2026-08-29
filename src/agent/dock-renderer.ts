@@ -57,8 +57,8 @@ export class DockRenderer implements ProgressRenderer {
     this.emit(line);
   }
 
-  toolResult(name: string, firstLine: string): void {
-    this.emit(toolLine(name, firstLine));
+  toolResult(name: string, firstLine: string, ok?: boolean): void {
+    this.emit(toolLine(name, firstLine, ok));
   }
 
   private turnStartMs = Date.now();

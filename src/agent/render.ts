@@ -14,7 +14,7 @@ export interface ProgressRenderer {
   log(line: string): void;
   /** Called at the start of each turn with cumulative token totals so far. */
   turnStart(turn: number, maxTurns: number, tokensIn: number, tokensOut: number): void;
-  toolResult(name: string, firstLine: string): void;
+  toolResult(name: string, firstLine: string, ok?: boolean): void;
   /** Busy text while a provider call is in flight; null when idle. */
   status(text: string | null): void;
   /**
@@ -175,8 +175,8 @@ export class InteractiveRenderer implements ProgressRenderer {
     this.redraw();
   }
 
-  toolResult(name: string, firstLine: string): void {
-    this.log(toolLine(name, firstLine));
+  toolResult(name: string, firstLine: string, ok?: boolean): void {
+    this.log(toolLine(name, firstLine, ok));
   }
 
   status(text: string | null): void {
