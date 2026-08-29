@@ -97,7 +97,7 @@ copperhead do "<change request>" [options]
 
 | Option | Description |
 | --- | --- |
-| `--model <model>` | `codex`, `cursor`, `gpt-5`, `claude`, `claude-code`, or a provider-specific model id. Saved-login providers: `codex` (Codex CLI), `cursor` (Cursor Agent CLI), `claude-code` (Claude Code). |
+| `--model <model>` | `codex`, `cursor`, `gpt-5`, `claude`, `claude-code`, `vertex`, or a provider-specific model id. Saved-login providers: `codex` (Codex CLI), `cursor` (Cursor Agent CLI), `claude-code` (Claude Code). `vertex` runs Claude via Google Cloud Vertex AI (ADC + a GCP project, no API key). |
 | `--max-turns <n>` | Turn budget for this run. Overrides `maxTurns` from config. |
 | `--allow-dirty` | Permit a dirty working tree. The snapshot keeps tracked changes as a `git stash create` object and untracked files as a tree object, so a rollback restores both. |
 | `--dry-run` | Propose the diff and write nothing. |
@@ -159,7 +159,7 @@ Checks, in order:
 - **node** — at least the version copperhead requires.
 - **kicad-cli** — present on PATH (a missing binary is reported, not thrown).
 - **git** — present on PATH (copperhead snapshots and commits its work).
-- **provider** — resolves the model the same way a run does (`--model` > `COPPERHEAD_MODEL` > config > available key) and checks its credential. Saved-login providers (`codex`, `cursor`, `claude-code`) need no key and report `info`. For `compat:<id>` it checks the variable named by `apiKeyEnv`; a local endpoint needs no key.
+- **provider** — resolves the model the same way a run does (`--model` > `COPPERHEAD_MODEL` > config > available key) and checks its credential. Saved-login providers (`codex`, `cursor`, `claude-code`) need no key and report `info`. For `compat:<id>` it checks the variable named by `apiKeyEnv`; a local endpoint needs no key. For `vertex` it reports the resolved GCP project and region and whether an ADC source is discoverable on disk (`GOOGLE_APPLICATION_CREDENTIALS`, the gcloud ADC file, or a metadata-server environment) — presence only, no token is minted and Model Garden enablement is not checked; the privacy line is `info` (your project's Google Cloud terms govern it), not the Gemini free-tier `warn`.
 - **privacy** — `compat` only. `[warn]` when the endpoint's host is documented as training on submitted prompts; `[info]` naming the host when a remote endpoint has no known policy on record. Neither ever fails the check. A true loopback endpoint (`localhost`/`127.0.0.1`/`::1`) skips this line entirely; a `.local`/LAN host does not, since that traffic still leaves the machine.
 - **project** — informational: whether `.copperhead/config.json` exists and what it wires. Never blocks.
 
@@ -206,7 +206,7 @@ copperhead create --brief brief.md [--model <model>] [--interactive]
 | Option | Description |
 | --- | --- |
 | `--brief <file>` | **Required.** The product brief, in markdown. |
-| `--model <model>` | `codex`, `cursor`, `gpt-5`, `claude`, or `claude-code` (saved-login; no model API key for those three). |
+| `--model <model>` | `codex`, `cursor`, `gpt-5`, `claude`, `claude-code` (saved-login; no model API key for those three), or `vertex` (Google ADC, no model API key). |
 | `--interactive` | Re-enable the human gates: spec approval, and a pause before export. |
 
 Exits 1 if any stage fails to complete, 0 when the pipeline finishes.

@@ -61,6 +61,18 @@ export interface CopperheadConfig {
    * environment (AC-4.1).
    */
   apiKeyEnv?: string;
+  /**
+   * GCP project id for the Vertex AI route. Consulted only by the `vertex`
+   * route, the same isolation as `baseURL` (design D2 of the compat change):
+   * a stray value never affects any other run. No default exists — an
+   * unresolvable project is a fail-fast error.
+   */
+  vertexProject?: string;
+  /**
+   * Vertex AI region (e.g. `global`, `us-east5`). Consulted only by the
+   * `vertex` route; defaults to `global` when unset everywhere.
+   */
+  vertexRegion?: string;
   /** Content hashes of generated docs, for init idempotency (AC-1.4). */
   generatedHashes?: Record<string, string>;
   /**
@@ -127,6 +139,8 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     llmCache: raw.llmCache !== false,
     ...(typeof raw.baseURL === 'string' && raw.baseURL.trim() ? { baseURL: raw.baseURL.trim() } : {}),
     ...(typeof raw.apiKeyEnv === 'string' && raw.apiKeyEnv.trim() ? { apiKeyEnv: raw.apiKeyEnv.trim() } : {}),
+    ...(typeof raw.vertexProject === 'string' && raw.vertexProject.trim() ? { vertexProject: raw.vertexProject.trim() } : {}),
+    ...(typeof raw.vertexRegion === 'string' && raw.vertexRegion.trim() ? { vertexRegion: raw.vertexRegion.trim() } : {}),
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
@@ -236,6 +250,44 @@ export function resolveCompatSettings(config: CopperheadConfig, env = process.en
  */
 export function isCompatModel(model: string): boolean {
   return model === 'compat' || model.startsWith('compat:');
+}
+
+/** Where a Vertex AI run points: the GCP project and region. */
+export interface VertexSettings {
+  /** GCP project id; undefined means unresolvable — a fail-fast error at the
+   *  provider, reported by doctor. There is no safe default project. */
+  project?: string;
+  /** Vertex region; always resolved (defaults to `global`). */
+  region: string;
+}
+
+/** The region used when nothing configures one. Google recommends `global`
+ *  for Claude on Vertex unless a specific region is required for residency. */
+export const DEFAULT_VERTEX_REGION = 'global';
+
+/**
+ * Resolve the Vertex settings: copperhead's environment wins over config
+ * (same direction as every other setting), and the Vertex SDK's own variables
+ * (`ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION`) come last, so a machine
+ * already configured for Vertex works with no copperhead-specific settings.
+ * These are *settings*, not a provider selector — only the `vertex` route
+ * reads them (design D1), so an exported project never redirects another run.
+ */
+export function resolveVertexSettings(config: CopperheadConfig, env = process.env): VertexSettings {
+  const project =
+    env.COPPERHEAD_VERTEX_PROJECT?.trim() || config.vertexProject?.trim() || env.ANTHROPIC_VERTEX_PROJECT_ID?.trim();
+  const region =
+    env.COPPERHEAD_VERTEX_REGION?.trim() || config.vertexRegion?.trim() || env.CLOUD_ML_REGION?.trim() || DEFAULT_VERTEX_REGION;
+  return { ...(project ? { project } : {}), region };
+}
+
+/**
+ * True when a resolved model id routes through the Vertex provider. The single
+ * source of truth for that gate, mirroring `isCompatModel`: `makeProvider` and
+ * `doctor` both use it, so the route and its preflight can't disagree.
+ */
+export function isVertexModel(model: string): boolean {
+  return model === 'vertex' || model.startsWith('vertex:');
 }
 
 /**

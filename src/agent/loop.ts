@@ -12,9 +12,13 @@ import {
   loadConfig,
   CONFIG_DIR,
   DEFAULT_API_KEY_ENV,
+  DEFAULTS,
   resolveCompatSettings,
   isCompatModel,
+  resolveVertexSettings,
+  isVertexModel,
   type CompatSettings,
+  type VertexSettings,
   type CopperheadConfig,
 } from '../config.js';
 import { Transcript, type ExitPath, type RunStats } from './transcript.js';
@@ -31,6 +35,7 @@ import { AnthropicProvider } from './providers/anthropic.js';
 import { CodexProvider } from './providers/codex.js';
 import { ClaudeCodeProvider } from './providers/claude-code.js';
 import { CursorProvider } from './providers/cursor.js';
+import { VertexProvider } from './providers/vertex.js';
 
 /** What the user sees at the moment they decide whether to keep going. */
 export interface BudgetExhaustedStats {
@@ -86,7 +91,23 @@ export async function makeProvider(
   model: string,
   sessionResume = false,
   compat?: CompatSettings | undefined,
+  vertex?: VertexSettings | undefined,
 ): Promise<Provider> {
+  // Claude via Google Cloud Vertex AI: ADC-authenticated, selected only by the
+  // explicit `vertex` prefix. Matched first so nothing else can capture it;
+  // its settings (project, region) are consulted by no other route (D1).
+  if (isVertexModel(model)) {
+    const vertexModel = model.startsWith('vertex:') ? model.slice('vertex:'.length) : undefined;
+    if (vertexModel === '') {
+      throw new Error('vertex model override cannot be empty; use "vertex" or "vertex:<model-id>"');
+    }
+    // Unlike compat, bare `vertex` has a safe default: Vertex serves the
+    // Claude family under the same ids as the first-party API, so the shared
+    // DEFAULT_CLAUDE_MODEL is exactly as correct here as on `claude` (D2).
+    // Fallback mirrors the compat route's: no config read here — callers with
+    // a loaded config thread settings in; otherwise resolution is env-only.
+    return new VertexProvider(vertexModel, vertex ?? resolveVertexSettings({ schematic: null, board: null, ...DEFAULTS }));
+  }
   // OpenAI-compatible endpoint (Groq, OpenRouter, Gemini compat, local
   // Ollama). An explicit `compat` prefix is the opt-in: nothing else
   // consults baseURL, so a stray COPPERHEAD_BASE_URL cannot redirect a keyed
@@ -273,7 +294,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   // condition under which we skip the CachingProvider wrap below.
   const sessionResume = process.env.COPPERHEAD_CC_SESSION_RESUME === '1' && !config.llmCache;
   const compatSettings = resolveCompatSettings(config);
-  let provider = opts.provider ?? (await makeProvider(opts.model, sessionResume, compatSettings));
+  let provider =
+    opts.provider ?? (await makeProvider(opts.model, sessionResume, compatSettings, resolveVertexSettings(config)));
   // Cache every turn's response so a retried/restarted stage replays what it
   // already paid for instead of re-calling the model (repo-scoped, cross-run).
   // Skip an injected provider (tests drive scripted providers directly).

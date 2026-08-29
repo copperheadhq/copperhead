@@ -92,7 +92,7 @@ If `codex` is not on `PATH`, point `COPPERHEAD_CODEX_PATH` at an executable expl
 
 If none of these produce a model, the command exits with an error telling you the available ways to set one. `check` never needs a model, since it makes no LLM calls at all.
 
-Accepted model values (routing is by prefix; `makeProvider` checks `compat`, then `codex`, then `claude-code`, then `cursor`, then `claude`, then OpenAI):
+Accepted model values (routing is by prefix; `makeProvider` checks `vertex`, then `compat`, then `codex`, then `claude-code`, then `cursor`, then `claude`, then OpenAI):
 
 Two rows below both mention "OpenAI," but mean different things - worth pulling apart before the table:
 
@@ -108,6 +108,7 @@ So every other row below is a dedicated integration for one specific vendor's lo
 | `claude-code` / `claude-code:<id>` | Claude Code, saved login | none (uses `CLAUDE_CODE_OAUTH_TOKEN` / your logged-in CLI) |
 | `cursor` / `cursor:<id>` | Cursor Agent CLI, saved login | none (`agent login`) |
 | `claude` / `claude-<id>` | Anthropic API | `ANTHROPIC_API_KEY` |
+| `vertex` / `vertex:<id>` | Claude via Google Cloud Vertex AI | none (Google ADC + a GCP project; see below) |
 | `gpt-5` / anything else | OpenAI API | `OPENAI_API_KEY` |
 
 `claude-code` is matched before the `claude` prefix, so it is never captured by the Anthropic API route. Cursor runs report 0 token usage (CLI JSON has no usage fields).
@@ -155,6 +156,21 @@ copperhead do "..."
 A local endpoint needs no key of its own, but `COPPERHEAD_API_KEY_ENV` still defaults to `OPENAI_API_KEY` when left unset, and whatever that variable holds is sent to the endpoint as a bearer token - including over the LAN if `baseURL` points at another machine (e.g. a `.local` hostname), not just loopback. If you have `OPENAI_API_KEY` exported for normal `gpt-5` use, as in the example `.env` above, that key will be sent to Ollama too unless you point `COPPERHEAD_API_KEY_ENV` at an unset variable to suppress it. Only the `compat` route reads `baseURL`, so leaving any of these set does not affect `gpt-5` or any other model.
 
 The model id after `compat:` is whatever that provider calls it (check their model list - ids and availability change over the ones shown above). `baseURL` must be the OpenAI-compatible base path specifically (the `/v1`, or `/v1beta/openai/` for Gemini), not the provider's general API root.
+
+### Claude via Google Cloud Vertex AI
+
+`--model vertex` (or `vertex:<model-id>`) runs Claude through your GCP project instead of the first-party Anthropic API - for organisations whose Claude spend, quota, audit trail, and data-residency commitment live in Google Cloud. **This is not the `compat:` Gemini route above**: it speaks the Anthropic-native protocol (so prompt caching works exactly as on `claude`), it authenticates with Google Application Default Credentials rather than an API key of any kind, and it does not carry the Gemini free-tier training-risk warning - Vertex is a paid enterprise endpoint governed by your project's own Google Cloud terms (`doctor` reports this as an `info` line).
+
+```bash
+gcloud auth application-default login     # once; or GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa.json
+export COPPERHEAD_VERTEX_PROJECT=my-gcp-project    # required; no default
+export COPPERHEAD_VERTEX_REGION=global             # optional; defaults to "global"
+copperhead do "..." --model vertex
+```
+
+`vertexProject` and `vertexRegion` in `.copperhead/config.json` work too; the environment wins over config, and the Vertex SDK's own `ANTHROPIC_VERTEX_PROJECT_ID` / `CLOUD_ML_REGION` are honoured last, so a machine already configured for Vertex needs nothing copperhead-specific. Only the `vertex` route reads any of these.
+
+Bare `vertex` uses the same default model as `claude`. A specific model id is passed to Vertex verbatim, with one guard: Vertex dates snapshot ids with `@` (`claude-opus-4-5@20251101`), and the Anthropic-API-style `-20251101` form is rejected before any network call with the corrected id. The model must also be enabled in your project's Model Garden - copperhead cannot check that offline, so it surfaces on the first turn with Google's own error. A rate-limited Vertex run never fails over to a keyed provider: moving a governed GCP run onto a personal `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` is exactly what this route exists to avoid.
 
 ### Saved login (Claude Code)
 

@@ -21,6 +21,15 @@ const PATTERNS: RegExp[] = [
   // Google keys aren't left unredacted.
   /AIza[A-Za-z0-9_-]{20,}/g,
   /gsk_[A-Za-z0-9]{20,}/g,
+  // Google OAuth2 access tokens (the Vertex route's wire credential when ADC
+  // is in play). ya29. is the stable user/SA access-token prefix; the charset
+  // includes the dots and dashes real tokens carry.
+  /ya29\.[A-Za-z0-9._-]{20,}/g,
+  // PEM private-key blocks, e.g. the private_key field of a GCP
+  // service-account JSON quoted into a log. Matches the whole block including
+  // header/footer so no key material survives; [\s\S] because the body spans
+  // lines (escaped \n in JSON, real newlines in a .pem).
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
 ];
 
 export function redactSecrets(text: string): string {

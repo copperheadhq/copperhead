@@ -1,0 +1,59 @@
+# Tasks — Vertex AI provider
+
+## 1. Dependency bump (must land and be verified before any Vertex code)
+
+- [x] 1.1 Bump `@anthropic-ai/sdk` from `^0.113.0` to `^0.122.0` in `package.json` (D8: the current `@anthropic-ai/vertex-sdk` peers on `>=0.115.1 <1`, which `^0.113.0` cannot satisfy). Verified: `npm install` resolves 0.122.0 with no peer warnings (claude-agent-sdk dedupes to it), `npm run typecheck` clean, `npm test` 807 passed. Baseline note: 3 kicad-dependent tests (`init-check` AC-2.1, `gating-sync` finish-gate, `stage-completion` legibility) fail on this machine identically on the *unbumped* SDK — KiCad 10.0.6 here emits `lib_symbol_issues` ERC warnings because the fixture's symbol libraries are not in the global config. Environmental, not caused by this change; every later task's bar is "no new failures vs this baseline".
+- [ ] 1.2 Re-run the live AC-3.x matrix for `--model claude` on the bumped SDK, before any Vertex code exists, so a regression on the existing Anthropic route is attributable to the bump and not to this change. Verify: `ANTHROPIC_API_KEY=... npx vitest run test/agent-integration.test.ts` — record the pass/fail per scenario in this task. **Blocked in this session: no ANTHROPIC_API_KEY available on this machine.**
+- [x] 1.3 Add `@anthropic-ai/vertex-sdk` to `optionalDependencies` (D8). Verified: `^0.19.6` in optionalDependencies; `npm run build` (tsc) succeeds with the package absent — required switching vertex.ts to the claude-code-style non-literal `import()` so tsc never resolves the specifier; a literal import broke the build without the package. Full-suite-without-package caveat: `npm install --omit=optional` also strips rollup's native binary (vitest's own optional dep), so vitest cannot run at all in that state — pre-existing repo property, unrelated to this change. Verified instead by physically moving `node_modules/@anthropic-ai/vertex-sdk` aside and running `test/vertex-provider.test.ts`: 26 passed, including the missing-package error test exercising the real import failure.
+
+## 2. Shared request shape (D4)
+
+- [x] 2.1 Extract the Anthropic request building and response parsing from `src/agent/providers/anthropic.ts` into a shared module (message→content-block mapping, the three `cache_control` breakpoints, tool definitions, cache-inclusive usage accounting), leaving `anthropic.ts` owning only client construction and `name`. Verified: `src/agent/providers/anthropic-wire.ts` (buildAnthropicRequest/parseAnthropicResponse/sendAnthropic); anthropic.ts reduced to client construction + name; existing caching test (`test/budget-efficiency.test.ts`, breakpoints + token accounting) passes untouched; full suite green.
+- [x] 2.2 Add a test asserting the shared shape produces the same request body for the same `(messages, tools)` regardless of which client will send it, so a future breakpoint change cannot land on one route only. Verified: `test/vertex-provider.test.ts` — VertexProvider's stub-client request body deep-equals `buildAnthropicRequest(...)` for the same input, with exactly 3 cache_control breakpoints.
+- [x] 2.3 Export the default Claude model id as a single shared constant used by both the `claude` and `vertex` routes (D2). Verified: `DEFAULT_CLAUDE_MODEL` in anthropic-wire.ts, referenced by both providers; test asserts both defaults equal it.
+
+## 3. Config surface
+
+- [x] 3.1 Add `vertexProject` and `vertexRegion` to `CopperheadConfig` and `loadConfig` (`src/config.ts`), sanitizing blank strings the way `baseURL`/`apiKeyEnv` are. Verified: parse + blank-drop cases in `test/vertex-provider.test.ts`; typecheck clean.
+- [x] 3.2 Add `resolveVertexSettings(config, env)` with the precedence `COPPERHEAD_VERTEX_PROJECT`/`COPPERHEAD_VERTEX_REGION` > config > `ANTHROPIC_VERTEX_PROJECT_ID`/`CLOUD_ML_REGION`, region defaulting to `global`, project left undefined when unresolvable. Verified: unit tests cover env>config>SDK-vars precedence, the SDK-vars-only machine, the `global` default, and the undefined project.
+- [x] 3.3 Add `isVertexModel(model)` as the single source of truth for the route gate, mirroring `isCompatModel`. Verified: unit test covers `vertex`, `vertex:<id>`, `vertex:`, and non-matches (`vertexish`, `compat:vertex`).
+- [x] 3.4 Confirm `resolveModel()` still never auto-selects Vertex: add a test with `COPPERHEAD_VERTEX_PROJECT` exported and exactly one keyed credential present, asserting the keyed provider is chosen (spec: "Vertex is opt-in only").
+
+## 4. Provider
+
+- [x] 4.1 Add `src/agent/providers/vertex.ts`: constructs `AnthropicVertex({ projectId, region })` behind a lazy `await import('@anthropic-ai/vertex-sdk')`, reports `name: 'vertex'` (D5), and sends via the shared shape from 2.1. Verified: stub-client test asserts request-body equality with the shared builder (2.2) plus cache-inclusive token accounting (105 = 10 + 90 + 5).
+- [x] 4.2 Missing-package error names `@anthropic-ai/vertex-sdk`, matching the `@openai/codex-sdk` pattern. Verified: vi.doMock'd import failure surfaces the package-naming message; also exercised for real with the package physically absent (1.3).
+- [x] 4.3 Fail fast with an actionable message when no project resolves, naming `COPPERHEAD_VERTEX_PROJECT`, `vertexProject`, and `ANTHROPIC_VERTEX_PROJECT_ID`. Verified: message names all three settings; also thrown through makeProvider before any network call.
+- [x] 4.4 Reject an Anthropic-style dated model id (`-YYYYMMDD`) before any network call, naming the Vertex `@YYYYMMDD` form (D3). Verified: dated form rejected naming `claude-opus-4-5@20251101`; `claude-opus-4-5` and the `@` form pass. Guard tightened to `-20\d{6}$` so an 8-digit non-date suffix is not misjudged.
+- [x] 4.5 Confirm no `ANTHROPIC_API_KEY` is read or sent on this route, and that a set one does not change behavior. Verified: constructs and chats with the key deleted (AnthropicProvider refuses in the same environment); with the key set the request is byte-identical and never contains it.
+
+## 5. Routing
+
+- [x] 5.1 Route `vertex` / `vertex:<model-id>` in `makeProvider()` (`src/agent/loop.ts`), matched as its own namespace, with `vertex:` (empty override) rejected. Verified: routing tests for `vertex`, `vertex:<id>`, rejected `vertex:`; `gpt-5`/`claude` route unchanged with vertex settings supplied; full suite covers the remaining routes' existing tests.
+- [x] 5.2 Extend `makeProvider`'s optional settings parameter to carry Vertex settings and thread it from both production call sites (`loop.ts`, `create.ts`). Verified: 4th optional `vertex` param threaded from loop.ts (with `resolveVertexSettings(config)`) and create.ts's diagnose path; typecheck + full suite green. In-provider fallback is env-only resolution, mirroring the compat route (no hidden config read).
+- [x] 5.3 Confirm `otherProvider()` never fails a Vertex run over to a keyed provider (D5). Verified via name distinctness (`'vertex'`, not `'openai'`/`'anthropic'`) — the same verification shape the compat change used; `otherProvider()` matches on exactly those two names, so a distinct name is structurally excluded.
+- [x] 5.4 Confirm the response cache needs no change (D9). Verified: `vertex:claude-sonnet-5` and `claude-sonnet-5` entries do not cross-replay; a second CachingProvider on the same model string (a "different region") replays the entry — settings never enter the key.
+
+## 6. doctor
+
+- [x] 6.1 `checkCredential` handles the Vertex route: report the resolved project and region; `fail` when no project resolves. Verified: cases in `test/vertex-provider.test.ts` (ok with project+region+ADC; fail on missing project naming the settings; fail on empty `vertex:` override, mirroring makeProvider).
+- [x] 6.2 Offline ADC discovery: `GOOGLE_APPLICATION_CREDENTIALS` pointing at an existing file, else the gcloud ADC file (`$CLOUDSDK_CONFIG` or the platform default), else a metadata-server environment; `fail` with the `gcloud auth application-default login` hint when none is found (D6). Verified: `adcSource(env, fileExists)` takes an injectable fileExists seam; tests cover each source, the pointing-at-missing-file case, and none-found, without touching the real home directory.
+- [x] 6.3 Assert `doctor` makes no network request on the Vertex route — no token minting, no Vertex call, no Model Garden check. Verified structurally: the Vertex branch consults only env + the injected fileExists (adcSource has no network path to call), same presence-only contract as every other doctor branch; no fetch/execa/token-minting exists in the branch.
+- [x] 6.4 `checkPromptPrivacy` returns an `info` line for Vertex, and `TRAINING_RISK_HOSTS` is not extended to it (D7). Verified: Vertex privacy line is `info` naming Google Cloud terms (info never blocks `ok`); regression asserts the Gemini compat `warn` is unchanged.
+
+## 7. Secret hygiene (AC-4.1)
+
+- [x] 7.1 Add `ya29.`-prefixed access-token and PEM private-key-block patterns to `src/util/redact.ts`. Verified: `test/safety.test.ts` — ya29. token redacted whole; PEM block (plain and RSA-labelled, multi-line) redacted with no key material surviving.
+- [x] 7.2 Assert a Vertex run's transcript, summary, and run metadata contain no credential material — only project and region. Verified at the two seams every run artifact passes through: Transcript.event() (writes funnel through redactSecrets — test writes a ya29 token + PEM block into an event and asserts neither reaches the jsonl) and the provider itself (holds only model/project/region; serialized state matches no credential shape).
+
+## 8. Live acceptance
+
+- [x] 8.1 Add a `vertex` entry to the provider-parity matrix (`test/agent-integration.test.ts`), gated on `COPPERHEAD_TEST_VERTEX=1` and a resolvable project so the default suite stays offline. Verified: gated on `COPPERHEAD_TEST_VERTEX=1` AND a resolvable project (`COPPERHEAD_VERTEX_PROJECT`/`ANTHROPIC_VERTEX_PROJECT_ID`); default suite unchanged (entry skipped).
+- [ ] 8.2 **Run the live AC-3.x scenarios for real** against Vertex and record the per-scenario outcome in this task, the way the compat change's 5.7 did. A mechanically-working entry is not a passing task; if scenarios fail, mark this `[~]` with the results rather than `[x]`.
+
+## 9. Docs
+
+- [x] 9.1 `.env.example`: a Vertex block (project, region, ADC, the `gcloud auth application-default login` step, and that no Anthropic key is used), plus `vertex` / `vertex:<id>` in the `COPPERHEAD_MODEL` route list. Verified: vertex/vertex:<id> in the route list plus a full Vertex block (ADC setup, project/region vars, SDK-var fallback, @-dated-id note, Model Garden caveat); every makeProvider route now listed.
+- [x] 9.2 README model list and `docs/src/content/docs/reference/configuration.md`: the `vertex` route, the config fields, the `@` dated-id form, and an explicit note that Vertex is not the `compat:` Gemini endpoint and does not carry its training-risk warning. Verified: README --model line updated; configuration.md gains the routing-order note, table row, and a "Claude via Google Cloud Vertex AI" section (explicitly: not the compat Gemini route, no training warning, @-form, no keyed failover). `npm run docs:build` succeeds (17 pages); `npm run lint:md` 0 issues.
+- [x] 9.3 `docs/src/content/docs/reference/cli.md`: `--model vertex` on `do`/`create` model rows and the `doctor` provider/privacy behavior. Verified: docs build succeeds.
+- [x] 9.4 SPEC.md §4.4 provider list gains `vertex.ts`; §4.5 failover line names Vertex among the providers that never fail over; the AC-3.x block gains one criterion per delta-spec requirement, numbered from AC-3.21. Verified: §4.4 vertex.ts entry; §4.5 failover line names compat + Vertex; AC-3.10 parity includes `vertex:<id>`; AC-3.21–3.27 map onto the vertex-ai-provider delta's seven requirements; AC-4.1 extended with the Google credential shapes. `openspec validate --strict` passes.

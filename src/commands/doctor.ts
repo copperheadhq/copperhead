@@ -2,16 +2,20 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { execa } from 'execa';
 import { existsSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   DEFAULTS,
   DEFAULT_API_KEY_ENV,
   isLocalEndpoint,
+  isVertexModel,
   loadConfig,
   resolveCompatSettings,
+  resolveVertexSettings,
   resolveModel,
   type CompatSettings,
   type CopperheadConfig,
+  type VertexSettings,
 } from '../config.js';
 import { kicadCliVersion } from '../kicad/cli.js';
 import { redactSecrets } from '../util/redact.js';
@@ -153,11 +157,78 @@ async function openspecCheck(probe: () => Promise<string>): Promise<DoctorCheck>
  * Saved-login providers (codex, claude-code) need no key and can't be verified
  * offline, so they report `info` (which does not block `ok`).
  */
+/**
+ * Where Application Default Credentials would come from on this machine, by
+ * offline presence only (design D6): an env-named credential file that exists,
+ * the gcloud ADC file on disk, or a metadata-server environment. Returns a
+ * human-readable source, or null when none is discoverable. Honest about its
+ * limit: a present-but-expired or unauthorised credential passes here and
+ * fails on the first real turn, exactly like a revoked API key on the keyed
+ * routes. Never touches the network.
+ */
+export function adcSource(env: NodeJS.ProcessEnv, fileExists: (p: string) => boolean = existsSync): string | null {
+  const explicit = env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+  if (explicit && fileExists(explicit)) return 'GOOGLE_APPLICATION_CREDENTIALS';
+  // gcloud's ADC file: $CLOUDSDK_CONFIG, else the platform default config dir
+  // (%APPDATA%\gcloud on Windows, ~/.config/gcloud elsewhere).
+  const gcloudDir =
+    env.CLOUDSDK_CONFIG?.trim() ||
+    (process.platform === 'win32' && env.APPDATA
+      ? path.join(env.APPDATA, 'gcloud')
+      : path.join(os.homedir(), '.config', 'gcloud'));
+  if (fileExists(path.join(gcloudDir, 'application_default_credentials.json'))) return 'gcloud ADC file';
+  // A metadata-server environment (GCE, Cloud Run, GKE). Detectable offline
+  // only via the env override; an unadvertised metadata server needs a network
+  // probe, which doctor never makes — that case fails here and works on a run.
+  if (env.GCE_METADATA_HOST?.trim()) return 'metadata server (GCE_METADATA_HOST)';
+  return null;
+}
+
 export function checkCredential(
   model: string,
   env: NodeJS.ProcessEnv,
   compat?: CompatSettings | undefined,
+  vertex?: VertexSettings | undefined,
+  fileExists: (p: string) => boolean = existsSync,
 ): DoctorCheck {
+  // Vertex AI: no model API key at all — the credential is Google ADC, and the
+  // two things copperhead itself resolves (project, region) are what doctor
+  // can meaningfully report. Presence-only, like every other branch: no token
+  // is minted, no Vertex call is made, Model Garden enablement is not checked.
+  if (isVertexModel(model)) {
+    const shown = redactSecrets(model);
+    if (model === 'vertex:') {
+      return {
+        name: 'provider',
+        status: 'fail',
+        detail: `${shown} -> vertex: empty model override`,
+        hint: 'use "vertex" or "vertex:<model-id>".',
+      };
+    }
+    const settings = vertex ?? { region: 'global' };
+    if (!settings.project) {
+      return {
+        name: 'provider',
+        status: 'fail',
+        detail: `${shown} -> vertex: no GCP project configured`,
+        hint: 'set COPPERHEAD_VERTEX_PROJECT, "vertexProject" in .copperhead/config.json, or ANTHROPIC_VERTEX_PROJECT_ID.',
+      };
+    }
+    const adc = adcSource(env, fileExists);
+    if (!adc) {
+      return {
+        name: 'provider',
+        status: 'fail',
+        detail: `${shown} -> vertex: project ${settings.project}, region ${settings.region} (no ADC source found)`,
+        hint: 'run `gcloud auth application-default login`, or point GOOGLE_APPLICATION_CREDENTIALS at a service-account file.',
+      };
+    }
+    return {
+      name: 'provider',
+      status: 'ok',
+      detail: `${shown} -> vertex: project ${settings.project}, region ${settings.region} (ADC via ${adc}; not verified offline)`,
+    };
+  }
   // OpenAI-compatible endpoint: the credential lives in a variable the user
   // names, and the endpoint is worth showing because it is the whole point of
   // the route. A loopback endpoint (Ollama) needs no key at all (design D4).
@@ -250,6 +321,19 @@ function isLoopbackHost(baseURL: string): boolean {
 
 /** A `warn` line when the configured endpoint's host is a documented training risk. */
 export function checkPromptPrivacy(model: string, compat?: CompatSettings | undefined): DoctorCheck | null {
+  // Vertex is the same vendor as the Gemini free tier this function warns
+  // about, and a different product: a paid enterprise endpoint governed by the
+  // customer's own Google Cloud agreement. Carrying the free-tier `warn` over
+  // would be the false positive that teaches users to ignore the real one
+  // (design D7); saying nothing would leave a user who has seen the Gemini
+  // warning guessing whether it applies. `info` answers that.
+  if (isVertexModel(model)) {
+    return {
+      name: 'privacy',
+      status: 'info',
+      detail: "vertex: a paid enterprise endpoint; the project's Google Cloud terms govern prompt handling",
+    };
+  }
   if (model !== 'compat' && !model.startsWith('compat:')) return null;
   if (!compat?.baseURL) return null;
   // A true loopback endpoint has no third party to have a policy about:
@@ -340,7 +424,7 @@ function providerCheck(
 ): DoctorCheck {
   try {
     const { model } = resolveModel(flag, config, env);
-    return checkCredential(model, env, resolveCompatSettings(config, env));
+    return checkCredential(model, env, resolveCompatSettings(config, env), resolveVertexSettings(config, env));
   } catch (err) {
     // resolveModel throws for two distinct reasons: nothing selects a model at
     // all ("no model configured: ..."), or two-plus credentials are present
