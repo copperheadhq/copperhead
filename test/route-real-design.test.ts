@@ -61,11 +61,12 @@ describe.skipIf(!ENABLED)('board pipeline against a real design', () => {
 
       // Verification-gated out (AC-2.1): a board is never reported routed when
       // routing left hard violations. The default `complex_hierarchy` is a dense
-      // 68-part THT board the connectivity-blind grid placer (#141) cannot place
-      // cleanly, so Freerouting returns hard violations and the pipeline must
-      // roll back to the placed ratsnest rather than claim a clean route. A
-      // simpler project that routes clean keeps `routed` true with zero
-      // violations.
+      // 68-part THT board that even the connectivity-aware placer (#141 ordering,
+      // see src/kicad/layout/placement.ts) cannot route hard-clean with
+      // Freerouting — the router leaves solder-mask bridges and optimizer shorts
+      // on a dense through-hole board — so the pipeline must roll back to the
+      // placed ratsnest rather than claim a clean route. A simpler project that
+      // routes clean keeps `routed` true with zero violations.
       if (res.routed) {
         expect(res.drcViolations).toBe(0);
         expect(res.unroutedNets).toBe(0);
