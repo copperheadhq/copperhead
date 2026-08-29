@@ -2,6 +2,7 @@ import type { CatalogEntry, CatalogSkill } from '../capabilities/index.js';
 import { corruptionError } from '../capabilities/helpers.js';
 import { flatten, failResult, seal, unavailable, type ToolResult } from './envelope.js';
 import { registry } from './registry.js';
+import { withRetry, isRateLimit } from '../util/retry.js';
 import type { RunContext } from './context.js';
 import type { Msg, Provider } from './types.js';
 
@@ -33,7 +34,11 @@ export async function dispatchToolResult(
     return runSkillSubRun({ ctx, skill: entry, args, provider: opts.provider });
   }
   try {
-    return await entry.handler(ctx, args);
+    // Unified retry policy (design D10): a thrown 429 backs off through the
+    // same withRetry/isRateLimit pair the provider path uses. Typed envelope
+    // failures (validation/refusal/unavailable) return, so they never retry;
+    // local tool errors are not 429s, so they surface on the first throw.
+    return await withRetry(() => entry.handler(ctx, args), { isRetryable: isRateLimit, baseMs: 250 });
   } catch (err) {
     return failResult('exception', `error: ${(err as Error).message}`);
   }

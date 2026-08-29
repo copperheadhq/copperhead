@@ -594,7 +594,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
-      r.toolResult(call.name, envelope.summary, envelope.ok);
+      r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
     }
 

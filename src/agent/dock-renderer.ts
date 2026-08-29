@@ -10,6 +10,7 @@
 import { rule, statusBar } from './box.js';
 import { copper, dim, styleOutcome, toolLine, warn } from './theme.js';
 import { fmtDuration, fmtTokens, turnMarker, type ProgressRenderer } from './render.js';
+import type { ViewHint } from './envelope.js';
 import type { TerminalDock } from '../util/dock.js';
 
 const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -57,8 +58,8 @@ export class DockRenderer implements ProgressRenderer {
     this.emit(line);
   }
 
-  toolResult(name: string, firstLine: string, ok?: boolean): void {
-    this.emit(toolLine(name, firstLine, ok));
+  toolResult(name: string, firstLine: string, ok?: boolean, viewHint?: ViewHint): void {
+    this.emit(toolLine(name, firstLine, ok, viewHint));
   }
 
   private turnStartMs = Date.now();

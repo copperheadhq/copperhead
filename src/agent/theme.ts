@@ -59,10 +59,21 @@ export function stageLine(name: string, detail: string, kind: 'info' | 'ok' | 'w
   return `${label} ${body}`;
 }
 
-/** Tool-result scrollback line: glyph from envelope `ok`, not a regex on prose. */
-export function toolLine(name: string, firstLine: string, succeeded = false): string {
+/**
+ * Tool-result scrollback line: glyph from envelope `ok`, not a regex on prose.
+ * The envelope `viewHint` styles the name: mutations (they changed the repo)
+ * read copper, exports light copper, queries/diagnostics stay dim. Plain mode
+ * is unaffected: every painter no-ops while color is off.
+ */
+export function toolLine(
+  name: string,
+  firstLine: string,
+  succeeded = false,
+  viewHint?: 'diagnostic' | 'mutation' | 'query' | 'export',
+): string {
   const glyph = succeeded ? ok('✓') : copper('▸');
-  return `  ${glyph} ${dim(name)}  ${firstLine}`;
+  const label = viewHint === 'mutation' ? copper(name) : viewHint === 'export' ? copperLight(name) : dim(name);
+  return `  ${glyph} ${label}  ${firstLine}`;
 }
 
 /** Color the final outcome line from its exit-path token. */

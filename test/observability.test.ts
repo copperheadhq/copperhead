@@ -374,6 +374,22 @@ describe('interactive chrome theme (AC-8.8/8.9)', () => {
     }
   });
 
+  it('viewHint styles the tool name: mutation reads differently from query (issue #246 Phase 0)', () => {
+    setColorEnabled(true);
+    try {
+      const mutation = toolLine('edit_file', 'replaced 1 region', true, 'mutation');
+      const query = toolLine('edit_file', 'replaced 1 region', true, 'query');
+      expect(mutation).not.toBe(query);
+      expect(mutation).toContain('edit_file');
+    } finally {
+      setColorEnabled(false);
+    }
+    // plain mode: hint changes nothing, the string contract stays byte-stable
+    expect(toolLine('edit_file', 'replaced 1 region', true, 'mutation')).toBe(
+      toolLine('edit_file', 'replaced 1 region', true, 'query'),
+    );
+  });
+
   it('makeRenderer(--plain) disables color so later stage lines stay zero-ANSI', () => {
     setColorEnabled(true);
     makeRenderer({ json: false, plain: true });

@@ -185,6 +185,42 @@ describe('tool-registry catalog', () => {
     }
   });
 
+  it('a thrown 429 retries through withRetry; a plain exception surfaces once (design D10)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      const entry = registry.get('list_nets');
+      expect(entry?.kind).toBe('tool');
+      if (entry?.kind !== 'tool') return;
+      const orig = entry.handler;
+      try {
+        let rateLimited = 0;
+        entry.handler = async () => {
+          rateLimited++;
+          if (rateLimited < 3) throw Object.assign(new Error('rate limited'), { status: 429 });
+          return { ok: true, summary: 'nets: 2' };
+        };
+        const recovered = await dispatchToolResult(ctx, 'list_nets', {});
+        expect(recovered.ok).toBe(true);
+        expect(rateLimited).toBe(3);
+
+        let plain = 0;
+        entry.handler = async () => {
+          plain++;
+          throw new Error('kicad-cli exploded');
+        };
+        const failed = await dispatchToolResult(ctx, 'list_nets', {});
+        expect(failed.error?.kind).toBe('exception');
+        expect(plain).toBe(1);
+      } finally {
+        entry.handler = orig;
+      }
+    } finally {
+      await cleanup();
+    }
+  }, 20_000);
+
   it('off-catalog names stay prose in parseToolCalls', () => {
     const catalog = new Set(['read_file']);
     const parsed = parseToolCalls('```json\n{"tool":"edit_file","args":{}}\n```', () => 'id1', catalog);
