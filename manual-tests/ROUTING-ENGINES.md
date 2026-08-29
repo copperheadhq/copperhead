@@ -38,8 +38,8 @@ ratsnest, via the same `kicad-cli pcb drc` on every board.
 | freeroute exact | 2026.7.14 | yes | DSN→SES | — | 40 | 646 | 1975 | 203 | 18.5 s |
 | freeroute room | 2026.7.14 | yes³ | DSN→SES | — | — | — | — | — | >15 min |
 
-¹ kicad-tools' C++ backend gave up on the denser nets ("C++ A* open set
-exhausted") and fell back to pure-Python A*; it was still routing after 5 min and
+¹ kicad-tools' C++ backend gave up on the denser nets ("C++ A\* open set
+exhausted") and fell back to pure-Python A\*; it was still routing after 5 min and
 was stopped. ² 45 of its 47 net-set at the stop point. ³ the `room` engine did
 not finish a 68-part board in 15 minutes and was stopped.
 
@@ -96,15 +96,44 @@ contract (`AC-2.1`): copperhead will not import a board that only passes because
 the router rewrote the rules. It remains a strong candidate to revisit as a
 second, opt-in engine once its rule-relaxation is made explicit and opt-out.
 
+## Placement: connectivity-aware ordering (was the ceiling)
+
+The first pass of this work placed on a deterministic, connectivity-blind grid —
+the exact "grid, not a layout" fallback #141 names. `src/kicad/layout/placement.ts`
+now orders the board's footprints by schematic connectivity before packing, using
+a deterministic Prim-style growth over an **inverse-fanout-weighted** net graph:
+a two-pin signal net contributes weight 1 between its pair, while a 26-pin GND
+star contributes ~0.04, so power rails stop diluting the ordering. The packer is
+unchanged, so the no-overlap and board-bounds guarantees are untouched.
+
+Measured on `complex_hierarchy` (68 parts, 50 nets):
+
+| Metric | Blind grid (before) | Connectivity order (after) |
+| --- | --- | --- |
+| Net locality (avg ordering spread) | 29.2 | **8.7** (3.4× better) |
+| Vias | 27 | **2** |
+| Track segments | 642¹ | 374 (golden: 365) |
+| Hard DRC | 21–66 (run-dependent) | 26 |
+| Unrouted nets | 0 | 1 |
+
+¹ the earlier committed run; the before/after are not the same invocation.
+
+The locality win is real and machine-checkable (see `test/layout-placement-connectivity.test.ts`):
+fewer/shorter nets mean the router needs almost no vias (27 → 2) and produces a
+track count within 2% of the golden. But it is **not** enough to make Freerouting
+route this dense THT board hard-clean — see the next section.
+
 ## Known limitations
 
-- **The ceiling is placement, not the router.** copperhead places on a
-  deterministic, connectivity-blind grid (`src/kicad/layout/placement.ts`). A
-  decoupling cap can land far from its IC, so nets span the whole board and the
-  router congests. Testing a squarer aspect ratio (1.5× vs 2.5× `sqrt(area)`) did
-  *not* reduce violations (66 vs 25 in back-to-back runs), so the wider row is
-  retained; fixing this properly is connectivity-aware placement (#141), out of
-  scope here.
+- **Placement is now connectivity-aware, but the DRC ceiling is Freerouting, not
+  placement.** Even with connected components clustered, Freerouting leaves 26
+  error-severity violations (solder-mask bridges, optimizer shorts, clearance) on
+  the dense THT board: it does not model the solder-mask aperture, and its
+  multi-threaded optimisation is known to introduce clearance violations. The
+  connectivity order reduces copper (374 segments vs 642, 2 vias vs 20) but
+  trades it for one net Freerouting fails to join — a dense multi-channel THT
+  output stage is beyond what a 1-D ordering can fully cluster. True 2-D
+  connectivity placement remains the next lever (#141, see below).
 - **Freerouting's multi-threaded optimisation is known to introduce clearance
   violations** (it prints this warning itself and recommends `-mt 1`). `-mt 1`
   did not change the result on this board (identical internal score), so the
@@ -119,8 +148,13 @@ second, opt-in engine once its rule-relaxation is made explicit and opt-out.
 
 ## What remains
 
-1. **Connectivity-aware placement (#141)** — the single largest quality lever;
-   the router comparison above shows no router rescues a blind grid placement.
+1. **True 2-D connectivity placement (#141)** — the connectivity *ordering* is
+   implemented and is a real win (see above), but it is still a 1-D sequence laid
+   into a 2-D grid. A multi-channel design whose output stage bridges two clusters
+   can still scatter one of its nets across the board (the single unrouted net
+   above). A 2-D cluster-growth placer — placing each component adjacent to its
+   strongest connected neighbour, not merely in sequence order — is the remaining
+   generation half of #141.
 2. **A KiCad-native engine adapter** behind the same `RoutingEngine` boundary,
    gated so it can never relax the DRC floor copperhead verifies against.
 3. **THT-hole awareness in the DSN padstacks** — neither Freerouting nor
