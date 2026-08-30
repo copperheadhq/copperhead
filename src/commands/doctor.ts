@@ -7,12 +7,14 @@ import path from 'node:path';
 import {
   DEFAULTS,
   DEFAULT_API_KEY_ENV,
+  DEFAULT_VERTEX_REGION,
   isLocalEndpoint,
   isVertexModel,
   loadConfig,
   resolveCompatSettings,
   resolveVertexSettings,
   resolveModel,
+  vertexDatedIdError,
   type CompatSettings,
   type CopperheadConfig,
   type VertexSettings,
@@ -166,9 +168,23 @@ async function openspecCheck(probe: () => Promise<string>): Promise<DoctorCheck>
  * fails on the first real turn, exactly like a revoked API key on the keyed
  * routes. Never touches the network.
  */
-export function adcSource(env: NodeJS.ProcessEnv, fileExists: (p: string) => boolean = existsSync): string | null {
+export type AdcSource =
+  /** A credential source is discoverable; `source` names it for the report. */
+  | { found: true; source: string }
+  /** None found. `stalePath` set means GOOGLE_APPLICATION_CREDENTIALS names a file that is not there. */
+  | { found: false; stalePath?: string };
+
+export function adcSource(env: NodeJS.ProcessEnv, fileExists: (p: string) => boolean = existsSync): AdcSource {
   const explicit = env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
-  if (explicit && fileExists(explicit)) return 'GOOGLE_APPLICATION_CREDENTIALS';
+  if (explicit) {
+    // A set GOOGLE_APPLICATION_CREDENTIALS is authoritative to google-auth-library:
+    // it loads that exact file and throws when it is missing, rather than falling
+    // back to the gcloud ADC file. Falling through here would report `ok` on a
+    // stale path and let the run fail at auth instead.
+    return fileExists(explicit)
+      ? { found: true, source: 'GOOGLE_APPLICATION_CREDENTIALS' }
+      : { found: false, stalePath: explicit };
+  }
   // gcloud's ADC file: $CLOUDSDK_CONFIG, else the platform default config dir
   // (%APPDATA%\gcloud on Windows, ~/.config/gcloud elsewhere).
   const gcloudDir =
@@ -176,12 +192,14 @@ export function adcSource(env: NodeJS.ProcessEnv, fileExists: (p: string) => boo
     (process.platform === 'win32' && env.APPDATA
       ? path.join(env.APPDATA, 'gcloud')
       : path.join(os.homedir(), '.config', 'gcloud'));
-  if (fileExists(path.join(gcloudDir, 'application_default_credentials.json'))) return 'gcloud ADC file';
+  if (fileExists(path.join(gcloudDir, 'application_default_credentials.json'))) {
+    return { found: true, source: 'gcloud ADC file' };
+  }
   // A metadata-server environment (GCE, Cloud Run, GKE). Detectable offline
   // only via the env override; an unadvertised metadata server needs a network
   // probe, which doctor never makes — that case fails here and works on a run.
-  if (env.GCE_METADATA_HOST?.trim()) return 'metadata server (GCE_METADATA_HOST)';
-  return null;
+  if (env.GCE_METADATA_HOST?.trim()) return { found: true, source: 'metadata server (GCE_METADATA_HOST)' };
+  return { found: false };
 }
 
 export function checkCredential(
@@ -205,7 +223,18 @@ export function checkCredential(
         hint: 'use "vertex" or "vertex:<model-id>".',
       };
     }
-    const settings = vertex ?? { region: 'global' };
+    // The run rejects a dated id at provider construction (D3); mirror that
+    // here, or doctor reports ready for a run that fails on its first turn.
+    const datedId = model.startsWith('vertex:') ? vertexDatedIdError(model.slice('vertex:'.length)) : null;
+    if (datedId) {
+      return {
+        name: 'provider',
+        status: 'fail',
+        detail: `${shown} -> vertex: Anthropic-style dated model id`,
+        hint: datedId,
+      };
+    }
+    const settings = vertex ?? { region: DEFAULT_VERTEX_REGION };
     if (!settings.project) {
       return {
         name: 'provider',
@@ -214,19 +243,24 @@ export function checkCredential(
         hint: 'set COPPERHEAD_VERTEX_PROJECT, "vertexProject" in .copperhead/config.json, or ANTHROPIC_VERTEX_PROJECT_ID.',
       };
     }
+    const where = `project ${settings.project}, region ${settings.region}`;
     const adc = adcSource(env, fileExists);
-    if (!adc) {
+    if (!adc.found) {
       return {
         name: 'provider',
         status: 'fail',
-        detail: `${shown} -> vertex: project ${settings.project}, region ${settings.region} (no ADC source found)`,
-        hint: 'run `gcloud auth application-default login`, or point GOOGLE_APPLICATION_CREDENTIALS at a service-account file.',
+        detail: adc.stalePath
+          ? `${shown} -> vertex: ${where} (GOOGLE_APPLICATION_CREDENTIALS points at a missing file: ${adc.stalePath})`
+          : `${shown} -> vertex: ${where} (no ADC source found)`,
+        hint: adc.stalePath
+          ? 'fix or unset GOOGLE_APPLICATION_CREDENTIALS — it is authoritative, so a stale path fails auth instead of falling back to the gcloud ADC file.'
+          : 'run `gcloud auth application-default login`, or point GOOGLE_APPLICATION_CREDENTIALS at a service-account file.',
       };
     }
     return {
       name: 'provider',
       status: 'ok',
-      detail: `${shown} -> vertex: project ${settings.project}, region ${settings.region} (ADC via ${adc}; not verified offline)`,
+      detail: `${shown} -> vertex: ${where} (ADC via ${adc.source}; not verified offline)`,
     };
   }
   // OpenAI-compatible endpoint: the credential lives in a variable the user

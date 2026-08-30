@@ -319,7 +319,14 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
   const SGR_RE = /\x1b\[[0-9;]*m/g;
   let logFile: { write(chunk: string): unknown; end(): void } | null = null;
   let logFilePath: string | null = null;
-  const fileLine = (l: string): void => {
+  /**
+   * Append one already-redacted chunk to the session log. Takes the whole
+   * message rather than a line: multi-line secrets (a PEM private-key block)
+   * only match their pattern intact, so redacting after a split would write
+   * the body out verbatim. The chunk carries its own newlines, so the bytes
+   * are identical to writing each line separately.
+   */
+  const fileChunk = (text: string): void => {
     try {
       if (!logFile) {
         const dir = path.join(path.resolve(opts.repoRoot), '.copperhead', 'runs');
@@ -327,16 +334,17 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
         logFilePath = path.join(dir, `repl-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
         logFile = createWriteStream(logFilePath, { flags: 'a' });
       }
-      logFile.write(redactSecrets(l.replace(SGR_RE, '')) + '\n');
+      logFile.write(text + '\n');
     } catch {
       // Best-effort: the shell never fails because the log file cannot.
     }
   };
   const log = (l: string): void => {
-    for (const line of String(l).split('\n')) {
-      history.push(line);
-      if (!opts.log) fileLine(line);
-    }
+    const raw = String(l);
+    // Redact the whole message BEFORE splitting (AC-4.1): the history and the
+    // terminal keep the raw text, only the persisted file is redacted.
+    if (!opts.log) fileChunk(redactSecrets(raw.replace(SGR_RE, '')));
+    for (const line of raw.split('\n')) history.push(line);
     if (history.length > HISTORY_CAP) history.splice(0, history.length - HISTORY_CAP);
     baseLog(l);
   };

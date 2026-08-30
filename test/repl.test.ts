@@ -508,6 +508,51 @@ describe('session log file', () => {
     }
   });
 
+  it('redacts a multi-line PEM private key, which only matches when redaction runs before the split (AC-4.1)', async () => {
+    // Regression: log() used to split on newlines and redact each line, so a
+    // key block reached the redactor one line at a time — the header alone
+    // never matched the block pattern and the body was written verbatim.
+    setColorEnabled(false);
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-repl-pem-'));
+    const BODY = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQFAKEKEYMATERIAL';
+    try {
+      const { input, output } = fakeTty();
+      const done = runRepl({
+        repoRoot: repo,
+        model: 'gpt-5',
+        modelSource: 'flag',
+        version: '0.7.0',
+        kicadCliVersion: '9.0.0',
+        renderer: plainRenderer(() => {}),
+        input,
+        output,
+        runRequest: vi.fn(async (_req: string, log?: (l: string) => void) => {
+          // One message carrying real newlines, the way a service-account file
+          // or an auth error quoting one would arrive.
+          log?.(`auth failed for key:\n-----BEGIN PRIVATE KEY-----\n${BODY}\n${BODY}\n-----END PRIVATE KEY-----\ndone`);
+          return { outcome: 'success' as const };
+        }),
+      });
+      await new Promise((r) => setTimeout(r, 30));
+      input.write('do the thing\n');
+      await new Promise((r) => setTimeout(r, 30));
+      input.write('/quit\n');
+      await done;
+
+      const runsDir = path.join(repo, '.copperhead', 'runs');
+      const { readdirSync, readFileSync } = await import('node:fs');
+      const logName = readdirSync(runsDir).find((f) => /^repl-.*\.log$/.test(f));
+      const text = readFileSync(path.join(runsDir, logName!), 'utf8');
+      expect(text).not.toContain(BODY); // no key material survives
+      expect(text).not.toContain('BEGIN PRIVATE KEY');
+      expect(text).toContain('[REDACTED]');
+      expect(text).toContain('auth failed for key:'); // surrounding text kept
+      expect(text).toContain('done'); // and the line after the block
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('redacts every AC-4.1 pattern, not just sk- keys', async () => {
     // Regression: the log used to carry its own inline /sk-.../ regex, so a
     // Bearer / npm_ / ghp_ token echoed by a tool result was persisted in

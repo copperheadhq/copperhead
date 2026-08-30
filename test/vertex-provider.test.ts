@@ -129,16 +129,36 @@ describe('VertexProvider (D2/D3/D4/D5)', () => {
     expect(p.name).not.toBe('openai');
   });
 
-  it('sends the same request body as the Anthropic API provider for the same input (D4)', async () => {
+  it('sends the same request body as the shared builder produces (D4)', async () => {
     const vertex = stubClient();
     const p = new VertexProvider('claude-sonnet-5', SETTINGS, vertex.client);
     await p.chat(msgs, tools);
-    // The first-party provider goes through the same shared builder; assert
-    // the wire bytes match it exactly, so a breakpoint change can never land
-    // on one route only.
     expect(vertex.calls[0]).toEqual(buildAnthropicRequest('claude-sonnet-5', msgs, tools));
     const breakpoints = JSON.stringify(vertex.calls[0]).match(/"cache_control"/g) ?? [];
     expect(breakpoints).toHaveLength(3); // system, last tool, last message block
+  });
+
+  it('the first-party route sends through that same builder, so the two cannot diverge (D4)', async () => {
+    // The assertion above compares VertexProvider against the function it
+    // calls, which is true by construction. Parity only holds if
+    // AnthropicProvider goes through the shared module too — assert that
+    // directly, or a future post-processing step added to anthropic.ts would
+    // split the routes with both tests still green. Mocked at the wire seam,
+    // so no network call is made (constructing the SDK client makes none).
+    vi.doMock('../src/agent/providers/anthropic-wire.js', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('../src/agent/providers/anthropic-wire.js')>();
+      return { ...actual, sendAnthropic: vi.fn(async () => ({ text: 'ok', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } })) };
+    });
+    try {
+      vi.resetModules();
+      const wire = await import('../src/agent/providers/anthropic-wire.js');
+      const { AnthropicProvider: Fresh } = await import('../src/agent/providers/anthropic.js');
+      await new Fresh('claude-sonnet-5', 'test-key').chat(msgs, tools);
+      expect(wire.sendAnthropic).toHaveBeenCalledWith(expect.anything(), 'claude-sonnet-5', msgs, tools, {});
+    } finally {
+      vi.doUnmock('../src/agent/providers/anthropic-wire.js');
+      vi.resetModules();
+    }
   });
 
   it('counts cached tokens into inputTokens like the first-party route', async () => {
@@ -200,13 +220,11 @@ describe('VertexProvider (D2/D3/D4/D5)', () => {
     }
   });
 
-  it('holds only project and region — no credential material ever lives on the provider (AC-4.1)', () => {
-    const p = new VertexProvider('claude-sonnet-5', SETTINGS, stubClient().client);
-    const state = JSON.stringify(p);
-    expect(state).toContain('proj-1');
-    expect(state).toContain('global');
-    expect(state).not.toMatch(/ya29\.|PRIVATE KEY|sk-/);
-  });
+  // No "provider holds no credential" test here: nothing in this class is ever
+  // handed one (the Google auth library inside the SDK owns the credential and
+  // its refresh), so such an assertion passes under any implementation that
+  // compiles. The redaction that does the real work is tested against the
+  // write seams in test/safety.test.ts.
 
   it('a missing @anthropic-ai/vertex-sdk names the package to install (D8)', async () => {
     vi.doMock('@anthropic-ai/vertex-sdk', () => {
@@ -339,17 +357,37 @@ describe('vertex transcript hygiene (AC-4.1)', () => {
 describe('doctor: vertex (D6/D7)', () => {
   const noFile = (): boolean => false;
 
+  const gcloudFile = path.join('/gcloud', 'application_default_credentials.json');
+
   it('adcSource finds each source by presence, in order, offline', () => {
-    expect(adcSource({ GOOGLE_APPLICATION_CREDENTIALS: '/sa.json' }, (p) => p === '/sa.json')).toBe(
-      'GOOGLE_APPLICATION_CREDENTIALS',
-    );
-    // An env var pointing at a file that does not exist is not a source.
-    expect(adcSource({ GOOGLE_APPLICATION_CREDENTIALS: '/missing.json' }, noFile)).toBeNull();
-    expect(
-      adcSource({ CLOUDSDK_CONFIG: '/gcloud' }, (p) => p === path.join('/gcloud', 'application_default_credentials.json')),
-    ).toBe('gcloud ADC file');
-    expect(adcSource({ GCE_METADATA_HOST: '169.254.169.254' }, noFile)).toBe('metadata server (GCE_METADATA_HOST)');
-    expect(adcSource({}, noFile)).toBeNull();
+    expect(adcSource({ GOOGLE_APPLICATION_CREDENTIALS: '/sa.json' }, (p) => p === '/sa.json')).toEqual({
+      found: true,
+      source: 'GOOGLE_APPLICATION_CREDENTIALS',
+    });
+    expect(adcSource({ CLOUDSDK_CONFIG: '/gcloud' }, (p) => p === gcloudFile)).toEqual({
+      found: true,
+      source: 'gcloud ADC file',
+    });
+    expect(adcSource({ GCE_METADATA_HOST: '169.254.169.254' }, noFile)).toEqual({
+      found: true,
+      source: 'metadata server (GCE_METADATA_HOST)',
+    });
+    expect(adcSource({}, noFile)).toEqual({ found: false });
+  });
+
+  it('a set-but-missing GOOGLE_APPLICATION_CREDENTIALS never falls through to the gcloud file', () => {
+    // google-auth-library treats a set GOOGLE_APPLICATION_CREDENTIALS as
+    // authoritative: it loads that exact path and throws when it is absent,
+    // rather than falling back. Reporting the gcloud file here would be a
+    // false `ok` for a run that fails at auth.
+    const env = { GOOGLE_APPLICATION_CREDENTIALS: '/stale/sa.json' };
+    const onlyGcloud = (p: string): boolean => p === gcloudFile;
+    expect(adcSource(env, onlyGcloud)).toEqual({ found: false, stalePath: '/stale/sa.json' });
+
+    const check = checkCredential('vertex', env, undefined, SETTINGS, onlyGcloud);
+    expect(check.status).toBe('fail');
+    expect(check.detail).toContain('/stale/sa.json');
+    expect(check.hint).toContain('GOOGLE_APPLICATION_CREDENTIALS');
   });
 
   it('passes with project, region, and a discoverable ADC source', () => {
@@ -377,6 +415,24 @@ describe('doctor: vertex (D6/D7)', () => {
     const check = checkCredential('vertex:', {}, undefined, SETTINGS, () => true);
     expect(check.status).toBe('fail');
     expect(check.detail).toContain('empty model override');
+  });
+
+  it('rejects an Anthropic-style dated id, mirroring makeProvider (D3)', () => {
+    // Otherwise doctor reports ready for a run the provider rejects at
+    // construction, on its very first turn.
+    const check = checkCredential('vertex:claude-opus-4-5-20251101', {}, undefined, SETTINGS, () => true);
+    expect(check.status).toBe('fail');
+    expect(check.hint).toContain('claude-opus-4-5@20251101');
+    // …and the corrected form still passes.
+    expect(checkCredential('vertex:claude-opus-4-5@20251101', {}, undefined, SETTINGS, () => true).status).toBe('ok');
+  });
+
+  it('reports the shared default region when no settings are supplied', () => {
+    const check = checkCredential('vertex', {}, undefined, undefined, () => true);
+    // No project, so this fails — the point is that the region shown by the
+    // no-settings fallback comes from the constant, not a second literal.
+    expect(check.status).toBe('fail');
+    expect(DEFAULT_VERTEX_REGION).toBe('global');
   });
 
   it('privacy line is info for vertex — the Gemini free-tier warn does not carry over (D7)', () => {

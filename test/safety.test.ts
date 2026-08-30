@@ -106,6 +106,25 @@ describe('secret redaction (AC-4.1)', () => {
     expect(redactSecrets(rsa)).toBe('[REDACTED]');
   });
 
+  it('redacts a truncated PEM block whose footer never arrives', () => {
+    // Output cut mid-key, or a stream that ended between header and footer:
+    // the full-block pattern cannot match, so the header-anchored fallback
+    // bounds the damage to the base64 body lines that follow.
+    const body = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwFAKEKEYMATERIAL';
+    const out = redactSecrets(`error:\n-----BEGIN PRIVATE KEY-----\n${body}\n${body}\nnot key material`);
+    expect(out).not.toContain('FAKEKEYMATERIAL');
+    expect(out).not.toContain('BEGIN PRIVATE KEY');
+    expect(out).toContain('error:'); // text before the block is kept
+    expect(out).toContain('not key material'); // and the first non-body line
+  });
+
+  it('the truncated-PEM fallback does not eat an ordinary hash on its own line', () => {
+    // The fallback is anchored on a PEM header, so a bare 40-char SHA-1 (or
+    // any long base64-ish line) with no header above it is untouched.
+    const sha = '356a192b7913b04c54574d18c28d46e6395428ab';
+    expect(redactSecrets(`commit\n${sha}\ndone`)).toContain(sha);
+  });
+
   it('redacts a Google key with a prefix other than AIzaSy — regression', () => {
     // AIzaSy is the common fifth/sixth pair but not the only one Google
     // issues; the pattern must match on AIza alone.

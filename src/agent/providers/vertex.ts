@@ -1,16 +1,6 @@
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from '../types.js';
-import type { VertexSettings } from '../../config.js';
+import { vertexDatedIdError, type VertexSettings } from '../../config.js';
 import { DEFAULT_CLAUDE_MODEL, sendAnthropic, type AnthropicLikeClient } from './anthropic-wire.js';
-
-/**
- * Anthropic-API-style dated snapshot suffix (`claude-opus-4-5-20251101`).
- * Vertex separates a dated snapshot with `@` (`claude-opus-4-5@20251101`);
- * sending the `-` form yields a bare 404 from Google that names neither form,
- * so it is rejected at construction with the correction instead (design D3).
- * This is the only id manipulation on the route — everything else passes
- * through verbatim, so a model released after this build needs no code change.
- */
-const ANTHROPIC_DATED_ID = /^(.*)-(20\d{6})$/;
 
 /**
  * Claude via Google Cloud Vertex AI. Authenticates with Application Default
@@ -37,12 +27,9 @@ export class VertexProvider implements Provider {
     private readonly client?: AnthropicLikeClient,
   ) {
     this.model = model ?? DEFAULT_CLAUDE_MODEL;
-    const dated = ANTHROPIC_DATED_ID.exec(this.model);
-    if (dated) {
-      throw new Error(
-        `"${this.model}" is the Anthropic API's dated-id form; Vertex separates the date with "@" — use "vertex:${dated[1]}@${dated[2]}".`,
-      );
-    }
+    // Same rule doctor's preflight applies, from one definition (design D3).
+    const dated = vertexDatedIdError(this.model);
+    if (dated) throw new Error(dated);
     if (!settings.project) {
       throw new Error(
         'vertex requires a GCP project: set COPPERHEAD_VERTEX_PROJECT, "vertexProject" in .copperhead/config.json, or ANTHROPIC_VERTEX_PROJECT_ID. There is no default project.',

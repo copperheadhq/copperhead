@@ -421,7 +421,7 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 - Refuse to run `do` or `repl` on a dirty git tree (offer `--allow-dirty`, whose snapshot pairs a `git stash create` object for tracked changes with a tree object for untracked files, so the rollback restores both rather than letting `git clean` delete what the stash never captured). An untracked file that exists but cannot be read refuses the run by name: it cannot be snapshotted, and the rollback would delete it regardless, so proceeding would break exactly the promise `--allow-dirty` makes. Untracked paths that vanish before the snapshot is taken are skipped rather than refused
 - All file tools sandboxed to repo root; no network tools in Phase 1
 - `.env` in `.gitignore` from first commit; keys only via env vars — never written to any file, transcript, or commit
-- Transcripts in `.copperhead/runs/` redact anything matching `sk-[A-Za-z0-9_-]+`
+- Transcripts, run summaries, and the `repl` session log in `.copperhead/runs/` redact known credential shapes at write time — `sk-…`, `Bearer …`, registry/forge tokens, `AIza…`/`gsk_…`, and the Vertex route's Google shapes (`ya29.` access tokens, PEM private-key blocks). Redaction runs over a whole message before it is split into lines, since a multi-line block only matches intact (AC-4.1)
 - The Codex CLI's native read access and `~/.codex/sessions/` logs are outside Copperhead's enforcement/redaction boundary; the Codex path documents this host-local exposure explicitly
 - The agent never invents MPNs: any new part must come with a datasheet-verifiable justification in BOM.md, flagged `UNVERIFIED` for human review
 

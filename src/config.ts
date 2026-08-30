@@ -291,6 +291,27 @@ export function isVertexModel(model: string): boolean {
 }
 
 /**
+ * Anthropic-API-style dated snapshot suffix (`claude-opus-4-5-20251101`).
+ * Vertex separates a dated snapshot with `@` (`claude-opus-4-5@20251101`);
+ * sending the `-` form yields a bare 404 from Google that names neither form.
+ */
+const ANTHROPIC_DATED_ID = /^(.*)-(20\d{6})$/;
+
+/**
+ * The correction message for a Vertex model id in the Anthropic API's dated
+ * form, or null when the id is fine (design D3). Shared by the provider (which
+ * throws it at construction) and `doctor` (which fails its preflight on it), so
+ * doctor can never report ready for an id the run rejects on its first turn.
+ * This is the only id manipulation on the route — everything else passes
+ * through verbatim, so a model released after this build needs no code change.
+ */
+export function vertexDatedIdError(model: string): string | null {
+  const dated = ANTHROPIC_DATED_ID.exec(model);
+  if (!dated) return null;
+  return `"${model}" is the Anthropic API's dated-id form; Vertex separates the date with "@" — use "vertex:${dated[1]}@${dated[2]}".`;
+}
+
+/**
  * True when the endpoint is loopback, i.e. a local server such as Ollama.
  * Those need no credential (design D4); a remote endpoint always does.
  */
