@@ -13,7 +13,7 @@ import {
   type CompatSettings,
   type CopperheadConfig,
 } from '../config.js';
-import { kicadCliVersion } from '../kicad/cli.js';
+import { kicadCliVersion, MIN_KICAD_MAJOR } from '../kicad/cli.js';
 import { redactSecrets } from '../util/redact.js';
 import { isNotFoundError } from '../util/preflight.js';
 
@@ -85,15 +85,46 @@ function nodeCheck(version: string): DoctorCheck {
   };
 }
 
+// MIN_KICAD_MAJOR (imported from kicad/cli.ts) enforces the minimum supported KiCad version for ERC/DRC.
+// Behaviour note: kicadCheck() returns status: 'fail' (exit non-zero) for any
+// kicad-cli version below this threshold, and for output that contains no
+// parseable N.N version token. This is intentional user-visible behaviour and
+// is NOT a no-op hint correction: users on KiCad 7 will see doctor fail where
+// it previously succeeded. The gate mirrors the README's stated requirement and
+// follows the same pattern as MIN_NODE_MAJOR above.
+
 async function kicadCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
   try {
-    return { name: 'kicad-cli', status: 'ok', detail: await probe() };
+    const raw = await probe();
+    // Anchored match: require a version-shaped token at the start of a line so
+    // an incidental N.N elsewhere in stdout (e.g. "OpenGL 3.2 unsupported")
+    // does not shadow the real KiCad version. The `m` flag makes ^ match
+    // line-starts within a multi-line string.
+    const match = raw.match(/(?:^|\n)\s*(?:kicad-cli\s+)?v?(\d+)\.\d+/m);
+    const major = match ? Number(match[1]) : NaN;
+    if (!Number.isFinite(major)) {
+      return {
+        name: 'kicad-cli',
+        status: 'fail',
+        detail: raw || 'could not parse version',
+        hint: `copperhead needs KiCad >= ${MIN_KICAD_MAJOR}; install or configure a compatible kicad-cli.`,
+      };
+    }
+    if (major < MIN_KICAD_MAJOR) {
+      return {
+        name: 'kicad-cli',
+        status: 'fail',
+        detail: `${raw} (< ${MIN_KICAD_MAJOR})`,
+        hint: `copperhead needs KiCad >= ${MIN_KICAD_MAJOR}; upgrade KiCad (https://www.kicad.org/download/).`,
+      };
+    }
+    return { name: 'kicad-cli', status: 'ok', detail: raw };
   } catch {
     return {
       name: 'kicad-cli',
       status: 'fail',
       detail: 'not found on PATH',
-      hint: 'install KiCad >= 9 (bundles kicad-cli); ERC/DRC gates need it.',
+      hint: 'install KiCad >= 8 (bundles kicad-cli); ERC/DRC gates need it.',
     };
   }
 }

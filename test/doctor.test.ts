@@ -8,6 +8,7 @@ import {
   formatDoctor,
   type DoctorDeps,
 } from '../src/commands/doctor.js';
+import { MIN_KICAD_MAJOR } from '../src/kicad/cli.js';
 import { tempFixtureRepo } from './helpers.js';
 
 // Deps that make every host-dependent probe deterministic.
@@ -65,6 +66,152 @@ describe('copperhead doctor', () => {
       const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
       expect(kicad.status).toBe('fail');
       expect(kicad.hint).toMatch(/install KiCad/i);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('fails when KiCad version is below 8 (e.g. KiCad 7.x)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'kicad-cli 7.0.10',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r.ok).toBe(false);
+      const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad.status).toBe('fail');
+      expect(kicad.detail).toContain('(< 8)');
+      expect(kicad.hint).toContain('copperhead needs KiCad >= 8');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('passes when KiCad version is >= 8', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r8 = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => '8.0.4',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r8.ok).toBe(true);
+      const kicad8 = r8.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad8.status).toBe('ok');
+      expect(kicad8.detail).toBe('8.0.4');
+
+      const r10 = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'kicad-cli 10.0.5',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r10.ok).toBe(true);
+      const kicad10 = r10.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad10.status).toBe('ok');
+      expect(kicad10.detail).toBe('kicad-cli 10.0.5');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('enforces the MIN_KICAD_MAJOR floor exported from kicad/cli', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const below = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => `kicad-cli ${MIN_KICAD_MAJOR - 1}.99.0`,
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(below.ok).toBe(false);
+      const kicadBelow = below.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadBelow.status).toBe('fail');
+      expect(kicadBelow.detail).toContain(`(< ${MIN_KICAD_MAJOR})`);
+
+      const at = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => `kicad-cli ${MIN_KICAD_MAJOR}.0.0`,
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(at.ok).toBe(true);
+      const kicadAt = at.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadAt.status).toBe('ok');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('resolves the correct major when stdout contains a spurious N.N before the real version (Finding 4 regression)', async () => {
+    // An unanchored regex would match "OpenGL 3.2" and yield major 3, causing
+    // doctor to report "KiCad 3 is too old" for a perfectly good KiCad 9.
+    // The anchored regex must skip prefix noise on earlier lines.
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          // Simulate a kicad-cli that emits a warning line before its version.
+          kicadVersion: async () => 'OpenGL 3.2 unsupported\n9.0.1',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad.status).toBe('ok');
+      // The detail must carry the full raw string, not just the match.
+      expect(kicad.detail).toContain('9.0.1');
+      expect(r.ok).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('fails when KiCad version response is empty or unparseable', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const rEmpty = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => '',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(rEmpty.ok).toBe(false);
+      const kicadEmpty = rEmpty.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadEmpty.status).toBe('fail');
+      expect(kicadEmpty.detail).toBe('could not parse version');
+      expect(kicadEmpty.hint).toContain('copperhead needs KiCad >= 8');
+
+      const rGarbage = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'unknown version string',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(rGarbage.ok).toBe(false);
+      const kicadGarbage = rGarbage.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadGarbage.status).toBe('fail');
+      expect(kicadGarbage.detail).toBe('unknown version string');
+      expect(kicadGarbage.hint).toContain('copperhead needs KiCad >= 8');
     } finally {
       await cleanup();
     }

@@ -56,7 +56,7 @@ The script is conservative by design: it never runs `sudo` and never edits shell
 ### Requirements
 
 - Node.js ≥ 20
-- [KiCad](https://www.kicad.org/) ≥ 8 with `kicad-cli` on PATH
+- [KiCad](https://www.kicad.org/) ≥ 8 with `kicad-cli` on PATH (on Windows and macOS, copperhead also searches standard installation directories automatically; override with `COPPERHEAD_KICAD_CLI`)
 - One model backend: a locally installed, ChatGPT-authenticated [Codex CLI](https://learn.chatgpt.com/docs/codex/cli), a logged-in [Cursor Agent CLI](#saved-login-cursor-agent) (`agent login`), logged-in Claude Code (see [Saved login](#saved-login-claude-code)), or `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` in the environment. `check` never calls an LLM.
 
 ## Quick start
