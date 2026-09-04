@@ -1,0 +1,142 @@
+{
+  "power.input_voltage_v": {
+    "min": 5,
+    "max": 6,
+    "source": "docs/SPEC.md — Electrical budgets",
+    "affects": [
+      "future schematic and PCB"
+    ],
+    "deferred": [
+      "future schematic and PCB"
+    ]
+  },
+  "power.output_continuous_current_a": {
+    "min": 3,
+    "source": "docs/SPEC.md — Electrical budgets",
+    "affects": [
+      "future schematic and PCB"
+    ],
+    "deferred": [
+      "future schematic and PCB"
+    ]
+  },
+  "power.no_load_quiescent_current_mA": {
+    "max": 2,
+    "source": "docs/SPEC.md — Electrical budgets",
+    "affects": [
+      "future schematic and PCB"
+    ],
+    "deferred": [
+      "future schematic and PCB"
+    ]
+  },
+  "usb_c.cc_rd_ohms": {
+    "value": "5100 (ASSUMED)",
+    "source": "docs/SPEC.md — Electrical budgets",
+    "affects": [
+      "future schematic"
+    ],
+    "deferred": [
+      "future schematic"
+    ]
+  },
+  "protection.ptc_hold_trip_a": {
+    "value": "hold >=3 A at 25 °C; trip <=6 A at 25 °C (ASSUMED, standard thermal derating over 0-50 °C ambient)",
+    "source": "docs/SPEC.md — Electrical budgets",
+    "affects": [
+      "future schematic and PCB"
+    ],
+    "deferred": [
+      "future schematic and PCB"
+    ]
+  },
+  "environment.ambient_operating_c": {
+    "min": 0,
+    "max": 50,
+    "source": "docs/SPEC.md — Electrical budgets",
+    "affects": [
+      "future component selection"
+    ]
+  },
+  "pcb.board_size_mm": {
+    "value": "maximum 30 x 20",
+    "source": "docs/SPEC.md — Mechanical, manufacturing, and cost constraints",
+    "affects": [
+      "future PCB"
+    ],
+    "deferred": [
+      "future PCB"
+    ]
+  },
+  "pcb.layers": {
+    "value": "2",
+    "source": "docs/SPEC.md — Mechanical, manufacturing, and cost constraints",
+    "affects": [
+      "future PCB"
+    ],
+    "deferred": [
+      "future PCB"
+    ]
+  },
+  "pcb.copper_weight_oz": {
+    "value": "1",
+    "source": "docs/SPEC.md — Mechanical, manufacturing, and cost constraints",
+    "affects": [
+      "future PCB"
+    ],
+    "deferred": [
+      "future PCB"
+    ]
+  },
+  "pcb.fabrication": {
+    "value": "standard JLCPCB; no controlled impedance",
+    "source": "docs/SPEC.md — Mechanical, manufacturing, and cost constraints",
+    "affects": [
+      "future PCB"
+    ],
+    "deferred": [
+      "future PCB"
+    ]
+  },
+  "assembly.package_constraints": {
+    "forbidden": [
+      "packages finer than 0603",
+      "BGA",
+      "QFN with exposed thermal pad"
+    ],
+    "source": "docs/SPEC.md — Mechanical, manufacturing, and cost constraints",
+    "affects": [
+      "future component selection"
+    ]
+  },
+  "bom.cost_usd_qty_100": {
+    "max": 3,
+    "source": "docs/SPEC.md — Mechanical, manufacturing, and cost constraints",
+    "affects": [
+      "future BOM"
+    ],
+    "deferred": [
+      "future BOM"
+    ]
+  },
+  "mechanical.mounting_holes": {
+    "value": "2 through-hole M3; 24 mm pitch",
+    "source": "docs/SPEC.md — Mechanical, manufacturing, and cost constraints",
+    "affects": [
+      "future PCB"
+    ],
+    "deferred": [
+      "future PCB"
+    ]
+  },
+  "interfaces.header_pin_assignment": {
+    "value": "2x2 2.54 mm header with duplicated 5 V and GND pins (ASSUMED)",
+    "source": "docs/SPEC.md — Interfaces",
+    "affects": [
+      "future schematic"
+    ],
+    "deferred": [
+      "future schematic"
+    ]
+  }
+}

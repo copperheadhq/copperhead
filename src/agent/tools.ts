@@ -188,6 +188,9 @@ export const TOOLS: ToolDef[] = [
         'utf8',
       );
       await writeFile(path.join(dir, 'tasks.md'), `# Tasks\n\n${str(args, 'tasks')}\n`, 'utf8');
+      if (existsSync(path.join(ctx.repoRoot, 'openspec', 'config.yaml'))) {
+        await writeFile(path.join(dir, '.openspec.yaml'), 'schema: spec-driven\nskip_specs: true\n', 'utf8');
+      }
       ctx.changeId = id;
       return `proposal written to openspec/changes/${id}/ — now call validate_change`;
     },

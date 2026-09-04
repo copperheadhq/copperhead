@@ -1,0 +1,14 @@
+{
+  "schematic": null,
+  "board": null,
+  "docs": "docs/",
+  "model": null,
+  "maxTurns": 40,
+  "maxRepairCycles": 5,
+  "budgets": {},
+  "turnTimeoutMs": 600000,
+  "heartbeatMs": 30000,
+  "maxStageRetries": 2,
+  "llmCache": true,
+  "origin": "create"
+}
