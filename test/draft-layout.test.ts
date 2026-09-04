@@ -631,56 +631,84 @@ describe('power-symbol value text lands away from the part it serves', () => {
 });
 
 describe('label nudging keeps a stub label attached and clear', () => {
+  /** Small IC-with-passives intents, seeded so the search is deterministic. */
+  function seeded(seed: number): SchematicIntent {
+    let st = seed >>> 0;
+    const rnd = (): number => {
+      st = (st * 1664525 + 1013904223) >>> 0;
+      return st / 2 ** 32;
+    };
+    const nR = 2 + Math.floor(rnd() * 4);
+    const nC = 1 + Math.floor(rnd() * 3);
+    const parts = [
+      { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' },
+      { ref: 'U2', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'AUX' },
+    ];
+    for (let i = 1; i <= nR; i++) parts.push({ ref: `R${i}`, libId: 'Device:R', value: '10k', group: 'MAIN' });
+    for (let i = 1; i <= nC; i++) parts.push({ ref: `C${i}`, libId: 'Device:C', value: '100n', group: 'MAIN' });
+    const names = ['COMP', 'COMP_Z', 'FB', 'RT', 'BOOT', 'SW', 'EN', 'VSENSE', 'LED_A', 'DRIVE'];
+    const nets: { name: string; pins: string[] }[] = [];
+    const io = ['U1.4', 'U1.5', 'U1.6', 'U1.7', 'U1.8'];
+    const pool: string[] = [];
+    for (let i = 1; i <= nR; i++) pool.push(`R${i}.1`, `R${i}.2`);
+    for (let i = 1; i <= nC; i++) pool.push(`C${i}.1`, `C${i}.2`);
+    const gnd = ['U1.2', 'U2.2'];
+    const k = 3 + Math.floor(rnd() * 3);
+    for (let n = 0; n < k && pool.length >= 2; n++) {
+      const size = 2 + Math.floor(rnd() * 2);
+      const pins: string[] = [];
+      if (rnd() < 0.6 && io.length) pins.push(io.splice(Math.floor(rnd() * io.length), 1)[0]!);
+      while (pins.length < size && pool.length) pins.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]!);
+      if (pins.length >= 2) nets.push({ name: names[n % names.length]!, pins });
+    }
+    gnd.push(...pool);
+    nets.push({ name: 'GND', pins: gnd }, { name: 'VCC', pins: ['U1.1', 'U2.1'] });
+    return { version: 1, parts, nets, noConnect: ['U1.3', ...io, 'U2.3', 'U2.4', 'U2.5', 'U2.6', 'U2.7', 'U2.8'] };
+  }
+
   it('rides a colliding label outward along its own stub', async () => {
     // Nets draft in name order, so an earlier net's label cannot see the
     // trunk a later net is about to run through it. The nudge pass fixes
-    // that after routing. This fixture is a small IC-with-passives group in
-    // the fixture library whose routing produces exactly one such collision
-    // (found by searching seeded random intents against the engine): the
-    // committed buck-12v-5v board no longer collides once its groups draft
-    // IC-first with balanced columns, which is the point of those passes.
-    const intent: SchematicIntent = {
-      version: 1,
-      parts: [
-        { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' },
-        { ref: 'U2', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'AUX' },
-        { ref: 'R1', libId: 'Device:R', value: '10k', group: 'MAIN' },
-        { ref: 'R2', libId: 'Device:R', value: '10k', group: 'MAIN' },
-        { ref: 'C1', libId: 'Device:C', value: '100n', group: 'MAIN' },
-      ],
-      nets: [
-        { name: 'COMP', pins: ['U1.4', 'R2.2'] },
-        { name: 'COMP_Z', pins: ['U1.5', 'R1.2', 'C1.1'] },
-        { name: 'FB', pins: ['U1.6', 'R1.1'] },
-        { name: 'RT', pins: ['U1.7', 'C1.2'] },
-        { name: 'GND', pins: ['U1.2', 'U2.2', 'R2.1'] },
-        { name: 'VCC', pins: ['U1.1', 'U2.1'] },
-      ],
-      noConnect: ['U1.3', 'U1.8', 'U2.3', 'U2.4', 'U2.5', 'U2.6', 'U2.7', 'U2.8'],
-    };
-    const { model, symbols } = await place(intent);
-
-    // pin points of every placed part, to tell a pin stub from a trunk
-    const pinPoints = new Set<string>();
-    for (const s of model.symbols) {
-      for (const p of symbols.get(s.ref)?.pins ?? []) {
-        pinPoints.add(`${s.at.x + p.x},${s.at.y - p.y}`);
+    // that after routing. Which small intent provokes the collision depends
+    // on every placement rule before the pass, so the test searches seeded
+    // intents for the first that nudges and checks the invariants on it;
+    // a placement change that leaves no nudge in a few hundred small boards
+    // would be a change to look at, and fails here.
+    let seen = 0;
+    let nudgedOnce = false;
+    for (let seed = 1; seed <= 400 && !nudgedOnce; seed++) {
+      const intent = seeded(seed);
+      const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-nudge-'));
+      let model: Awaited<ReturnType<typeof place>>['model'];
+      let symbols: Awaited<ReturnType<typeof place>>['symbols'];
+      try {
+        const symsource = new SymbolSource(repo, [SYMLIB]);
+        const v = await validateIntent(intent, symsource, null);
+        if (!v.ok) continue;
+        ({ model, symbols } = { ...draftSchematicPlacement(v.validated!, 'board', '2020-01-01'), symbols: v.validated!.symbols });
+      } finally {
+        await rm(repo, { recursive: true, force: true });
       }
+      seen++;
+      const pinPoints = new Set<string>();
+      for (const s of model.symbols) {
+        for (const p of symbols.get(s.ref)?.pins ?? []) pinPoints.add(`${s.at.x + p.x},${s.at.y - p.y}`);
+      }
+      const stubOf = (l: { x: number; y: number }) =>
+        model.wires.find((w) => w.x2 === l.x && w.y2 === l.y && pinPoints.has(`${w.x1},${w.y1}`));
+      const stubLabels = model.labels.map((l) => ({ l, w: stubOf(l) })).filter((e) => e.w !== undefined);
+      // every stub label is still an endpoint of the stub that starts at its
+      // pin: nudging extends the wire, it never detaches the label from it
+      const lengths = stubLabels.map((e) => Math.hypot(e.w!.x2 - e.w!.x1, e.w!.y2 - e.w!.y1) / U);
+      for (const len of lengths) {
+        expect(len).toBeGreaterThan(STUB - 0.001);
+        expect(len).toBeLessThanOrEqual(STUB + 8); // MAX_LABEL_NUDGE
+      }
+      if (lengths.some((len) => len > STUB + 0.001)) nudgedOnce = true;
     }
-    const stubOf = (l: { x: number; y: number }) =>
-      model.wires.find((w) => w.x2 === l.x && w.y2 === l.y && pinPoints.has(`${w.x1},${w.y1}`));
-
-    const stubLabels = model.labels.map((l) => ({ l, w: stubOf(l) })).filter((e) => e.w !== undefined);
-    expect(stubLabels.length).toBeGreaterThan(0);
-
-    // every stub label is still an endpoint of the stub that starts at its
-    // pin: nudging extends the wire, it never detaches the label from it
-    const lengths = stubLabels.map((e) => Math.hypot(e.w!.x2 - e.w!.x1, e.w!.y2 - e.w!.y1) / U);
-    for (const len of lengths) {
-      expect(len).toBeGreaterThan(STUB - 0.001);
-      expect(len).toBeLessThanOrEqual(STUB + 8); // MAX_LABEL_NUDGE
-    }
-    // and at least one of them actually moved
-    expect(lengths.some((len) => len > STUB + 0.001)).toBe(true);
-  }, 30000);
+    // the search stops at the first nudging board; every board before it
+    // was checked for the attachment invariant too
+    expect(seen).toBeGreaterThan(0);
+    expect(nudgedOnce, 'no seeded intent produced a nudge').toBe(true);
+  }, 120000);
 });
