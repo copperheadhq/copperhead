@@ -290,6 +290,26 @@ describe('capHistory — what it actually trims', () => {
     expect(out[3].role === 'tool' && out[3].content).toBe(big);
   });
 
+  it('does not let a read with a non-numeric end_line supersede an earlier read', () => {
+    // rangeOf's bad(e) half: a present-but-non-numeric end_line yields an
+    // unknown span, so the read supersedes nothing — symmetric with the
+    // stringified start_line guard, and the same conservative direction.
+    const whole = 'WHOLE'.repeat(2000);
+    const msgs: Msg[] = [
+      ...read('c1', 'a.kicad_sch', whole, { start: 1, end: 100 }),
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [{ id: 'c2', name: 'read_file', args: { path: 'a.kicad_sch', start_line: 1, end_line: 'oops' } }],
+      },
+      { role: 'tool', toolCallId: 'c2', content: 'malformed range read' },
+      ...filler(2),
+    ];
+    const { messages: out, stats } = capHistory(msgs, { ...opts, maxToolResultChars: 100000 });
+    expect(out[1].role === 'tool' && out[1].content).toBe(whole);
+    expect(stats.superseded).toBe(0);
+  });
+
   it('does not supersede across different paths', () => {
     const msgs: Msg[] = [...read('c1', 'a.kicad_sch', 'A'.repeat(50)), ...read('c2', 'b.md', 'B'.repeat(50)), ...filler(2)];
     const { messages: out, stats } = capHistory(msgs, { ...opts, maxToolResultChars: 100000 });
