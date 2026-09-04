@@ -166,6 +166,8 @@ export function formatSchematicDraftReport(report: SchematicDraftReport): string
     `  net classes: ${report.netClasses.map((n) => `${n.name}=${n.class}${mark(n)}`).join(', ')}${legend.length ? ` (${legend.join(', ')})` : ''}`,
   );
   if (report.pwrFlags.length) lines.push(`  PWR_FLAG synthesized on: ${report.pwrFlags.join(', ')}`);
+  const sf = report.sheetFit as SchematicDraftReport['sheetFit'] | undefined;
+  if (sf) lines.push(`  sheet fit: ${sf.paper}, ink ${Math.round(sf.inkUtilization * 100)}% of the usable frame, compaction ${sf.compaction}`);
   for (const n of report.notes) lines.push(`  note: ${n}`);
   return lines.join('\n');
 }
