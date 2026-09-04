@@ -559,6 +559,8 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-16.17 (Tier B catches detection regressions)** A change that stops a Tier B fixture's pinned finding from being reported fails CI, naming the fixture and the missing finding.
 - **AC-16.18 (Tier C catches engine regressions)** An engine change that alters a Tier C output's bytes or lowers its pinned score fails CI with the file diff or the score delta.
 - **AC-16.32 (aesthetic metrics are measured)** The breakdown reports axis-alignment ratio, spacing uniformity, straight-wire ratio, label alignment, whitespace balance, and pair symmetry as individual metrics with their weights and contributions.
+- **AC-16.33 (wiring style is measured)** The breakdown reports `pin-attachment` (share of two-pin parts with a pin wired, through endpoint and T joins, to another part's pin), `island-parts` (share of two-pin parts whose every pin ends in a label or nothing), `power-symbol-economy` (power symbols per part) and `labels-per-part` as individual metrics; a resistor wired to an IC pin scores attachment 1 and a resistor hung on two labels scores 0 with islands 1.
+- **AC-16.34 (style composite is convention-free)** The report carries a wiring-style composite computed from the AC-16.33 metrics, crossings per wire and the straight-wire ratio only; it is never capped by legibility findings, so a sheet with no group rectangles and an engine draft of the same circuit compare on one scale, and `copperhead score schematic --file <sheet>` reports it for any sheet without a repo.
 
 **Agent loop and create pipeline**
 
