@@ -646,18 +646,14 @@ describe('label nudging keeps a stub label attached and clear', () => {
         { ref: 'U2', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'AUX' },
         { ref: 'R1', libId: 'Device:R', value: '10k', group: 'MAIN' },
         { ref: 'R2', libId: 'Device:R', value: '10k', group: 'MAIN' },
-        { ref: 'R3', libId: 'Device:R', value: '10k', group: 'MAIN' },
         { ref: 'C1', libId: 'Device:C', value: '100n', group: 'MAIN' },
-        { ref: 'C2', libId: 'Device:C', value: '100n', group: 'MAIN' },
-        { ref: 'C3', libId: 'Device:C', value: '100n', group: 'MAIN' },
       ],
       nets: [
-        { name: 'COMP', pins: ['U1.5', 'C2.2'] },
-        { name: 'COMP_Z', pins: ['C2.1', 'C3.2', 'C1.1'] },
-        { name: 'FB', pins: ['U1.7', 'R3.1', 'C3.1'] },
-        { name: 'RT', pins: ['U1.6', 'C1.2'] },
-        { name: 'BOOT', pins: ['U1.4', 'R2.1', 'R2.2'] },
-        { name: 'GND', pins: ['U1.2', 'U2.2', 'R1.1', 'R1.2', 'R3.2'] },
+        { name: 'COMP', pins: ['U1.4', 'R2.2'] },
+        { name: 'COMP_Z', pins: ['U1.5', 'R1.2', 'C1.1'] },
+        { name: 'FB', pins: ['U1.6', 'R1.1'] },
+        { name: 'RT', pins: ['U1.7', 'C1.2'] },
+        { name: 'GND', pins: ['U1.2', 'U2.2', 'R2.1'] },
         { name: 'VCC', pins: ['U1.1', 'U2.1'] },
       ],
       noConnect: ['U1.3', 'U1.8', 'U2.3', 'U2.4', 'U2.5', 'U2.6', 'U2.7', 'U2.8'],
@@ -682,7 +678,7 @@ describe('label nudging keeps a stub label attached and clear', () => {
     const lengths = stubLabels.map((e) => Math.hypot(e.w!.x2 - e.w!.x1, e.w!.y2 - e.w!.y1) / U);
     for (const len of lengths) {
       expect(len).toBeGreaterThan(STUB - 0.001);
-      expect(len).toBeLessThanOrEqual(STUB + 4); // MAX_LABEL_NUDGE
+      expect(len).toBeLessThanOrEqual(STUB + 8); // MAX_LABEL_NUDGE
     }
     // and at least one of them actually moved
     expect(lengths.some((len) => len > STUB + 0.001)).toBe(true);

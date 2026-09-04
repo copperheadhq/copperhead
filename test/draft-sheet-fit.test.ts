@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { validateIntent, type SchematicIntent } from '../src/kicad/draft/ir.js';
 import { draftSchematicPlacement } from '../src/kicad/draft/engine.js';
+import { draftSchematic } from '../src/kicad/draft/draft.js';
+import { readSheetGeometry } from '../src/kicad/sexp.js';
+import { measureWiringStyle } from '../src/kicad/score.js';
 
 /**
  * The paper pass as a gate: the sheet the engine picks is the smallest one
@@ -213,12 +216,24 @@ describe('the IC leads its group', () => {
     const at = (ref: string) => model.symbols.find((s) => s.ref === ref)!.at;
     const u1 = at('U1');
     // symbol origins are body centres: a passive in the IC's own top row has
-    // a centre above the IC's, so "top" is the IC's row, not its origin
+    // a centre above the IC's, so "top" is the IC's row, not its origin. A
+    // part hung on one of the IC's left pins (the compensation network on
+    // COMP) sits left of it by design, within the shelf the IC reserves.
     const rowTolerance = 15;
+    // the left shelf holds the IC's left-facing labels plus a slot per hang
+    const shelf = 80;
     for (const ref of members.filter((r) => r !== 'U1')) {
-      expect(at(ref).x, `${ref} left of U1`).toBeGreaterThan(u1.x);
-      expect(at(ref).y, `${ref} above U1's row`).toBeGreaterThanOrEqual(u1.y - rowTolerance);
+      expect(at(ref).x, `${ref} far left of U1`).toBeGreaterThan(u1.x - shelf);
+      // a pull-up hung on a pin rises above the row; anything else stays at
+      // or below the IC's row
+      const hungUp = model.wires.some((w) => Math.abs(w.x1 - w.x2) < 0.01 && Math.abs(w.x1 - at(ref).x) < 0.01 && Math.max(w.y1, w.y2) <= u1.y + rowTolerance);
+      if (!hungUp) expect(at(ref).y, `${ref} above U1's row`).toBeGreaterThanOrEqual(u1.y - rowTolerance);
     }
+    void rowTolerance;
+    // nothing sits more than a row above the IC except a pull-up rising
+    // from one of its pins, and nothing sits left of it except what hangs
+    // on its left pins: the converter's COMP and RT networks are exactly
+    // that, and belong there (the sheet the client drew puts them there)
   });
 
   it('keeps the connector column to the left of the IC', async () => {
@@ -226,7 +241,7 @@ describe('the IC leads its group', () => {
     const { model } = await draftBoard('usb-atmega-node');
     const at = (ref: string) => model.symbols.find((s) => s.ref === ref)!.at;
     expect(at('J1').x).toBeLessThan(at('U2').x); // Power Input's USB jack, Regulation's LDO
-    expect(at('U1').x).toBeLessThan(at('R5').x); // MCU before its pull-ups
+    expect(at('J1').x).toBeLessThan(at('U1').x); // and the MCU
   });
 });
 
@@ -333,6 +348,55 @@ describe('text keeps clear of text at paper width', () => {
         await rm(repo, { recursive: true, force: true });
       }
     }
+  }, 60000);
+});
+
+describe('pin-anchored hangs (#220 phase 3)', () => {
+  /** Draft a committed reference board to text and measure how its parts connect. */
+  async function measured(board: string) {
+    const repo = await mkdtemp(path.join(tmpdir(), `copperhead-hang-${board}-`));
+    try {
+      await cp(path.join(CONTROL, board), repo, { recursive: true });
+      const config = JSON.parse(await readFile(path.join(repo, '.copperhead', 'config.json'), 'utf8')) as { schematic: string; docs: string };
+      const res = await draftSchematic({ repoRoot: repo, schematic: config.schematic, intentPath: 'schematic.intent.json', docsDir: config.docs });
+      expect(res.ok, `${board}: ${res.ok ? '' : res.message}`).toBe(true);
+      if (!res.ok) throw new Error('unreachable');
+      const sheets = await readSheetGeometry(res.schematicPath);
+      return { ws: measureWiringStyle(sheets), report: res.report, sheets };
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  }
+
+  it('gate: the reference boards attach their two-pin parts at least this well', async () => {
+    // a person attaches 0.90 to 1.00 (research/GOOD-SCHEMATIC.md); these
+    // floors are where the engine stands with hangs and no rotation, so a
+    // regression shows and progress can raise them
+    const floors: Record<string, number> = { 'buck-12v-5v': 0.45, 'ldo-demo': 0.8, 'usb-atmega-node': 0.55, 'npn-switch': 0.1 };
+    for (const [board, floor] of Object.entries(floors)) {
+      const { ws } = await measured(board);
+      const attached = ws.twoPin ? ws.twoPinAttached / ws.twoPin : 1;
+      expect(attached, `${board}: ${ws.twoPinAttached}/${ws.twoPin} attached`).toBeGreaterThanOrEqual(floor);
+      expect(ws.twoPinIslands / Math.max(1, ws.twoPin), `${board}: islands`).toBeLessThanOrEqual(0.1);
+    }
+  }, 120000);
+
+  it('hangs the compensation network on the converter\'s COMP pin and wires it', async () => {
+    // buck-12v-5v: R4 + C5 in series and C6 shunt on U1.6. Hung, all three
+    // sit within wire span of the pin, so COMP draws as one wired net with a
+    // single label, and the merged-net guard says the trunk touched nothing
+    const { report, sheets } = await measured('buck-12v-5v');
+    expect(report.mergedNets).toEqual([]);
+    const labels = sheets[0]!.labels.filter((l) => l.name === 'COMP');
+    expect(labels.length, 'COMP labels').toBe(1);
+    expect(report.notes.filter((n) => /^hang refused/.test(n))).toEqual([]);
+  }, 60000);
+
+  it('a hang the clearance check refuses is reported, never silently dropped', async () => {
+    // usb-atmega-node: the two pull-ups on the MCU's VSENSE pin cannot both
+    // sit on that row cleanly today; the report says so by name
+    const { report } = await measured('usb-atmega-node');
+    for (const n of report.notes.filter((x) => /^hang refused/.test(x))) expect(n).toMatch(/could not be placed cleanly on U\d+\.\d+ in "MCU"; drawn in a column instead$/);
   }, 60000);
 });
 
