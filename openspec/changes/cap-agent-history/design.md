@@ -15,16 +15,20 @@ Two mechanisms in the codebase index into the message array:
 
 So capping shrinks `content` strings and oversized argument strings and nothing else. It never drops, merges, reorders, or re-ids a message. This is what makes it safe to sit in front of any provider, including ones added later, and it is why "just drop old messages" the obvious implementation is not what this does.
 
+A corollary, not a defect: the session-resume providers (`claude-code.ts`, `cursor.ts`) send `renderDelta(messages, sentCount)` with `sentCount` from the previous turn, so only the messages added since last turn go over the wire — precisely the ones inside `keepRecent`, which truncation never touches, and where supersession fires only if a re-read lands in that same delta. Those providers therefore see little direct benefit from capping. The fix is deliberately provider-agnostic (it caps the array every provider is handed, at the one `provider.chat` site) rather than special-cased per provider, so this is expected, not a wiring bug to fix.
+
 ## D3. Supersession ignores the recency window; truncation does not
 
 The first implementation protected the last `keepRecent` messages from *all* trimming. A test on a realistic schematic-stage conversation showed capping barely fired: the protected window was shielding the largest items - the most recent 30kB re-reads which is precisely the cost being targeted.
 
 The fix separates the two trims by how lossy they are:
 
-- **Supersession is not lossy.** A read is superseded only when a *later* read of the same path covering the same lines exists in the same conversation, so the current contents are still in front of the model. Distance is irrelevant to that argument, so no recency protection is warranted.
+- **Supersession is not lossy in isolation.** A read is superseded only when a *later* read of the same path covering the same lines exists in the same conversation, so the current contents are still in front of the model. Distance is irrelevant to that argument, so no recency protection is warranted.
 - **Truncation is lossy.** A clipped result cannot be recovered from the conversation, only by re-running the tool. So it applies only outside the recent window, where the model has already acted on the content.
 
 The newest read of a path is never superseded by construction, nothing is later than it.
+
+The two trims compose, and the composition weakens supersession's "in front of the model" guarantee: when both the superseded read and the later read that replaced it sit outside `keepRecent`, the earlier one is stubbed *and* the later one is truncated, so the full contents are in front of the model in neither. This is not a correctness bug — both trims announce themselves in-band (D4) and name how to recover the content, and the newest read of the path is always the least likely to be truncated since it is the closest to the recency window — but the guarantee holds per-trim, not for the pass as a whole. The cheaper honest framing was chosen over exempting a surviving read from truncation, which would buy a strictly-true invariant at the cost of keeping a large read that the model may not touch again fully on the wire.
 
 ## D3a. Supersession compares line coverage, not just path
 
@@ -35,6 +39,8 @@ A read is now recorded with the span it returned, an absent bound meaning "to th
 Containment is checked against *any* later read, not merely the most recent one, so a narrow read late in a conversation does not resurrect earlier copies that a wider intervening read had already made redundant.
 
 One detail follows from mirroring the tool rather than its schema: `toolReadFile` returns the whole file whenever `start_line` is absent, ignoring `end_line`, so such a read is recorded as whole-file rather than as `[1, end_line]`; recording the narrower span would understate what the model actually received.
+
+Mirroring the tool only stays sound if the tool and the recorder read the bound the same way. Tool args reach the loop straight from `JSON.parse` of model output with no schema coercion, so `start_line` can arrive as a stringified `"4"`. `toolReadFile` coerces that through `Math.max`/`Math.min` and does a real partial read, but a recorder that branched on `typeof start_line === 'number'` would see the string, fall through to the whole-file default, and record the partial read as `[1, Infinity]` — the exact inversion this design forbids, letting the partial read supersede an earlier whole-file one. The fix normalizes both bounds once, in the `read_file` handler, to a finite number or a dropped bound, and writes the normalized values back into the call's args so the conversation records what the tool actually did. `rangeOf` then sees only finite numbers or absent bounds. As a second line of defence for any read that reaches `rangeOf` without passing through the handler (a hand-built history, a future caller), a bound that is present but not a finite number yields an unknown span: that read supersedes nothing and is superseded by nothing, the same conservative treatment failed reads get.
 
 Failed reads are excluded from the candidate set as well, since replacing real content with a pointer to a read that returned nothing is strictly worse than sending the content again. See D3c for why that status cannot be read off the text.
 

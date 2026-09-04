@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { writeFile, mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execa } from 'execa';
 import { capHistory, HISTORY_CAP_DEFAULTS, type HistoryCapOptions } from '../src/agent/history.js';
+import { toolReadFile } from '../src/agent/filetools.js';
+import { TOOLS, type RunContext } from '../src/agent/tools.js';
 import { renderConversation, renderDelta } from '../src/agent/providers/tool-protocol.js';
 import { runAgentLoop } from '../src/agent/loop.js';
 import { loadConfig, DEFAULTS } from '../src/config.js';
@@ -242,6 +245,51 @@ describe('capHistory — what it actually trims', () => {
     expect(stats.superseded).toBe(0);
   });
 
+  it('read_file normalizes a stringified start_line and writes it back into the call args', async () => {
+    // The primary fix: normalize once, at the handler, so the tool and the
+    // history recorder can never read the same bound differently. read_file's
+    // handler uses only ctx.repoRoot, so a bare object stands in for RunContext.
+    const dir = await mkdtemp(path.join(tmpdir(), 'history-handler-'));
+    await writeFile(path.join(dir, 'f.txt'), 'a\nb\nc\nd\ne\n', 'utf8');
+    const handler = TOOLS.find((t) => t.schema.name === 'read_file')!.handler;
+    const args: Record<string, unknown> = { path: 'f.txt', start_line: '4' };
+    const out = await handler({ repoRoot: dir } as unknown as RunContext, args);
+    expect(out).not.toContain('a'); // a real partial read: line 1 is gone
+    expect(args.start_line).toBe(4); // written back as the number the tool used
+
+    // Garbage bounds are dropped, so the recorded call reads as a whole-file read.
+    const args2: Record<string, unknown> = { path: 'f.txt', start_line: 'abc' };
+    const out2 = await handler({ repoRoot: dir } as unknown as RunContext, args2);
+    expect(out2).toContain('a'); // whole file
+    expect('start_line' in args2).toBe(false); // dropped, not left as "abc"
+  });
+
+  it('does not treat a stringified start_line as a whole-file read', async () => {
+    // Tool args reach the loop straight from JSON.parse of model output with no
+    // schema coercion, so start_line can arrive as "4". toolReadFile coerces it
+    // and really returns lines 4->EOF; rangeOf must credit the read with that
+    // partial span, not the whole file. Recording it as [1, Infinity] would let
+    // this partial read supersede an earlier genuine whole-file read and delete
+    // content the model still relies on (the exact failure D3a forbids).
+    const dir = await mkdtemp(path.join(tmpdir(), 'history-bound-'));
+    await writeFile(path.join(dir, 'f.txt'), 'a\nb\nc\nd\ne\n', 'utf8');
+    // The tool coerces the string to a partial read: line 'a' (line 1) is gone.
+    expect(await toolReadFile(dir, 'f.txt', '4' as unknown as number, undefined)).not.toContain('a');
+
+    const big = 'FULL-FILE-CONTENT '.repeat(200);
+    const msgs: Msg[] = [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'u' },
+      { role: 'assistant', content: null, toolCalls: [{ id: 'c1', name: 'read_file', args: { path: 'f.txt' } }] },
+      { role: 'tool', toolCallId: 'c1', content: big },
+      { role: 'assistant', content: null, toolCalls: [{ id: 'c2', name: 'read_file', args: { path: 'f.txt', start_line: '4' } }] },
+      { role: 'tool', toolCallId: 'c2', content: '4: d\n5: e' },
+    ];
+    const { messages: out, stats } = capHistory(msgs);
+    expect(stats.superseded).toBe(0);
+    expect(out[3].role === 'tool' && out[3].content).toBe(big);
+  });
+
   it('does not supersede across different paths', () => {
     const msgs: Msg[] = [...read('c1', 'a.kicad_sch', 'A'.repeat(50)), ...read('c2', 'b.md', 'B'.repeat(50)), ...filler(2)];
     const { messages: out, stats } = capHistory(msgs, { ...opts, maxToolResultChars: 100000 });
@@ -313,6 +361,27 @@ describe('capHistory — what it actually trims', () => {
     ];
     const { messages: out, stats } = capHistory(msgs, { ...opts, maxToolResultChars: 10 });
     expect(out[1].role === 'tool' && out[1].content).toBe(body);
+    expect(stats.charsSaved).toBe(0);
+  });
+
+  it('does not count an argument clip that the cap was too small to make', () => {
+    // The arg path must guard its accounting the way the result path does:
+    // when clip declines (the cap cannot hold a marker) it returns the value
+    // whole, so nothing was truncated and truncated/charsSaved must stay at 0.
+    const payload = 'z'.repeat(500);
+    const msgs: Msg[] = [
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [{ id: 'c1', name: 'edit_file', args: { path: 'a.kicad_sch', new_string: payload } }],
+      },
+      { role: 'tool', toolCallId: 'c1', content: 'ok' },
+      ...filler(2),
+    ];
+    const { messages: out, stats } = capHistory(msgs, { ...opts, maxToolArgChars: 10 });
+    const call = out[0].role === 'assistant' ? out[0].toolCalls?.[0] : undefined;
+    expect(String(call?.args.new_string)).toBe(payload); // returned whole, not clipped
+    expect(stats.truncated).toBe(0);
     expect(stats.charsSaved).toBe(0);
   });
 

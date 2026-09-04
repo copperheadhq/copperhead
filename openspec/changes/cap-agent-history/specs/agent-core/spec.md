@@ -34,7 +34,7 @@ Capping SHALL preserve the number of messages, their order, their roles, and eve
 - **THEN** the run's own history is unaffected, because the view's messages, tool-call arrays, and argument objects are all fresh
 
 ### Requirement: A superseded file read is replaced rather than re-sent
-When a `read_file` result is followed later in the same conversation by another read of the same path whose line span contains the earlier read's span, the earlier result SHALL be replaced with a short stub naming the path, since those contents are already present in the conversation. A read with no `start_line`/`end_line` SHALL be treated as covering the whole file. An earlier read SHALL NOT be superseded by a later read that covers only part of it, because `read_file` returns only the requested span and the earlier content would otherwise be lost. This replacement SHALL apply regardless of how recent the earlier read is, because it is not lossy. The most recent read of a path SHALL always be sent in full.
+When a `read_file` result is followed later in the same conversation by another read of the same path whose line span contains the earlier read's span, the earlier result SHALL be replaced with a short stub naming the path, since those contents are already present in the conversation. A read with no `start_line`/`end_line` SHALL be treated as covering the whole file. An earlier read SHALL NOT be superseded by a later read that covers only part of it, because `read_file` returns only the requested span and the earlier content would otherwise be lost. The span a read is credited with SHALL match the span the tool actually returned: `read_file` line bounds SHALL be normalized to a finite number or an absent bound before the span is computed, so a bound supplied as a numeric string (e.g. `"4"`, which the tool reads as a partial read) cannot be mistaken for a whole-file read and wrongly supersede real content. This replacement SHALL apply regardless of how recent the earlier read is, because the later read already carries those contents. The most recent read of a path SHALL always be sent in full.
 
 #### Scenario: an earlier read of a re-read path is replaced
 - **GIVEN** a conversation that reads the same schematic in full twice
@@ -45,6 +45,11 @@ When a `read_file` result is followed later in the same conversation by another 
 - **GIVEN** a conversation that reads a file in full, then reads only lines 100 to 120 of it
 - **WHEN** the capped view is built
 - **THEN** the whole-file result is sent unchanged, because the later read does not contain it
+
+#### Scenario: a stringified line bound is not mistaken for a whole-file read
+- **GIVEN** a conversation that reads a file in full, then reads it again with `start_line` supplied as the string `"4"`
+- **WHEN** the capped view is built
+- **THEN** the whole-file result is sent unchanged, because the second read is credited only with the partial span the tool actually returned, not the whole file
 
 #### Scenario: disjoint ranged reads do not supersede each other
 - **GIVEN** a conversation that reads lines 1 to 50 of a file, then lines 100 to 120 of the same file

@@ -103,22 +103,34 @@ function pathOf(call: ToolCall): string | null {
 }
 
 /**
- * The line span a `read_file` call actually returned.
+ * The line span a `read_file` call actually returned, or `null` when it cannot
+ * be determined.
  *
  * `read_file` takes optional `start_line`/`end_line` and returns only that
  * range, so a read is not identified by its path alone. Treating an absent
  * bound as the end of the file makes a whole-file read `[1, Infinity]`, which
  * then compares against ranged reads with ordinary interval containment.
+ *
+ * The `read_file` handler normalizes both bounds to a finite number or drops
+ * them, so on the live path a bound is only ever a finite number or absent.
+ * A bound that is nonetheless present and non-numeric (a hand-built history, a
+ * future caller that skips the handler) is treated as an unknown span (`null`):
+ * a read of unknown extent supersedes nothing and is superseded by nothing —
+ * the conservative direction, the same one failed reads take. Modelling it as
+ * `[1, Infinity]` instead is the unsafe guess that let a partial read stand in
+ * for a whole-file one.
  */
-function rangeOf(call: ToolCall): { start: number; end: number } {
+function rangeOf(call: ToolCall): { start: number; end: number } | null {
   const s = call.args?.start_line;
   const e = call.args?.end_line;
+  const bad = (v: unknown): boolean => v !== undefined && (typeof v !== 'number' || !Number.isFinite(v));
+  if (bad(s) || bad(e)) return null;
   // Mirror `toolReadFile` exactly: it returns the whole file whenever
   // `start_line` is absent, ignoring `end_line`. Modelling that read as
   // `[1, end_line]` would understate what it actually returned and could let a
   // later, genuinely narrower read supersede it.
-  if (typeof s !== 'number' || !Number.isFinite(s)) return { start: 1, end: Infinity };
-  return { start: s, end: typeof e === 'number' && Number.isFinite(e) ? e : Infinity };
+  if (typeof s !== 'number') return { start: 1, end: Infinity };
+  return { start: s, end: typeof e === 'number' ? e : Infinity };
 }
 
 /** Every message returned gets fresh objects, so a provider that mutates what it
@@ -184,10 +196,13 @@ export function capHistory(
     if (m.failed) return;
     const p = pathOf(call);
     if (!p) return;
-    const { start, end } = rangeOf(call);
+    const span = rangeOf(call);
+    // A read whose span cannot be determined stands in for nothing and is
+    // stood in for by nothing, so it is simply not a supersession candidate.
+    if (!span) return;
     const list = readsByPath.get(p);
-    if (list) list.push({ at: i, start, end });
-    else readsByPath.set(p, [{ at: i, start, end }]);
+    if (list) list.push({ at: i, start: span.start, end: span.end });
+    else readsByPath.set(p, [{ at: i, start: span.start, end: span.end }]);
   });
 
   /** True when some later read of `path` fully contains the span read at `at`. */
@@ -198,9 +213,10 @@ export function capHistory(
     if (m.role === 'tool') {
       const call = callById.get(m.toolCallId);
       const p = call ? pathOf(call) : null;
+      const span = call ? rangeOf(call) : null;
       // Supersession runs at any distance: a later read that covers this span is
       // already in this conversation, so the older copy is redundant, not lost.
-      if (call?.name === 'read_file' && p && isSuperseded(p, i, rangeOf(call).start, rangeOf(call).end)) {
+      if (call?.name === 'read_file' && p && span && isSuperseded(p, i, span.start, span.end)) {
         const stub = `[superseded: this earlier read of ${p} was replaced by a later read covering the same lines. Use the newer one, or call read_file again for the current contents.]`;
         if (stub.length < m.content.length) {
           stats.charsSaved += m.content.length - stub.length;
@@ -236,10 +252,17 @@ export function capHistory(
             // This call already executed; its effect is on disk. Restating the
             // whole payload every later turn buys nothing.
             const capped = clip(v, opts.maxToolArgChars, `already applied by this call`);
-            stats.charsSaved += v.length - capped.length;
-            stats.truncated++;
-            args[k] = capped;
-            touched = true;
+            // `clip` returns the value unchanged when the cap is too small to
+            // hold a marker; guard the accounting the same way the result
+            // branch does, so a no-op clip is not counted as a truncation.
+            if (capped !== v) {
+              stats.charsSaved += v.length - capped.length;
+              stats.truncated++;
+              args[k] = capped;
+              touched = true;
+            } else {
+              args[k] = v;
+            }
           } else {
             args[k] = v;
           }
