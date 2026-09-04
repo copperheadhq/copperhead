@@ -335,6 +335,11 @@ export interface TextItem {
   /** Font height in mm (KiCad `(size h w)`); 1.27 when unstated. */
   height: number;
   hidden: boolean;
+  /** `(justify …)` components, or null when unspecified: KiCad anchors a
+   * free text at its centre unless the effects say otherwise, and the
+   * engine's group captions say `left top`. */
+  justifyH: 'left' | 'right' | null;
+  justifyV: 'top' | 'bottom' | null;
 }
 
 export interface LabelItem {
@@ -497,6 +502,11 @@ function textItemsOf(sym: SexpNode[]): TextItem[] {
       rot: num(at, 3),
       height: fx.height,
       hidden: fx.hidden,
+      // property text keeps the centred measurement: its justification is
+      // relative to the symbol's own rotation and mirror, which the checker
+      // does not model, and the engine emits it centred
+      justifyH: null,
+      justifyV: null,
     });
   }
   return out;
@@ -544,7 +554,18 @@ export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[
     const texts: TextItem[] = children(sheet.root, 'text').map((t) => {
       const at = child(t, 'at');
       const fx = effectsOf(t);
-      return { text: atomAt(t, 1) ?? '', x: num(at, 1), y: num(at, 2), rot: num(at, 3), height: fx.height, hidden: fx.hidden };
+      const effects = child(t, 'effects');
+      const justify = effects ? child(effects, 'justify') : undefined;
+      return {
+        text: atomAt(t, 1) ?? '',
+        x: num(at, 1),
+        y: num(at, 2),
+        rot: num(at, 3),
+        height: fx.height,
+        hidden: fx.hidden,
+        justifyH: justify?.some((c) => c === 'right') ? 'right' : justify?.some((c) => c === 'left') ? 'left' : null,
+        justifyV: justify?.some((c) => c === 'bottom') ? 'bottom' : justify?.some((c) => c === 'top') ? 'top' : null,
+      };
     });
     const rectangles: RectItem[] = children(sheet.root, 'rectangle').map((r) => {
       const s = child(r, 'start');

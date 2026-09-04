@@ -183,12 +183,29 @@ function transformBounds(at: { x: number; y: number; rot: number }, mirror: 'x' 
 }
 
 /** Conservative text box, centered on the anchor; vertical when rotated 90/270. */
-function textBounds(t: { text: string; x: number; y: number; rot: number; height: number }): Bounds {
+function textBounds(t: {
+  text: string;
+  x: number;
+  y: number;
+  rot: number;
+  height: number;
+  justifyH?: 'left' | 'right' | null;
+  justifyV?: 'top' | 'bottom' | null;
+}): Bounds {
   const w = Math.max(1, t.text.length) * TEXT_ADVANCE * t.height;
   const h = t.height;
   const vertical = Math.abs(t.rot % 180) === 90;
   const [bw, bh] = vertical ? [h, w] : [w, h];
-  return { minX: t.x - bw / 2, minY: t.y - bh / 2, maxX: t.x + bw / 2, maxY: t.y + bh / 2 };
+  // A free text is centred on its anchor unless its effects justify it: the
+  // engine's group captions are `left top`, so their box runs right and down
+  // from the anchor. Measuring those as centred put half the caption's width
+  // left of the group box and flagged a caption 12 mm inside the frame as
+  // out of it (esp32-amp, A1 at full width).
+  const jh = vertical ? null : (t.justifyH ?? null);
+  const jv = vertical ? null : (t.justifyV ?? null);
+  const minX = jh === 'left' ? t.x : jh === 'right' ? t.x - bw : t.x - bw / 2;
+  const minY = jv === 'top' ? t.y : jv === 'bottom' ? t.y - bh : t.y - bh / 2;
+  return { minX, minY, maxX: minX + bw, maxY: minY + bh };
 }
 
 /**
