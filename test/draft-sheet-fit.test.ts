@@ -244,8 +244,10 @@ describe('the IC leads its group', () => {
     // inputs still enter from the left: a connector stays at depth 0
     const { model } = await draftBoard('usb-atmega-node');
     const at = (ref: string) => model.symbols.find((s) => s.ref === ref)!.at;
-    expect(at('J1').x).toBeLessThan(at('U2').x); // Power Input's USB jack, Regulation's LDO
-    expect(at('J1').x).toBeLessThan(at('U1').x); // and the MCU
+    // never to the right: a column-major wrap may stack a group under the
+    // jack's group, which puts the two at one x
+    expect(at('J1').x).toBeLessThanOrEqual(at('U2').x); // Power Input's USB jack, Regulation's LDO
+    expect(at('J1').x).toBeLessThanOrEqual(at('U1').x); // and the MCU
   });
 });
 
