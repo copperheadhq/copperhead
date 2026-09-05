@@ -1,5 +1,5 @@
 import type { Bounds } from '../sexp.js';
-import { knum, type PlacementModel, type EmitSymbol } from '../emit.js';
+import { knum, CAPTION_SIZE, type PlacementModel, type EmitSymbol, type EmitLabel, type LabelShape } from '../emit.js';
 import { powerSymbolSource, pwrFlagSource, type ResolvedSymbol, type DraftPin } from './symsource.js';
 import type { SchematicIntent, IntentNet, IntentPart, ValidatedIntent } from './ir.js';
 
@@ -42,13 +42,81 @@ const LABEL_HEIGHT = 1.27;
  */
 const LABEL_ADVANCE = 0.8;
 const TEXT_RESERVE = LABEL_ADVANCE;
-/** `labelTextBox` at the reserve advance: what the text takes on paper. */
-const labelReserveBox = (name: string, x: number, y: number, rot: number): Bounds => {
-  const w = Math.max(1, name.length) * TEXT_RESERVE * LABEL_HEIGHT;
-  return rot === 180
-    ? { minX: x - w, minY: y - LABEL_HEIGHT, maxX: x, maxY: y + LABEL_HEIGHT / 2 }
-    : { minX: x, minY: y - LABEL_HEIGHT, maxX: x + w, maxY: y + LABEL_HEIGHT / 2 };
+/** Advance of KiCad's stroke font for the upper-case pin names inside a
+ * body, per height: wider than the mixed-case reserve above. */
+const NAME_ADVANCE = 1.0;
+/** Air between any two texts, mm. Boxes that merely do not overlap still
+ * read as one smudge on paper (esp32-amp's "100k" sat 0.6 mm above
+ * "USB_OV"); every clearance check pads the candidate by this. */
+const TEXT_PAD = 0.8;
+const padBox = (b: Bounds, p = TEXT_PAD): Bounds => ({ minX: b.minX - p, minY: b.minY - p, maxX: b.maxX + p, maxY: b.maxY + p });
+/** `COPPERHEAD_DRAFT_TRACE=1` prints every placement decision the engine
+ * makes silently: what it claimed, what it skipped and why, what it refused. */
+const trace = (msg: string): void => {
+  if (process.env['COPPERHEAD_DRAFT_TRACE']) console.error(`[draft] ${msg}`);
 };
+/** `labelTextBox` at the reserve advance: what the text takes on paper. */
+const labelReserveBox = (name: string, x: number, y: number, rot: number, kind: EmitLabel['kind'] = 'local'): Bounds =>
+  labelBoxAt(name, x, y, rot, kind, TEXT_RESERVE);
+/**
+ * Along-axis length a global label's flag adds beyond its text: the margin
+ * either side of the text plus the pointed tip. Measured from eeschema's own
+ * outline at 1.27 mm (a 12-character name draws 17.0 mm long against about
+ * 14.5 of text), and kept a little generous because the advance estimate
+ * under-reads wide glyphs.
+ */
+const FLAG_PAD = 2.5 * LABEL_HEIGHT;
+/** Grid units of the caption band at the top of a group box: the bold
+ * caption at `CAPTION_SIZE` plus clearance over the tallest thing a cell can
+ * carry above its body (a rail symbol on an upward stub with its value text). */
+const CAPTION_BAND = 7;
+/**
+ * The box a label occupies at `advance` per character. A local label is bare
+ * text standing on its anchor (see `labelTextBox`); a global label is a flag
+ * two text heights tall, centred on the anchor line, whose length runs away
+ * from the anchor in the rotation's direction — 0 right, 90 up, 180 left,
+ * 270 down in schematic Y-down coordinates, exactly as eeschema draws it.
+ */
+const labelBoxAt = (name: string, x: number, y: number, rot: number, kind: EmitLabel['kind'], advance: number): Bounds => {
+  const textW = Math.max(1, name.length) * advance * LABEL_HEIGHT;
+  if (kind === 'global') {
+    const w = textW + FLAG_PAD;
+    const h = LABEL_HEIGHT;
+    const r = ((rot % 360) + 360) % 360;
+    if (r === 90) return { minX: x - h, minY: y - w, maxX: x + h, maxY: y };
+    if (r === 270) return { minX: x - h, minY: y, maxX: x + h, maxY: y + w };
+    if (r === 180) return { minX: x - w, minY: y - h, maxX: x, maxY: y + h };
+    return { minX: x, minY: y - h, maxX: x + w, maxY: y + h };
+  }
+  return rot === 180
+    ? { minX: x - textW, minY: y - LABEL_HEIGHT, maxX: x, maxY: y + LABEL_HEIGHT / 2 }
+    : { minX: x, minY: y - LABEL_HEIGHT, maxX: x + textW, maxY: y + LABEL_HEIGHT / 2 };
+};
+/** KiCad's label rotation for text running outward along a stub direction. */
+const rotOutward = (o: { dx: number; dy: number }): number => (o.dx === -1 ? 180 : o.dy === -1 ? 90 : o.dy === 1 ? 270 : 0);
+/**
+ * Flag shape for a global label at a pin, from the pin's electrical type:
+ * an output pin's net leaves through an output flag, an input's arrives
+ * through an input flag, a bidirectional or tri-state pin's points both
+ * ways, and everything else (passive parts, power, unspecified) gets the
+ * plain box. Cosmetic to KiCad's ERC, informative to a reader.
+ */
+export function flagShape(etype: string): LabelShape {
+  switch (etype) {
+    case 'output':
+    case 'open_collector':
+    case 'open_emitter':
+    case 'power_out':
+      return 'output';
+    case 'input':
+      return 'input';
+    case 'bidirectional':
+    case 'tri_state':
+      return 'bidirectional';
+    default:
+      return 'passive';
+  }
+}
 /** How far a colliding label may ride its stub outward, in grid units.
  * Deep enough to carry a bottom-pin label past the routing channel that runs
  * under its connector (#220 phase 2); rungs stay ordered nearest-first, so a
@@ -361,7 +429,19 @@ interface Placed {
   cellH: number; // units
   /** Placement rotation, degrees CCW in symbol space (KiCad's `(at x y rot)`); `sym` is already rotated. */
   rot: number;
+  /** KiCad `(mirror y)`: the symbol flipped left-for-right before rotation (a
+   * transistor whose base must face the pin that drives it); `sym` is already mirrored. */
+  mirror?: 'y';
 }
+
+/** `sym` mirrored left-for-right (KiCad's `(mirror y)`), then turned by `rot`. */
+const transformSym = (sym: ResolvedSymbol, rot: number, mirror?: 'y'): ResolvedSymbol => {
+  if (!mirror) return rotatedSym(sym, rot);
+  const pins = sym.pins.map((p) => ({ ...p, x: -p.x, angle: (((180 - p.angle) % 360) + 360) % 360 }));
+  const b = sym.body ? bodyBoundsOf(sym) : null;
+  const body = b ? { minX: -b.maxX, maxX: -b.minX, minY: b.minY, maxY: b.maxY } : null;
+  return rotatedSym({ ...sym, pins, body }, rot);
+};
 
 /**
  * The symbol as KiCad draws it at rotation `rot` (0, 90, 180, 270): pins,
@@ -510,20 +590,63 @@ const boundsOverlap = (a: Bounds, b: Bounds): boolean =>
  * conservative metrics. Shared by the de-collision pass and the overlap report
  * so "clear" means one thing in the engine.
  */
-const labelTextBox = (name: string, x: number, y: number, rot: number): Bounds => {
-  const w = Math.max(1, name.length) * LABEL_ADVANCE * LABEL_HEIGHT;
-  // A label is bottom-justified on its anchor: on paper the text stands on
-  // the wire line and rises one full height above it. The checker's
+const labelTextBox = (name: string, x: number, y: number, rot: number, kind: EmitLabel['kind'] = 'local'): Bounds =>
+  // A local label is bottom-justified on its anchor: on paper the text stands
+  // on the wire line and rises one full height above it. The checker's
   // `labelBounds` measures it centred, half a height each side. The engine
   // must clear BOTH — the sheet it draws is gated by the checker and read on
   // paper — so its box is the union: a full height above the anchor and half
   // a height below. Centred alone let a part's reference on the row above a
   // label pass as clear while the two overlapped on paper (esp32-amp's R26
   // over AMP_PDN); standing alone let the checker see label text on a wire.
-  return rot === 180
-    ? { minX: x - w, minY: y - LABEL_HEIGHT, maxX: x, maxY: y + LABEL_HEIGHT / 2 }
-    : { minX: x, minY: y - LABEL_HEIGHT, maxX: x + w, maxY: y + LABEL_HEIGHT / 2 };
-};
+  // A global label's flag is measured as eeschema draws it (`labelBoxAt`).
+  labelBoxAt(name, x, y, rot, kind, LABEL_ADVANCE);
+
+/**
+ * Where a wired run's name may sit when it must be a global flag, in
+ * preference order: standing up from the top of a vertical trunk (the flag on
+ * a pole a reviewer expects), then every other wire end continuing its
+ * segment outward, then the interior grid points of each segment with the
+ * flag perpendicular to the wire, upward before downward. Every candidate
+ * lies on a wire of the run, so the name always attaches.
+ */
+export function wiredFlagCandidates(segs: Seg[]): { x: number; y: number; rot: number }[] {
+  const out: { x: number; y: number; rot: number }[] = [];
+  const seen = new Set<string>();
+  const push = (x: number, y: number, rot: number): void => {
+    const k = `${pointKey(x, y)}/${rot}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ x, y, rot });
+  };
+  const vertical = segs.filter((s) => sameCoord(s.x1, s.x2));
+  const horizontal = segs.filter((s) => !sameCoord(s.x1, s.x2));
+  // Horizontal first: a name reads along the row it names (the drafting
+  // standard keeps text horizontal), so the ends of horizontal segments
+  // continuing outward come before a flag standing up from a trunk top, and
+  // both before a flag perpendicular to a wire's interior.
+  const ends = segs.flatMap((s) => [{ x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 }]).sort((a, b) => a.y - b.y || a.x - b.x);
+  for (const p of ends) {
+    for (const s of horizontal) {
+      if (!sameCoord(s.y1, p.y)) continue;
+      if (sameCoord(p.x, Math.max(s.x1, s.x2))) push(p.x, p.y, 0);
+      if (sameCoord(p.x, Math.min(s.x1, s.x2))) push(p.x, p.y, 180);
+    }
+  }
+  const tops = vertical.map((s) => ({ x: s.x1, y: Math.min(s.y1, s.y2) })).sort((a, b) => a.y - b.y || a.x - b.x);
+  for (const t of tops) push(t.x, t.y, 90);
+  for (const p of ends) {
+    for (const s of vertical) {
+      if (sameCoord(s.x1, p.x) && sameCoord(p.y, Math.max(s.y1, s.y2))) push(p.x, p.y, 270);
+    }
+  }
+  for (const s of segs) {
+    for (const rot of sameCoord(s.x1, s.x2) ? [0, 180] : [90, 270]) {
+      for (const p of interiorGridPoints([s], U)) push(p.x, p.y, rot);
+    }
+  }
+  return out;
+}
 
 /**
  * Pairs of labels naming DIFFERENT nets whose text boxes overlap.
@@ -534,10 +657,10 @@ const labelTextBox = (name: string, x: number, y: number, rot: number): Bounds =
  * colliding label position, nets sorted, so the same pair is not listed twice.
  */
 export function findLabelOverlaps(
-  labels: { name: string; x: number; y: number; rot: number }[],
+  labels: { name: string; x: number; y: number; rot: number; kind?: EmitLabel['kind'] }[],
 ): { x: number; y: number; nets: string[] }[] {
   const out = new Map<string, { x: number; y: number; nets: Set<string> }>();
-  const boxes = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot));
+  const boxes = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot, l.kind));
   for (let i = 0; i < labels.length; i++) {
     for (let j = i + 1; j < labels.length; j++) {
       const a = labels[i]!;
@@ -568,7 +691,47 @@ const segCrossesBody = (x1: number, y1: number, x2: number, y2: number, b: Bound
   return inX && inY; // conservative for diagonals (the engine never draws them)
 };
 
+/**
+ * Draft, then check the drawn group boxes against one another: a box grows
+ * past its tiling estimate when the text it must hold (a flag on a hung
+ * part, a rail name at the edge) reaches further than the pin labels the
+ * estimate counted, and two boxes then intersect (usb-atmega-node's Status
+ * over IO Headers). Each overlap widens the right-hand group's left reserve
+ * by the overlap and the sheet is drafted again; placement is a pure
+ * function of the intent and these reserves, so the result stays
+ * deterministic. Three rounds bound the cost.
+ */
 export function draftSchematicPlacement(validated: ValidatedIntent, projectName: string, today: string): { model: PlacementModel; report: SchematicDraftReport } {
+  const reserves = new Map<string, { left: number; right: number }>();
+  for (let round = 0; ; round++) {
+    const { model, report, rects } = draftOnce(validated, projectName, today, reserves);
+    if (round >= 3) return { model, report };
+    let widened = false;
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i]!;
+        const b = rects[j]!;
+        const ox = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1);
+        const oy = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+        if (ox <= 0.01 || oy <= 0.01) continue;
+        const right = a.x1 < b.x1 ? b : a;
+        const r = reserves.get(right.name) ?? { left: 0, right: 0 };
+        r.left += ox + U;
+        reserves.set(right.name, r);
+        widened = true;
+        trace(`group boxes "${a.name}" and "${b.name}" overlap by ${ox.toFixed(2)} mm; "${right.name}" reserves ${r.left.toFixed(2)} mm more on its left and the sheet is drafted again`);
+      }
+    }
+    if (!widened) return { model, report };
+  }
+}
+
+function draftOnce(
+  validated: ValidatedIntent,
+  projectName: string,
+  today: string,
+  reserves: Map<string, { left: number; right: number }>,
+): { model: PlacementModel; report: SchematicDraftReport; rects: { name: string; x1: number; y1: number; x2: number; y2: number }[] } {
   const { intent, symbols, docGroups } = validated;
   const notes: string[] = [];
 
@@ -608,6 +771,17 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     }));
   });
   const instByKey = new Map(instances.map((i) => [i.key, i]));
+  /** The pin that controls a transistor (base or gate), or null for anything else. */
+  const controlPinOf = (key: string): DraftPin | null => {
+    const inst = instByKey.get(key);
+    if (!inst || inst.sym.pins.length !== 3) return null;
+    if (!/^Transistor|^Device:Q_|^Q\d/.test(inst.part.libId) && !/^Q\d/.test(inst.ref)) return null;
+    return inst.sym.pins.find((p) => /^(B|G|Base|Gate)$/i.test(p.name)) ?? null;
+  };
+  const isTransistor = (key: string): boolean => controlPinOf(key) !== null;
+  /** Switches are the anchors of a button block: the pull-up, the debounce
+   * cap and the ESD diode all hang on the switch's signal pin. */
+  const isSwitch = (key: string): boolean => /^Switch[:_]|^Device:SW_|^Button/i.test(instByKey.get(key)?.part.libId ?? '');
   /** Placed instances per refdes, for expanding a common pin's endpoint. */
   const instancesOfRef = new Map<string, Instance[]>();
   for (const inst of instances) instancesOfRef.set(inst.ref, [...(instancesOfRef.get(inst.ref) ?? []), inst]);
@@ -716,10 +890,11 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         const signal = signalNetOfPin.get(ep);
         const power = signal ? undefined : netByEndpoint.get(ep);
         if (!signal && !power) continue;
-        // a signal: stub plus label text; a rail or ground on a sideways pin:
-        // the longer power stub, the bar, and the name drawn outward in line
+        // a signal: stub plus the label's flag (text, margins and tip); a
+        // rail or ground on a sideways pin: the longer power stub, the bar,
+        // and the name drawn outward in line
         const extent = signal
-          ? STUB * U + Math.max(1, signal.length) * TEXT_RESERVE * LABEL_HEIGHT
+          ? STUB * U + Math.max(1, signal.length) * TEXT_RESERVE * LABEL_HEIGHT + FLAG_PAD
           : (STUB + 2) * U + 1.905 + Math.max(1, power!.name.length) * TEXT_RESERVE * LABEL_HEIGHT;
         if (o.dx === -1) left = Math.max(left, extent);
         else right = Math.max(right, extent);
@@ -748,12 +923,15 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   const placed = new Map<string, Placed>();
   const groupRects: { name: string; x1: number; y1: number; x2: number; y2: number }[] = [];
   const groupOf = new Map<string, string>();
+  /** Part key -> the anchor it was hung on or laid beside. A bound part is
+   * wired to its anchor whatever the distance: the shelf placed it there
+   * deliberately, and a lane past the wire span still belongs to its pin. */
+  const boundTo = new Map<string, string>();
   const groupExtents = new Map<string, { left: number; right: number }>();
   for (const gname of groupNames) {
-    groupExtents.set(
-      gname,
-      labelExtents(instances.filter((i) => i.part.group === gname && !i.sym.isPower).map((i) => i.key)),
-    );
+    const e = labelExtents(instances.filter((i) => i.part.group === gname && !i.sym.isPower).map((i) => i.key));
+    const r = reserves.get(gname);
+    groupExtents.set(gname, { left: e.left + (r?.left ?? 0), right: e.right + (r?.right ?? 0) });
   }
 
   /**
@@ -815,7 +993,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       // nearest IC; a member no signal path reaches stays beside the ICs.
       // A group with no IC keeps the edge propagation, where the connector
       // column is the only anchor there is.
-      const groupIC = (key: string): boolean => instByKey.get(key)!.sym.pins.length >= 3 && !isConnector(instByKey.get(key)!.part);
+      // A transistor is a three-pin part, but it is not what a group is
+      // about: it belongs at the end of the run that drives its base, the way
+      // a hand-drawn sheet puts a level shifter or a switch right on the pin.
+      const groupIC = (key: string): boolean => instByKey.get(key)!.sym.pins.length >= 3 && !isConnector(instByKey.get(key)!.part) && !isTransistor(key);
       const anchors = members.filter((m) => groupIC(m.key)).map((m) => m.key);
       if (anchors.length) {
         // IC to IC, the signal flow still propagates (a chain of forty
@@ -922,6 +1103,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       const hangs: Hang[] = [];
       const inlines: Inline[] = [];
       const hungKeys = new Set<string>();
+      for (const [k, v] of boundTo) if (groupOf.get(k) === gname) boundTo.delete(k), void v;
       /**
        * The rotation (0, 90, 180, 270) that turns two-lead part `key` so that
        * pin `nearPin` faces direction `want` (schematic dx/dy) and its other
@@ -935,6 +1117,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         const inst = instByKey.get(key);
         return !!inst && inst.sym.pins.length === 1 && (/TestPoint/i.test(inst.part.libId) || /^TP\d/.test(inst.ref));
       };
+
       const orientFor = (key: string, nearPin: string, want: { dx: number; dy: number }): number | null => {
         const pins = instByKey.get(key)?.sym.pins ?? [];
         if (pins.length !== 2 && !isTestPoint(key)) return null;
@@ -971,6 +1154,11 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       /** Lead span along the hang or run, mm: connection point to connection
        * point, or for a test point the body's reach past its one pin. */
       const spanOf = (key: string, rot = 0): number => {
+        const ctl = controlPinOf(key);
+        if (ctl) {
+          const b = bodyBoundsOf(instByKey.get(key)!.sym);
+          return Math.max(b.maxX - ctl.x, ctl.x - b.minX);
+        }
         const l = leadsOf(key)!;
         if (isTestPoint(key)) {
           const rs = rotatedSym(instByKey.get(key)!.sym, rot);
@@ -993,6 +1181,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         const chain = [first.key];
         const nearPins = [first.pin];
         hungKeys.add(first.key);
+        boundTo.set(first.key, icKey);
         let ends: 'power' | 'open' = 'open';
         for (;;) {
           const cur = chain[chain.length - 1]!;
@@ -1012,6 +1201,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           chain.push(next.key);
           nearPins.push(next.pin);
           hungKeys.add(next.key);
+          boundTo.set(next.key, icKey);
         }
         let h = 0;
         let w = 0;
@@ -1046,18 +1236,35 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         const pinNet = netByEndpoint.get(`${instByKey.get(icKey)!.ref}.${pin.number}`)?.name ?? '';
         const chain: { key: string; nearPin: string; gap: number }[] = [{ key: first.key, nearPin: first.pin, gap: gapFor(pinNet) }];
         hungKeys.add(first.key);
+        boundTo.set(first.key, icKey);
         let farNet: string | null = null;
         for (let n = 0; n < 3; n++) {
           const cur = chain[chain.length - 1]!;
+          if (isTransistor(cur.key)) {
+            farNet = null; // the run ends in the transistor; its other pins take what the wire pass gives
+            break;
+          }
           const l = leadsOf(cur.key)!;
           const far = l.a.number === cur.nearPin ? l.b : l.a;
           const beyond = netByEndpoint.get(`${instByKey.get(cur.key)!.ref}.${far.number}`);
           farNet = beyond?.name ?? null;
           if (!beyond || beyond.pins.length !== 2) break;
           const next = beyond.pins.map(epKey).find((e) => e !== null && e.key !== cur.key);
-          if (!next || !hangable(next.key) || chain.some((c) => c.key === next.key)) break;
+          if (!next || chain.some((c) => c.key === next.key)) break;
+          // a series resistor into a base or gate: the transistor ends the run,
+          // turned so that pin faces the part that drives it
+          if (isTransistor(next.key)) {
+            if (!memberKeySet.has(next.key) || hungKeys.has(next.key) || controlPinOf(next.key)!.number !== next.pin) break;
+            chain.push({ key: next.key, nearPin: next.pin, gap: gapFor(beyond.name) });
+            hungKeys.add(next.key);
+            boundTo.set(next.key, icKey);
+            farNet = null;
+            break;
+          }
+          if (!hangable(next.key)) break;
           chain.push({ key: next.key, nearPin: next.pin, gap: gapFor(beyond.name) });
           hungKeys.add(next.key);
+          boundTo.set(next.key, icKey);
         }
         let len = 0;
         for (const c of chain) len += c.gap + spanOf(c.key);
@@ -1069,9 +1276,25 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         const m = /^([^.]+)\.(.+)$/.exec(ep);
         return m ? { key: instKeyOf(m[1]!, m[2]!), pin: m[2]! } : null;
       };
-      const HANG_GAP = 4 * U;
+      // Three units, not four: a hung part's near stub ends one unit past
+      // the gap, and pins sit two units apart, so an even gap parks that
+      // stub end exactly on the neighbouring pin's row, where any run along
+      // that row would join it (every single pull-up beside a pull-down on
+      // the next pin was refused for this). An odd gap keeps it between rows.
+      const HANG_GAP = 3 * U;
       const HANG_POWER_END = 8 * U;
-      for (const icKey of anchors) {
+      /** Rows a power symbol and its name need past a pin: stub, bar, text. */
+      const POWER_CLEAR_ROWS = 6;
+      // Parts hang on ICs first, then on connectors and switches: a fuse
+      // rises from the jack's pin, a button's pull-up, debounce cap and ESD
+      // diode hang on the switch's signal pin. A switch already hung on an
+      // IC pin (a reset button dropping from EN) anchors nothing itself.
+      const claimAnchors = [
+        ...anchors,
+        ...members.filter((m) => !anchors.includes(m.key) && (isConnector(m.part) || isSwitch(m.key))).map((m) => m.key),
+      ];
+      for (const icKey of claimAnchors) {
+        if (hungKeys.has(icKey)) continue;
         const ic = instByKey.get(icKey)!;
         const sidePins = ic.sym.pins
           .filter((p) => outward(p).dx !== 0)
@@ -1083,7 +1306,13 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           // the wire pass draws this net only if it stays in the group with
           // few endpoints; a net that will be labelled anyway gives no hang
           const eps = net.pins.map(epKey).filter((e): e is { key: string; pin: string } => e !== null);
-          if (eps.length > MAX_WIRED_ENDPOINTS || eps.some((e) => !memberKeySet.has(e.key) && !decapOwner.has(e.key) && groupOf.get(e.key) !== gname)) continue;
+          // A net that leaves the group or carries more endpoints than the
+          // wire pass joins still hangs its local parts: the pull-up on a
+          // fault line that also goes to the MCU, the RC on a button the
+          // MCU reads. The wire pass joins the pin and its hung parts as
+          // one local run and labels it once for the rest of the net
+          // (esp32-amp shipped fourteen such parts as labelled islands).
+          if (eps.length > MAX_WIRED_ENDPOINTS) trace(`${ic.ref}.${pin.number} ${net.name}: ${eps.length} endpoints, local parts still hang`);
           // a crystal's load caps belong to the flanking idiom below
           if (eps.some((e) => /crystal|reson/i.test(instByKey.get(e.key)?.part.libId ?? ''))) continue;
           // the chain enters the first part through whichever lead is on the
@@ -1100,7 +1329,18 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
             return netByEndpoint.get(`${instByKey.get(key)!.ref}.${far.number}`);
           };
           for (const first of eps) {
-            if (first.key === icKey || !hangable(first.key)) continue;
+            if (first.key === icKey) continue;
+            // a transistor driven straight from the pin lies on the row, base to the pin
+            if (isTransistor(first.key) && memberKeySet.has(first.key) && !hungKeys.has(first.key) && controlPinOf(first.key)!.number === first.pin) {
+              trace(`${ic.ref}.${pin.number} ${net.name}: ${instByKey.get(first.key)!.ref} lies on the row (transistor)`);
+              claimInline(icKey, pin, dx, first);
+              continue;
+            }
+            if (!hangable(first.key)) {
+              const why = !memberKeySet.has(first.key) ? 'not a group member' : decapOwner.has(first.key) ? 'a decoupling cap' : hungKeys.has(first.key) ? 'already claimed' : isConnector(instByKey.get(first.key)!.part) ? 'a connector' : leadsOf(first.key) === null ? 'not a two-lead part' : 'a crystal';
+              trace(`${ic.ref}.${pin.number} ${net.name}: ${instByKey.get(first.key)!.ref} not hangable (${why})`);
+              continue;
+            }
             // a test point rises above the row of the pin it probes
             if (isTestPoint(first.key)) {
               claimHang(icKey, pin, dx, first, -1);
@@ -1127,16 +1367,31 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
               farNet = farNetOf(cur.key, cur.pin);
             }
             const farCls = farNet ? (netClasses.get(farNet.name)?.cls ?? 'signal') : null;
+            // A bridge (the far net returns to another pin of this IC) lies
+            // on the row of the pin that has NOTHING ELSE on it: claimed
+            // from the busier pin it blocked that pin's row, and the series
+            // part behind it could not be wired (esp32-amp's C28 on OUT_LN
+            // left L3 a labelled island while C27 on BST_AP let L2 wire).
+            if (cur.key === first.key && farNet && farCls === 'signal' && farNet.pins.length === 2 && farNet.pins.some((ep) => ep.startsWith(`${ic.ref}.`) && ep !== `${ic.ref}.${pin.number}`)) {
+              const others = eps.filter((e) => e.key !== icKey && e.key !== first.key && (hangable(e.key) || boundTo.get(e.key) === icKey));
+              if (others.length) {
+                trace(`${ic.ref}.${pin.number} ${net.name}: ${instByKey.get(first.key)!.ref} bridges to ${farNet.name}; left for that pin`);
+                continue;
+              }
+            }
             // A part between two pins of this IC (a bootstrap cap between
             // BST and OUT) lies along its row too: hung, its far lead
             // landed rows away from the other pin and that pin's branch ran
             // along a third row under a label. On the row, the far net
             // reaches the other pin's row through the router's trunk.
             if (farCls === 'ground') {
+              trace(`${ic.ref}.${pin.number} ${net.name}: ${instByKey.get(first.key)!.ref} hangs down (to ${farNet!.name})`);
               claimHang(icKey, pin, dx, first, 1);
             } else if (farCls === 'rail') {
+              trace(`${ic.ref}.${pin.number} ${net.name}: ${instByKey.get(first.key)!.ref} rises (to ${farNet!.name})`);
               claimHang(icKey, pin, dx, first, -1);
             } else {
+              trace(`${ic.ref}.${pin.number} ${net.name}: ${instByKey.get(first.key)!.ref} lies on the row (far net ${farNet?.name ?? 'none'})`);
               claimInline(icKey, pin, dx, first);
             }
           }
@@ -1153,7 +1408,11 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           // range: a run on a row next to an earlier run starts past that
           // run's end (the reference sheet's output filter alternates the
           // inductor and the cap across its rows for the same reason).
-          const ROWS_NEAR = 2 * 2.54 + 0.01;
+          // a part lying on a row carries its reference above and its value
+          // below, so its texts reach the neighbouring rows: runs within
+          // three rows of each other stagger (two left C27's value under L3's
+          // reference)
+          const ROWS_NEAR = 3 * 2.54 + 0.01;
           for (const il of [...inlineSide].sort((a, b) => b.pin.y - a.pin.y)) {
             let offset = 0;
             for (;;) {
@@ -1166,7 +1425,6 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
             il.offset = offset;
             placedOffset.add(il);
           }
-          const inlineW = Math.max(0, ...inlineSide.map((il) => il.offset + il.len));
           if (!side.length && !inlineSide.length) continue;
           // any connected neighbour blocks the straight axis: a signal pin's
           // stub end sits on it, and a rail or ground pin's longer stub
@@ -1176,7 +1434,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           const sidePinYs = ic.sym.pins
             .filter((p) => outward(p).dx === dx && netByEndpoint.has(`${ic.ref}.${p.number}`))
             .map((p) => -p.y);
-          const pitch = Math.max(0, ...side.map((hg) => hg.w)) + 2 * U;
+          const pitch = Math.max(0, ...side.map((hg) => hg.w)) + U;
           const slots: { top: number; bot: number }[][] = [];
           let anyShelved = false;
           // Slot order matters: a lower pin's branch runs along its row from
@@ -1187,45 +1445,143 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           // is always the outer one, and every branch stays clear of every
           // sibling's stub end (esp32-amp's RT branch ran into the COMP
           // hang's stub end the first time).
+          // Slots go to PINS, not hangs: a part rising and a part dropping
+          // from one pin share one axis — the divider on its pin — and meet
+          // the row in a single T. A slot's occupied range runs from the pin
+          // ROW to the chain end, because the branch along the row belongs
+          // to it: measured from the first part instead, a chain rising from
+          // a lower pin shared its slot with the higher pin's drop and the
+          // two axes met on that pin's row (esp32-amp's USB_OV divider was
+          // refused for exactly that, four hangs on two adjacent pins).
+          // One axis carries at most one chain up and one chain down; a
+          // third chain on the same pin (the NTC divider's cap beside its
+          // thermistor) takes the next lane out, and each lane is slotted as
+          // its own group.
+          const byPin = new Map<string, Hang[]>();
+          for (const hg of side) byPin.set(hg.pin.number, [...(byPin.get(hg.pin.number) ?? []), hg]);
+          const pinRow = (g: Hang[]): number => -g[0]!.pin.y;
+          const pinGroups: Hang[][] = [];
+          for (const hgs of byPin.values()) {
+            const ups = hgs.filter((hg) => hg.dir === -1);
+            const downs = hgs.filter((hg) => hg.dir === 1);
+            for (let i = 0; i < Math.max(ups.length, downs.length); i++) {
+              const lane = [ups[i], downs[i]].filter((hg): hg is Hang => hg !== undefined);
+              pinGroups.push(lane);
+            }
+          }
           const ordered = [
-            ...side.filter((hg) => hg.dir === 1).sort((a, b) => -a.pin.y - -b.pin.y).reverse(),
-            ...side.filter((hg) => hg.dir === -1).sort((a, b) => -a.pin.y - -b.pin.y),
+            ...pinGroups.filter((g) => g.some((hg) => hg.dir === 1)).sort((a, b) => pinRow(b) - pinRow(a)),
+            ...pinGroups.filter((g) => g.every((hg) => hg.dir === -1)).sort((a, b) => pinRow(a) - pinRow(b)),
           ];
-          for (const hg of ordered) {
-            const rowY = -hg.pin.y;
-            const top = hg.dir === 1 ? rowY + HANG_GAP : rowY - HANG_GAP - hg.h;
-            const bot = top + hg.h;
+          const lowRowAll = Math.max(...side.map((hg) => -hg.pin.y));
+          const highRowAll = Math.min(...side.map((hg) => -hg.pin.y));
+          for (const g of ordered) {
+            const rowY = pinRow(g);
+            const top = Math.min(rowY, ...g.map((hg) => (hg.dir === -1 ? highRowAll - HANG_GAP - hg.h : rowY)));
+            const bot = Math.max(rowY, ...g.map((hg) => (hg.dir === 1 ? lowRowAll + HANG_GAP + hg.h : rowY)));
             // the clearance check pads the axis range by four units past the
             // pin row and the chain end, so a neighbour that close blocks it
-            hg.straight = !sidePinYs.some((y) => y !== rowY && y > Math.min(top, rowY) - 4 * U && y < Math.max(bot, rowY) + 4 * U);
-            if (hg.straight) continue;
+            // the same five units (four of pad plus one) the clearance check
+            // itself applies, else a neighbour exactly at the edge passes here
+            // and refuses there (J1's fuse against the CC1 pin two rows down)
+            const straight = !sidePinYs.some((y) => y !== rowY && y > top - 5 * U && y < bot + 5 * U);
+            for (const hg of g) hg.straight = straight;
+            if (straight) continue;
             anyShelved = true;
             let k = 0;
             while ((slots[k] ?? []).some((iv) => top < iv.bot + 2 * U && bot > iv.top - 2 * U)) k++;
             (slots[k] ??= []).push({ top, bot });
-            hg.slot = k;
+            for (const hg of g) hg.slot = k;
           }
           const dims = cellDims.get(icKey)!;
           const ext = labelExtents([icKey]);
-          // shelf: the IC's own labels or inline runs on that side, whichever
-          // reach further, the stub, then the slots. A straight hang sits
-          // within the stub and the cell's own margin and channel, so a side
-          // whose hangs are all straight and carries no inline run reserves
-          // nothing (a five-part board went from A5 to A4 when it did).
-          const reach = Math.max(dx === 1 ? ext.right : ext.left, inlineW);
-          const shelf = anyShelved ? ceilU(reach + STUB * U) + 2 + Math.ceil((slots.length * pitch) / U) : inlineSide.length ? ceilU(inlineW + STUB * U) + 2 : 0;
+          // Lanes come first, past the side's labels; the inline runs start
+          // beyond the lanes. A part lying on the row between the stub and
+          // the lanes blocked the row for the pin's own hung parts (Q1 on
+          // VBUS_FET_EN left R17 unreachable), and a run on another row
+          // starting inside the lanes crossed their bodies.
+          const laneReach = dx === 1 ? ext.right : ext.left;
+          const lanesW = anyShelved ? slots.length * pitch : 0;
+          for (const il of inlineSide) il.offset += anyShelved ? ceilU(laneReach + 2 * U) * U + lanesW : 0;
+          const inlineW = Math.max(0, ...inlineSide.map((il) => il.offset + il.len));
+          // shelf: the IC's own labels, the stub, the lanes, then the runs. A
+          // straight hang sits within the stub and the cell's own margin and
+          // channel, so a side whose hangs are all straight and carries no
+          // inline run reserves nothing (a five-part board went from A5 to A4
+          // when it did).
+          const shelf = anyShelved ? ceilU(laneReach + STUB * U) + 2 + Math.ceil(lanesW / U) + (inlineSide.length ? ceilU(inlineW - lanesW - laneReach) : 0) : inlineSide.length ? ceilU(inlineW + STUB * U) + 2 : 0;
           if (dx === 1) dims.shelfR = shelf;
           else dims.shelfL = shelf;
           dims.w += shelf;
           // y-down relative to the IC origin: the body spans -maxY..-minY
-          const deepest = Math.max(-dims.body.minY, ...side.map((hg) => (hg.dir === 1 ? -hg.pin.y + HANG_GAP + hg.h : -hg.pin.y)));
-          const highest = Math.min(-dims.body.maxY, ...side.map((hg) => (hg.dir === -1 ? -hg.pin.y - HANG_GAP - hg.h : -hg.pin.y)));
-          // an inline run lies on its row; its body and fields need a row above and below
-          for (const il of inlineSide) void il;
+          const lowRow = Math.max(...side.map((hg) => -hg.pin.y));
+          const highRow = Math.min(...side.map((hg) => -hg.pin.y));
+          const deepest = Math.max(-dims.body.minY, ...side.map((hg) => (hg.dir === 1 ? (hg.straight ? -hg.pin.y : lowRow) + HANG_GAP + hg.h : -hg.pin.y)));
+          const highest = Math.min(-dims.body.maxY, ...side.map((hg) => (hg.dir === -1 ? (hg.straight ? -hg.pin.y : highRow) - HANG_GAP - hg.h : -hg.pin.y)));
+          // an inline run lies on its row; a transistor at its end reaches two
+          // rows above and below it (collector and emitter stubs)
+          for (const il of inlineSide) {
+            for (const c of il.chain) {
+              if (!controlPinOf(c.key)) continue;
+              const b = bodyBoundsOf(instByKey.get(c.key)!.sym);
+              const reach = Math.max(b.maxY, -b.minY) + STUB * U + POWER_CLEAR_ROWS * U;
+              dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - (-il.pin.y - reach)));
+              dims.h = Math.max(dims.h, ceilU(Math.max(deepest, -il.pin.y + reach) - Math.min(highest, -il.pin.y - reach)) + 2 * MARGIN);
+            }
+          }
           dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - highest));
           dims.h = Math.max(dims.h, ceilU(deepest - highest) + 2 * MARGIN);
         }
       }
+      // Node hangs: the far end of a series run is a node too. An RC filter's
+      // cap, a button's debounce cap and ESD diode sit on the net PAST the
+      // series resistor, so they hang from the run's last part, dropping or
+      // rising from the row just beyond its far lead, the first straight down
+      // from the row's end and the rest on lanes past it.
+      const nodeAnchors = new Set<string>();
+      for (const il of [...inlines]) {
+        const last = il.chain[il.chain.length - 1]!;
+        if (isTransistor(last.key)) continue;
+        const l = leadsOf(last.key)!;
+        const farPin = l.a.number === last.nearPin ? l.b : l.a;
+        const farNet = netByEndpoint.get(`${instByKey.get(last.key)!.ref}.${farPin.number}`);
+        if (!farNet || (netClasses.get(farNet.name)?.cls ?? 'signal') !== 'signal') continue;
+        const eps = farNet.pins.map(epKey).filter((e): e is { key: string; pin: string } => e !== null);
+        let lanes = 0;
+        for (const first of eps) {
+          if (first.key === last.key || !hangable(first.key)) continue;
+          const fl = leadsOf(first.key)!;
+          const far = fl.a.number === first.pin ? fl.b : fl.a;
+          const beyond = netByEndpoint.get(`${instByKey.get(first.key)!.ref}.${far.number}`);
+          const cls = beyond ? (netClasses.get(beyond.name)?.cls ?? 'signal') : null;
+          if (cls !== 'ground' && cls !== 'rail') continue; // only shunts; a second series part is a network
+          trace(`${instByKey.get(last.key)!.ref}.${farPin.number} ${farNet.name} (node): ${instByKey.get(first.key)!.ref} ${cls === 'ground' ? 'hangs down' : 'rises'}`);
+          claimHang(last.key, farPin, il.dx, first, cls === 'ground' ? 1 : -1);
+          const hg = hangs[hangs.length - 1]!;
+          hg.slot = lanes;
+          hg.straight = lanes === 0;
+          lanes++;
+          nodeAnchors.add(last.key);
+        }
+        if (!lanes) continue;
+        // the run's owner reserves the lanes and the drop below them
+        const nodeHangs = hangs.filter((hg) => hg.ic === last.key);
+        const pitch = Math.max(0, ...nodeHangs.map((hg) => hg.w)) + U;
+        const add = (lanes - 1) * pitch + 2 * U + Math.max(0, ...nodeHangs.map((hg) => hg.w)) / 2;
+        il.len += add;
+        const dims = cellDims.get(il.ic)!;
+        if (il.dx === 1) dims.shelfR += ceilU(add);
+        else dims.shelfL += ceilU(add);
+        dims.w += ceilU(add);
+        const rowRel = -il.pin.y;
+        const hDown = Math.max(0, ...nodeHangs.filter((hg) => hg.dir === 1).map((hg) => hg.h));
+        const hUp = Math.max(0, ...nodeHangs.filter((hg) => hg.dir === -1).map((hg) => hg.h));
+        const bottom = Math.max(-dims.body.minY, rowRel + HANG_GAP + hDown);
+        const top = Math.min(-dims.body.maxY, rowRel - HANG_GAP - hUp);
+        dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - top));
+        dims.h = Math.max(dims.h, ceilU(bottom - top) + 2 * MARGIN);
+      }
+      void nodeAnchors;
       for (const col of columns) {
         for (let i = col.length - 1; i >= 0; i--) if (hungKeys.has(col[i]!)) col.splice(i, 1);
       }
@@ -1415,7 +1771,17 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         let capY = groupMaxY + MARGIN + 4;
         for (const ref of capRefs) {
           const inst = instByKey.get(ref)!;
-          const b = bodyBoundsOf(inst.sym);
+          // A bank member with horizontal leads (a TVS diode drawn lying down)
+          // stands up like the caps beside it, its rail lead on top; lying in
+          // the row it carried its ground symbol sideways under the next
+          // cap's name.
+          let rot = 0;
+          if (inst.sym.pins.length === 2 && inst.sym.pins.every((p) => outward(p).dx !== 0)) {
+            const railPin = inst.sym.pins.find((p) => (netClasses.get(netByEndpoint.get(`${inst.ref}.${p.number}`)?.name ?? '')?.cls ?? 'signal') === 'rail') ?? inst.sym.pins[0]!;
+            rot = orientFor(ref, railPin.number, { dx: 0, dy: -1 }) ?? 90;
+          }
+          const sym = rotatedSym(inst.sym, rot);
+          const b = bodyBoundsOf(sym);
           // Banding (#219): a decoupling bank wider than the budget wraps onto
           // another uniform row rather than running past the frame.
           if (capX > groupX && capX + ceilU(b.maxX - b.minX) + 2 * MARGIN - groupX > capBudget) {
@@ -1428,13 +1794,13 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
             part: inst.part,
             refDes: inst.ref,
             unit: inst.unit,
-            sym: inst.sym,
+            sym,
             x: ox,
             y: oy,
             body: { minX: ox + b.minX, minY: oy - b.maxY, maxX: ox + b.maxX, maxY: oy - b.minY },
             cellW: ceilU(b.maxX - b.minX) + 2 * MARGIN,
             cellH: ceilU(b.maxY - b.minY) + 2 * MARGIN,
-            rot: 0,
+            rot,
           });
           capX += ceilU(b.maxX - b.minX) + 2 * MARGIN;
         }
@@ -1546,7 +1912,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
             const end = { x: p.x + o.dx * len * U, y: p.y + o.dy * len * U };
             if (!ownEps.has(ep)) {
               for (const q of [p, end]) {
-                if (sameCoord(q.x, axisX) && q.y > yMin - U && q.y < yMax + U) return false;
+                if (sameCoord(q.x, axisX) && q.y > yMin - U && q.y < yMax + U) {
+                  trace(`axis x=${axisX} blocked by ${ep} (${net.name}) at y=${q.y}`);
+                  return false;
+                }
               }
             }
             // A horizontal stub SEGMENT crossing the axis exactly at a chain
@@ -1564,7 +1933,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
               if (row && row.net !== net.name) {
                 const lo = Math.min(p.x, end.x) - 0.001;
                 const hi = Math.max(p.x, end.x) + 0.001;
-                if (axisX >= lo && axisX <= hi) return false;
+                if (axisX >= lo && axisX <= hi) {
+                  trace(`axis x=${axisX} crossed by the stub of ${ep} (${net.name}) on a ${row.net} row`);
+                  return false;
+                }
               }
             }
           }
@@ -1600,7 +1972,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         for (const box of clearBoxes) {
           for (const [oref, op] of placed) {
             if (moves.has(oref)) continue;
-            if (padOverlap(box, op.body, 0)) return false;
+            if (padOverlap(box, op.body, 0)) {
+              trace(`power end at x=${(box.minX + box.maxX) / 2} would sit on ${oref}`);
+              return false;
+            }
           }
         }
         if (!applyMoves(moves)) return false;
@@ -1654,10 +2029,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       // clearance check refuses goes to the leftover column at the group's
       // right edge, never on top of something.
       const leftovers: string[] = [];
-      const placeCell = (key: string, ox: number, oy: number, rot = 0): Placed => {
+      const placeCell = (key: string, ox: number, oy: number, rot = 0, mirror?: 'y'): Placed => {
         const inst = instByKey.get(key)!;
         const dims = cellDims.get(key)!;
-        const sym = rotatedSym(inst.sym, rot);
+        const sym = transformSym(inst.sym, rot, mirror);
         const b = bodyBoundsOf(sym);
         return {
           part: inst.part,
@@ -1670,23 +2045,76 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           cellW: dims.w,
           cellH: dims.h,
           rot,
+          ...(mirror ? { mirror } : {}),
         };
       };
+      // Inline runs: each part lies on its pin's row with its near lead
+      // toward the IC, one gap past the stub, the next part one gap on. The
+      // wire pass then draws pin, stub, gap and lead as one straight line.
+      for (const il of inlines) {
+        const icPl = placed.get(il.ic);
+        if (!icPl) {
+          leftovers.push(...il.chain.map((c) => c.key));
+          continue;
+        }
+        const at = pinAt(icPl, il.pin);
+        const s = { x: at.x + il.dx * STUB * U, y: at.y };
+        const moves = new Map<string, Placed>();
+        let cursor = s.x + il.dx * il.offset; // x of the last connection point on the row
+        let ok = true;
+        for (const c of il.chain) {
+          const ctl = controlPinOf(c.key);
+          // a transistor keeps collector up and emitter down; it is mirrored,
+          // never turned, so its base faces the part that drives it
+          const mirror: 'y' | undefined = ctl ? (outward(ctl).dx === -il.dx ? undefined : 'y') : undefined;
+          const rot = ctl ? 0 : orientFor(c.key, c.nearPin, { dx: -il.dx, dy: 0 });
+          if (rot === null) {
+            ok = false;
+            break;
+          }
+          cursor = cursor + il.dx * c.gap; // the next near lead
+          const rs = transformSym(instByKey.get(c.key)!.sym, rot, mirror);
+          const near = rs.pins.find((pn) => pn.number === c.nearPin)!;
+          const ox = grid(Math.round((cursor - near.x) / U));
+          const oy = grid(Math.round((s.y + near.y) / U));
+          moves.set(c.key, placeCell(c.key, ox, oy, rot, mirror));
+          cursor = cursor + il.dx * spanOf(c.key);
+        }
+        if (ok) {
+          for (const [key, cand] of moves) placed.set(key, cand);
+          // no axis to clear: the run's wires are the row itself, which the
+          // wire pass checks segment by segment; bodies must still fit
+          if (!finalizeMoves([], moves, [], new Set())) {
+            for (const key of moves.keys()) placed.delete(key);
+            ok = false;
+          }
+        }
+        if (!ok) {
+          leftovers.push(...il.chain.map((c) => c.key));
+          for (const c of il.chain) boundTo.delete(c.key);
+          const refs = il.chain.map((c) => instByKey.get(c.key)!.ref).join(', ');
+          const note = `inline refused: ${refs} could not lie on ${instByKey.get(il.ic)!.ref}.${il.pin.number}'s row in "${gname}"; drawn in a column instead`;
+          trace(note);
+          if (!notes.includes(note)) notes.push(note);
+        }
+      }
       for (const hg of hangs) {
         const icPl = placed.get(hg.ic);
         if (!icPl) {
           leftovers.push(...hg.chain);
           continue;
         }
-        const at = pinAt(icPl, hg.pin);
+        // a node anchor is a hung part, placed turned: read its pin as drawn
+        const pinNow = icPl.sym.pins.find((p) => p.number === hg.pin.number) ?? hg.pin;
+        const at = pinAt(icPl, pinNow);
         const s = { x: at.x + hg.dx * STUB * U, y: at.y };
         const side = hangs.filter((o) => o.ic === hg.ic && o.dx === hg.dx);
-        const pitch = Math.max(0, ...side.map((o) => o.w)) + 2 * U;
+        const pitch = Math.max(0, ...side.map((o) => o.w)) + U;
         const ext = labelExtents([hg.ic]);
-        const inlineReach = Math.max(0, ...inlines.filter((il) => il.ic === hg.ic && il.dx === hg.dx).map((il) => il.len));
-        const reach = Math.max(hg.dx === 1 ? ext.right : ext.left, inlineReach);
+        const reach = hg.dx === 1 ? ext.right : ext.left;
         const firstSlot = grid(Math.round((s.x + hg.dx * (reach + 2 * U + pitch / 2)) / U));
         const slotX = grid(Math.round((firstSlot + hg.dx * hg.slot * pitch) / U));
+        trace(`hang ${hg.chain.map((k) => instByKey.get(k)!.ref).join('+')} on ${instByKey.get(hg.ic)!.ref}.${hg.pin.number}: stub (${s.x}, ${s.y}) reach ${reach.toFixed(2)} pitch ${pitch.toFixed(2)} slot ${hg.slot} -> x ${hg.straight ? s.x : slotX}${hg.straight ? ' (straight)' : ''}`);
         const netOfHang = (key: string, pinN: string): string => netByEndpoint.get(`${instByKey.get(key)!.ref}.${pinN}`)?.name ?? '';
         let placedOk = false;
         // dead straight on the stub axis when the pin-neighbour test found
@@ -1695,11 +2123,20 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         // cross a neighbouring rail stub — and drew exactly that crossing
         // on the Tier C divider, twice.
         const axes = hg.straight ? [s.x] : [slotX];
+        // Chains on one side start level: drops below the side's lowest hung
+        // pin row, rises above its highest. Started at its own row, a chain
+        // from one pin put its body across the next pin's row, and that
+        // pin's run out to its lane hit the body (U1's FLT pull-up against
+        // the OVLO divider). Level bases turn that into a wire crossing at
+        // worst, and the resistors of a comb line up the way a drafter
+        // lines them up. A straight hang keeps its own row.
+        const sidePinYsAbs = side.map((o) => pinAt(icPl, icPl.sym.pins.find((p) => p.number === o.pin.number) ?? o.pin).y);
+        const baseY = hg.straight ? s.y : hg.dir === 1 ? Math.max(...sidePinYsAbs) : Math.min(...sidePinYsAbs);
         for (const axisX of axes) {
         for (let lift = 0; lift < 3 && !placedOk; lift++) {
-          // the near lead of the first part sits one gap from the pin row,
+          // the near lead of the first part sits one gap from the base row,
           // and each further part one gap on, away from the IC
-          let cursor = grid(Math.round((s.y + hg.dir * HANG_GAP) / U)) + hg.dir * lift * 2 * U;
+          let cursor = grid(Math.round((baseY + hg.dir * HANG_GAP) / U)) + hg.dir * lift * 2 * U;
           const moves = new Map<string, Placed>();
           const conn: { y: number; net: string }[] = [{ y: s.y, net: netOfHang(hg.ic, hg.pin.number) }];
           const startY = cursor;
@@ -1739,52 +2176,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         }
         if (!placedOk) {
           leftovers.push(...hg.chain);
+          for (const k of hg.chain) boundTo.delete(k);
           const refs = hg.chain.map((k) => instByKey.get(k)!.ref).join(', ');
           const note = `hang refused: ${refs} could not be placed cleanly on ${instByKey.get(hg.ic)!.ref}.${hg.pin.number} in "${gname}"; drawn in a column instead`;
-          if (!notes.includes(note)) notes.push(note);
-        }
-      }
-      // Inline runs: each part lies on its pin's row with its near lead
-      // toward the IC, one gap past the stub, the next part one gap on. The
-      // wire pass then draws pin, stub, gap and lead as one straight line.
-      for (const il of inlines) {
-        const icPl = placed.get(il.ic);
-        if (!icPl) {
-          leftovers.push(...il.chain.map((c) => c.key));
-          continue;
-        }
-        const at = pinAt(icPl, il.pin);
-        const s = { x: at.x + il.dx * STUB * U, y: at.y };
-        const moves = new Map<string, Placed>();
-        let cursor = s.x + il.dx * il.offset; // x of the last connection point on the row
-        let ok = true;
-        for (const c of il.chain) {
-          const rot = orientFor(c.key, c.nearPin, { dx: -il.dx, dy: 0 });
-          if (rot === null) {
-            ok = false;
-            break;
-          }
-          cursor = cursor + il.dx * c.gap; // the next near lead
-          const rs = rotatedSym(instByKey.get(c.key)!.sym, rot);
-          const near = rs.pins.find((pn) => pn.number === c.nearPin)!;
-          const ox = grid(Math.round((cursor - near.x) / U));
-          const oy = grid(Math.round((s.y + near.y) / U));
-          moves.set(c.key, placeCell(c.key, ox, oy, rot));
-          cursor = cursor + il.dx * spanOf(c.key);
-        }
-        if (ok) {
-          for (const [key, cand] of moves) placed.set(key, cand);
-          // no axis to clear: the run's wires are the row itself, which the
-          // wire pass checks segment by segment; bodies must still fit
-          if (!finalizeMoves([], moves, [], new Set())) {
-            for (const key of moves.keys()) placed.delete(key);
-            ok = false;
-          }
-        }
-        if (!ok) {
-          leftovers.push(...il.chain.map((c) => c.key));
-          const refs = il.chain.map((c) => instByKey.get(c.key)!.ref).join(', ');
-          const note = `inline refused: ${refs} could not lie on ${instByKey.get(il.ic)!.ref}.${il.pin.number}'s row in "${gname}"; drawn in a column instead`;
+          trace(note);
           if (!notes.includes(note)) notes.push(note);
         }
       }
@@ -1826,11 +2221,18 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           const net = netByEndpoint.get(epOf(current, pinN));
           if (!net) return { kind: 'open' }; // declared no-connect or unused
           if (classOf(net.name) !== 'signal') return { kind: 'power' };
-          if (net.pins.length !== 2) return { kind: 'invalid' }; // a tapped node is not a series chain
+          // a tapped node is not a series link, but it is a fine END: the chain
+          // stops there and the label that names the node sits on it (R18 over
+          // Q1's drain, its other end on the four-way USB_EN)
+          if (net.pins.length !== 2) return { kind: 'open' };
           const otherEp = net.pins.map(parseEp).find((e) => e !== null && e.key !== current);
           if (!otherEp) return { kind: 'invalid' };
           const opl = placed.get(otherEp.key);
-          if (!opl || groupOf.get(otherEp.key) !== gname) return { kind: 'invalid' };
+          if (!opl) return { kind: 'invalid' };
+          // the other end lives in another group: this end is open, and the
+          // label that names the net across the sheet sits on it (an LED's
+          // resistor driven from the MCU group stacks over its LED here)
+          if (groupOf.get(otherEp.key) !== gname) return { kind: 'open' };
           if (chainable(otherEp.key) && !chain.includes(otherEp.key)) {
             const ov = vertPins(otherEp.key)!;
             // the link must enter through the lead facing the chain, or the
@@ -1850,10 +2252,25 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       for (const m of members) {
         if (!chainable(m.key) || chained.has(m.key)) continue;
         const chain = [m.key];
-        const topEnd = walk(m.key, 'up', chain);
-        const bottomEnd = walk(chain[chain.length - 1]!, 'down', chain);
+        let topEnd = walk(m.key, 'up', chain);
+        let bottomEnd = walk(chain[chain.length - 1]!, 'down', chain);
         for (const ref of chain) chained.add(ref);
+        trace(`chain ${chain.map((k) => instByKey.get(k)!.ref).join('+')}: top ${topEnd.kind} bottom ${bottomEnd.kind}`);
         if (topEnd.kind === 'invalid' || bottomEnd.kind === 'invalid') continue;
+        // The anchor sits BELOW the chain but meets its top lead (R18's pin 1
+        // on Q1's drain, which faces up): turn every part half a turn so the
+        // lead that meets the anchor is the bottom one, and stack upward.
+        // The reverse case (an anchor above, met by a bottom lead) mirrors it.
+        const flip = (): void => {
+          for (const key of chain) {
+            const pl = placed.get(key)!;
+            placed.set(key, placeCell(key, pl.x, pl.y, (pl.rot + 180) % 360));
+          }
+          [topEnd, bottomEnd] = [bottomEnd, topEnd];
+          chain.reverse();
+        };
+        if (topEnd.kind === 'anchor' && outward(topEnd.pin).dy === -1 && bottomEnd.kind !== 'anchor') flip();
+        else if (bottomEnd.kind === 'anchor' && outward(bottomEnd.pin).dy === 1 && topEnd.kind !== 'anchor') flip();
         if (chain.length > 4) continue; // beyond four parts this is a network, not an idiom
         const anchors = [topEnd, bottomEnd].filter((e): e is Extract<ChainEnd, { kind: 'anchor' }> => e.kind === 'anchor');
         if (anchors.length === 0 && chain.length < 2) continue; // a lone floating part has nothing to align to
@@ -1956,15 +2373,22 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       const cells = memberRefs.map((r) => placed.get(r)!);
       if (cells.length) {
         const minX = Math.min(...cells.map((c) => c.body.minX)) - MARGIN * U;
-        const maxX = Math.max(...cells.map((c) => c.body.maxX)) + MARGIN * U;
-        // the top inset holds the caption band (2 units of text at 2 mm)
-        // above the tallest thing a cell can carry over its body: a rail
-        // symbol on an upward stub with its value text over it, which with
-        // an IC at the top-left corner sits 4.3 mm under the box edge; six
-        // units keep the caption clear of it by two
-        const minY = Math.min(...cells.map((c) => c.body.minY)) - (MARGIN + 6) * U;
+        // a two-lead part carries its reference and value beside its body;
+        // at the group's right edge that text is what the next group must
+        // clear (the rails bank's "47uF/10V" ran under the amplifier's box)
+        const fieldReach = (c: Placed): number =>
+          c.sym.pins.length <= 2 ? Math.max(c.refDes.length, c.part.value.length) * TEXT_RESERVE * LABEL_HEIGHT + 1.27 : 0;
+        const maxX = Math.max(...cells.map((c) => c.body.maxX + fieldReach(c))) + MARGIN * U;
+        // the top inset holds the caption band (a bold caption at
+        // CAPTION_SIZE, inset 2 mm) above the tallest thing a cell can carry
+        // over its body: a rail symbol on an upward stub with its value text
+        // over it, which with an IC at the top-left corner sat 4.3 mm under
+        // the box edge at six units; CAPTION_BAND keeps the caption's
+        // bottom edge clear of it
+        const minY = Math.min(...cells.map((c) => c.body.minY)) - (MARGIN + CAPTION_BAND) * U;
         const maxY = Math.max(...cells.map((c) => c.body.maxY)) + (MARGIN + 2) * U;
         groupRects.push({ name: gname, x1: minX, y1: minY, x2: maxX, y2: maxY });
+        trace(`group "${gname}": rect x ${minX.toFixed(1)}..${maxX.toFixed(1)} y ${minY.toFixed(1)}..${maxY.toFixed(1)} (${cells.length} cells)`);
         groupX = Math.round(maxX / U) + GROUP_GAP;
         prevGroup = gname;
         bandsOf.set(gname, bandCount);
@@ -2643,16 +3067,25 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
      * when none does — the engine may never trip its own wire-through-symbol
      * gate, and a routed contact would merge nets.
      */
-    const routeStubs = (subset: Stub[]): { segs: { x1: number; y1: number; x2: number; y2: number }[]; trunkX: number } | null => {
+    type RouteSeg = { x1: number; y1: number; x2: number; y2: number };
+    type Route = { segs: RouteSeg[]; trunkX: number; trunkY?: number };
+    const routeStubs = (subset: Stub[]): Route | null => {
       const xs = subset.map((s) => s.end.x).sort((a, b) => a - b);
       const ys = subset.map((s) => s.end.y);
+      const admit = (candidate: RouteSeg[]): boolean => {
+        if (candidate.some((c) => bodies.some((b) => segCrossesBody(c.x1, c.y1, c.x2, c.y2, b)))) return false;
+        return !touchesForeign(candidate, net.name, new Set(net.pins));
+      };
+      const found: Route[] = [];
+      // A vertical trunk with horizontal branches, at the median stub x,
+      // right of everything, left of everything.
       const trunkCandidates = [
         grid(Math.round(xs[Math.floor(xs.length / 2)]! / U)),
         grid(Math.round(xs[xs.length - 1]! / U) + STUB),
         grid(Math.round(xs[0]! / U) - STUB),
       ];
       for (const trunkX of trunkCandidates) {
-        const candidate: { x1: number; y1: number; x2: number; y2: number }[] = [];
+        const candidate: RouteSeg[] = [];
         for (const s of subset) {
           candidate.push({ x1: s.ep.at.x, y1: s.ep.at.y, x2: s.end.x, y2: s.end.y });
           if (!sameCoord(s.end.x, trunkX)) candidate.push({ x1: s.end.x, y1: s.end.y, x2: trunkX, y2: s.end.y });
@@ -2663,14 +3096,44 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         for (let i = 1; i < meetYs.length; i++) {
           candidate.push({ x1: trunkX, y1: meetYs[i - 1]!, x2: trunkX, y2: meetYs[i]! });
         }
-        if (candidate.some((c) => bodies.some((b) => segCrossesBody(c.x1, c.y1, c.x2, c.y2, b)))) continue;
-        if (touchesForeign(candidate, net.name, new Set(net.pins))) continue;
-        return { segs: candidate, trunkX };
+        if (admit(candidate)) found.push({ segs: candidate, trunkX });
       }
-      return null;
+      // A comb: the trunk lies ALONG one endpoint's row — the IC pin's row
+      // when the net has one — and every other stub rises or drops to it.
+      // This is how a pin with parts hung on it is drawn: the row runs out to
+      // the axis, the chain above and the chain below meet it in one T. The
+      // vertical trunk alone could not route a pull-up and a pull-down on one
+      // pin (its branch to the second part ran along a foreign row), so one
+      // of them shipped labelled.
+      const rows = [...new Map(subset.map((s) => [knum(s.end.y), s])).values()].sort((a, b) => {
+        const ica = (placed.get(a.ep.ref)?.sym.pins.length ?? 0) >= 3 ? 0 : 1;
+        const icb = (placed.get(b.ep.ref)?.sym.pins.length ?? 0) >= 3 ? 0 : 1;
+        return ica - icb || a.end.y - b.end.y;
+      });
+      for (const rowStub of rows) {
+        const trunkY = rowStub.end.y;
+        const candidate: RouteSeg[] = [];
+        for (const s of subset) {
+          candidate.push({ x1: s.ep.at.x, y1: s.ep.at.y, x2: s.end.x, y2: s.end.y });
+          if (!sameCoord(s.end.y, trunkY)) candidate.push({ x1: s.end.x, y1: s.end.y, x2: s.end.x, y2: trunkY });
+        }
+        const meetXs = [...new Map(xs.map((x) => [knum(x), x])).values()].sort((a, b) => a - b);
+        for (let i = 1; i < meetXs.length; i++) {
+          candidate.push({ x1: meetXs[i - 1]!, y1: trunkY, x2: meetXs[i]!, y2: trunkY });
+        }
+        if (admit(candidate)) found.push({ segs: candidate, trunkX: meetXs[0]!, trunkY });
+      }
+      if (!found.length) {
+        trace(`route ${net.name}: no clean route for ${subset.map((s) => `${s.ep.ref}.${s.ep.pin.number}`).join(', ')}`);
+        return null;
+      }
+      // the fewest segments is the fewest bends; ties keep the classic order
+      return found.reduce((best, r) => (r.segs.length < best.segs.length ? r : best), found[0]!);
     };
+    /** Labels naming this net's wired runs, promoted to flags below if the net also leaves through a stub. */
+    const netWired: number[] = [];
     /** Draw a routed subset: its wires, one label naming the net, and junction dots. */
-    const commitRoute = (subset: Stub[], r: { segs: { x1: number; y1: number; x2: number; y2: number }[]; trunkX: number }): void => {
+    const commitRoute = (subset: Stub[], r: Route): void => {
       for (const c of r.segs) addWire(net.name, c.x1, c.y1, c.x2, c.y2);
       // one label names the wired run (topmost-leftmost wire point): the net
       // stays identifiable to PINOUT/drift and to a reviewer without a
@@ -2690,17 +3153,28 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       const candidates = [...vertTops.sort((a, b) => a.y - b.y || a.x - b.x), pts[0]!];
       const clearOfBodies = (pt: { x: number; y: number }): boolean => {
         const b = labelTextBox(net.name, pt.x, pt.y, 0);
-        return ![...placed.values()].some((pl) => boundsOverlap(b, pl.body));
+        if ([...placed.values()].some((pl) => boundsOverlap(b, pl.body))) return false;
+        return !labels.some((o) => o.name !== net.name && boundsOverlap(padBox(b), labelTextBox(o.name, o.x, o.y, o.rot)));
       };
       const at = candidates.find(clearOfBodies) ?? pts[0]!;
-      labels.push({ name: net.name, x: at.x, y: at.y, rot: 0 });
+      labels.push({ name: net.name, x: at.x, y: at.y, rot: 0, kind: 'local' });
+      netWired.push(labels.length - 1);
       wiredLabels.push({ label: labels.length - 1, pts, segs: r.segs.map((c) => ({ ...c })) });
       wired++;
       if (subset.length > 2) {
-        const ys = subset.map((s) => s.end.y);
-        for (const s of subset) {
-          const meet = sameCoord(s.end.x, r.trunkX) ? s.end : { x: r.trunkX, y: s.end.y };
-          if (meet.y > Math.min(...ys) && meet.y < Math.max(...ys)) junctions.push(meet);
+        if (r.trunkY !== undefined) {
+          // comb: a branch meeting the row trunk strictly inside its span is a T
+          const xs = subset.map((s) => s.end.x);
+          for (const s of subset) {
+            const meet = sameCoord(s.end.y, r.trunkY) ? s.end : { x: s.end.x, y: r.trunkY };
+            if (meet.x > Math.min(...xs) + 0.01 && meet.x < Math.max(...xs) - 0.01) junctions.push(meet);
+          }
+        } else {
+          const ys = subset.map((s) => s.end.y);
+          for (const s of subset) {
+            const meet = sameCoord(s.end.x, r.trunkX) ? s.end : { x: r.trunkX, y: s.end.y };
+            if (meet.y > Math.min(...ys) && meet.y < Math.max(...ys)) junctions.push(meet);
+          }
         }
       }
     };
@@ -2714,12 +3188,19 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     // the net does. Lone endpoints keep a stub and a label.
     const sorted: Stub[] = [...stubs].sort((a, b) => a.end.x - b.end.x || a.end.y - b.end.y);
     const clusters: Stub[][] = [];
+    const anchorKey = (ref: string): string => {
+      let k = ref;
+      for (let i = 0; i < 4 && boundTo.has(k); i++) k = boundTo.get(k)!;
+      return k;
+    };
+    const near = (a: Stub, b: Stub): boolean =>
+      (Math.abs(a.end.x - b.end.x) <= MAX_WIRE_SPAN && Math.abs(a.end.y - b.end.y) <= MAX_WIRE_SPAN) ||
+      // a part hung on a pin or lying on its row joins that pin's cluster
+      // however far its lane sits: the fourth lane of a comb is past the
+      // wire span, and it is still that pin's part
+      anchorKey(a.ep.ref) === anchorKey(b.ep.ref);
     for (const s of sorted) {
-      const home = clusters.find(
-        (cl) =>
-          groupOf.get(cl[0]!.ep.ref) === groupOf.get(s.ep.ref) &&
-          cl.every((o) => Math.abs(o.end.x - s.end.x) <= MAX_WIRE_SPAN && Math.abs(o.end.y - s.end.y) <= MAX_WIRE_SPAN),
-      );
+      const home = clusters.find((cl) => groupOf.get(cl[0]!.ep.ref) === groupOf.get(s.ep.ref) && cl.every((o) => near(o, s)));
       if (home) home.push(s);
       else clusters.push([s]);
     }
@@ -2779,11 +3260,46 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         }
       }
       addWire(net.name, s.ep.at.x, s.ep.at.y, end.x, end.y);
-      // labels are always horizontal (drafting standard): leftward pins read
-      // outward to the left, everything else extends to the right
-      labels.push({ name: net.name, x: end.x, y: end.y, rot: s.o.dx === -1 ? 180 : 0 });
+      // a stub ends in a global flag that continues the stub's direction,
+      // the way a person hangs a flag on a wire end: a leftward stub reads
+      // leftward, an upward one reads upward; the shape says what the pin is
+      labels.push({ name: net.name, x: end.x, y: end.y, rot: rotOutward(s.o), kind: 'global', shape: flagShape(s.ep.pin.etype) });
       stubbedLabels.push({ label: labels.length - 1, wire: wires.length - 1, o: s.o, pins: net.pins });
       labelled++;
+    }
+    // A net that also leaves its run through a stub is named by global flags
+    // there, and a local label of the same name would not connect to them in
+    // KiCad: the run's own name becomes a flag too, re-anchored where a flag
+    // fits (a local name stands over its wire; a flag has a body of its own).
+    // A net wired whole keeps its plain local name on the run.
+    if (netWired.length && stubs.some((s) => !wiredStubs.has(s))) {
+      for (const idx of netWired) {
+        const lb = labels[idx]!;
+        const rec = wiredLabels.find((w) => w.label === idx)!;
+        lb.kind = 'global';
+        lb.shape = 'passive';
+        const clear = (c: { x: number; y: number; rot: number }): boolean =>
+          ![...placed.values()].some((pl) => boundsOverlap(labelTextBox(lb.name, c.x, c.y, c.rot, 'global'), pl.body));
+        const at = wiredFlagCandidates(rec.segs).find(clear) ?? { x: lb.x, y: lb.y, rot: 90 };
+        trace(`label ${lb.name}: run name becomes a flag at (${at.x}, ${at.y}, ${at.rot})`);
+        lb.x = at.x;
+        lb.y = at.y;
+        lb.rot = at.rot;
+      }
+    }
+  }
+
+  if (process.env['COPPERHEAD_DRAFT_TRACE']) {
+    // every crossing of two nets' wires, for the trace: a comb whose lanes
+    // cross another pin's row is legal, but a drafter wants to know where
+    const H = wires.filter((w) => sameCoord(w.y1, w.y2));
+    const V = wires.filter((w) => sameCoord(w.x1, w.x2));
+    for (const h of H) {
+      for (const v of V) {
+        if (h.net === v.net) continue;
+        const hx1 = Math.min(h.x1, h.x2), hx2 = Math.max(h.x1, h.x2), vy1 = Math.min(v.y1, v.y2), vy2 = Math.max(v.y1, v.y2);
+        if (v.x1 > hx1 + 0.01 && v.x1 < hx2 - 0.01 && h.y1 > vy1 + 0.01 && h.y1 < vy2 - 0.01) trace(`crossing ${h.net} (row y=${h.y1}) x ${v.net} (x=${v.x1})`);
+      }
     }
   }
 
@@ -2806,7 +3322,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
    * (ESP32-WROVER's "MTMS/GPIO14/ADC2_CH6") run most of the way across, and a
    * value dropped on the centre line read as one word with them.
    */
-  const interiorFree = (pl: Placed, cy: number): number => {
+  const interiorSpan = (pl: Placed, cy: number): { left: number; right: number } => {
     let leftW = 0;
     let rightW = 0;
     for (const pin of pl.sym.pins) {
@@ -2814,17 +3330,24 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       if (o.dx === 0) continue;
       const py = pinAt(pl, pin).y;
       if (Math.abs(py - cy) > 2.54 + 0.7) continue;
-      const w = Math.max(0, pin.name.length) * LABEL_ADVANCE * LABEL_HEIGHT;
+      const w = Math.max(0, pin.name.length) * NAME_ADVANCE * LABEL_HEIGHT;
       if (o.dx === -1) leftW = Math.max(leftW, w);
       else rightW = Math.max(rightW, w);
     }
-    return pl.body.maxX - pl.body.minX - leftW - rightW;
+    return { left: pl.body.minX + leftW, right: pl.body.maxX - rightW };
   };
+  /** A library symbol that draws text of its own inside the body (ESP32-WROVER
+   * prints its family name across the middle) has no free interior. */
+  const hasGraphicText = (pl: Placed): boolean => /\(text\s/.test(pl.sym.sourceText ?? '');
+  const pinSidesOf = (pl: Placed): Set<string> =>
+    new Set(
+      pl.sym.pins.map((p) => {
+        const o = outward(p);
+        return o.dx === -1 ? 'left' : o.dx === 1 ? 'right' : o.dy === -1 ? 'top' : 'bottom';
+      }),
+    );
   for (const [, pl] of [...placed.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))) {
-    const pinSides = new Set(pl.sym.pins.map((p) => {
-      const o = outward(p);
-      return o.dx === -1 ? 'left' : o.dx === 1 ? 'right' : o.dy === -1 ? 'top' : 'bottom';
-    }));
+    const pinSides = pinSidesOf(pl);
     const cy = (pl.body.minY + pl.body.maxY) / 2;
     const cx = (pl.body.minX + pl.body.maxX) / 2;
     const textW = Math.max(displayRefOf(pl).length, pl.part.value.length) * 0.8 * 1.27;
@@ -2836,16 +3359,22 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       // below the body otherwise
       valueAt = pinSides.has('bottom') ? { x: cx, y: pl.body.minY - 5.08 } : { x: cx, y: pl.body.maxY + 2.54 };
     } else if (
-      pl.body.maxX - pl.body.minX >= textW + 2.54 &&
       pl.body.maxY - pl.body.minY >= 7.62 &&
-      interiorFree(pl, cy) >= textW + 2.54
+      !hasGraphicText(pl) &&
+      // the name at its real advance, centred in the interval the pin names
+      // leave free, with two text heights of air each side: measured from
+      // the body centre instead, ESP32-WROVER's value printed across the
+      // ends of its long left-hand pin names
+      interiorSpan(pl, cy).right - interiorSpan(pl, cy).left >= (textW * NAME_ADVANCE) / LABEL_ADVANCE + 4 * 2.54
     ) {
       // pins on top AND a body big enough to hold its own name: a TQFP-class
       // part carries pins on all four sides, so every outside slot lands on
       // some pin's stub or label; the body interior is the one guaranteed-free
       // area, and it is where KiCad's own large symbols put their text
-      refAt = { x: cx, y: cy - 1.27 };
-      valueAt = { x: cx, y: cy + 1.27 };
+      const span = interiorSpan(pl, cy);
+      const mid = grid(Math.round((span.left + span.right) / 2 / U));
+      refAt = { x: mid, y: cy - 1.27 };
+      valueAt = { x: mid, y: cy + 1.27 };
     } else {
       refAt = { x: pl.body.maxX + textW / 2 + 1.27, y: cy - 1.27 };
       valueAt = { x: pl.body.maxX + textW / 2 + 1.27, y: cy + 1.27 };
@@ -2856,6 +3385,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       value: pl.part.value,
       footprint: pl.part.footprint ?? '',
       at: { x: pl.x, y: pl.y, rot: pl.rot },
+      ...(pl.mirror ? { mirror: pl.mirror } : {}),
       refAt,
       valueAt,
       pinNumbers: pl.sym.pins.map((p) => p.number),
@@ -2892,7 +3422,8 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     const fieldBoxes: Bounds[] = extraSymbols
       .filter((s) => !s.hideValue)
       .map((s) => centeredTextBox(s.value, s.valueAt.x, s.valueAt.y));
-    const labelBoxes: Bounds[] = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot));
+    const powerBodies: Bounds[] = extraSymbols.map((s) => ({ minX: s.at.x - 2 * U, minY: s.at.y - 2 * U, maxX: s.at.x + 2 * U, maxY: s.at.y + 2 * U }));
+    const labelBoxes: Bounds[] = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot, l.kind));
     for (const { sym, pl } of emitPairs) {
       const dref = displayRefOf(pl);
       const cx = (pl.body.minX + pl.body.maxX) / 2;
@@ -2904,9 +3435,23 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           for (const op of placed.values()) {
             if (op !== pl && boundsOverlap(b, op.body)) return false;
           }
-          if (fieldBoxes.some((t) => boundsOverlap(t, b))) return false;
+          // a rail bar or ground symbol is a drawn body too, not just its
+          // value text (R23's reference printed through PVDD's bar)
+          if (powerBodies.some((pb) => boundsOverlap(b, pb))) return false;
+          // the part's own pins: the pin line and its number, from the pin
+          // end to the body edge (U8's name printed over its no-connect pins,
+          // which draw no wire for the wire check to see)
+          for (const pin of pl.sym.pins) {
+            const p = pinAt(pl, pin);
+            const o = outward(pin);
+            const band: Bounds = o.dx !== 0
+              ? { minX: Math.min(p.x, o.dx === 1 ? pl.body.maxX : pl.body.minX), maxX: Math.max(p.x, o.dx === 1 ? pl.body.maxX : pl.body.minX), minY: p.y - 1.5, maxY: p.y + 1.5 }
+              : { minX: p.x - 1.5, maxX: p.x + 1.5, minY: Math.min(p.y, o.dy === 1 ? pl.body.maxY : pl.body.minY), maxY: Math.max(p.y, o.dy === 1 ? pl.body.maxY : pl.body.minY) };
+            if (boundsOverlap(b, band)) return false;
+          }
+          if (fieldBoxes.some((t) => boundsOverlap(t, padBox(b)))) return false;
           // net labels are on the sheet by now; a slot on top of one is no slot
-          if (labelBoxes.some((t) => boundsOverlap(t, b))) return false;
+          if (labelBoxes.some((t) => boundsOverlap(t, padBox(b)))) return false;
         }
         return true;
       };
@@ -2916,6 +3461,21 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         // module's rail pin) still has its top-left and top-right free
         const xl = pl.body.minX + textW / 2 + 1.27;
         const xr = pl.body.maxX - textW / 2 - 1.27;
+        // A part lying on a row (leads left and right) has rows one pitch
+        // above and below it; its texts fit BETWEEN the rows, half a pitch
+        // out from the body, wherever the neighbouring row carries no wire
+        // there. Reference above and value below first, then both on one
+        // side, then side by side on one line.
+        if (pinSidesOf(pl).has('left') && pinSidesOf(pl).has('right') && !pinSidesOf(pl).has('top')) {
+          const hh = 1.27;
+          ladder.push(
+            [{ x: cx, y: pl.body.minY - hh }, { x: cx, y: pl.body.maxY + hh }],
+            [{ x: cx, y: pl.body.minY - hh - 2.54 }, { x: cx, y: pl.body.minY - hh }],
+            [{ x: cx, y: pl.body.maxY + hh }, { x: cx, y: pl.body.maxY + hh + 2.54 }],
+            [{ x: cx - textW / 2 - 0.635, y: pl.body.minY - hh }, { x: cx + textW / 2 + 0.635, y: pl.body.minY - hh }],
+            [{ x: cx - textW / 2 - 0.635, y: pl.body.maxY + hh }, { x: cx + textW / 2 + 0.635, y: pl.body.maxY + hh }],
+          );
+        }
         // rungs reach past a rail symbol and its name on a top or bottom
         // stub (about 6 mm out), so a module pinned on all four sides still
         // finds a slot above or below itself instead of on its own labels
@@ -2937,13 +3497,16 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
             ],
           );
         }
+        let slotted = false;
         for (const [r, v] of ladder) {
           if (pairClear(r, v)) {
             sym.refAt = r;
             sym.valueAt = v;
+            slotted = true;
             break;
           }
         }
+        if (!slotted) trace(`fields of ${dref}: no clear slot in ${ladder.length} rungs; heuristic kept`);
       }
       fieldBoxes.push(centeredTextBox(dref, sym.refAt.x, sym.refAt.y), centeredTextBox(sym.value, sym.valueAt.x, sym.valueAt.y));
     }
@@ -2984,18 +3547,69 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // are the label's own attachment and never count as collisions.
   for (const rec of wiredLabels) {
     const lb = labels[rec.label]!;
-    const clearWired = (x: number, y: number): boolean => {
-      const box = labelTextBox(lb.name, x, y, 0);
-      if (bodies.some((b) => boundsOverlap(box, b))) return false;
-      if (textObstacles.some((b) => boundsOverlap(box, b))) return false;
-      if (wires.some((w) => !segContains(w, x, y) && segHitsBox(w, box))) return false;
+    const clearWired = (x: number, y: number, rot: number): boolean => {
+      const box = labelTextBox(lb.name, x, y, rot, lb.kind);
+      const blocked = (why: string): false => {
+        trace(`label ${lb.name} at (${x}, ${y}, ${rot}) blocked by ${why}`);
+        return false;
+      };
+      // A wire through the anchor is the label's own attachment — for a
+      // plain label, whose text stands above the line. A flag is drawn
+      // CENTRED on its anchor line, so a wire continuing under its text
+      // runs straight through the flag; only the wire on the pole side
+      // (behind the flag's tip) is its attachment.
+      const attached = (w: { x1: number; y1: number; x2: number; y2: number }): boolean => {
+        if (!segContains(w, x, y)) return false;
+        if (lb.kind !== 'global') return true;
+        const r = ((rot % 360) + 360) % 360;
+        if (r === 0) return Math.max(w.x1, w.x2) <= x + 0.01;
+        if (r === 180) return Math.min(w.x1, w.x2) >= x - 0.01;
+        if (r === 90) return Math.min(w.y1, w.y2) >= y - 0.01;
+        return Math.max(w.y1, w.y2) <= y + 0.01;
+      };
+      if (bodies.some((b) => boundsOverlap(box, b))) return blocked('a body');
+      if (textObstacles.some((b) => boundsOverlap(padBox(box), b))) return blocked('field text');
+      if (wires.some((w) => !attached(w) && segHitsBox(w, box))) return blocked('a wire');
       return !labels.some(
-        (o, i) => i !== rec.label && o.name !== lb.name && boundsOverlap(box, labelTextBox(o.name, o.x, o.y, o.rot)),
+        (o, i) => i !== rec.label && o.name !== lb.name && boundsOverlap(padBox(box), labelTextBox(o.name, o.x, o.y, o.rot, o.kind)),
       );
     };
-    if (clearWired(lb.x, lb.y)) continue;
-    const alt = rec.pts.find((p) => clearWired(p.x, p.y));
+    if (clearWired(lb.x, lb.y, lb.rot)) continue;
+    trace(`label ${lb.name}: (${lb.x}, ${lb.y}, ${lb.rot}) not clear, searching`);
+    // A flag may turn as well as move — its candidates each carry a rotation
+    // — and prefers a trunk top; a local name stays horizontal and walks the
+    // run's points in anchor-preference order.
+    if (lb.kind === 'global') {
+      // a run's name reads along the row (the drafting standard keeps text
+      // horizontal); a flag that could only stand up leaves the net to
+      // local labels below
+      const alt = wiredFlagCandidates(rec.segs)
+        .filter((c) => c.rot === 0 || c.rot === 180)
+        .find((c) => clearWired(c.x, c.y, c.rot));
+      if (alt) {
+        lb.x = alt.x;
+        lb.y = alt.y;
+        lb.rot = alt.rot;
+        continue;
+      }
+      // A flag that fits nowhere on its run (a part on a pin row of a
+      // 2.54 mm-pitch IC has no free end and no room for a flag standing up
+      // between the rows) leaves the net named by plain labels instead:
+      // every flag of this net becomes a local label, which KiCad connects
+      // across the sheet just the same, and the run's name goes back to
+      // standing on its wire.
+      for (const o of labels) {
+        if (o.name !== lb.name) continue;
+        o.kind = 'local';
+        delete o.shape;
+        if (o.rot === 90 || o.rot === 270) o.rot = 0; // plain text reads along the row
+      }
+      lb.rot = 0;
+      trace(`label ${lb.name}: no flag position clears; the net keeps local labels`);
+    }
+    const alt = rec.pts.find((p) => clearWired(p.x, p.y, 0));
     if (alt) {
+      trace(`label ${lb.name} moved along its run (${lb.x}, ${lb.y}) -> (${alt.x}, ${alt.y})`);
       lb.x = alt.x;
       lb.y = alt.y;
       continue;
@@ -3012,20 +3626,23 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     // one the IR gave it. Three corpus nets shipped exactly that way —
     // Net-(F201-Pad1), Net-(U8-BIN) and Net-(U8-RIN), each anchored on no
     // wire of its own run.
-    const inner = interiorGridPoints(rec.segs, U).find((p) => clearWired(p.x, p.y));
+    const inner = interiorGridPoints(rec.segs, U).find((p) => clearWired(p.x, p.y, 0));
     if (inner) {
+      trace(`label ${lb.name} moved to an interior point (${inner.x}, ${inner.y})`);
       lb.x = inner.x;
       lb.y = inner.y;
+      continue;
     }
+    trace(`label ${lb.name}: no clear point on its run; left at (${lb.x}, ${lb.y})`);
   }
 
   for (const rec of stubbedLabels) {
     const lb = labels[rec.label]!;
     const stub = wires[rec.wire]!;
     const clearAt = (x: number, y: number, rot: number = lb.rot): boolean => {
-      const box = labelTextBox(lb.name, x, y, rot);
+      const box = labelTextBox(lb.name, x, y, rot, lb.kind);
       if (bodies.some((b) => boundsOverlap(box, b))) return false;
-      if (textObstacles.some((b) => boundsOverlap(box, b))) return false;
+      if (textObstacles.some((b) => boundsOverlap(padBox(box), b))) return false;
       if (wires.some((w, i) => i !== rec.wire && segHitsBox(w, box))) return false;
       // Foreign labels are part of what a label must clear, not just bodies and
       // wires. Without this the pass declares a point clear that another net's
@@ -3038,7 +3655,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       // A label of the SAME net is still text: two BUCK_EN labels one over
       // the other read as one smudge and the checker flags them (a hung
       // part's stub label rode down onto the IC pin's).
-      return !labels.some((o, i) => i !== rec.label && boundsOverlap(box, labelTextBox(o.name, o.x, o.y, o.rot)));
+      return !labels.some((o, i) => i !== rec.label && boundsOverlap(padBox(box), labelTextBox(o.name, o.x, o.y, o.rot, o.kind)));
     };
     /**
      * Does another net's label sit on exactly this point? That is the fatal
@@ -3069,6 +3686,17 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
       lb.x = x;
       lb.y = y;
     };
+    // A flag on a vertical stub reads along the row when nothing stands
+    // there (the drafting standard keeps text horizontal; the checker names
+    // every rotated label a horizontal one would have fitted).
+    if (lb.kind === 'global' && rec.o.dy !== 0 && (lb.rot === 90 || lb.rot === 270)) {
+      const flat = [0, 180].find((r) => clearAt(lb.x, lb.y, r) && !mergesAt(lb.x, lb.y));
+      if (flat !== undefined) {
+        lb.rot = flat;
+        continue;
+      }
+      trace(`flag ${lb.name} at (${lb.x}, ${lb.y}) stays vertical: no horizontal draw clears`);
+    }
     if (clearAt(lb.x, lb.y)) continue;
     /** Candidate points along the stub, nearest first. */
     const candidates: { x: number; y: number }[] = [];
@@ -3138,7 +3766,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // measure as clean. Nothing clear keeps the placed slot so the report stays
   // honest, and a value that is already clean does not move at all.
   {
-    const labelBoxesFinal = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot));
+    const labelBoxesFinal = labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot, l.kind));
     const memberText = emitPairs.flatMap(({ sym: s, pl }) => [
       centeredTextBox(displayRefOf(pl), s.refAt.x, s.refAt.y),
       centeredTextBox(s.value, s.valueAt.x, s.valueAt.y),
@@ -3225,7 +3853,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     for (const lb of labels) {
       const stub = wires.find((w) => sameCoord(w.x2, lb.x) && sameCoord(w.y2, lb.y) && pinGroup.has(pointKey(w.x1, w.y1)));
       const g = stub ? pinGroup.get(pointKey(stub.x1, stub.y1)) : undefined;
-      addBox(g, labelReserveBox(lb.name, lb.x, lb.y, lb.rot));
+      addBox(g, labelReserveBox(lb.name, lb.x, lb.y, lb.rot, lb.kind));
     }
     // reference and value fields of every member, at the reserve advance
     const fieldBox = (text: string, x: number, y: number): Bounds => {
@@ -3253,6 +3881,15 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         r.y1 = Math.min(r.y1, b.minY - BOX_PAD * U);
         r.y2 = Math.max(r.y2, b.maxY + BOX_PAD * U);
       }
+      // The caption sits in the box's top-left corner; text the box grew to
+      // hold up there (a rail name over a part rising from the top pin of an
+      // IC in that corner) would print straight through it. Anything under
+      // the caption's span pushes the top edge up by the caption's own band.
+      const capW = 2 + Math.max(1, r.name.length) * LABEL_ADVANCE * CAPTION_SIZE;
+      for (const b of boxesOf.get(r.name) ?? []) {
+        if (b.minX < r.x1 + capW && b.maxX > r.x1) r.y1 = Math.min(r.y1, b.minY - (2 + CAPTION_SIZE + BOX_PAD * U));
+      }
+      r.y1 = grid(Math.floor(r.y1 / U));
     }
   }
 
@@ -3283,15 +3920,15 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // the frame, and an extent wider than the window keeps the centered offset
   // (that overflow was already noted by the fit pass).
   const textBoxes = [
-    ...labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot)),
+    ...labels.map((l) => labelTextBox(l.name, l.x, l.y, l.rot, l.kind)),
     // power VALUE text is measured by the checker too, and the sweep above
     // may have slid it past its group rect's margin (pic_programmer put a
     // rail name 1 mm over the top edge of a compacted sheet)
     ...extraSymbols.filter((s) => !s.hideValue).map((s) => powerValueBox(s.value, s.valueAt.x, s.valueAt.y)),
-    // group captions: left-top justified at size 2 from the box corner, the
-    // way emit.ts writes them and the checker now measures them; a long
-    // caption on a narrow group can outrun the box's right edge
-    ...groupRects.map((r): Bounds => ({ minX: r.x1 + 2, minY: r.y1 + 2, maxX: r.x1 + 2 + Math.max(1, r.name.length) * LABEL_ADVANCE * 2, maxY: r.y1 + 4 })),
+    // group captions: left-top justified at CAPTION_SIZE from the box
+    // corner, the way emit.ts writes them and the checker measures them; a
+    // long caption on a narrow group can outrun the box's right edge
+    ...groupRects.map((r): Bounds => ({ minX: r.x1 + 2, minY: r.y1 + 2, maxX: r.x1 + 2 + Math.max(1, r.name.length) * LABEL_ADVANCE * CAPTION_SIZE, maxY: r.y1 + 2 + CAPTION_SIZE })),
   ];
   const fullMinX = Math.min(minX, ...textBoxes.map((b) => b.minX));
   const fullMaxX = Math.max(minX + contentW, ...textBoxes.map((b) => b.maxX));
@@ -3419,5 +4056,5 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     labelOverlaps,
     labelOverlapBudgetExceeded,
   };
-  return { model, report };
+  return { model, report, rects: groupRects };
 }

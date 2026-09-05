@@ -8,6 +8,7 @@ import { validateIntent, type SchematicIntent } from '../src/kicad/draft/ir.js';
 import { draftSchematicPlacement } from '../src/kicad/draft/engine.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { readSheetGeometry } from '../src/kicad/sexp.js';
+import { CAPTION_SIZE } from '../src/kicad/emit.js';
 import { measureWiringStyle } from '../src/kicad/score.js';
 
 /**
@@ -338,8 +339,8 @@ describe('text keeps clear of text at paper width', () => {
           if (!s.hideValue) items.push({ name: `${s.ref} "${s.value}"`, b: centred(s.value, s.valueAt.x, s.valueAt.y) });
         }
         for (const c of model.captions) {
-          const w = Math.max(1, c.text.length) * ADV * 2;
-          items.push({ name: `caption "${c.text}"`, b: { minX: c.x, maxX: c.x + w, minY: c.y, maxY: c.y + 2 } });
+          const w = Math.max(1, c.text.length) * ADV * CAPTION_SIZE;
+          items.push({ name: `caption "${c.text}"`, b: { minX: c.x, maxX: c.x + w, minY: c.y, maxY: c.y + CAPTION_SIZE } });
         }
         const pairs: string[] = [];
         for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) if (overlap(items[i]!.b, items[j]!.b)) pairs.push(`${items[i]!.name} × ${items[j]!.name}`);
@@ -372,7 +373,10 @@ describe('pin-anchored hangs (#220 phase 3)', () => {
     // a person attaches 0.90 to 1.00 (research/GOOD-SCHEMATIC.md); these
     // floors are where the engine stands with hangs and no rotation, so a
     // regression shows and progress can raise them
-    const floors: Record<string, number> = { 'buck-12v-5v': 0.55, 'ldo-demo': 0.8, 'usb-atmega-node': 0.7, 'npn-switch': 0.25 };
+    // raised with each placement pass: connectors and switches now anchor
+    // hangs and a transistor ends the run that drives it (npn-switch 0.25 to
+    // 0.57, usb-atmega-node 0.71 to 0.88)
+    const floors: Record<string, number> = { 'buck-12v-5v': 0.55, 'ldo-demo': 0.8, 'usb-atmega-node': 0.85, 'npn-switch': 0.55 };
     for (const [board, floor] of Object.entries(floors)) {
       const { ws } = await measured(board);
       const attached = ws.twoPin ? ws.twoPinAttached / ws.twoPin : 1;

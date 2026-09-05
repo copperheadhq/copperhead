@@ -79,9 +79,11 @@ describe('drop chains: series passives restack as one straight run (AC-16.31)', 
       expect(c1.x).toBeCloseTo(r1.x, 5);
       // connectivity order top-to-bottom, uniform gap between leads
       expect(r1.y).toBeLessThan(c1.y);
-      expect(c1.y - 3.81 - (r1.y + 3.81)).toBeCloseTo(5.08, 5); // C1 top lead sits one gap below R1 bottom lead
+      // gaps are HANG_GAP (three units): an odd count keeps a hung part's stub
+      // end between pin rows instead of on the neighbouring pin's row
+      expect(c1.y - 3.81 - (r1.y + 3.81)).toBeCloseTo(3.81, 5); // C1 top lead sits one gap below R1 bottom lead
       // the run starts one gap below the anchor's stub end
-      expect(r1.y - 3.81).toBeCloseTo(u1.y - 5.08 + 5.08, 5);
+      expect(r1.y - 3.81).toBeCloseTo(u1.y - 5.08 + 3.81, 5);
     } finally {
       await cleanup();
     }
@@ -141,7 +143,7 @@ describe('drop chains: series passives restack as one straight run (AC-16.31)', 
       const r2 = at(syms, 'R2');
       expect(r2.x).toBeCloseTo(r1.x, 5);
       expect(r1.y).toBeLessThan(r2.y);
-      expect(r2.y - 3.81 - (r1.y + 3.81)).toBeCloseTo(5.08, 5);
+      expect(r2.y - 3.81 - (r1.y + 3.81)).toBeCloseTo(5.08, 5); // CHAIN_GAP: a divider between rails is the chain idiom
     } finally {
       await cleanup();
     }
@@ -277,6 +279,207 @@ describe('balanced sheet: content sits centered in the usable frame (7.5a)', () 
       expect(Math.abs(left - right)).toBeLessThanOrEqual(1.28);
     } finally {
       await rm(repo, { recursive: true, force: true });
+    }
+  }, 30000);
+});
+
+describe('everything on its pin (AC-16.40 to AC-16.47)', () => {
+  const attachedOf = async (schematicPath: string): Promise<{ attached: number; twoPin: number }> => {
+    const sheets = await readSheetGeometry(schematicPath);
+    const { measureWiringStyle } = await import('../src/kicad/score.js');
+    const ws = measureWiringStyle(sheets);
+    return { attached: ws.twoPinAttached, twoPin: ws.twoPin };
+  };
+  const pinAbs = async (schematicPath: string, ref: string, pin: string): Promise<{ x: number; y: number }> => {
+    const { pinsOfUnit, pinAbsolute } = await import('../src/kicad/sexp.js');
+    const sh = (await readSheetGeometry(schematicPath))[0]!;
+    const s = sh.symbols.find((y) => y.ref === ref)!;
+    const p = pinsOfUnit(sh.libPins.get(s.libId) ?? [], s.unit).find((q) => q.number === pin)!;
+    return pinAbsolute(s.at, s.mirror, p);
+  };
+
+  it('a series resistor into a base ends the run with the transistor on the row, base to the pin (AC-16.42)', async () => {
+    const { schematicPath, syms, cleanup } = await draftRepo(
+      {
+        version: 1,
+        parts: [
+          { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'Main' },
+          { ref: 'R1', libId: 'Device:R', value: '1k', group: 'Main' },
+          { ref: 'Q1', libId: 'Device:Q_NPN', value: 'NPN', group: 'Main' },
+          { ref: 'R2', libId: 'Device:R', value: '10k', group: 'Main' },
+        ],
+        nets: [
+          { name: 'DRV', pins: ['U1.4', 'R1.1'] },
+          { name: 'Q1_B', pins: ['R1.2', 'Q1.B'] },
+          { name: 'LOAD', pins: ['Q1.C', 'R2.1'] },
+          { name: 'VCC', pins: ['U1.1', 'R2.2'], kind: 'power' },
+          { name: 'GND', pins: ['U1.2', 'Q1.E'], kind: 'ground' },
+        ],
+      },
+      ['Main'],
+    );
+    try {
+      const drive = await pinAbs(schematicPath, 'U1', '4');
+      const base = await pinAbs(schematicPath, 'Q1', 'B');
+      const r1far = await pinAbs(schematicPath, 'R1', '2');
+      // the base sits on the driving pin's row, past the resistor, facing it
+      expect(base.y).toBeCloseTo(drive.y, 5);
+      expect(r1far.y).toBeCloseTo(drive.y, 5);
+      expect(base.x).toBeGreaterThan(r1far.x);
+      const q1 = syms.find((s) => s.ref === 'Q1')!;
+      expect(q1.at.rot).toBe(0); // never turned: collector up, emitter down
+      // a wire joins the resistor's far lead to the base along the row
+      const sh = (await readSheetGeometry(schematicPath))[0]!;
+      const onRow = sh.wires.filter((w) => Math.abs(w.y1 - drive.y) < 0.01 && Math.abs(w.y2 - drive.y) < 0.01);
+      const reach = (x: number): boolean => onRow.some((w) => Math.min(w.x1, w.x2) <= x + 0.01 && Math.max(w.x1, w.x2) >= x - 0.01);
+      expect(reach(r1far.x) && reach(base.x)).toBe(true);
+      // the resistor lies on the row, turned; its fields still read horizontally (AC-16.44)
+      const r1 = syms.find((s) => s.ref === 'R1')!;
+      expect(r1.at.rot % 180).toBe(90);
+      const text = await (await import('node:fs/promises')).readFile(schematicPath, 'utf8');
+      expect(text).toMatch(/\(property "Reference" "R1" \(at [\d.]+ [\d.]+ 90\)/);
+      expect(text).toMatch(/\(property "Value" "1k" \(at [\d.]+ [\d.]+ 90\)/);
+      const r1props = sh.symbols.find((s) => s.ref === 'R1')!.props;
+      for (const p of r1props) expect(Math.abs(p.rot % 180)).toBe(0); // measured as drawn
+      // the collector's load stacks on the collector (chain pass), and every two-lead part is attached
+      const { attached, twoPin } = await attachedOf(schematicPath);
+      expect(twoPin).toBe(2);
+      expect(attached).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  }, 30000);
+
+  it('a transistor driven from a left-hand pin is mirrored so its base faces the pin (AC-16.42)', async () => {
+    const { schematicPath, syms, cleanup } = await draftRepo(
+      {
+        version: 1,
+        parts: [
+          { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'Main' },
+          { ref: 'Q1', libId: 'Device:Q_NPN', value: 'NPN', group: 'Main' },
+        ],
+        nets: [
+          { name: 'DRV', pins: ['U1.3', 'Q1.B'] }, // U1.3: the input pin on the MCU's left
+          { name: 'GND', pins: ['U1.2', 'Q1.E'], kind: 'ground' },
+        ],
+      },
+      ['Main'],
+    );
+    try {
+      const drive = await pinAbs(schematicPath, 'U1', '3');
+      const base = await pinAbs(schematicPath, 'Q1', 'B');
+      expect(base.y).toBeCloseTo(drive.y, 5);
+      expect(base.x).toBeLessThan(drive.x);
+      const text = await (await import('node:fs/promises')).readFile(schematicPath, 'utf8');
+      expect(text).toMatch(/\(lib_id "Device:Q_NPN"\)\s*\(at [\d.]+ [\d.]+ 0\)\s*\(mirror y\)/);
+      const u1 = syms.find((s) => s.ref === 'U1')!;
+      void u1;
+    } finally {
+      await cleanup();
+    }
+  }, 30000);
+
+  it('a shunt on the net past a series part hangs from the run\'s far end (AC-16.43)', async () => {
+    const { schematicPath, cleanup } = await draftRepo(
+      {
+        version: 1,
+        parts: [
+          { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'Main' },
+          { ref: 'R1', libId: 'Device:R', value: '1k', group: 'Main' },
+          { ref: 'C1', libId: 'Device:C', value: '100n', group: 'Main' },
+          { ref: 'U2', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'Other' },
+        ],
+        nets: [
+          { name: 'SIG', pins: ['U1.4', 'R1.1'] },
+          // three endpoints, the third in another group: a node past the
+          // resistor that nothing in this group anchors but the run itself
+          { name: 'FILT', pins: ['R1.2', 'C1.1', 'U2.3'] },
+          { name: 'GND', pins: ['U1.2', 'C1.2', 'U2.2'], kind: 'ground' },
+        ],
+      },
+      ['Main', 'Other'],
+    );
+    try {
+      const r1far = await pinAbs(schematicPath, 'R1', '2');
+      const c1top = await pinAbs(schematicPath, 'C1', '1');
+      // the cap drops straight from the row's end, one stub past the far lead
+      expect(c1top.x).toBeCloseTo(r1far.x + 2.54, 5);
+      expect(c1top.y).toBeGreaterThan(r1far.y);
+      const { attached, twoPin } = await attachedOf(schematicPath);
+      expect(twoPin).toBe(2);
+      expect(attached).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  }, 30000);
+
+  it('a switch anchors its pull-up and debounce cap in a group with no IC (AC-16.41)', async () => {
+    const { schematicPath, cleanup } = await draftRepo(
+      {
+        version: 1,
+        parts: [
+          { ref: 'SW1', libId: 'Device:SW_Push', value: 'BTN', group: 'Buttons' },
+          { ref: 'R1', libId: 'Device:R', value: '10k', group: 'Buttons' },
+          { ref: 'C1', libId: 'Device:C', value: '100n', group: 'Buttons' },
+          { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'Main' },
+        ],
+        nets: [
+          { name: 'BTN', pins: ['SW1.1', 'R1.2', 'C1.1', 'U1.3'] },
+          { name: 'VCC', pins: ['R1.1', 'U1.1'], kind: 'power' },
+          { name: 'GND', pins: ['SW1.2', 'C1.2', 'U1.2'], kind: 'ground' },
+        ],
+      },
+      ['Buttons', 'Main'],
+    );
+    try {
+      const sw = await pinAbs(schematicPath, 'SW1', '1');
+      const r1 = await pinAbs(schematicPath, 'R1', '2');
+      const c1 = await pinAbs(schematicPath, 'C1', '1');
+      // pull-up above the switch's row, cap below, on one axis: the divider on its pin
+      expect(r1.y).toBeLessThan(sw.y);
+      expect(c1.y).toBeGreaterThan(sw.y);
+      expect(r1.x).toBeCloseTo(c1.x, 5);
+      // the switch is a two-pin part too, wired to both through its pin
+      const { attached, twoPin } = await attachedOf(schematicPath);
+      expect(twoPin).toBe(3);
+      expect(attached).toBe(3);
+    } finally {
+      await cleanup();
+    }
+  }, 30000);
+
+  it('two pins with a pull-up and a pull-down each draft as level combs, every part wired (AC-16.40)', async () => {
+    const { schematicPath, cleanup } = await draftRepo(
+      {
+        version: 1,
+        parts: [
+          { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'Main' },
+          { ref: 'R1', libId: 'Device:R', value: '10k', group: 'Main' },
+          { ref: 'R2', libId: 'Device:R', value: '10k', group: 'Main' },
+          { ref: 'R3', libId: 'Device:R', value: '10k', group: 'Main' },
+          { ref: 'R4', libId: 'Device:R', value: '10k', group: 'Main' },
+        ],
+        nets: [
+          { name: 'A', pins: ['U1.4', 'R1.2', 'R2.1'] },
+          { name: 'B', pins: ['U1.5', 'R3.2', 'R4.1'] },
+          { name: 'VCC', pins: ['U1.1', 'R1.1', 'R3.1'], kind: 'power' },
+          { name: 'GND', pins: ['U1.2', 'R2.2', 'R4.2'], kind: 'ground' },
+        ],
+      },
+      ['Main'],
+    );
+    try {
+      const [r1, r2, r3, r4] = await Promise.all(['R1', 'R2', 'R3', 'R4'].map((r) => pinAbs(schematicPath, r, '1')));
+      // one axis per pin; the two rises level with each other, the two drops level
+      expect(r1!.x).toBeCloseTo((await pinAbs(schematicPath, 'R2', '1')).x, 5);
+      expect(r3!.x).toBeCloseTo(r4!.x, 5);
+      expect(r1!.y).toBeCloseTo(r3!.y, 5);
+      expect(r2!.y).toBeCloseTo(r4!.y, 5);
+      const { attached, twoPin } = await attachedOf(schematicPath);
+      expect(twoPin).toBe(4);
+      expect(attached).toBe(4);
+    } finally {
+      await cleanup();
     }
   }, 30000);
 });

@@ -118,7 +118,7 @@ describe('drafting engine: the reference IR end to end', () => {
       expect(res.report.mergedNets).toEqual([]);
       // wired (one label naming the net) or labelled at each of its three
       // stubs; either is a legal drawing, a short is not
-      expect([1, 3]).toContain((text.match(/\(label "DIV"/g) ?? []).length);
+      expect([1, 3]).toContain((text.match(/\((?:global_)?label "DIV"/g) ?? []).length);
     } finally {
       await cleanup();
     }

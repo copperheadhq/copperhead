@@ -78,7 +78,7 @@ The engine follows the conventions a careful human drafter uses, applied in a fi
 
 **Placement inside a group is layered.** Symbols are assigned to columns by their depth in the signal chain (longest-path layering), then ordered within each column to sit near the symbols they connect to (barycenter ordering). All arithmetic happens in integer multiples of the 1.27mm grid, so every pin lands on-grid by construction rather than by rounding.
 
-**Wires are local or they are labels.** A real wire is drawn only for a net that stays inside one group, touches at most four pins, and fits a distance budget: a voltage divider's tap or a crystal with its load caps gets drawn wires with junction dots, the way a person would draw it. Wires run only inside channels reserved between placement columns, so they can never cross a symbol body. Every other connection, including everything that crosses a group boundary, becomes a matched pair of net labels, horizontal wherever a horizontal label fits. This is how dense professional schematics are drawn, and it is why the engine does not need a general-purpose autorouter.
+**Wires are local or they are labels.** A real wire is drawn only for a net that stays inside one group, touches at most four pins, and fits a distance budget: a voltage divider's tap or a crystal with its load caps gets drawn wires with junction dots, the way a person would draw it. Wires run only inside channels reserved between placement columns, so they can never cross a symbol body. Every other connection, including everything that crosses a group boundary, becomes a matched pair of global-label flags at the ends of short stubs, each flag continuing its stub's direction (a leftward pin reads leftward, an upward one upward) and shaped by the pin it serves: an output pin's net leaves through an output flag, an input's arrives through an input flag, a bidirectional pin's points both ways, and a passive part's is a plain box. This is how dense professional schematics are drawn, and it is why the engine does not need a general-purpose autorouter.
 
 **Text never fights the drawing.** Reference and value text slots are computed with the symbol placement, so labels cannot land on a neighbour's body or wire.
 
@@ -126,7 +126,27 @@ A part whose run from the IC pin ends on a signal net rather than a rail or grou
 
 ## Local runs are wired
 
-The wire pass no longer decides a net whole. Its endpoints are clustered by group and wire span, and every cluster that routes cleanly is drawn as one wired run with one label, whatever the rest of the net does; a cluster that will not route whole is drawn as its largest routable subset, and only the endpoints left over keep a stub and a label. So a part hung on a pin or lying on its row is wired to it even when the net also leaves the group or carries more endpoints than one run may hold. A run's name goes at the top of its trunk, or at the left end of a horizontal run, wherever it clears every body.
+The wire pass no longer decides a net whole. Its endpoints are clustered by group and wire span, and every cluster that routes cleanly is drawn as one wired run with one label, whatever the rest of the net does; a cluster that will not route whole is drawn as its largest routable subset, and only the endpoints left over keep a stub and a label. So a part hung on a pin or lying on its row is wired to it even when the net also leaves the group or carries more endpoints than one run may hold. A run's name goes at the top of its trunk, or at the left end of a horizontal run, wherever it clears every body. A net wired whole carries that name as a plain local label standing on the wire; a net that also leaves its run through a stub is named by global flags there, so the run's name becomes a flag too (a local and a global label of one name do not connect in KiCad), reading along the row from a wire end; where no horizontal flag fits anywhere on the run, every label of the net becomes a plain local label instead.
+
+## Everything on its pin
+
+The third placement pass closes the gap between "most parts on their pins" and all of them. On the ESP32 amplifier engagement sheet it took two-lead parts wired to another part from 68 % to 100 % with no legibility error, at the cost of fourteen wire crossings where combs of rising and dropping parts on adjacent pins cross one another.
+
+**Lanes, one T per pin.** The parts hung on one pin share one axis: a pull-up rising and a pull-down dropping from the same pin meet its row in a single junction, the divider a drafter draws. Pins on one side of an IC take lanes outward from the stub, and a lane's occupied range runs from its pin's row to the chain's end, so a chain rising from a lower pin never shares a lane with a higher pin's drop. Every chain on a side starts level: drops below the side's lowest hung pin row, rises above its highest, so a chain from one pin never puts its body across the next pin's row. The row wire runs from the stub out to the lane and the chain meets it there; where a row must cross another lane's wire it crosses it, a crossing the score counts and the trace names. A hung part is wired to its pin whatever the lane's distance, so a fourth lane past the wire span still belongs to its pin. The gap from a row to the first hung part is three grid units, an odd count, so a hung part's stub end sits between pin rows rather than on the neighbouring one.
+
+**Lanes before runs.** A part lying on a pin's row starts past the pin's lanes, so the row reaches the hung parts before the series part (a transistor on the row no longer blocks the pull-down beside it).
+
+**Connectors and switches anchor too.** After the ICs, every connector and switch in the group claims the parts on its pins the same way: a fuse rises from the jack's pin to its fused rail, a button's series resistor lies on the switch's row. A switch already hung on an IC pin anchors nothing.
+
+**A run may end in a transistor.** A series resistor into a base or gate ends the run with the transistor, mirrored left-for-right when needed so the base faces the part that drives it, collector up and emitter down; a transistor driven straight from the pin lies on the row the same way. Its other pins take what the wire pass gives them: a ground stub, a label, or a part stacked on the collector by the chain pass, which now turns a part half a turn when the lead that meets its anchor is the wrong one.
+
+**The far end of a run is a node.** Shunts on the net past a series part hang from the run's last part: an RC filter's cap drops straight from the row's end, a button's debounce cap and ESD diode take lanes past it.
+
+**Text.** A turned part stores its field angle the way KiCad does (90 on a part turned 90 or 270), so its reference and value read horizontally; the checker measures property text at its drawn angle. Every text clearance check pads the candidate by 0.8 mm, so two texts that merely touched no longer read as one word. An IC's name goes inside its body only when the pin names leave four text heights of room around it and the symbol draws no text of its own; a rail bar, a ground symbol and the part's own pin lines are obstacles to its fields like any body. A run's flag reads along the row; where no horizontal flag fits anywhere on the run, the whole net is named by plain labels instead, which KiCad connects across the sheet just the same. A flag on a vertical stub reads horizontally when nothing stands there.
+
+**Boxes never intersect.** After the sheet is drawn, any two group boxes that intersect widen the right-hand group's tiling reserve by the overlap and the sheet is drafted again, at most three times; placement is a pure function of the intent and these reserves.
+
+`COPPERHEAD_DRAFT_TRACE=1` prints every one of these decisions: what each pin claimed and why a part was skipped, each lane's position, each refused hang or run, every label that could not be placed where it stood and where it went, and every wire crossing by net.
 
 ## Conventions the sheet follows
 
@@ -135,11 +155,13 @@ The target the engine draws toward, collected from practitioner guides, a hand-d
 | Convention | Whose | How |
 | --- | --- | --- |
 | Signals flow left to right; the IC leads its group; connectors on the left | engine | IC-first layering, connector column |
-| A part sits on the pin it serves: shunts hang, series parts lie on the row, test points rise beside their net | engine | pin-anchored hangs, inline runs, test-point hangs |
+| A part sits on the pin it serves: shunts hang in lanes, one junction per pin, series parts lie on the row, test points rise beside their net; connectors and switches anchor their parts too | engine | pin-anchored hangs, lanes with level bases, inline runs, node hangs |
+| A transistor sits at the end of the run that drives it, base to the driver, collector up | engine | mirrored inline runs |
+| No two-pin part is left as a labelled island | engine | hangs, runs, node hangs, chain pass; gated on the reference boards |
 | Wire what is local, label what is not; one label per wired run | engine | cluster-first routing |
 | Rails and grounds are symbols, rails up and grounds down, one per bank of caps | engine | power pass, bank trunks |
 | Decoupling in banks with shared symbols; a PWR_FLAG at each undriven rail's first endpoint | engine | bank idiom, flag synthesis |
-| Every part carries a reference and a value that collide with nothing; all text horizontal | engine | field slot ladder, text gates |
+| Every part carries a reference and a value that collide with nothing, 0.8 mm of air between texts; all text horizontal, on turned parts too | engine | field slot ladder, text padding, KiCad field angle |
 | Related nets coloured together: rails, grounds, and every family of signals sharing a prefix; lone signals in the theme default | engine | wire and label colour |
 | Subsystems as captioned boxes that enclose their own text; page sized to content; boxes compact | engine | group rects, enclosure, compaction |
 | Bus and interface nets share a prefix; differential pairs end in +/- or P/N; values carry units | intent | stage prompt |

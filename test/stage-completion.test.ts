@@ -434,7 +434,7 @@ describe('schematic isComplete: legibility gate', () => {
       // while symbols, drift, and ERC stay green — only legibility blocks now
       const schPath = path.join(repo, 'hardware', 'open-key.kicad_sch');
       const sch = await readFile(schPath, 'utf8');
-      const stripped = sch.replace(/  \(rectangle \(start 80 84\)[\s\S]*?\n  \)\n/, '');
+      const stripped = sch.replace(/  \(rectangle \(start 76 84\)[\s\S]*?\n  \)\n/, '');
       expect(stripped).not.toBe(sch);
       await wf(schPath, stripped, 'utf8');
       expect(await isComplete(repo, DOCS)).toBe(false);

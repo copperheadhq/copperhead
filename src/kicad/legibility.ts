@@ -227,10 +227,21 @@ function textBounds(t: {
  * of them on the wrong side of the anchor either invents a collision with the
  * symbol the label serves or hides a real one.
  */
-function labelBounds(l: { name: string; x: number; y: number; rot: number; height: number; justify?: 'left' | 'right' | null }): Bounds {
+function labelBounds(l: { name: string; x: number; y: number; rot: number; height: number; justify?: 'left' | 'right' | null; kind?: string }): Bounds {
   const w = Math.max(1, l.name.length) * TEXT_ADVANCE * l.height;
   const h = l.height;
   const rot = ((l.rot % 360) + 360) % 360;
+  if (l.kind === 'global_label' || l.kind === 'hierarchical_label') {
+    // A flag is drawn two heights tall, CENTRED on the anchor line, with its
+    // outline (a margin each side of the text plus the pointed tip) running
+    // away from the anchor in the angle's direction; the stored justification
+    // only restates that direction. Measured from eeschema's own outline.
+    const fw = w + 2 * h;
+    if (rot === 90) return { minX: l.x - h, minY: l.y - fw, maxX: l.x + h, maxY: l.y };
+    if (rot === 270) return { minX: l.x - h, minY: l.y, maxX: l.x + h, maxY: l.y + fw };
+    if (rot === 180) return { minX: l.x - fw, minY: l.y - h, maxX: l.x, maxY: l.y + h };
+    return { minX: l.x, minY: l.y - h, maxX: l.x + fw, maxY: l.y + h };
+  }
   const justified = l.justify ?? (rot === 180 || rot === 270 ? 'right' : 'left');
   if (rot === 90 || rot === 270) {
     return justified === 'left'
@@ -245,6 +256,15 @@ function labelBounds(l: { name: string; x: number; y: number; rot: number; heigh
   return justified === 'right'
     ? { minX: l.x - w, minY: l.y - h, maxX: l.x, maxY: l.y }
     : { minX: l.x, minY: l.y - h, maxX: l.x + w, maxY: l.y };
+}
+
+/** Does the wire lie behind a flag's tip, along the direction the flag's text does NOT extend? */
+function onPoleSide(w: WireSeg, l: { x: number; y: number; rot: number }): boolean {
+  const r = ((l.rot % 360) + 360) % 360;
+  if (r === 0) return Math.max(w.x1, w.x2) <= l.x + TOL;
+  if (r === 180) return Math.min(w.x1, w.x2) >= l.x - TOL;
+  if (r === 90) return Math.min(w.y1, w.y2) >= l.y - TOL;
+  return Math.max(w.y1, w.y2) <= l.y + TOL;
 }
 
 function segIntersectsBounds(s: WireSeg, b: Bounds): boolean {
@@ -419,7 +439,11 @@ function checkSheet(
   const labelBoxes = sheet.labels.map((l) => ({
     l,
     box: labelBounds(l),
-    attached: sheet.wires.filter((w) => pointOnSeg(l.x, l.y, w)),
+    // a plain label stands above its wire, so every wire through the anchor
+    // is its attachment; a flag is drawn centred on the anchor line, so a
+    // wire continuing under the text runs through the flag — only the wire
+    // behind the tip (the pole side) attaches it
+    attached: sheet.wires.filter((w) => pointOnSeg(l.x, l.y, w) && (l.kind === 'label' || onPoleSide(w, l))),
   }));
 
   // --- groups (design C1): sheet rectangles with a caption in the top band ---
@@ -551,6 +575,9 @@ function checkSheet(
   // --- label-orientation: rotated where a horizontal draw would collide with nothing ---
   for (const lb of labelBoxes) {
     if (Math.abs(lb.l.rot % 180) !== 90) continue;
+    // a flag continuing a vertical wire is oriented by that wire, not by
+    // taste: turning it horizontal would hang it sideways off the wire end
+    if (lb.l.kind !== 'label' && lb.attached.some((w) => Math.abs(w.x1 - w.x2) < TOL)) continue;
     const horizontal = labelBounds({ ...lb.l, rot: 0 });
     const collides =
       realSyms.some((s) => s.body && boundsOverlap(horizontal, s.body)) ||

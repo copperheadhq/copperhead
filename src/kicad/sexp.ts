@@ -488,7 +488,7 @@ function libBodyBounds(root: SexpNode[]): Map<string, Bounds | null> {
   return map;
 }
 
-function textItemsOf(sym: SexpNode[]): TextItem[] {
+function textItemsOf(sym: SexpNode[], symRot = 0): TextItem[] {
   const out: TextItem[] = [];
   for (const p of children(sym, 'property')) {
     const key = atomAt(p, 1);
@@ -499,7 +499,11 @@ function textItemsOf(sym: SexpNode[]): TextItem[] {
       text: atomAt(p, 2) ?? '',
       x: num(at, 1),
       y: num(at, 2),
-      rot: num(at, 3),
+      // KiCad draws a property at its stored angle PLUS the symbol's: a
+      // resistor turned 90 stores 90 on its fields to read horizontally,
+      // and a field stored at 0 on that resistor stands on end. The
+      // checker measures what is drawn.
+      rot: (((num(at, 3) + symRot) % 360) + 360) % 360,
       height: fx.height,
       hidden: fx.hidden,
       // property text keeps the centred measurement: its justification is
@@ -597,7 +601,7 @@ export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[
         mirror,
         isPower: isPowerSymbol(sym.libId, powerSyms),
         unit: sym.unit,
-        props: textItemsOf(node),
+        props: textItemsOf(node, sym.at.rot),
       })),
       wires,
       labels,
