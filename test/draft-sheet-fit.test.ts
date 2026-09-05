@@ -472,3 +472,14 @@ describe('reference boards pass the sheet-fit gate', () => {
     }
   }, 60000);
 });
+
+describe('the squeeze: cells sized from what they drew', () => {
+  it('reports its rounds and never grows the group boxes', async () => {
+    const { report } = await place(mcusWithBank(4, 24));
+    expect(report.sheetFit.squeeze).toBeDefined();
+    const sq = report.sheetFit.squeeze!;
+    expect(sq.boxAreaAfter).toBeLessThanOrEqual(sq.boxAreaBefore);
+    if (sq.rounds > 0) expect(report.notes.some((n) => /^cells measured:/.test(n))).toBe(true);
+    else expect(report.notes.some((n) => /^cells measured:/.test(n))).toBe(false);
+  });
+});

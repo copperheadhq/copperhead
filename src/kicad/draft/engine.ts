@@ -14,8 +14,15 @@ import type { SchematicIntent, IntentNet, IntentPart, ValidatedIntent } from './
 const U = 1.27;
 /** Stub length from a pin to its label/power symbol, in grid units. */
 const STUB = 2;
-/** Cell margin around a symbol body (room for stubs, labels, text), in units. */
-const MARGIN = 4;
+/** Cell margin around a symbol body (room for stubs, labels, text), in units,
+ * for the first draft; a measured round shrinks it to `MEASURED_MARGIN`. */
+const BASE_MARGIN = 4;
+/** Cell margin once the cell is sized from what it actually drew. */
+const MEASURED_MARGIN = 2;
+/** Clear grid units kept beyond a cell's measured drawn extent. */
+const MEASURE_PAD = 1;
+/** What a cell drew beyond its body, mm on each side, measured on a finished draft. */
+type Overhang = { left: number; right: number; top: number; bottom: number };
 /** Padding, grid units, a group box keeps around the label and field text it
  * encloses, and the clearance kept between two such boxes. */
 const BOX_PAD = 1;
@@ -214,6 +221,8 @@ export interface SchematicDraftReport {
     inkUtilization: number;
     compaction: 'not-needed' | 'compacted' | 'banded' | 'failed' | 'pinned' | 'overflow';
     misses: string[];
+    /** The squeeze: cells re-sized from what they drew, round by round. */
+    squeeze?: { rounds: number; boxAreaBefore: number; boxAreaAfter: number };
   };
   notes: string[];
   /**
@@ -704,9 +713,25 @@ const segCrossesBody = (x1: number, y1: number, x2: number, y2: number, b: Bound
 export function draftSchematicPlacement(validated: ValidatedIntent, projectName: string, today: string): { model: PlacementModel; report: SchematicDraftReport } {
   const reserves = new Map<string, { left: number; right: number }>();
   let frameSlack = 0;
-  for (let round = 0; ; round++) {
-    const { model, report, rects } = draftOnce(validated, projectName, today, reserves, frameSlack);
-    if (round >= 3) return { model, report };
+  let wrapGap = 0;
+  // The squeeze. The first draft sizes every cell by rule (a margin a side, a
+  // power symbol's worth under every hung part, a label beside every pin) and
+  // draws into that room; most of the room stays empty. Each further round
+  // sizes the cells from what the previous round actually drew — body,
+  // wires, labels, power symbols, field text of the cell and of everything
+  // hung on it — plus a pad, and draws again. Rounds continue while the
+  // group boxes shrink and the engine's own gates hold (no merged nets, the
+  // label-overlap budget kept); the smallest passing sheet is the result.
+  // This is the step a drafter does by eye after placing: look, then pull
+  // things together.
+  let measured: Map<string, Overhang> | undefined;
+  let best: { model: PlacementModel; report: SchematicDraftReport; area: number; refusals: number; paperIdx: number } | null = null;
+  let squeezeRounds = 0;
+  let areaBefore = 0;
+  const boxArea = (rects: { x1: number; y1: number; x2: number; y2: number }[]): number => rects.reduce((a, r) => a + (r.x2 - r.x1) * (r.y2 - r.y1), 0);
+  let retries = 0;
+  for (let round = 0; round < 16; round++) {
+    const { model, report, rects, measured: nextMeasured } = draftOnce(validated, projectName, today, reserves, frameSlack, measured, wrapGap);
     let widened = false;
     // A row or column wrapped to the full usable width leaves no room for the
     // text its boxes grow to hold afterwards, and a box then crosses the
@@ -728,16 +753,60 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         const ox = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1);
         const oy = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
         if (ox <= 0.01 || oy <= 0.01) continue;
+        widened = true;
+        if (oy < ox) {
+          // boxes in different rows (or columns) touching along the wrap
+          // gap: widen the gap between wrapped rows and columns
+          wrapGap += oy + U;
+          trace(`group boxes "${a.name}" and "${b.name}" overlap by ${oy.toFixed(2)} mm across the wrap; the wrap gap grows to ${wrapGap.toFixed(2)} mm and the sheet is drafted again`);
+          continue;
+        }
         const right = a.x1 < b.x1 ? b : a;
         const r = reserves.get(right.name) ?? { left: 0, right: 0 };
         r.left += ox + U;
         reserves.set(right.name, r);
-        widened = true;
         trace(`group boxes "${a.name}" and "${b.name}" overlap by ${ox.toFixed(2)} mm; "${right.name}" reserves ${r.left.toFixed(2)} mm more on its left and the sheet is drafted again`);
       }
     }
-    if (!widened) return { model, report };
+    if (widened && retries < 3) {
+      retries++;
+      continue; // the same cells, re-tiled: not a squeeze round
+    }
+    const area = boxArea(rects);
+    const refusals = report.notes.filter((n) => /refused/.test(n)).length;
+    const paperIdx = PAPERS.findIndex((p) => p.name === report.paper);
+    // a round whose boxes still overlap or cross the frame after three
+    // re-tilings is not a sheet to keep; nor one that lost a hung part, or
+    // needs a larger sheet, or shrank by less than three percent
+    const passes = !widened && report.mergedNets.length === 0 && !report.labelOverlapBudgetExceeded;
+    retries = 0;
+    reserves.clear();
+    frameSlack = 0;
+    wrapGap = 0;
+    if (!best) {
+      areaBefore = area;
+      best = { model, report, area, refusals, paperIdx };
+    } else if (passes && refusals <= best.refusals && paperIdx <= best.paperIdx && area < best.area * 0.97) {
+      best = { model, report, area, refusals, paperIdx };
+    } else {
+      trace(`squeeze round ${squeezeRounds}: ${passes ? `boxes ${area.toFixed(0)} mm² did not shrink` : 'gates failed'}; keeping the previous round`);
+      break;
+    }
+    // Rounds beyond the first run only when asked for: on the boards drafted
+    // so far the rules were within a few percent of the drawing, and the
+    // extra drafts cost time and re-pin every fixture. The measurement and
+    // the report are always made.
+    if (squeezeRounds >= 3 || process.env['COPPERHEAD_DRAFT_SQUEEZE'] !== '1') break;
+    measured = nextMeasured;
+    squeezeRounds++;
+    trace(`squeeze round ${squeezeRounds}: cells measured, group boxes ${area.toFixed(0)} mm²; drafting again`);
   }
+  const out = best!;
+  out.report.sheetFit.squeeze = { rounds: squeezeRounds, boxAreaBefore: Math.round(areaBefore), boxAreaAfter: Math.round(out.area) };
+  if (squeezeRounds > 0) {
+    out.report.notes.push(`cells measured: group boxes ${Math.round(areaBefore / 1000)} k mm² to ${Math.round(out.area / 1000)} k mm² over ${squeezeRounds} round(s) on ${out.report.paper}`);
+  }
+  return { model: out.model, report: out.report };
 }
 
 function draftOnce(
@@ -746,7 +815,12 @@ function draftOnce(
   today: string,
   reserves: Map<string, { left: number; right: number }>,
   frameSlack = 0,
-): { model: PlacementModel; report: SchematicDraftReport; rects: { name: string; x1: number; y1: number; x2: number; y2: number }[] } {
+  measured?: Map<string, Overhang>,
+  wrapGap = 0,
+): { model: PlacementModel; report: SchematicDraftReport; rects: { name: string; x1: number; y1: number; x2: number; y2: number }[]; measured: Map<string, Overhang> } {
+  // a measured round keeps only a small margin: the measured overhang says
+  // where the drawing actually reaches
+  const MARGIN = measured ? MEASURED_MARGIN : BASE_MARGIN;
   const { intent, symbols, docGroups } = validated;
   const notes: string[] = [];
 
@@ -1088,6 +1162,25 @@ function draftOnce(
       const cellDims = new Map<string, { w: number; h: number; body: Bounds; shelfL: number; shelfR: number; topPad: number }>();
       for (const m of members) {
         const b = bodyBoundsOf(m.sym);
+        const mo = measured?.get(m.key);
+        if (mo) {
+          // the cell is what the previous round drew around this body, a pad
+          // past it on every side: the body sits at shelfL + MARGIN from the
+          // cell's left edge and topPad + MARGIN from its top
+          const shelfL = Math.max(0, ceilU(mo.left) + MEASURE_PAD - MARGIN);
+          const shelfR = Math.max(0, ceilU(mo.right) + MEASURE_PAD - MARGIN);
+          const topPad = Math.max(0, ceilU(mo.top) + MEASURE_PAD - MARGIN);
+          const below = Math.max(MARGIN, ceilU(mo.bottom) + MEASURE_PAD);
+          cellDims.set(m.key, {
+            w: shelfL + MARGIN + ceilU(b.maxX - b.minX) + MARGIN + shelfR,
+            h: topPad + MARGIN + ceilU(b.maxY - b.minY) + below,
+            body: b,
+            shelfL,
+            shelfR,
+            topPad,
+          });
+          continue;
+        }
         cellDims.set(m.key, {
           w: ceilU(b.maxX - b.minX) + 2 * MARGIN,
           h: ceilU(b.maxY - b.minY) + 2 * MARGIN,
@@ -1554,9 +1647,11 @@ function draftOnce(
           // inline run reserves nothing (a five-part board went from A5 to A4
           // when it did).
           const shelf = anyShelved ? ceilU(laneReach + STUB * U) + 2 + Math.ceil(lanesW / U) + (inlineSide.length ? ceilU(inlineW - lanesW - laneReach) : 0) : inlineSide.length ? ceilU(inlineW + STUB * U) + 2 : 0;
-          if (dx === 1) dims.shelfR = shelf;
-          else dims.shelfL = shelf;
-          dims.w += shelf;
+          if (!measured?.has(icKey)) {
+            if (dx === 1) dims.shelfR = shelf;
+            else dims.shelfL = shelf;
+            dims.w += shelf;
+          }
           // y-down relative to the IC origin: the body spans -maxY..-minY
           const lowRow = Math.max(...side.map((hg) => -hg.pin.y));
           const highRow = Math.min(...side.map((hg) => -hg.pin.y));
@@ -1569,12 +1664,15 @@ function draftOnce(
               if (!controlPinOf(c.key)) continue;
               const b = bodyBoundsOf(instByKey.get(c.key)!.sym);
               const reach = Math.max(b.maxY, -b.minY) + STUB * U + POWER_CLEAR_ROWS * U;
+              if (measured?.has(icKey)) continue;
               dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - (-il.pin.y - reach)));
               dims.h = Math.max(dims.h, ceilU(Math.max(deepest, -il.pin.y + reach) - Math.min(highest, -il.pin.y - reach)) + 2 * MARGIN);
             }
           }
-          dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - highest));
-          dims.h = Math.max(dims.h, ceilU(deepest - highest) + 2 * MARGIN);
+          if (!measured?.has(icKey)) {
+            dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - highest));
+            dims.h = Math.max(dims.h, ceilU(deepest - highest) + 2 * MARGIN);
+          }
         }
       }
       // Node hangs: the far end of a series run is a node too. An RC filter's
@@ -1614,6 +1712,7 @@ function draftOnce(
         const add = (lanes - 1) * pitch + 2 * U + Math.max(0, ...nodeHangs.map((hg) => hg.w)) / 2;
         il.len += add;
         const dims = cellDims.get(il.ic)!;
+        if (measured?.has(il.ic)) continue;
         if (il.dx === 1) dims.shelfR += ceilU(add);
         else dims.shelfL += ceilU(add);
         dims.w += ceilU(add);
@@ -1695,6 +1794,7 @@ function draftOnce(
       // and the button blocks stack three deep, the grid a person draws when
       // the group must sit in a 250 mm column (esp32-amp's UI group went
       // from 364 × 150 to the width of its neighbours).
+      const searchBand = bandW;
       const targetH = bandBudgetW === Infinity ? squareSide : Math.max(Math.ceil(cellArea / bandBudgetW), Math.ceil(squareSide / 2));
       const balanceH = Math.max(anchorH, targetH);
 
@@ -1750,12 +1850,12 @@ function draftOnce(
         // group's own label reserves), not the raw budget
         const ceiling = Math.max(balanceH, ...columns.map(colH));
         for (let h = balanceH; h <= ceiling; h += 2) {
-          if (widthAt(h) <= bandW) {
+          if (widthAt(h) <= searchBand) {
             chosenH = h;
             break;
           }
         }
-        if (widthAt(chosenH) > bandW) chosenH = ceiling;
+        if (widthAt(chosenH) > searchBand) chosenH = ceiling;
       }
       const columnsToPlace: string[][] = columns.flatMap((col) =>
         splitColumn(col, chosenH, BALANCE_MIN_CELLS).flatMap((c) => (sheetBudget === Infinity ? [c] : splitColumn(c, sheetBudget))),
@@ -1854,6 +1954,7 @@ function draftOnce(
         }
         let capX = groupX;
         let capY = groupMaxY + MARGIN + 4;
+        let bankRowH = 2 * MARGIN + 6;
         for (const ref of capRefs) {
           const inst = instByKey.get(ref)!;
           // A bank member with horizontal leads (a TVS diode drawn lying down)
@@ -1867,14 +1968,23 @@ function draftOnce(
           }
           const sym = rotatedSym(inst.sym, rot);
           const b = bodyBoundsOf(sym);
+          // a measured cap takes the room its drawing needed (its own fields,
+          // the rail bar and name above, the ground below), plus the pad
+          const mo = measured?.get(ref);
+          const capW = mo ? ceilU(mo.left) + ceilU(b.maxX - b.minX) + ceilU(mo.right) + 2 * MEASURE_PAD : ceilU(b.maxX - b.minX) + 2 * MARGIN;
+          const capLeft = mo ? ceilU(mo.left) + MEASURE_PAD : MARGIN;
+          const capTop = mo ? ceilU(mo.top) + MEASURE_PAD : MARGIN;
+          const capRowH = mo ? capTop + ceilU(b.maxY - b.minY) + ceilU(mo.bottom) + MEASURE_PAD : 2 * MARGIN + 6;
+          bankRowH = Math.max(bankRowH, capRowH);
           // Banding (#219): a decoupling bank wider than the budget wraps onto
           // another uniform row rather than running past the frame.
-          if (capX > groupX && capX + ceilU(b.maxX - b.minX) + 2 * MARGIN - groupX > capBudget) {
+          if (capX > groupX && capX + capW - groupX > capBudget) {
             capX = groupX;
-            capY += 2 * MARGIN + 6;
+            capY += bankRowH;
+            bankRowH = capRowH;
           }
-          const ox = grid(capX + MARGIN);
-          const oy = grid(capY + MARGIN);
+          const ox = mo ? grid(capX + capLeft - Math.floor(b.minX / U)) : grid(capX + MARGIN);
+          const oy = mo ? grid(capY + capTop + Math.ceil(b.maxY / U)) : grid(capY + MARGIN);
           placed.set(ref, {
             part: inst.part,
             refDes: inst.ref,
@@ -1883,13 +1993,13 @@ function draftOnce(
             x: ox,
             y: oy,
             body: { minX: ox + b.minX, minY: oy - b.maxY, maxX: ox + b.maxX, maxY: oy - b.minY },
-            cellW: ceilU(b.maxX - b.minX) + 2 * MARGIN,
-            cellH: ceilU(b.maxY - b.minY) + 2 * MARGIN,
+            cellW: capW,
+            cellH: capRowH,
             rot,
           });
-          capX += ceilU(b.maxX - b.minX) + 2 * MARGIN;
+          capX += capW;
         }
-        groupMaxY = capY + 2 * MARGIN + 6;
+        groupMaxY = capY + bankRowH;
       }
 
       // ---------- idiom micro-templates and the alignment pass (7.5/7.5a) ----------
@@ -2500,7 +2610,7 @@ function draftOnce(
   const hinted = paperHint ? PAPERS.find((p) => p.name === paperHint) : undefined;
   // A hint pins the width budget; otherwise try every sheet, smallest first.
   const candidates = hinted ? [hinted] : PAPERS;
-  const gap = GROUP_GAP * U;
+  const gap = GROUP_GAP * U + wrapGap;
   const usableW = (p: { w: number }): number => p.w - 2 * FRAME - frameSlack;
   const usableH = (p: { h: number }): number => p.h - 2 * FRAME - TITLE_STRIP - frameSlack;
 
@@ -2609,7 +2719,7 @@ function draftOnce(
     const topY = Math.min(...groupRects.map((r) => r.y1));
     const leftExtOf = (name: string): number => groupExtents.get(name)?.left ?? 0;
     const rightExtOf = (name: string): number => groupExtents.get(name)?.right ?? 0;
-    const gap = GROUP_GAP * U;
+    const gap = GROUP_GAP * U + wrapGap;
     const n = groupRects.length;
     const hOf = (r: (typeof groupRects)[number]): number => r.y2 - r.y1;
     const wOf = (r: (typeof groupRects)[number]): number => r.x2 - r.x1 + leftExtOf(r.name) + rightExtOf(r.name);
@@ -2646,10 +2756,10 @@ function draftOnce(
       let yUnits = Math.round(topY / U);
       for (const r of members) {
         deltas.push({ dx: (colOriginUnits + Math.ceil(colLeft / U)) * U - grid(Math.round(r.x1 / U)), dy: yUnits * U - grid(Math.round(r.y1 / U)) });
-        yUnits += Math.ceil(hOf(r) / U) + GROUP_GAP;
+        yUnits += Math.ceil(hOf(r) / U) + GROUP_GAP + Math.ceil(wrapGap / U);
       }
       maxH = Math.max(maxH, (yUnits - GROUP_GAP) * U - topY);
-      colOriginUnits += Math.ceil(Math.max(...members.map(wOf)) / U) + GROUP_GAP;
+      colOriginUnits += Math.ceil(Math.max(...members.map(wOf)) / U) + GROUP_GAP + Math.ceil(wrapGap / U);
     }
     if (process.env['COPPERHEAD_DRAFT_TRACE']) {
       trace(`column wrap at ${budgetH.toFixed(0)}: ${starts.map((a, k) => `[${groupRects.slice(a, k + 1 < starts.length ? starts[k + 1]! : n).map((r) => r.name.slice(0, 2).trim()).join('+')}]`).join(' ')} -> ${best[n]!.toFixed(0)} wide`);
@@ -4168,6 +4278,138 @@ function draftOnce(
     }
   }
 
+  // ---------- measure what every cell drew (for the squeeze), before the sheet shift ----------
+  // Every drawn item is attributed to the cells it belongs to: a body and its
+  // fields to their instance; a wire, with the labels and power symbols on
+  // it, to every instance with a pin on its run (a comb belongs to the IC and
+  // the parts hung on it, which roll up to the IC below). A cell's overhang is
+  // then how far that union reaches past its body on each side.
+  const measuredOut = new Map<string, Overhang>();
+  {
+    const parent = new Map<string, string>();
+    const find = (k: string): string => {
+      let r = k;
+      while (parent.has(r) && parent.get(r) !== r) r = parent.get(r)!;
+      return r;
+    };
+    const union = (a: string, b: string): void => {
+      if (!parent.has(a)) parent.set(a, a);
+      if (!parent.has(b)) parent.set(b, b);
+      const ra = find(a);
+      const rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    };
+    for (const w of wires) union(pointKey(w.x1, w.y1), pointKey(w.x2, w.y2));
+    const boxes = new Map<string, Bounds>();
+    const dbgSrc = new Map<string, string[]>();
+    const extend = (key: string, b: Bounds, why = 'body'): void => {
+      if (process.env['COPPERHEAD_DRAFT_TRACE']) dbgSrc.set(key, [...(dbgSrc.get(key) ?? []), `${why}[${b.minX.toFixed(0)},${b.minY.toFixed(0)}..${b.maxX.toFixed(0)},${b.maxY.toFixed(0)}]`]);
+      const cur = boxes.get(key);
+      boxes.set(key, cur ? { minX: Math.min(cur.minX, b.minX), minY: Math.min(cur.minY, b.minY), maxX: Math.max(cur.maxX, b.maxX), maxY: Math.max(cur.maxY, b.maxY) } : { ...b });
+    };
+    const compOwners = new Map<string, Set<string>>();
+    for (const [key, pl] of placed) {
+      extend(key, pl.body);
+      for (const pin of pl.sym.pins) {
+        const p = pinAt(pl, pin);
+        const pk = pointKey(p.x, p.y);
+        if (!parent.has(pk)) continue;
+        const c = find(pk);
+        compOwners.set(c, (compOwners.get(c) ?? new Set<string>()).add(key));
+      }
+    }
+    const keyOf = new Map<Placed, string>([...placed.entries()].map(([k, p]) => [p, k]));
+    for (const { sym, pl } of emitPairs) {
+      const key = keyOf.get(pl);
+      if (!key) continue;
+      extend(key, centeredTextBox(displayRefOf(pl), sym.refAt.x, sym.refAt.y), 'ref');
+      extend(key, centeredTextBox(sym.value, sym.valueAt.x, sym.valueAt.y), 'value');
+    }
+    const compBox = new Map<string, Bounds>();
+    const extendComp = (c: string, b: Bounds): void => {
+      const cur = compBox.get(c);
+      compBox.set(c, cur ? { minX: Math.min(cur.minX, b.minX), minY: Math.min(cur.minY, b.minY), maxX: Math.max(cur.maxX, b.maxX), maxY: Math.max(cur.maxY, b.maxY) } : { ...b });
+    };
+    for (const w of wires) extendComp(find(pointKey(w.x1, w.y1)), { minX: Math.min(w.x1, w.x2), minY: Math.min(w.y1, w.y2), maxX: Math.max(w.x1, w.x2), maxY: Math.max(w.y1, w.y2) });
+    const compAt = (x: number, y: number): string | null => {
+      const pk = pointKey(x, y);
+      if (parent.has(pk)) return find(pk);
+      const w = wires.find((s) => segContains(s, x, y));
+      return w ? find(pointKey(w.x1, w.y1)) : null;
+    };
+    for (const l of labels) {
+      const c = compAt(l.x, l.y);
+      if (c) extendComp(c, labelTextBox(l.name, l.x, l.y, l.rot, l.kind));
+    }
+    for (const ps of extraSymbols) {
+      const c = compAt(ps.at.x, ps.at.y);
+      if (!c) continue;
+      extendComp(c, { minX: ps.at.x - 2 * U, minY: ps.at.y - 2 * U, maxX: ps.at.x + 2 * U, maxY: ps.at.y + 2 * U });
+      if (!ps.hideValue) extendComp(c, powerValueBox(ps.value, ps.valueAt.x, ps.valueAt.y));
+    }
+    const rootOf = (k: string): string => {
+      let r = k;
+      for (let i = 0; i < 6 && boundTo.has(r); i++) r = boundTo.get(r)!;
+      return r;
+    };
+    // A run with one owner cell (an IC and the parts hung on it) is that
+    // cell's; a run shared by several independent cells (a bank's rail and
+    // ground trunks, a cluster wire between two column parts) gives each
+    // owner only the wires that touch its own pins, with the labels and
+    // symbols at their far ends — attributed whole, a bank's trunk made every
+    // capacitor's cell as wide as the bank.
+    const pinComp = new Map<string, string>(); // pin point -> owner key
+    for (const [key, pl] of placed) for (const pin of pl.sym.pins) {
+      const p = pinAt(pl, pin);
+      pinComp.set(pointKey(p.x, p.y), key);
+    }
+    const itemsAt = new Map<string, Bounds[]>(); // point -> boxes of labels/symbols anchored there
+    const addItem = (x: number, y: number, b: Bounds): void => {
+      itemsAt.set(pointKey(x, y), [...(itemsAt.get(pointKey(x, y)) ?? []), b]);
+    };
+    for (const l of labels) addItem(l.x, l.y, labelTextBox(l.name, l.x, l.y, l.rot, l.kind));
+    for (const ps of extraSymbols) {
+      addItem(ps.at.x, ps.at.y, { minX: ps.at.x - 2 * U, minY: ps.at.y - 2 * U, maxX: ps.at.x + 2 * U, maxY: ps.at.y + 2 * U });
+      if (!ps.hideValue) addItem(ps.at.x, ps.at.y, powerValueBox(ps.value, ps.valueAt.x, ps.valueAt.y));
+    }
+    for (const [c, owners] of compOwners) {
+      const roots = new Set([...owners].map(rootOf));
+      const b = compBox.get(c);
+      if (!b) continue;
+      if (roots.size === 1) {
+        extend([...roots][0]!, b, `run(${[...owners].join('+')})`);
+        continue;
+      }
+      for (const w of wires) {
+        if (find(pointKey(w.x1, w.y1)) !== c) continue;
+        const ends = [pointKey(w.x1, w.y1), pointKey(w.x2, w.y2)];
+        const touching = new Set(ends.map((e) => pinComp.get(e)).filter((k): k is string => k !== undefined).map(rootOf));
+        for (const r of touching) {
+          extend(r, { minX: Math.min(w.x1, w.x2), minY: Math.min(w.y1, w.y2), maxX: Math.max(w.x1, w.x2), maxY: Math.max(w.y1, w.y2) }, `wire(${w.net})`);
+          for (const e of ends) for (const ib of itemsAt.get(e) ?? []) extend(r, ib, `item@${e}`);
+        }
+      }
+    }
+    for (const [key, b] of [...boxes.entries()]) {
+      const r = rootOf(key);
+      if (r !== key) extend(r, b, `child ${key}`);
+    }
+    for (const [key, pl] of placed) {
+      if (rootOf(key) !== key) continue;
+      const b = boxes.get(key);
+      if (!b) continue;
+      if (process.env['COPPERHEAD_DRAFT_TRACE'] && (b.maxX - b.minX > 4 * (pl.body.maxX - pl.body.minX) + 30 || b.maxY - b.minY > 4 * (pl.body.maxY - pl.body.minY) + 30)) {
+        trace(`measured ${key}: drawn extent ${(b.maxX - b.minX).toFixed(0)}x${(b.maxY - b.minY).toFixed(0)} mm around a ${(pl.body.maxX - pl.body.minX).toFixed(0)}x${(pl.body.maxY - pl.body.minY).toFixed(0)} body <- ${(dbgSrc.get(key) ?? []).slice(0, 12).join(' ')}`);
+      }
+      measuredOut.set(key, {
+        left: Math.max(0, pl.body.minX - b.minX),
+        right: Math.max(0, b.maxX - pl.body.maxX),
+        top: Math.max(0, pl.body.minY - b.minY),
+        bottom: Math.max(0, b.maxY - pl.body.maxY),
+      });
+    }
+  }
+
   const allX = [...groupRects.map((r) => r.x1), ...groupRects.map((r) => r.x2)];
   const allY = [...groupRects.map((r) => r.y1), ...groupRects.map((r) => r.y2)];
   const contentW = allX.length ? Math.max(...allX) - Math.min(...allX) : 0;
@@ -4331,5 +4573,5 @@ function draftOnce(
     labelOverlaps,
     labelOverlapBudgetExceeded,
   };
-  return { model, report, rects: groupRects };
+  return { model, report, rects: groupRects, measured: measuredOut };
 }
