@@ -75,3 +75,15 @@ These are constants rather than config fields: `historyCap` is a boolean escape 
 `CachingProvider` hashes the messages it receives, and those messages are now smaller, so every existing entry is orphaned on the first run after upgrade.
 
 This is not avoidable the way the earlier `baseURL` key-shape regression was. There, the fix was to keep the key byte-identical for runs whose behavior had not changed. Here the request genuinely did change - the model is being sent different bytes - so a different key is the *correct* outcome, and reusing the old one would replay a response generated from a different prompt. The cost is one re-paid run and some orphaned files, against a permanent per-turn saving.
+
+## D7. The provider-side prompt cache needs a breakpoint below the rewrite
+
+D6 covers the on-disk `llm-cache`. The Anthropic provider also keeps a *provider-side* prompt cache, and capping interacts with it in the opposite direction to the one this change is aiming for.
+
+`anthropic.ts` places three ephemeral `cache_control` breakpoints: the system prompt, the last tool definition, and the last block of the final message. That caches the stable prefix plus the conversation up to the previous turn. Capping, though, rewrites messages at *any* index: supersession deliberately ignores `keepRecent`, and a result crosses out of the recent window as `truncateBefore` advances every turn. The first turn on which a given trim fires, the request diverges from the cached prefix at that old index, every breakpoint at or below it is invalidated, and the whole conversation is re-billed at 1x input plus a 1.25x cache write instead of a 0.1x cached read. That is a loss on exactly the turns capping exists to make cheaper.
+
+Two facts bound the damage. The capped view is monotone: `truncateBefore` only grows, a superseded read stays superseded, and `clip` is deterministic, so any given message is rewritten at most once. And the divergence point is knowable before the request goes out. So `capHistory` reports the lowest index it rewrote (`HistoryCapStats.firstChanged`), the loop passes it as `ChatOpts.stablePrefixBefore`, and the provider puts a fourth breakpoint on the last block *below* that index. The head of the conversation keeps hitting the cache; only the tail from the rewrite down is re-read. Four breakpoints is the Anthropic maximum, which is exactly what this now uses.
+
+The cost is therefore one partial cache miss per newly-firing trim, not permanent cache defeat. Providers without a prompt cache ignore the hint, so this stays provider-agnostic in the sense D2 requires: the capped array itself is identical for everyone, and only an optional out-of-band index differs.
+
+Honest limit: the mechanism is derived from the provider code and the monotonicity argument, not from a measured live Anthropic run. The 72.7% saving quoted elsewhere is a synthetic fixture (`tasks.md` 9.3), and the prompt-cache interaction has not been measured against a real run either.

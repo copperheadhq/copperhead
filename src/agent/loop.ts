@@ -533,19 +533,39 @@ async function runWithMemory(
     try {
       res = await withRetry(
         async () => {
-          if (sent.stats?.charsSaved) {
-            capCharsSaved += sent.stats.charsSaved;
-            await transcript.event('history-capped', {
-              turn: turn + 1,
-              attempt: ++capAttempt,
-              ...sent.stats,
-            });
+          let chatRes: Turn | undefined;
+          try {
+            chatRes = await withTimeout(
+              () =>
+                provider.chat(sent.messages, tools, {
+                  onStream: (chars) => (streamedChars = chars),
+                  // Let a prompt-caching provider keep a breakpoint below the
+                  // lowest message capping rewrote, so trimming an old message
+                  // does not invalidate the whole cached prefix.
+                  ...(sent.stats?.firstChanged != null
+                    ? { stablePrefixBefore: sent.stats.firstChanged }
+                    : {}),
+                }),
+              config.turnTimeoutMs,
+              () => provider.close?.(),
+            );
+            return chatRes;
+          } finally {
+            // Account for what actually went over the wire. A turn replayed from
+            // the llm-cache sends nothing, so trimming it saved nothing and must
+            // not be counted. Every other outcome did put the capped request on
+            // the wire, including an attempt that came back 429: those bytes were
+            // genuinely kept off it, which is why this sits in a `finally` rather
+            // than on the success path.
+            if (sent.stats?.charsSaved && !chatRes?.cached) {
+              capCharsSaved += sent.stats.charsSaved;
+              await transcript.event('history-capped', {
+                turn: turn + 1,
+                attempt: ++capAttempt,
+                ...sent.stats,
+              });
+            }
           }
-          return withTimeout(
-            () => provider.chat(sent.messages, tools, { onStream: (chars) => (streamedChars = chars) }),
-            config.turnTimeoutMs,
-            () => provider.close?.(),
-          );
         },
         { onRetry: (attempt) => log(`rate limited; retry ${attempt}`) },
       );

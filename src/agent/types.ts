@@ -20,12 +20,19 @@ export type Msg =
       toolCallId: string;
       content: string;
       /**
-       * The call reported a failure rather than returning a result. Set by the
-       * loop from the dispatch outcome, because the text alone cannot say: a
-       * tool's error string and a file whose contents happen to start the same
-       * way are indistinguishable once both are just `content`. Providers ignore
-       * this field; it exists so local reasoning about the conversation (history
-       * capping) can tell a result from a failure without guessing.
+       * The tool's handler *threw*. Set by the loop from the dispatch outcome,
+       * because the text alone cannot say: a tool's error string and a file whose
+       * contents happen to start the same way are indistinguishable once both are
+       * just `content`. Providers ignore this field; it exists so local reasoning
+       * about the conversation (history capping) can tell a thrown failure from a
+       * result without guessing.
+       *
+       * Deliberately narrow: a handler that *returns* a rejection string rather
+       * than throwing (`edit_file`'s "edit REVERTED: ...", `finish`'s "cannot
+       * finish yet: ...", the U+FFFD corruption rejection) is not flagged here.
+       * The only consumer is `read_file` supersession, where every real failure
+       * throws, so widening this would add a classification with no caller. Read
+       * it as "threw", not as "did not succeed".
        */
       failed?: boolean;
     };
@@ -43,6 +50,12 @@ export interface Turn {
    * a near-miss simply never set it.
    */
   nudge?: string;
+  /**
+   * True when this turn was replayed from the on-disk llm-cache rather than
+   * fetched. Nothing went over the wire, so per-request accounting (history
+   * capping's saving, for one) must not count it.
+   */
+  cached?: boolean;
 }
 
 export interface ChatOpts {
@@ -55,6 +68,18 @@ export interface ChatOpts {
    * for billing — real token usage is reported once, on the returned Turn.
    */
   onStream?: (streamedChars: number) => void;
+  /**
+   * Index of the lowest message history capping rewrote for this request, from
+   * `HistoryCapStats.firstChanged`.
+   *
+   * Capping can rewrite an arbitrarily old message (a superseded read, a result
+   * that just crossed out of the recent window), which invalidates any
+   * provider-side prompt cache whose prefix covers that message. A provider that
+   * places cache breakpoints uses this to keep one on the last message that did
+   * not change, so the stable head of the conversation still hits the cache on
+   * the turn a new trim first fires. Providers without a prompt cache ignore it.
+   */
+  stablePrefixBefore?: number;
 }
 
 export interface Provider {

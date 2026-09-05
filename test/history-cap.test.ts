@@ -101,7 +101,7 @@ describe('capHistory — invariants that keep it safe in front of any provider',
     // A provider that mutates what it is handed must not be able to reach the
     // run's own history through it, even on the early-return path.
     expect(out).not.toBe(msgs);
-    expect(stats).toEqual({ charsSaved: 0, superseded: 0, truncated: 0 });
+    expect(stats).toEqual({ charsSaved: 0, superseded: 0, truncated: 0, firstChanged: null });
   });
 });
 
@@ -405,6 +405,59 @@ describe('capHistory — what it actually trims', () => {
     expect(stats.charsSaved).toBe(0);
   });
 
+  it('never emits a lone surrogate when clipping across an astral character', () => {
+    // clip slices by UTF-16 code unit, so an emoji straddling the head or tail
+    // cut used to be split into unpaired surrogates. Sweep one across both cut
+    // offsets and assert every code unit still pairs up.
+    const hasLoneSurrogate = (t: string): boolean => {
+      for (let i = 0; i < t.length; i++) {
+        const c = t.charCodeAt(i);
+        if (c >= 0xd800 && c <= 0xdbff) {
+          const next = t.charCodeAt(i + 1);
+          if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+          i++;
+        } else if (c >= 0xdc00 && c <= 0xdfff) {
+          return true;
+        }
+      }
+      return false;
+    };
+    // Range chosen to straddle both cut points under the real defaults: the
+    // head cut lands near 2328 and the tail cut near 2445.
+    for (let offset = 2300; offset <= 2470; offset++) {
+      const body = 'a'.repeat(offset) + '\u{1F600}' + 'b'.repeat(6000);
+      const msgs: Msg[] = [
+        { role: 'assistant', content: null, toolCalls: [{ id: 'c1', name: 'run_erc', args: {} }] },
+        { role: 'tool', toolCallId: 'c1', content: body },
+        ...filler(20),
+      ];
+      const { messages: out } = capHistory(msgs, HISTORY_CAP_DEFAULTS);
+      const got = out[1].role === 'tool' ? out[1].content : '';
+      expect(got.length).toBeLessThan(body.length); // it really did clip
+      expect(hasLoneSurrogate(got), `lone surrogate at offset ${offset}`).toBe(false);
+    }
+  });
+
+  it('reports the lowest index it rewrote, so a prompt cache can keep a breakpoint below it', () => {
+    // firstChanged is what lets AnthropicProvider place a cache_control
+    // breakpoint under the rewrite instead of losing the whole cached prefix.
+    const stale = 'OLD'.repeat(2000);
+    const msgs: Msg[] = [
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'go' },
+      ...read('c1', 'a.kicad_sch', stale), // assistant 2, tool 3
+      ...read('c2', 'a.kicad_sch', 'CURRENT'),
+      ...filler(2),
+    ];
+    const { stats } = capHistory(msgs, opts);
+    expect(stats.superseded).toBe(1);
+    expect(stats.firstChanged).toBe(3); // the superseded tool result
+
+    // Nothing trimmed means nothing to invalidate.
+    const clean = capHistory([{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'yo' }], opts);
+    expect(clean.stats.firstChanged).toBeNull();
+  });
+
   it('leaves an unsettled tool call\'s arguments intact', () => {
     // A call with no result yet has not run, so the "already applied" argument
     // for clipping its payload does not hold: it is still the live instruction.
@@ -469,7 +522,41 @@ describe('capHistory — what it actually trims', () => {
     expect(stats.superseded).toBeGreaterThan(0);
     expect(stats.truncated).toBeGreaterThan(0);
     // The most recent read must survive intact regardless of how much was cut.
-    expect(renderConversation(out)).toContain(sch.slice(0, 200));
+    // `toContain(sch.slice(0, 200))` would NOT prove that: `clip` keeps a 60%
+    // head (2385 chars at the default cap), so a truncated result satisfies it
+    // too. Assert on the newest read's own message: full length, and no elision
+    // marker anywhere in it.
+    const newest = out.find((m) => m.role === 'tool' && m.toolCallId === 'r5');
+    expect(newest?.role === 'tool' && newest.content).toBe(sch);
+    expect(newest?.role === 'tool' && newest.content).not.toContain('characters elided');
+  });
+
+  it('does not exempt the newest read from truncation once it leaves the recent window', () => {
+    // The delta spec used to claim the newest read is "always sent in full".
+    // It is not: being newest protects a read from supersession only. With both
+    // reads below truncateBefore under the real defaults, the earlier is stubbed
+    // AND the later is clipped, so the file is fully present in neither. This
+    // pins the actual behavior the corrected spec describes.
+    const sch = '(kicad_sch (symbol (lib_id "Device:R") (at 100 100 0)))\n'.repeat(600);
+    const msgs: Msg[] = [
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'do the thing' },
+      ...read('c1', 'hardware/board.kicad_sch', sch),
+      ...read('c2', 'hardware/board.kicad_sch', sch),
+      ...filler(20), // pushes BOTH reads below truncateBefore at keepRecent: 12
+    ];
+    const { messages: out, stats } = capHistory(msgs, HISTORY_CAP_DEFAULTS);
+    const first = out[3];
+    const second = out[5];
+    expect(first.role === 'tool' && first.content).toContain('superseded');
+    expect(stats.superseded).toBe(1);
+    // The newest read is NOT superseded, but it IS truncated.
+    expect(second.role === 'tool' && second.content).not.toContain('superseded');
+    expect(second.role === 'tool' && second.content).toContain('characters elided');
+    expect(second.role === 'tool' && second.content.length).toBeLessThanOrEqual(
+      HISTORY_CAP_DEFAULTS.maxToolResultChars,
+    );
+    expect(stats.truncated).toBeGreaterThanOrEqual(1);
   });
 });
 

@@ -71,6 +71,19 @@ export interface HistoryCapStats {
   superseded: number;
   /** Oversized results and arguments clipped in place. */
   truncated: number;
+  /**
+   * Index of the lowest message this pass rewrote, or `null` when nothing
+   * changed.
+   *
+   * Rewriting an old message invalidates any provider-side prompt cache whose
+   * prefix covers it. A provider that places cache breakpoints (Anthropic) uses
+   * this to keep a breakpoint on the last message that did *not* change, so the
+   * stable head of the conversation still hits the cache on the turn a new trim
+   * first fires. The view is monotone (`truncateBefore` only grows, superseded
+   * stays superseded, `clip` is deterministic), so each message is rewritten at
+   * most once and the cost is one partial miss per newly-firing trim.
+   */
+  firstChanged: number | null;
 }
 
 /**
@@ -91,9 +104,25 @@ function clip(text: string, max: number, note: string): string {
   // A cap too small to hold the marker plus any content cannot be clipped
   // usefully; sending the value whole beats sending a marker and nothing else.
   if (keep <= 0) return text;
-  const head = Math.floor(keep * 0.6);
-  const tail = keep - head;
-  return `${text.slice(0, head)}${marker(text.length - keep)}${text.slice(text.length - tail)}`;
+  let head = Math.floor(keep * 0.6);
+  let tail = keep - head;
+  // Slicing by UTF-16 code unit can split a surrogate pair and put a lone
+  // surrogate into the request. Astral-plane characters (emoji, some CJK
+  // extensions) are the only ones affected: the glyphs this repo cares about
+  // (ohm, micro, plus-minus, degree) are single code units. Pull each cut back
+  // off the boundary so both halves stay well-formed. The repo already treats
+  // mangled multibyte characters as a real problem class (tools.ts rejects
+  // U+FFFD in tool args), so emitting lone surrogates here would be of a piece
+  // with a bug it already guards against.
+  const highSurrogate = (c: number): boolean => c >= 0xd800 && c <= 0xdbff;
+  const lowSurrogate = (c: number): boolean => c >= 0xdc00 && c <= 0xdfff;
+  // Head ends just before `head`; if that last kept unit is a high surrogate its
+  // partner is the first elided unit, so drop it.
+  if (head > 0 && highSurrogate(text.charCodeAt(head - 1))) head -= 1;
+  // Tail starts at `text.length - tail`; if that first kept unit is a low
+  // surrogate its partner is the last elided unit, so start one later.
+  if (tail > 0 && lowSurrogate(text.charCodeAt(text.length - tail))) tail -= 1;
+  return `${text.slice(0, head)}${marker(text.length - head - tail)}${text.slice(text.length - tail)}`;
 }
 
 /** The path a tool call operated on, when it names one. */
@@ -153,7 +182,12 @@ export function capHistory(
   messages: Msg[],
   opts: HistoryCapOptions = HISTORY_CAP_DEFAULTS,
 ): { messages: Msg[]; stats: HistoryCapStats } {
-  const stats: HistoryCapStats = { charsSaved: 0, superseded: 0, truncated: 0 };
+  const stats: HistoryCapStats = { charsSaved: 0, superseded: 0, truncated: 0, firstChanged: null };
+  // Lowest rewritten index, tracked as the pass runs so providers can keep a
+  // cache breakpoint below it.
+  const noteChanged = (i: number): void => {
+    if (stats.firstChanged === null || i < stats.firstChanged) stats.firstChanged = i;
+  };
   // Below the protected window nothing can be truncated; supersession can still
   // fire, but it needs at least two reads of one path to have anything to do, so
   // a short conversation is returned untouched either way.
@@ -221,6 +255,7 @@ export function capHistory(
         if (stub.length < m.content.length) {
           stats.charsSaved += m.content.length - stub.length;
           stats.superseded++;
+          noteChanged(i);
           return { ...m, content: stub };
         }
         return m;
@@ -234,6 +269,7 @@ export function capHistory(
       if (capped !== m.content) {
         stats.charsSaved += m.content.length - capped.length;
         stats.truncated++;
+        noteChanged(i);
         return { ...m, content: capped };
       }
       return m;
@@ -271,7 +307,9 @@ export function capHistory(
         changed = true;
         return { ...c, args };
       });
-      return changed ? { ...m, toolCalls } : m;
+      if (!changed) return m;
+      noteChanged(i);
+      return { ...m, toolCalls };
     }
 
     return m;

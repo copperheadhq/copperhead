@@ -57,7 +57,7 @@ function renderRunStats(s: RunStats): string[] {
     `- **Repair cycles:** ${s.repairCyclesUsed} / ${s.maxRepairCycles}`,
     `- **Tokens:** ${fmtTokens(s.tokensIn)} in / ${fmtTokens(s.tokensOut)} out`,
     `- **Duration:** ${fmtDuration(s.durationMs)}`,
-    ...(s.capCharsSaved ? [`- **History capping:** ${s.capCharsSaved} characters kept off the wire`] : []),
+    ...(s.capCharsSaved ? [`- **History capping:** ${s.capCharsSaved} characters trimmed from the request view`] : []),
     ...(s.perTurn.length
       ? [`- **Per turn:** ${s.perTurn.map((t) => `${t.turn}: ${t.in}/${t.out}`).join(' · ')}`]
       : []),

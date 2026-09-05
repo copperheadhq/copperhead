@@ -24,8 +24,8 @@
 
 ## 5. Spec coherence
 
-- [x] 5.1 New `cap-agent-history` change with proposal, design (D1–D6, plus D3a, D3b, and D3c from the review rounds), and an `agent-core` delta spec carrying three requirements and twelve scenarios. `openspec validate cap-agent-history` passes.
-- [ ] 5.2 Add an AC to `SPEC.md`'s AC-3 block once the change is accepted, mapping 1:1 onto the delta spec's requirements, and fold the delta into `openspec/specs/` at archive time.
+- [x] 5.1 New `cap-agent-history` change with proposal, design (D1–D6, plus D3a, D3b, and D3c from the review rounds), and an `agent-core` delta spec carrying three requirements and sixteen scenarios. `openspec validate cap-agent-history` passes.
+- [x] 5.2 Added AC-3.21 (capped conversation, identity preservation, `historyCap` escape hatch) and AC-3.22 (span accuracy: bound normalization, partial/failed reads never supersede, newest read never superseded but still truncatable) to `SPEC.md`'s AC-3 block, mapping 1:1 onto the delta spec's three requirements. The delta still folds into `openspec/specs/` at archive time.
 
 ## 6. First review round
 

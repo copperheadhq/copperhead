@@ -10,6 +10,16 @@ The agent loop SHALL send the provider a capped view of the conversation rather 
 - **WHEN** the next turn is sent to the provider
 - **THEN** the provider receives a clipped result that states how much was removed and how to recover it, and the untouched original remains in the transcript
 
+#### Scenario: a settled oversized tool-call argument is clipped
+- **GIVEN** a tool call whose result is already in the conversation, carrying an argument string longer than the argument cap, outside the recent window
+- **WHEN** the next turn is sent to the provider
+- **THEN** the provider receives the argument clipped with an in-band marker saying the call was already applied, and the call's name and id are unchanged
+
+#### Scenario: an unsettled tool call keeps its arguments verbatim
+- **GIVEN** a tool call with no matching tool result yet, carrying an argument string longer than the argument cap, outside the recent window
+- **WHEN** the next turn is sent to the provider
+- **THEN** the argument is sent in full, because the call has not run and its arguments are still the instruction being acted on
+
 #### Scenario: capping can be turned off
 - **GIVEN** `historyCap` is set to false in `.copperhead/config.json`
 - **WHEN** a turn is sent
@@ -34,12 +44,17 @@ Capping SHALL preserve the number of messages, their order, their roles, and eve
 - **THEN** the run's own history is unaffected, because the view's messages, tool-call arrays, and argument objects are all fresh
 
 ### Requirement: A superseded file read is replaced rather than re-sent
-When a `read_file` result is followed later in the same conversation by another read of the same path whose line span contains the earlier read's span, the earlier result SHALL be replaced with a short stub naming the path, since those contents are already present in the conversation. A read with no `start_line`/`end_line` SHALL be treated as covering the whole file. An earlier read SHALL NOT be superseded by a later read that covers only part of it, because `read_file` returns only the requested span and the earlier content would otherwise be lost. The span a read is credited with SHALL match the span the tool actually returned: `read_file` line bounds SHALL be normalized to a finite number or an absent bound before the span is computed, so a bound supplied as a numeric string (e.g. `"4"`, which the tool reads as a partial read) cannot be mistaken for a whole-file read and wrongly supersede real content. This replacement SHALL apply regardless of how recent the earlier read is, because the later read already carries those contents. The most recent read of a path SHALL always be sent in full.
+When a `read_file` result is followed later in the same conversation by another read of the same path whose line span contains the earlier read's span, the earlier result SHALL be replaced with a short stub naming the path, since those contents are already present in the conversation. A read with no `start_line`/`end_line` SHALL be treated as covering the whole file. An earlier read SHALL NOT be superseded by a later read that covers only part of it, because `read_file` returns only the requested span and the earlier content would otherwise be lost. The span a read is credited with SHALL match the span the tool actually returned: `read_file` line bounds SHALL be normalized to a finite number or an absent bound before the span is computed, so a bound supplied as a numeric string (e.g. `"4"`, which the tool reads as a partial read) cannot be mistaken for a whole-file read and wrongly supersede real content. This replacement SHALL apply regardless of how recent the earlier read is, because the later read already carries those contents. The most recent read of a path SHALL NEVER be superseded, since nothing is later than it; it remains subject to result truncation once it falls outside the recent window, so "never superseded" is not a guarantee that it is sent in full.
 
 #### Scenario: an earlier read of a re-read path is replaced
 - **GIVEN** a conversation that reads the same schematic in full twice
 - **WHEN** the capped view is built
-- **THEN** the earlier result is replaced by a stub naming the path and directing the model to the newer read, and the later result is sent in full
+- **THEN** the earlier result is replaced by a stub naming the path and directing the model to the newer read, and the later result is not superseded
+
+#### Scenario: the newest read is never superseded but is still truncated
+- **GIVEN** a conversation that reads a large file in full twice, followed by enough later turns that both reads fall outside the recent window
+- **WHEN** the capped view is built
+- **THEN** the earlier read is replaced by a stub and the newest read is not superseded, but the newest read is still clipped by result truncation, because being the newest protects a read from supersession only
 
 #### Scenario: a partial later read does not supersede a whole-file read
 - **GIVEN** a conversation that reads a file in full, then reads only lines 100 to 120 of it

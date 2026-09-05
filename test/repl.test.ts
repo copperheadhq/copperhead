@@ -9,6 +9,7 @@ import {
   examplesText,
   completeSlash,
   SLASH_COMMANDS,
+  PROMPT,
 } from '../src/commands/repl.js';
 import { demoTourText, scaffoldDemoRepo, defaultBriefPath } from '../src/commands/demo.js';
 import { pickModel, selectMenu } from '../src/util/select.js';
@@ -504,12 +505,13 @@ describe('session log file', () => {
   it('mirrors session lines to .copperhead/runs/repl-*.log with keys redacted', async () => {
     setColorEnabled(false);
     const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-repl-log-'));
+    const { input, output } = fakeTty();
+    let done: Promise<unknown> = Promise.resolve();
     try {
-      const { input, output } = fakeTty();
       let raw = '';
       output.on('data', (c) => (raw += String(c)));
       let requestLogged = false;
-      const done = runRepl({
+      done = runRepl({
         repoRoot: repo,
         model: 'gpt-5',
         modelSource: 'flag',
@@ -527,7 +529,7 @@ describe('session log file', () => {
       // The prompt is the REPL's own "I am reading input now" signal. Writing
       // before it appears loses the bytes, which is why this cannot just wait
       // for the log file to exist.
-      await waitFor('the prompt', () => raw.includes('❯'));
+      await waitFor('the prompt', () => raw.includes(PROMPT.trim()));
       input.write('do the thing\n');
       // Wait for the request to have actually logged, rather than assuming it
       // beat a fixed timer: this is the ordering that used to break under load.
@@ -545,6 +547,12 @@ describe('session log file', () => {
       expect(text).not.toContain('sk-SECRET_KEY_123');
       expect(text).not.toContain('\x1b[');
     } finally {
+      // On the timeout path `waitFor` throws with the REPL still running and its
+      // session-log stream still open under `repo`. Tear it down before deleting
+      // the directory, or the orphan's later rejection surfaces as an unhandled
+      // rejection attributed to whichever test happens to be running then.
+      input.write('/quit\n');
+      await done.catch(() => {});
       await rm(repo, { recursive: true, force: true });
     }
   });
@@ -562,12 +570,13 @@ describe('session log file', () => {
       `ghp_${'b'.repeat(36)}`,
       `github_pat_${'c'.repeat(22)}`,
     ];
+    const { input, output } = fakeTty();
+    let done: Promise<unknown> = Promise.resolve();
     try {
-      const { input, output } = fakeTty();
       let raw = '';
       output.on('data', (c) => (raw += String(c)));
       let requestLogged = false;
-      const done = runRepl({
+      done = runRepl({
         repoRoot: repo,
         model: 'gpt-5',
         modelSource: 'flag',
@@ -582,7 +591,7 @@ describe('session log file', () => {
           return { outcome: 'success' as const };
         }),
       });
-      await waitFor('the prompt', () => raw.includes('❯'));
+      await waitFor('the prompt', () => raw.includes(PROMPT.trim()));
       input.write('publish it\n');
       await waitFor('the request to log its output', () => requestLogged);
       input.write('/quit\n');
@@ -599,6 +608,12 @@ describe('session log file', () => {
       expect(text).toContain('[REDACTED]');
       expect(text).toContain('trailing'); // surrounding context survives
     } finally {
+      // On the timeout path `waitFor` throws with the REPL still running and its
+      // session-log stream still open under `repo`. Tear it down before deleting
+      // the directory, or the orphan's later rejection surfaces as an unhandled
+      // rejection attributed to whichever test happens to be running then.
+      input.write('/quit\n');
+      await done.catch(() => {});
       await rm(repo, { recursive: true, force: true });
     }
   });
@@ -732,7 +747,7 @@ describe('runRepl', () => {
     expect(enter).toBeGreaterThanOrEqual(0);
     expect(leave).toBeGreaterThan(enter);
     expect(raw).toContain('\x1b[r'); // scroll fence reset before leaving
-    expect(raw).toContain('❯ '); // prompt chevron with nbsp
+    expect(raw).toContain(PROMPT); // prompt chevron with nbsp
   });
 
   it('typing /demo via live hints then /quit works end-to-end', async () => {
