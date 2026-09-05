@@ -9,15 +9,15 @@ export class ToolRegistry {
   private readonly byName = new Map<string, CatalogEntry>();
 
   constructor(entries: CatalogEntry[]) {
-    for (const e of entries) {
+    for (const source of entries) {
+      const e: CatalogEntry = { ...source };
       if (this.byName.has(e.name)) throw new Error(`duplicate catalog name "${e.name}"`);
       this.byName.set(e.name, e);
     }
-    for (const e of entries) {
+    for (const e of this.byName.values()) {
       if (e.kind === 'skill' && !e.gateProvided) {
         const conj = (ctx: RunContext) => this.conjunction(e.tools, ctx);
         e.gate = conj;
-        e.ownGate = conj;
       }
     }
   }

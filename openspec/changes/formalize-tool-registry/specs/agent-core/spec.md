@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Loop consumes the registry and flattens envelopes
-The agent loop SHALL obtain the per-turn tool list from `registry.list(ctx)` and SHALL dispatch through the registry. Handler and skill results SHALL be `ToolResult` envelopes. The loop SHALL flatten each envelope into the string `content` of the provider-facing tool `Msg` (summary plus detail on success; `error.message` on failure) so existing provider adapters keep their current wire format.
+The agent loop SHALL obtain the per-turn tool list from `registry.list(ctx)` and SHALL dispatch through the registry. Handler and skill results SHALL be `ToolResult` envelopes. The loop SHALL flatten each envelope into the string `content` of the provider-facing tool `Msg` (summary plus detail for domain results, including unsuccessful partial results; `error.message` for typed invocation errors) so existing provider adapters keep their current wire format.
 
 #### Scenario: Provider still sees strings
 - **WHEN** a turn's tool call completes

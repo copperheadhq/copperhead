@@ -52,4 +52,13 @@
 
 - [x] 7.1 Draft SPEC.md edits for archive time: §4.2 becomes the two-tier catalog (existing tools + `generate_report`); §3 gains `skill list` / `skill run`
 - [x] 7.2 README: document `copperhead skill list` / `skill run generate-report` and that `create` stages are not yet skills
-- [x] 7.3 Confirm `STAGES` in `src/commands/create.ts` is untouched; `npm run typecheck && npm test` green; `npm run build` for the CLI command
+- [x] 7.3 Confirm `STAGES` in `src/commands/create.ts` is untouched; run typecheck, build, and the offline suite; document environment-only failures honestly
+
+## 8. PR #255 review fixes
+
+- [x] 8.1 Contain skill-provider exceptions inside dispatch and apply bounded timeout plus 429 recovery to nested provider turns
+- [x] 8.2 Give diagnostics handler-owned outcomes so failing ERC/DRC/drift/symbol/legibility results cannot render a success glyph
+- [x] 8.3 Preserve partial unsuccessful report detail and every repeated inner tool call in call order
+- [x] 8.4 Keep `skill list` filesystem-side-effect-free and give off-list skill calls an accurate unavailable reason
+- [x] 8.5 Clone registry entries before binding default gates; cover weak gates, singleton isolation, refusal, JSON, no-provider, nudge, exception, retry, timeout, partial, and repeated-result paths
+- [x] 8.6 Re-run typecheck, focused tests, full offline suite, build, and `openspec validate formalize-tool-registry`; document environment-only failures honestly

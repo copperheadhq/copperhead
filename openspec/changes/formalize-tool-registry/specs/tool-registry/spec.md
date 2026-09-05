@@ -39,6 +39,14 @@ Every tool and skill invocation SHALL return a `ToolResult` of the form `{ ok, s
 - **WHEN** a handler returns `error.kind` `validation` or `refusal`
 - **THEN** the loop does not retry that call
 
+#### Scenario: Diagnostic outcome is not inferred from prose
+- **WHEN** ERC returns a report with `ok: false` formatted as `ERC: 3 violation(s)`
+- **THEN** the tool envelope has `ok: false`, the renderer does not show the success glyph, and the provider-facing text still contains the violation detail
+
+#### Scenario: Unsuccessful detail is preserved
+- **WHEN** an unsuccessful domain-result envelope has `detail` but no typed invocation `error`
+- **THEN** flattening includes both its summary and detail
+
 ### Requirement: Predicate gating
 Each catalog entry SHALL declare `gate: (ctx) => boolean`. An entry whose gate returns false SHALL be absent from `registry.list(ctx)` and SHALL NOT appear in the tool list sent to the provider. A boolean `requiresUnlock` field SHALL NOT exist on the catalog type.
 
@@ -84,6 +92,18 @@ A skill invocation SHALL run a nested turn loop that shares the parent's ledger,
 - **WHEN** a nested skill (in a future mutation skill) would open a sync obligation
 - **THEN** that obligation remains on the parent's ledger after the skill returns
 
+#### Scenario: Provider error is contained
+- **WHEN** a provider throws inside a nested skill turn
+- **THEN** dispatch returns an envelope with `ok: false` and `error.kind: exception`, rather than letting the rejection escape the parent loop
+
+#### Scenario: Nested provider recovery is bounded
+- **WHEN** a nested provider turn returns 429 or exceeds `turnTimeoutMs`
+- **THEN** the sub-run applies bounded backoff or timeout retries using the main loop policy and eventually returns or fails as one envelope
+
+#### Scenario: Partial and repeated results survive
+- **WHEN** a skill exhausts its turn budget after calling the same tool more than once
+- **THEN** its unsuccessful envelope retains every gathered result in call order, including repeated calls
+
 ### Requirement: generate_report proof skill
 The catalog SHALL include a skill `generate_report` with parameters `{ scope: "power" | "all" }` (default `"all"`), tools `read_file`, `search`, `list_nets`, `run_erc`, `run_drc`, `export_svg`, and `check_drift`, and a default `maxTurns` of 8. It SHALL NOT declare any mutation tool (`edit_file`, `write_file`, or any other `gate` that requires `editsUnlocked`). The report SHALL be the returned envelope (`summary` + `detail`); the skill SHALL NOT write a repo file to hold the report.
 
@@ -109,3 +129,7 @@ Atomic tools SHALL be declared in `src/capabilities/handlers.ts` and wrapped int
 #### Scenario: Unique names
 - **WHEN** the conformance test enumerates the registry
 - **THEN** no two entries share a `name`
+
+#### Scenario: Isolated registry construction is isolated
+- **WHEN** a second `ToolRegistry` is constructed from entries returned by the singleton registry
+- **THEN** binding default skill gates in the second registry does not mutate the singleton's entries

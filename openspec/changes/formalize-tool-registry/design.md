@@ -70,13 +70,13 @@ interface ToolResult {
 }
 ```
 
-Handlers return `ToolResult`. `dispatchTool` returns the envelope to the loop. The loop (1) records the envelope on the transcript, (2) flattens `summary` + `detail` (or `error.message`) into the string `Msg` tool content providers already consume, (3) hands the envelope to the renderer.
+Catalog handlers return `ToolResult`. The legacy `HANDLERS` table may return prose for operations whose outcome is the operation itself, or `{ ok, text }` when the handler already knows a separate domain outcome (ERC/DRC/drift/symbol/legibility diagnostics and multi-artifact exports). The barrel converts either form to one envelope before dispatch returns it. This prevents a known failing diagnostic from being re-inferred from prose. The loop (1) records the envelope on the transcript, (2) flattens `summary` + `detail` (or `error.message`) into the string `Msg` tool content providers already consume, (3) hands the envelope to the renderer.
 
 Flattening preserves today's gating-sync substrings: an unavailable edit tool's `error.message` still contains `"not available"` and `"unlock"`. The absence assertion `expect(registry.list(ctx).map(e => e.name)).not.toContain('edit_file')` is the invariant; the envelope `kind === 'unavailable'` assertion is additive, never a replacement.
 
 `data` is passed through `redactSecrets` (and the `*_KEY`/`*_SECRET`/`*_TOKEN` value set) at envelope construction. Renderers receive the already-redacted envelope. They never call `JSON.stringify` on unredacted handler output.
 
-Alternative: keep handlers returning strings and wrap at dispatch. Rejected — view hints and typed errors would be reconstructed from prose, which is the regex heuristic this change deletes.
+Unsuccessful domain outcomes without an invocation error keep their `detail` when flattened. Typed invocation errors still flatten to `error.message`.
 
 ### D5. Schema version on each entry; protocol version on the registry
 
@@ -92,6 +92,8 @@ The nested path is a turn-loop extract:
 - Own messages, own `maxTurns` (skill default or arg), own tool subset (`skill.tools` resolved against the registry).
 - No git snapshot, no commit, no `openspec archive`.
 - Completes when `isComplete(ctx, args)` is true or the turn budget is exhausted; the parent receives one envelope.
+- Provider turns inherit the main loop's bounded turn timeout and 429 retry policy. An exhausted timeout, rate limit, or other provider exception is converted by dispatch into a failed `exception` envelope; it never escapes the parent loop.
+- Inner tool results are retained in call order, including repeated calls to the same tool. An incomplete skill returns every partial result it gathered.
 - `finish` is forbidden in a skill's `tools` array (conformance test). The nested loop does not put `finish` in the child catalog. Even if a future caller forced it, `finishRequest` on the shared ctx MUST NOT trigger the parent's commit; the nested path never reads it for that purpose.
 
 Verification-gating stays with the parent: a skill that somehow mutated would open obligations on the shared ledger, and the parent's `finish` would still refuse. `generate_report` cannot mutate, so this is a structural backstop for later skills, not a generate_report concern.
@@ -133,13 +135,13 @@ copperhead skill list
 copperhead skill run generate-report [--scope power|all]
 ```
 
-`skill list` is LLM-free and network-free: it prints registered skills and whether `gate(ctx)` would include them. `skill run` invokes D6's nested sub-run (it needs a model, same as `do`) and prints the envelope. Tests call the exported runner with a `ScriptedProvider` (already used in `test/observability.test.ts`) so the suite stays offline. Missing key on `skill run` is a typed error naming the env var, not a stack trace.
+`skill list` is LLM-free, network-free, and filesystem-side-effect-free: it prints registered skills and whether `gate(ctx)` would include them without initializing a transcript. `skill run` invokes D6's nested sub-run (it needs a model, same as `do`) and prints the envelope. Tests call the exported runner with a `ScriptedProvider` (already used in `test/observability.test.ts`) so the suite stays offline. Missing key on `skill run` is a typed error naming the env var, not a stack trace.
 
 `check`/`verify` do not import `src/capabilities/`. The module-graph guard in `test/init-check.test.ts` keeps scanning outward from `src/commands/check.ts`.
 
 ### D10. Renderer reads `ok` / `viewHint`; retry maps from error kind
 
-`toolLine` uses `result.ok` for the glyph, not `/\b(clean|ok|pass(?:ed)?|success|done)\b/i`. `viewHint` selects layout (diagnostic vs mutation vs query vs export). `validation` and `refusal` are not retried; `exception` uses `src/util/retry.ts` the way provider 429s already do; `unavailable` is not retried (the catalog did not contain the tool).
+`toolLine` uses `result.ok` for the glyph, not `/\b(clean|ok|pass(?:ed)?|success|done)\b/i`. Diagnostics that already have a structured result set `ok` from that result (for example `CheckReport.ok`), never from a prefix in formatted prose. `viewHint` selects layout (diagnostic vs mutation vs query vs export). `validation` and `refusal` are not retried; thrown 429s use `src/util/retry.ts`; `unavailable` is not retried.
 
 ## Risks / Trade-offs
 

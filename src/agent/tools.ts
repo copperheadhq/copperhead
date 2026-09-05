@@ -3,8 +3,9 @@ import { corruptionError } from '../capabilities/helpers.js';
 import { flatten, failResult, seal, unavailable, type ToolResult } from './envelope.js';
 import { registry } from './registry.js';
 import { withRetry, isRateLimit } from '../util/retry.js';
+import { TurnTimeoutError, withTimeout } from './recovery.js';
 import type { RunContext } from './context.js';
-import type { Msg, Provider } from './types.js';
+import type { Msg, Provider, Turn } from './types.js';
 
 export type { RunContext, FinishRequest } from './context.js';
 export type { CatalogEntry, CatalogSkill };
@@ -26,14 +27,14 @@ export async function dispatchToolResult(
   args: Record<string, unknown>,
   opts: DispatchOpts = {},
 ): Promise<ToolResult> {
-  if (opts.only && !opts.only.has(name)) return unavailable(name, ctx.editsUnlocked);
+  if (opts.only && !opts.only.has(name)) return unavailable(name, ctx.editsUnlocked, 'not part of this skill');
   const entry = availableTools(ctx).find((e) => e.name === name);
   if (!entry) return unavailable(name, ctx.editsUnlocked);
-  if (entry.kind === 'skill') {
-    if (!opts.provider) return failResult('validation', `skill "${name}" requires a provider`, 'diagnostic');
-    return runSkillSubRun({ ctx, skill: entry, args, provider: opts.provider });
-  }
   try {
+    if (entry.kind === 'skill') {
+      if (!opts.provider) return failResult('validation', `skill "${name}" requires a provider`, 'diagnostic');
+      return await runSkillSubRun({ ctx, skill: entry, args, provider: opts.provider });
+    }
     // Unified retry policy (design D10): a thrown 429 backs off through the
     // same withRetry/isRateLimit pair the provider path uses. Typed envelope
     // failures (validation/refusal/unavailable) return, so they never retry;
@@ -62,7 +63,7 @@ export async function runSkillSubRun(opts: {
   const { ctx, skill, args, provider } = opts;
   const savedFinish = ctx.finishRequest;
   const only = new Set(skill.tools.filter((n) => n !== 'finish'));
-  const results = new Map<string, ToolResult>();
+  const results: { name: string; result: ToolResult }[] = [];
   const messages: Msg[] = [
     { role: 'system', content: skill.prompt(ctx, args) },
     { role: 'user', content: 'Execute this skill. Use the available tools, then stop when the report is complete.' },
@@ -72,7 +73,27 @@ export async function runSkillSubRun(opts: {
     for (let turn = 0; turn < (skill.maxTurns ?? 8); turn++) {
       if (await skill.isComplete(ctx, args)) break;
       const tools = registry.list(ctx).filter((e) => e.kind === 'tool' && only.has(e.name)).map((e) => e.schema);
-      const res = await provider.chat(messages, tools);
+      let res: Turn;
+      let timeoutRetries = 0;
+      while (true) {
+        try {
+          res = await withRetry(
+            () => withTimeout(() => provider.chat(messages, tools), ctx.config.turnTimeoutMs, () => provider.close?.()),
+            { isRetryable: isRateLimit, baseMs: 250 },
+          );
+          break;
+        } catch (err) {
+          if (err instanceof TurnTimeoutError && timeoutRetries++ < 3) {
+            await ctx.transcript.event('skill-turn-timeout', {
+              skill: skill.name,
+              ms: ctx.config.turnTimeoutMs,
+              attempt: timeoutRetries,
+            });
+            continue;
+          }
+          throw err;
+        }
+      }
       messages.push({ role: 'assistant', content: res.text, toolCalls: res.toolCalls });
       if (!res.toolCalls.length) {
         if (await skill.isComplete(ctx, args)) break;
@@ -81,7 +102,7 @@ export async function runSkillSubRun(opts: {
       }
       for (const call of res.toolCalls) {
         const envelope = await dispatchToolResult(ctx, call.name, call.args, { only });
-        results.set(call.name, envelope);
+        results.push({ name: call.name, result: envelope });
         const flat = flatten(envelope);
         await ctx.transcript.event('skill-tool', {
           skill: skill.name,
@@ -97,11 +118,7 @@ export async function runSkillSubRun(opts: {
     ctx.finishRequest = savedFinish;
   }
 
-  const detail =
-    skill.tools
-      .filter((n) => results.has(n))
-      .map((n) => `${n}:\n${flatten(results.get(n)!)}`)
-      .join('\n\n') || 'no tool results';
+  const detail = results.map(({ name, result }) => `${name}:\n${flatten(result)}`).join('\n\n') || 'no tool results';
   const complete = await skill.isComplete(ctx, args);
   return seal({
     ok: complete,

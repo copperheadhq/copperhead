@@ -71,11 +71,22 @@ export function failResult(kind: ToolErrorKind, message: string, viewHint?: View
 
 /** Flatten an envelope to the string providers already consume as tool Msg content. */
 export function flatten(result: ToolResult): string {
-  if (!result.ok) return result.error?.message ?? result.summary;
+  if (result.error) return result.error.message;
   if (result.detail) {
     return result.detail.startsWith(result.summary) ? result.detail : `${result.summary}\n${result.detail}`;
   }
   return result.summary;
+}
+
+/** Build an envelope from text plus an outcome already known by the handler. */
+export function outcomeResult(text: string, ok: boolean, viewHint?: ViewHint): ToolResult {
+  const first = text.split('\n')[0] ?? text;
+  return seal({
+    ok,
+    summary: first,
+    ...(text !== first ? { detail: text } : {}),
+    ...(viewHint ? { viewHint } : {}),
+  });
 }
 
 /**
@@ -106,7 +117,12 @@ export function isRetryableToolKind(kind: ToolErrorKind): boolean {
   return kind === 'exception';
 }
 
-export function unavailable(name: string, editsUnlocked: boolean): ToolResult {
-  const message = `tool "${name}" is not available${editsUnlocked ? '' : ' (edit tools unlock after the proposal validates)'}`;
+export function unavailable(name: string, editsUnlocked: boolean, reason?: string): ToolResult {
+  const suffix = reason
+    ? ` (${reason})`
+    : editsUnlocked
+      ? ''
+      : ' (edit tools unlock after the proposal validates)';
+  const message = `tool "${name}" is not available${suffix}`;
   return failResult('unavailable', message);
 }

@@ -1,7 +1,7 @@
 import { loadConfig, resolveModel } from '../config.js';
 import { flatten, type ToolResult } from '../agent/envelope.js';
 import { makeProvider } from '../agent/loop.js';
-import { registry, runSkillSubRun, type RunContext } from '../agent/tools.js';
+import { dispatchToolResult, registry, type RunContext } from '../agent/tools.js';
 import type { Provider } from '../agent/types.js';
 import { Transcript } from '../agent/transcript.js';
 import { ObligationsLedger } from '../agent/ledger.js';
@@ -18,7 +18,7 @@ export function catalogNameFromCli(name: string): string {
 }
 
 export async function listSkills(repoRoot: string): Promise<{ name: string; available: boolean; description: string }[]> {
-  const ctx = await minimalCtx(repoRoot);
+  const ctx = await minimalCtx(repoRoot, false);
   const listed = new Set(registry.list(ctx).map((e) => e.name));
   return registry.skills().map((s) => ({
     name: s.name,
@@ -40,7 +40,7 @@ export async function runSkill(opts: {
   if (!registry.list(ctx).some((e) => e.name === catalogName)) {
     throw new SkillCliError(`skill "${opts.name}" is not available in this repo`);
   }
-  return runSkillSubRun({ ctx, skill: entry, args: opts.args ?? {}, provider: opts.provider });
+  return dispatchToolResult(ctx, entry.name, opts.args ?? {}, { provider: opts.provider });
 }
 
 export async function providerForSkillRun(repoRoot: string, modelFlag?: string): Promise<{ provider: Provider; model: string }> {
@@ -64,9 +64,9 @@ export function formatSkillEnvelope(result: ToolResult, json: boolean): string {
   return result.ok ? body : `error: ${body}`;
 }
 
-async function minimalCtx(repoRoot: string): Promise<RunContext> {
+async function minimalCtx(repoRoot: string, initializeTranscript = true): Promise<RunContext> {
   const transcript = new Transcript(repoRoot);
-  await transcript.init();
+  if (initializeTranscript) await transcript.init();
   return {
     repoRoot,
     config: await loadConfig(repoRoot),

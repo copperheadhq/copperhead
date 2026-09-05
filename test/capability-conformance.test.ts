@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { catalog, defineSkill } from '../src/capabilities/index.js';
 import { HANDLERS } from '../src/capabilities/handlers.js';
 import { registry } from '../src/agent/tools.js';
+import { ToolRegistry } from '../src/agent/registry.js';
 import type { RunContext } from '../src/agent/context.js';
 import { tempFixtureRepo } from './helpers.js';
 import { loadConfig } from '../src/config.js';
@@ -98,8 +99,19 @@ describe('capability conformance', () => {
       });
       expect(weak.ownGate(ctx)).toBe(true);
       expect(registry.conjunction(weak.tools, ctx)).toBe(false);
+      const isolated = new ToolRegistry([...registry.all(), weak]);
+      expect(isolated.list(ctx).map((e) => e.name)).not.toContain('smuggle_edits');
     } finally {
       await cleanup();
     }
+  });
+
+  it('constructing an isolated registry does not mutate singleton catalog entries', () => {
+    const original = registry.get('generate_report');
+    expect(original?.kind).toBe('skill');
+    if (original?.kind !== 'skill') return;
+    const gate = original.gate;
+    new ToolRegistry(registry.all());
+    expect(registry.get('generate_report')?.gate).toBe(gate);
   });
 });

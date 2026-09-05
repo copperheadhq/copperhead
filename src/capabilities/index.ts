@@ -1,4 +1,4 @@
-import { textResult, type ViewHint } from '../agent/envelope.js';
+import { outcomeResult, textResult, type ViewHint } from '../agent/envelope.js';
 import { defineTool, type CatalogEntry, type CatalogTool } from './define.js';
 import { HANDLERS } from './handlers.js';
 import generateReport from './skills/generate-report.js';
@@ -40,7 +40,12 @@ function wrap(def: (typeof HANDLERS)[number]): CatalogTool {
     version: 1,
     viewHint,
     gate: def.requiresUnlock ? (ctx) => ctx.editsUnlocked : () => true,
-    handler: async (ctx, args) => textResult(await def.handler(ctx, args), viewHint),
+    handler: async (ctx, args) => {
+      const result = await def.handler(ctx, args);
+      return typeof result === 'string'
+        ? textResult(result, viewHint)
+        : outcomeResult(result.text, result.ok, viewHint);
+    },
   });
 }
 

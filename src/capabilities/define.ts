@@ -9,7 +9,7 @@ export interface CatalogTool {
   viewHint: ViewHint;
   schema: ToolSchema;
   gate: (ctx: RunContext) => boolean;
-  /** Own gate as declared (before skill-conjunction). Same as `gate` for tools. */
+  /** Own gate as declared, before the registry applies the tools-conjunction. */
   ownGate: (ctx: RunContext) => boolean;
   handler: (ctx: RunContext, args: Record<string, unknown>) => Promise<ToolResult>;
 }
@@ -67,8 +67,7 @@ export function defineTool(def: ToolInit): CatalogTool {
 
 /**
  * Identity helper. When `gate` is omitted the skill is available only if every
- * declared tool's gate is true (applied by the registry at list-time; `ownGate`
- * is the conjunction once the registry is constructed — see `bindSkillGate`).
+ * declared tool's gate is true (applied by the registry at list-time).
  */
 export function defineSkill(def: SkillInit): CatalogSkill {
   const ownGate = def.gate ?? ((_ctx: RunContext) => true);

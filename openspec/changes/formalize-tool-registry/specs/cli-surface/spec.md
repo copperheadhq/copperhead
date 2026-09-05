@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: `skill` command
-The CLI SHALL provide `copperhead skill list` and `copperhead skill run <name>`. `skill list` SHALL print registered skills and whether each would be present in `registry.list(ctx)` for the current repo, make zero LLM calls, and make zero network calls. `skill run <name>` SHALL invoke that skill's nested sub-run with the same definition the model catalog uses and print the resulting envelope. A missing API key on `skill run` SHALL exit non-zero with a message naming the missing env var and without a stack trace. An unknown skill name SHALL exit non-zero naming the name.
+The CLI SHALL provide `copperhead skill list` and `copperhead skill run <name>`. `skill list` SHALL print registered skills and whether each would be present in `registry.list(ctx)` for the current repo, make zero LLM calls, make zero network calls, and create no transcript or run directory. `skill run <name>` SHALL invoke that skill's nested sub-run with the same definition the model catalog uses and print the resulting envelope. A missing API key on `skill run` SHALL exit non-zero with a message naming the missing env var and without a stack trace. An unknown skill name SHALL exit non-zero naming the name.
 
 #### Scenario: Help lists skill
 - **WHEN** `copperhead --help` is run
@@ -11,7 +11,7 @@ The CLI SHALL provide `copperhead skill list` and `copperhead skill run <name>`.
 
 #### Scenario: list is LLM-free
 - **WHEN** `copperhead skill list` runs on the fixture repo with no API keys in the environment
-- **THEN** it exits 0, prints `generate_report`, and makes no network calls to any api.* host
+- **THEN** it exits 0, prints `generate_report`, makes no network calls to any api.* host, and does not create `.copperhead/runs/`
 
 #### Scenario: run generate-report
 - **WHEN** `copperhead skill run generate-report` completes with a provider available

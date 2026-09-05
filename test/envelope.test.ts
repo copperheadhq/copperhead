@@ -1,5 +1,14 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { flatten, okResult, failResult, seal, textResult, unavailable, isRetryableToolKind } from '../src/agent/envelope.js';
+import {
+  flatten,
+  okResult,
+  failResult,
+  outcomeResult,
+  seal,
+  textResult,
+  unavailable,
+  isRetryableToolKind,
+} from '../src/agent/envelope.js';
 import { toolLine } from '../src/agent/theme.js';
 
 describe('ToolResult envelope', () => {
@@ -35,6 +44,33 @@ describe('ToolResult envelope', () => {
     const r = textResult('error: search requires a non-empty regex in "pattern"', 'query');
     expect(r.ok).toBe(false);
     expect(r.error?.kind).toBe('validation');
+  });
+
+  it('uses a handler-owned diagnostic outcome for the glyph and keeps failure detail', () => {
+    const r = outcomeResult(
+      'ERC: 3 violation(s)\n  error unconnected_pin: pin 2 of U1',
+      false,
+      'diagnostic',
+    );
+    expect(r.ok).toBe(false);
+    expect(flatten(r)).toContain('unconnected_pin');
+    expect(toolLine('run_erc', r.summary, r.ok)).toContain('▸');
+  });
+
+  it('keeps partial detail on an unsuccessful envelope without a typed invocation error', () => {
+    const r = seal({
+      ok: false,
+      summary: 'design report incomplete',
+      detail: 'run_erc:\nERC: clean',
+      viewHint: 'diagnostic',
+    });
+    expect(flatten(r)).toBe('design report incomplete\nrun_erc:\nERC: clean');
+  });
+
+  it('textResult maps refusal prefixes to refusal', () => {
+    const r = textResult('cannot finish yet:\n- run ERC', 'diagnostic');
+    expect(r.ok).toBe(false);
+    expect(r.error?.kind).toBe('refusal');
   });
 
   it('redacts key-shaped tokens at construction', () => {

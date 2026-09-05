@@ -18,13 +18,18 @@ import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
 import { corruptionError, markTouched, str } from './helpers.js';
 
-export interface StringHandlerDef {
-  schema: ToolSchema;
-  requiresUnlock: boolean;
-  handler: (ctx: RunContext, args: Record<string, unknown>) => Promise<string>;
+export interface HandlerOutcome {
+  ok: boolean;
+  text: string;
 }
 
-export const HANDLERS: StringHandlerDef[] = [
+export interface HandlerDef {
+  schema: ToolSchema;
+  requiresUnlock: boolean;
+  handler: (ctx: RunContext, args: Record<string, unknown>) => Promise<string | HandlerOutcome>;
+}
+
+export const HANDLERS: HandlerDef[] = [
   {
     schema: {
       name: 'read_file',
@@ -270,9 +275,12 @@ export const HANDLERS: StringHandlerDef[] = [
       // "ERC clean" on the empty starting sheet still misleads the model, so warn
       // here too: no gate should read as satisfied by the empty starting state.
       if (report.ok && !(await listSymbols(schPath)).length) {
-        return `${out}\nwarning: ERC is clean but the schematic has ZERO symbols — an empty sheet always passes ERC, so this is NOT a verified design. Capture the parts from BOM.md (and re-run run_erc) before calling finish.`;
+        return {
+          ok: true,
+          text: `${out}\nwarning: ERC is clean but the schematic has ZERO symbols — an empty sheet always passes ERC, so this is NOT a verified design. Capture the parts from BOM.md (and re-run run_erc) before calling finish.`,
+        };
       }
-      return out;
+      return { ok: report.ok, text: out };
     },
   },
   {
@@ -362,11 +370,14 @@ export const HANDLERS: StringHandlerDef[] = [
         path.join(ctx.repoRoot, ctx.config.schematic),
       );
       if (!findings.length) {
-        return `verify_symbols: ${checked} symbol(s) match the installed KiCad library. No divergences.`;
+        return { ok: true, text: `verify_symbols: ${checked} symbol(s) match the installed KiCad library. No divergences.` };
       }
       const lines = findings.map((f) => `  - [${f.kind}] ${f.detail}`);
       const mismatches = findings.filter((f) => f.kind !== 'no-library').length;
-      return `verify_symbols: ${checked} verified, ${skipped} unverifiable (library not installed), ${mismatches} issue(s) to reconcile:\n${lines.join('\n')}`;
+      return {
+        ok: false,
+        text: `verify_symbols: ${checked} verified, ${skipped} unverifiable (library not installed), ${mismatches} issue(s) to reconcile:\n${lines.join('\n')}`,
+      };
     },
   },
   {
@@ -403,7 +414,7 @@ export const HANDLERS: StringHandlerDef[] = [
         intentPath: intentRel,
         docsDir: ctx.config.docs,
       });
-      if (!res.ok) return res.message;
+      if (!res.ok) return { ok: false, text: res.message };
       markTouched(ctx, ctx.config.schematic);
       // embed the checker and score in the draft report (design D5): a
       // draft-check-score iteration costs one tool call, and the embedded
@@ -438,7 +449,7 @@ export const HANDLERS: StringHandlerDef[] = [
         ...(ctx.config.legibility ? { config: ctx.config.legibility } : {}),
       });
       ctx.lastScore = report.composite;
-      return formatScore(report);
+      return { ok: report.legibility.error === 0, text: formatScore(report) };
     },
   },
   {
@@ -463,7 +474,7 @@ export const HANDLERS: StringHandlerDef[] = [
       });
       ctx.lastLegibility = report.counts;
       ctx.ledger.onLegibilityResult(report.counts.error);
-      return formatLegibility(report);
+      return { ok: report.counts.error === 0, text: formatLegibility(report) };
     },
   },
   {
@@ -480,7 +491,7 @@ export const HANDLERS: StringHandlerDef[] = [
       ctx.lastDrc = report;
       if (report.ok) ctx.ledger.clear('drc');
       else ctx.repairCycles++;
-      return formatViolations(report);
+      return { ok: report.ok, text: formatViolations(report) };
     },
   },
   {
@@ -523,7 +534,7 @@ export const HANDLERS: StringHandlerDef[] = [
       ctx.filesTouched.add('outputs/');
       const lines = [`produced: ${res.produced.join(', ') || '(none)'}`];
       for (const f of res.failed) lines.push(`FAILED ${f.artifact}: ${f.reason}`);
-      return lines.join('\n');
+      return { ok: res.failed.length === 0, text: lines.join('\n') };
     },
   },
   {
@@ -549,11 +560,11 @@ export const HANDLERS: StringHandlerDef[] = [
       if (!mismatches.length) {
         ctx.ledger.clear('drift');
         ctx.lastDrift = 'drift: clean';
-        return 'drift: clean';
+        return { ok: true, text: 'drift: clean' };
       }
       const text = mismatches.map((m) => `${m.doc}: claims "${m.claim}" but actual is "${m.actual}"`).join('\n');
       ctx.lastDrift = text;
-      return text;
+      return { ok: false, text };
     },
   },
   {
@@ -752,4 +763,3 @@ export const HANDLERS: StringHandlerDef[] = [
     },
   },
 ];
-

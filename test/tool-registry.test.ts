@@ -1,12 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { execa } from 'execa';
+import { existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { availableTools, dispatchTool, dispatchToolResult, registry } from '../src/agent/tools.js';
+import { availableTools, dispatchTool, dispatchToolResult, registry, runSkillSubRun } from '../src/agent/tools.js';
 import { flatten } from '../src/agent/envelope.js';
 import { defineSkill } from '../src/capabilities/define.js';
 import { ToolRegistry } from '../src/agent/registry.js';
-import { runSkill, listSkills, catalogNameFromCli, providerForSkillRun } from '../src/commands/skill.js';
+import {
+  runSkill,
+  listSkills,
+  catalogNameFromCli,
+  providerForSkillRun,
+  formatSkillEnvelope,
+} from '../src/commands/skill.js';
 import { parseToolCalls } from '../src/agent/providers/tool-protocol.js';
 import type { Provider, Turn } from '../src/agent/types.js';
 import { runInit } from '../src/memory/scaffold.js';
@@ -21,8 +29,10 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 class ScriptedProvider implements Provider {
   readonly name = 'scripted';
   private i = 0;
+  calls = 0;
   constructor(private readonly turns: Turn[]) {}
   async chat(): Promise<Turn> {
+    this.calls++;
     const t = this.turns[Math.min(this.i, this.turns.length - 1)]!;
     this.i++;
     return t;
@@ -67,6 +77,12 @@ const reportTurn = (): Turn => ({
 });
 
 describe('tool-registry catalog', () => {
+  it('exposes a positive protocol version and rejects duplicate names', () => {
+    expect(registry.protocolVersion).toBeGreaterThanOrEqual(1);
+    const first = registry.all()[0]!;
+    expect(() => new ToolRegistry([first, first])).toThrow(/duplicate catalog name/);
+  });
+
   it('combined catalog: read tools and generate_report present, edits absent while locked', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -91,10 +107,42 @@ describe('tool-registry catalog', () => {
       expect(miss.error?.kind).toBe('unavailable');
       const skill = registry.get('generate_report');
       expect(skill?.kind).toBe('skill');
+      ctx.lastErc = { ok: true, source: 'erc', violations: [] };
+      ctx.lastDrc = { ok: true, source: 'drc', violations: [] };
+      ctx.lastDrift = 'drift: clean';
+      const provider = new ScriptedProvider([reportTurn()]);
       const env = await dispatchToolResult(ctx, 'generate_report', { scope: 'all' }, {
-        provider: new ScriptedProvider([reportTurn()]),
+        provider,
       });
       expect(env.detail ?? env.summary).toBeTruthy();
+      expect(provider.calls).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a skill without a provider returns a validation envelope', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      const env = await dispatchToolResult(ctx, 'generate_report', {});
+      expect(env.ok).toBe(false);
+      expect(env.error?.kind).toBe('validation');
+      expect(flatten(env)).toContain('requires a provider');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('an off-list skill tool names the real reason, not the proposal lock', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      const env = await dispatchToolResult(ctx, 'edit_file', {}, { only: new Set(['read_file']) });
+      expect(flatten(env)).toContain('not part of this skill');
+      expect(flatten(env)).not.toContain('proposal validates');
     } finally {
       await cleanup();
     }
@@ -185,6 +233,20 @@ describe('tool-registry catalog', () => {
     }
   });
 
+  it('a failing diagnostic carries ok false instead of a success glyph', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      await writeFile(path.join(repo, 'docs', 'BOM.md'), '| Refdes | Value | Footprint | MPN | Rationale |\n|---|---|---|---|---|\n| R2 | wrong | x | x | x |\n');
+      const ctx = await makeCtx(repo);
+      const env = await dispatchToolResult(ctx, 'check_drift', {});
+      expect(env.ok).toBe(false);
+      expect(flatten(env)).toContain('claims');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('a thrown 429 retries through withRetry; a plain exception surfaces once (design D10)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -221,6 +283,147 @@ describe('tool-registry catalog', () => {
     }
   }, 20_000);
 
+  it('a provider throw inside a skill sub-run becomes an exception envelope', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      const exploding: Provider = {
+        name: 'exploding',
+        async chat() {
+          throw new Error('provider 502');
+        },
+      };
+      const env = await dispatchToolResult(ctx, 'generate_report', {}, { provider: exploding });
+      expect(env.ok).toBe(false);
+      expect(env.error?.kind).toBe('exception');
+      expect(flatten(env)).toContain('provider 502');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a skill provider 429 retries with backoff and then resumes the sub-run', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      let calls = 0;
+      const skill = defineSkill({
+        schema: { name: 'retry_report', description: 'test', parameters: { type: 'object', properties: {} } },
+        version: 1,
+        viewHint: 'diagnostic',
+        tools: [],
+        maxTurns: 1,
+        prompt: () => '',
+        isComplete: () => calls >= 3,
+      });
+      const provider: Provider = {
+        name: 'rate-limited',
+        async chat() {
+          calls++;
+          if (calls < 3) throw Object.assign(new Error('rate limited'), { status: 429 });
+          return { text: 'done', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
+        },
+      };
+      const env = await runSkillSubRun({ ctx, skill, args: {}, provider });
+      expect(env.ok).toBe(true);
+      expect(calls).toBe(3);
+    } finally {
+      await cleanup();
+    }
+  }, 20_000);
+
+  it('a hung skill provider is bounded by the turn timeout and becomes an envelope', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      ctx.config.turnTimeoutMs = 10;
+      let calls = 0;
+      let closes = 0;
+      const provider: Provider = {
+        name: 'hung',
+        async chat() {
+          calls++;
+          return new Promise<Turn>(() => {});
+        },
+        async close() {
+          closes++;
+        },
+      };
+      const env = await dispatchToolResult(ctx, 'generate_report', {}, { provider });
+      expect(env.ok).toBe(false);
+      expect(env.error?.kind).toBe('exception');
+      expect(flatten(env)).toContain('turn exceeded');
+      expect(calls).toBe(4);
+      expect(closes).toBe(4);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('an incomplete skill preserves partial results and repeated calls in call order', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      const skill = defineSkill({
+        schema: { name: 'partial_report', description: 'test', parameters: { type: 'object', properties: {} } },
+        version: 1,
+        viewHint: 'diagnostic',
+        tools: ['list_nets'],
+        maxTurns: 1,
+        prompt: () => '',
+        isComplete: () => false,
+      });
+      const provider = new ScriptedProvider([{
+        text: null,
+        toolCalls: [
+          { id: '1', name: 'list_nets', args: {} },
+          { id: '2', name: 'list_nets', args: {} },
+        ],
+        usage: { inputTokens: 1, outputTokens: 1 },
+      }]);
+      const env = await runSkillSubRun({ ctx, skill, args: {}, provider });
+      expect(env.ok).toBe(false);
+      expect(flatten(env)).toContain('design report incomplete');
+      expect((env.detail?.match(/list_nets:/g) ?? []).length).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a tool-less skill turn is nudged and the next turn can complete', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      const skill = defineSkill({
+        schema: { name: 'drift_report', description: 'test', parameters: { type: 'object', properties: {} } },
+        version: 1,
+        viewHint: 'diagnostic',
+        tools: ['check_drift'],
+        maxTurns: 2,
+        prompt: () => '',
+        isComplete: (runCtx) => runCtx.lastDrift != null,
+      });
+      const provider = new ScriptedProvider([
+        { text: 'thinking', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } },
+        {
+          text: null,
+          toolCalls: [{ id: '1', name: 'check_drift', args: {} }],
+          usage: { inputTokens: 1, outputTokens: 1 },
+        },
+      ]);
+      const env = await runSkillSubRun({ ctx, skill, args: {}, provider });
+      expect(env.ok).toBe(true);
+      expect(provider.calls).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('off-catalog names stay prose in parseToolCalls', () => {
     const catalog = new Set(['read_file']);
     const parsed = parseToolCalls('```json\n{"tool":"edit_file","args":{}}\n```', () => 'id1', catalog);
@@ -249,11 +452,19 @@ describe('skill CLI', () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
+      const runs = path.join(repo, '.copperhead', 'runs');
+      expect(existsSync(runs)).toBe(false);
       const listed = await listSkills(repo);
       expect(listed.some((s) => s.name === 'generate_report' && s.available)).toBe(true);
+      expect(existsSync(runs)).toBe(false);
     } finally {
       await cleanup();
     }
+  });
+
+  it('formats the JSON skill envelope', () => {
+    const text = formatSkillEnvelope({ ok: true, summary: 'report', viewHint: 'diagnostic' }, true);
+    expect(JSON.parse(text)).toMatchObject({ ok: true, summary: 'report' });
   });
 
   it('unknown skill names the name', async () => {
@@ -264,6 +475,24 @@ describe('skill CLI', () => {
         runSkill({ repoRoot: repo, name: 'does-not-exist', provider: new ScriptedProvider([]) }),
       ).rejects.toThrow(/does-not-exist/);
     } finally {
+      await cleanup();
+    }
+  });
+
+  it('names a registered skill that is unavailable in the current repo', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const skill = registry.get('generate_report');
+    expect(skill?.kind).toBe('skill');
+    if (skill?.kind !== 'skill') return;
+    const gate = skill.gate;
+    try {
+      await runInit({ repoRoot: repo });
+      skill.gate = () => false;
+      await expect(
+        runSkill({ repoRoot: repo, name: 'generate-report', provider: new ScriptedProvider([]) }),
+      ).rejects.toThrow(/not available in this repo/);
+    } finally {
+      skill.gate = gate;
       await cleanup();
     }
   });
@@ -290,7 +519,7 @@ describe('skill CLI', () => {
   });
 
   it('copperhead --help lists skill', async () => {
-    const res = await execa('npx', ['tsx', 'src/cli.ts', '--help'], {
+    const res = await execa(process.execPath, ['--import', 'tsx', 'src/cli.ts', '--help'], {
       cwd: ROOT,
       reject: false,
       env: { ...process.env, NO_COLOR: '1' },
@@ -302,13 +531,40 @@ describe('skill CLI', () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
-      const res = await execa('npx', ['tsx', 'src/cli.ts', '--repo', repo, 'skill', 'list'], {
+      const res = await execa(process.execPath, ['--import', 'tsx', 'src/cli.ts', '--repo', repo, 'skill', 'list'], {
         cwd: ROOT,
         reject: false,
         env: { NO_COLOR: '1' },
       });
       expect(res.exitCode).toBe(0);
       expect(res.stdout).toMatch(/generate-report|generate_report/);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+
+  it('CLI catch paths print friendly errors without stack traces', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const unknown = await execa(
+        process.execPath,
+        ['--import', 'tsx', 'src/cli.ts', '--repo', repo, 'skill', 'run', 'does-not-exist', '--model', 'codex'],
+        { cwd: ROOT, reject: false, env: { ...process.env, NO_COLOR: '1' } },
+      );
+      expect(unknown.exitCode).toBe(1);
+      expect(unknown.stderr).toContain('does-not-exist');
+      expect(unknown.stderr).not.toMatch(/\n\s+at /);
+
+      await writeFile(path.join(repo, '.copperhead', 'config.json'), '{not-json', 'utf8');
+      const brokenList = await execa(
+        process.execPath,
+        ['--import', 'tsx', 'src/cli.ts', '--repo', repo, 'skill', 'list'],
+        { cwd: ROOT, reject: false, env: { ...process.env, NO_COLOR: '1' } },
+      );
+      expect(brokenList.exitCode).toBe(1);
+      expect(brokenList.stderr.length).toBeGreaterThan(0);
+      expect(brokenList.stderr).not.toMatch(/\n\s+at /);
     } finally {
       await cleanup();
     }
