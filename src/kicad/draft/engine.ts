@@ -411,6 +411,46 @@ const bodyBoundsOf = (sym: ResolvedSymbol): Bounds => {
   return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
 };
 
+/**
+ * Wire and label colours by function: rails one colour, grounds another,
+ * and every FAMILY of signal nets — the nets sharing a prefix before the
+ * first underscore, when there are at least two of them (I2S_BCLK, I2S_DIN,
+ * I2S_LRCLK; SPI_…; BTN_…) — a colour of its own from a fixed palette, in
+ * family-name order so the same design colours the same way every time. A
+ * lone signal keeps the theme's default: colouring everything in a block
+ * one colour would say nothing.
+ */
+const FAMILY_PALETTE: [number, number, number][] = [
+  [30, 90, 200],
+  [130, 50, 170],
+  [0, 130, 120],
+  [210, 120, 0],
+  [180, 30, 140],
+  [110, 130, 0],
+  [140, 80, 40],
+  [40, 60, 140],
+];
+const RAIL_COLOR: [number, number, number] = [170, 30, 30];
+const GROUND_COLOR: [number, number, number] = [70, 70, 70];
+function netColorsOf(nets: IntentNet[], classes: Map<string, { cls: NetClass }>): Record<string, [number, number, number]> {
+  const out: Record<string, [number, number, number]> = {};
+  const families = new Map<string, string[]>();
+  for (const n of nets) {
+    const cls = classes.get(n.name)?.cls ?? 'signal';
+    if (cls === 'rail') out[n.name] = RAIL_COLOR;
+    else if (cls === 'ground') out[n.name] = GROUND_COLOR;
+    else {
+      const m = /^([A-Za-z0-9]+)_/.exec(n.name);
+      if (m) families.set(m[1]!, [...(families.get(m[1]!) ?? []), n.name]);
+    }
+  }
+  const named = [...families.entries()].filter(([, members]) => members.length >= 2).sort((a, b) => a[0].localeCompare(b[0]));
+  named.forEach(([, members], i) => {
+    for (const name of members) out[name] = FAMILY_PALETTE[i % FAMILY_PALETTE.length]!;
+  });
+  return out;
+}
+
 /** Pin connection point in schematic space for a part placed at (x, y), rot 0. */
 const pinAt = (p: Placed, pin: DraftPin): { x: number; y: number } => ({ x: p.x + pin.x, y: p.y - pin.y });
 
@@ -890,23 +930,31 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
        * switch (horizontal leads in the library) hang like a resistor, and a
        * resistor lie along a row like a diode.
        */
+      /** A test point: one pin, probing the net it sits on. It hangs beside that net's pin. */
+      const isTestPoint = (key: string): boolean => {
+        const inst = instByKey.get(key);
+        return !!inst && inst.sym.pins.length === 1 && (/TestPoint/i.test(inst.part.libId) || /^TP\d/.test(inst.ref));
+      };
       const orientFor = (key: string, nearPin: string, want: { dx: number; dy: number }): number | null => {
         const pins = instByKey.get(key)?.sym.pins ?? [];
-        if (pins.length !== 2) return null;
+        if (pins.length !== 2 && !isTestPoint(key)) return null;
         for (const rot of [0, 90, 180, 270]) {
           const rs = rotatedSym(instByKey.get(key)!.sym, rot);
           const near = rs.pins.find((p) => p.number === nearPin);
-          const other = rs.pins.find((p) => p.number !== nearPin);
-          if (!near || !other) return null;
+          if (!near) return null;
           const on = outward(near);
+          if (on.dx !== want.dx || on.dy !== want.dy) continue;
+          if (pins.length === 1) return rot;
+          const other = rs.pins.find((p) => p.number !== nearPin)!;
           const oo = outward(other);
-          if (on.dx === want.dx && on.dy === want.dy && oo.dx === -want.dx && oo.dy === -want.dy) return rot;
+          if (oo.dx === -want.dx && oo.dy === -want.dy) return rot;
         }
         return null;
       };
-      /** Both leads of a two-lead part, un-rotated. */
+      /** Both leads of a two-lead part, un-rotated; a test point's one pin twice. */
       const leadsOf = (key: string): { a: DraftPin; b: DraftPin } | null => {
         const pins = instByKey.get(key)?.sym.pins ?? [];
+        if (isTestPoint(key)) return { a: pins[0]!, b: pins[0]! };
         if (pins.length !== 2) return null;
         const oa = outward(pins[0]!);
         const ob = outward(pins[1]!);
@@ -920,9 +968,18 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         !isConnector(instByKey.get(key)!.part) &&
         !/crystal|reson/i.test(instByKey.get(key)?.part.libId ?? '') &&
         leadsOf(key) !== null;
-      /** Lead span of a two-lead part, mm (connection point to connection point). */
-      const spanOf = (key: string): number => {
+      /** Lead span along the hang or run, mm: connection point to connection
+       * point, or for a test point the body's reach past its one pin. */
+      const spanOf = (key: string, rot = 0): number => {
         const l = leadsOf(key)!;
+        if (isTestPoint(key)) {
+          const rs = rotatedSym(instByKey.get(key)!.sym, rot);
+          const pin = rs.pins[0]!;
+          const b = bodyBoundsOf(rs);
+          const o = outward(pin);
+          // the body lies opposite the pin's outward direction
+          return o.dy !== 0 ? Math.max(0, o.dy === 1 ? b.maxY - pin.y : pin.y - b.minY) : Math.max(0, o.dx === 1 ? pin.x - b.minX : b.maxX - pin.x);
+        }
         return Math.hypot(l.a.x - l.b.x, l.a.y - l.b.y);
       };
       const INLINE_GAP = 4 * U;
@@ -939,6 +996,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         let ends: 'power' | 'open' = 'open';
         for (;;) {
           const cur = chain[chain.length - 1]!;
+          if (isTestPoint(cur)) break;
           const l = leadsOf(cur)!;
           const near = nearPins[nearPins.length - 1]!;
           const far = l.a.number === near ? l.b : l.a;
@@ -960,9 +1018,10 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
         for (const key of chain) {
           const inst = instByKey.get(key)!;
           // turned to hang: the body's extent across the axis and its span along it
-          const rs = rotatedSym(inst.sym, orientFor(key, nearPins[chain.indexOf(key)]!, { dx: 0, dy: -dir }) ?? 0);
+          const rotH = orientFor(key, nearPins[chain.indexOf(key)]!, { dx: 0, dy: -dir }) ?? 0;
+          const rs = rotatedSym(inst.sym, rotH);
           const b = bodyBoundsOf(rs);
-          h += spanOf(key) + HANG_GAP;
+          h += spanOf(key, rotH) + HANG_GAP;
           // a hung part is narrow: its body, the reference and value
           // beside it, and a unit of air — not the column cell's margins
           const fieldW = Math.max(inst.ref.length + 1, inst.part.value.length) * TEXT_RESERVE * LABEL_HEIGHT + 1.27;
@@ -1042,6 +1101,11 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
           };
           for (const first of eps) {
             if (first.key === icKey || !hangable(first.key)) continue;
+            // a test point rises above the row of the pin it probes
+            if (isTestPoint(first.key)) {
+              claimHang(icKey, pin, dx, first, -1);
+              continue;
+            }
             // Look to the END of the run this part starts, through two-endpoint
             // links: a run that ends on a rail or ground is a SHUNT and hangs
             // from the row — rising to a rail (a pull-up), dropping to ground
@@ -1646,8 +1710,8 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
             const rot = orientFor(key, nearPins[i]!, { dx: 0, dy: -hg.dir }) ?? 0;
             const rs = rotatedSym(instByKey.get(key)!.sym, rot);
             const near = rs.pins.find((pn) => pn.number === nearPins[i])!;
-            const farLead = rs.pins.find((pn) => pn.number !== nearPins[i])!;
-            const span = spanOf(key);
+            const farLead = rs.pins.find((pn) => pn.number !== nearPins[i]) ?? near;
+            const span = spanOf(key, rot);
             moves.set(key, placeCell(key, axisX - near.x, cursor + near.y, rot));
             conn.push({ y: cursor, net: netOfHang(key, near.number) }, { y: cursor + hg.dir * span, net: netOfHang(key, farLead.number) });
             cursor = cursor + hg.dir * (span + HANG_GAP);
@@ -3325,6 +3389,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     noConnects,
     rectangles: groupRects.map((r) => ({ x1: r.x1, y1: r.y1, x2: r.x2, y2: r.y2, stroke: 'solid' as const, name: r.name })),
     captions: groupRects.map((r) => ({ text: r.name, x: r.x1 + 2, y: r.y1 + 2, name: r.name })),
+    netColors: netColorsOf(intent.nets, netClasses),
   };
 
   const report: SchematicDraftReport = {

@@ -20,6 +20,7 @@ Generated sheets follow these rules. The agent is told them up front, and the ch
 - **Labels between blocks, wires within them.** Wires stay short and local inside a group. Connections between groups use net labels, not long wires crossing the sheet.
 - **Page sized to content.** The paper size is chosen so the groups fill the frame instead of crowding one corner or spilling off the edge.
 - **Title block filled.** Title, revision, and date are populated.
+- **Nets coloured by function.** Rails one colour, grounds another, and every family of signals sharing a prefix (I2S_, SPI_, BTN_) a colour of its own; a lone signal keeps the default. The colour is on the wires and the labels, so a bus reads as one thing across the sheet.
 - **Everything on grid.** Symbol origins, wire endpoints, and label positions sit on the 1.27mm grid. An off-grid pin silently fails to connect, so grid findings are always reported first.
 
 ## Check families

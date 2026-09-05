@@ -247,22 +247,22 @@
 	)
 	(wire
 		(pts (xy 95.25 99.06) (xy 95.25 101.6))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "02080c0a-ba7b-5d94-ad6f-122677223883")
 	)
 	(wire
 		(pts (xy 63.5 35.56) (xy 58.42 35.56))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "98453f1a-ba91-5090-82c5-322fd07720e5")
 	)
 	(wire
 		(pts (xy 99.06 52.07) (xy 99.06 54.61))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "9c0fce87-eb49-5fc3-9877-b438e0e750bc")
 	)
 	(wire
 		(pts (xy 132.08 44.45) (xy 127 44.45))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "7c02c73e-1fab-5d13-90fa-d945b0a131d1")
 	)
 	(wire
@@ -277,17 +277,17 @@
 	)
 	(wire
 		(pts (xy 95.25 91.44) (xy 95.25 88.9))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "b1b5b153-3f66-5a24-98f0-6e6b973d2645")
 	)
 	(wire
 		(pts (xy 63.5 33.02) (xy 58.42 33.02))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "c6356762-2b03-515a-8c4f-80151f5e82b7")
 	)
 	(wire
 		(pts (xy 132.08 34.29) (xy 127 34.29))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "13cd7d26-7cc9-55c5-99b3-b3b8ecc4b512")
 	)
 	(rectangle (start 85.598 16.51) (end 157.48 107.061)
