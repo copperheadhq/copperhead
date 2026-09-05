@@ -22,7 +22,11 @@ export function parseSexp(text: string): SexpNode[] {
       let s = '';
       while (j < text.length && text[j] !== '"') {
         if (text[j] === '\\' && j + 1 < text.length) {
-          s += text[j + 1];
+          // KiCad writes multi-line text as `\n` (and tabs as `\t`) inside the
+          // quoted atom; mapping the escape to the literal letter would give
+          // the legibility width model a one-line `line1nline2` string.
+          const e = text[j + 1];
+          s += e === 'n' ? '\n' : e === 't' ? '\t' : e!;
           j += 2;
         } else {
           s += text[j];
@@ -88,6 +92,8 @@ export interface SchematicSymbol {
   sheet: string;
   at: { x: number; y: number; rot: number };
   uuid: string;
+  /** `(unit N)` of the placed instance; 1 for single-unit symbols. */
+  unit: number;
 }
 
 export interface PinDef {
@@ -95,6 +101,9 @@ export interface PinDef {
   name: string;
   x: number;
   y: number;
+  /** Unit the pin belongs to (from the `_<unit>_<style>` child it sits in);
+   * 0 for a pin in the common unit, drawn on every placed unit. */
+  unit: number;
 }
 
 interface ParsedSheet {
@@ -126,7 +135,10 @@ async function loadSheets(rootSch: string): Promise<ParsedSheet[]> {
   return out;
 }
 
-/** Pin definitions per lib symbol name, in symbol coordinates. */
+/** Pin definitions per lib symbol name, in symbol coordinates. Each pin
+ * carries the unit of the `_<unit>_<style>` child it was defined in (0 for
+ * the common unit); de Morgan alternates (style ≥ 2) are skipped so a pin is
+ * recorded once. */
 function libPinDefs(root: SexpNode[]): Map<string, PinDef[]> {
   const map = new Map<string, PinDef[]>();
   const libs = child(root, 'lib_symbols');
@@ -135,8 +147,15 @@ function libPinDefs(root: SexpNode[]): Map<string, PinDef[]> {
     const name = atomAt(sym, 1);
     if (!name) continue;
     const pins: PinDef[] = [];
-    const walk = (n: SexpNode): void => {
+    const walk = (n: SexpNode, unit: number): void => {
       if (!isList(n)) return;
+      if (tag(n) === 'symbol') {
+        const m = /_(\d+)_(\d+)$/.exec(atomAt(n, 1) ?? '');
+        if (m) {
+          if (Number(m[2]) >= 2) return; // de Morgan alternate body style
+          unit = Number(m[1]);
+        }
+      }
       if (tag(n) === 'pin') {
         const at = child(n, 'at');
         const num = atomAt(child(n, 'number'), 1);
@@ -147,15 +166,24 @@ function libPinDefs(root: SexpNode[]): Map<string, PinDef[]> {
             name: pinName ?? '~',
             x: parseFloat(atomAt(at, 1) ?? '0'),
             y: parseFloat(atomAt(at, 2) ?? '0'),
+            unit,
           });
         }
       }
-      for (const c of n) walk(c);
+      for (const c of n) walk(c, unit);
     };
-    walk(sym);
+    walk(sym, 0);
     map.set(name, pins);
   }
   return map;
+}
+
+/** The pins a PLACED instance actually shows: its own unit's plus the common
+ * unit's. A single-unit symbol keeps every pin (they are all unit ≤ 1). */
+export function pinsOfUnit(defs: PinDef[], unit: number): PinDef[] {
+  const multi = defs.some((p) => p.unit >= 2);
+  if (!multi) return defs;
+  return defs.filter((p) => p.unit === 0 || p.unit === unit);
 }
 
 /** Symbol-space → schematic-space transform (schematic Y grows downward). */
@@ -218,6 +246,7 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
           rot: parseFloat(atomAt(at, 3) ?? '0'),
         },
         uuid: atomAt(child(s, 'uuid'), 1) ?? '',
+        unit: parseInt(atomAt(child(s, 'unit'), 1) ?? '1', 10) || 1,
       },
     });
   }
@@ -282,6 +311,283 @@ export interface PinNet {
   net: string | null;
 }
 
+// ---------- Read-only geometry accessors for the legibility checker ----------
+
+export interface Bounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface WireSeg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface TextItem {
+  text: string;
+  x: number;
+  y: number;
+  rot: number;
+  /** Font height in mm (KiCad `(size h w)`); 1.27 when unstated. */
+  height: number;
+  hidden: boolean;
+}
+
+export interface LabelItem {
+  name: string;
+  kind: 'label' | 'global_label' | 'hierarchical_label';
+  x: number;
+  y: number;
+  rot: number;
+  height: number;
+  /** Horizontal component of `(justify …)`, or null when unspecified. KiCad
+   * normalizes angles 180/270 to 0/90 at draw time and the stored justify
+   * describes that DRAWN frame, so a leftward label appears as angle 180 (no
+   * justify), angle 180 + justify right, or angle 0 + justify right — all the
+   * same box. */
+  justify: 'left' | 'right' | null;
+}
+
+export interface RectItem {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  strokeType: string;
+}
+
+export interface PlacedSymbolGeom {
+  ref: string;
+  libId: string;
+  value: string;
+  at: { x: number; y: number; rot: number };
+  mirror: 'x' | 'y' | null;
+  isPower: boolean;
+  /** `(unit N)` of the placed instance; 1 for single-unit symbols. */
+  unit: number;
+  /** Reference and Value property text (absolute schematic coordinates). */
+  props: TextItem[];
+}
+
+export interface SheetGeometry {
+  filePath: string;
+  sheetName: string;
+  /** `(paper …)`: standard name, or explicit size when the file states one. */
+  paper: { name: string | null; width: number | null; height: number | null; portrait: boolean };
+  titleBlock: { title: string; date: string; rev: string } | null;
+  symbols: PlacedSymbolGeom[];
+  wires: WireSeg[];
+  labels: LabelItem[];
+  /** Free `(text …)` items (group captions live here). */
+  texts: TextItem[];
+  /** Sheet-level `(rectangle …)` graphics (group boxes live here). */
+  rectangles: RectItem[];
+  /** Union bounds of each lib symbol's body graphics, symbol space; null when the entry draws nothing. */
+  libBounds: Map<string, Bounds | null>;
+  libPins: Map<string, PinDef[]>;
+}
+
+const num = (n: SexpNode[] | undefined, idx: number, fallback = 0): number => {
+  const v = atomAt(n, idx);
+  return v === undefined ? fallback : parseFloat(v);
+};
+
+function effectsOf(node: SexpNode[]): { height: number; hidden: boolean } {
+  const effects = child(node, 'effects');
+  const font = effects ? child(effects, 'font') : undefined;
+  const size = font ? child(font, 'size') : undefined;
+  // hidden: legacy bare `hide` atom, or v9 `(hide yes)`
+  const hideNode = effects ? child(effects, 'hide') : undefined;
+  const hidden =
+    (effects?.some((c) => c === 'hide') ?? false) || (hideNode !== undefined && atomAt(hideNode, 1) !== 'no');
+  return { height: size ? num(size, 1, 1.27) : 1.27, hidden };
+}
+
+function libBodyBounds(root: SexpNode[]): Map<string, Bounds | null> {
+  const map = new Map<string, Bounds | null>();
+  const libs = child(root, 'lib_symbols');
+  if (!libs) return map;
+  for (const sym of children(libs, 'symbol')) {
+    const name = atomAt(sym, 1);
+    if (!name) continue;
+    /** Union across the whole symbol under `name`, per-unit union (common
+     * graphics included) under `name#<unit>` — a placed unit of a multi-unit
+     * symbol draws only its own unit's graphics, so measuring it with the
+     * package union would size every instance like the whole gate pack. */
+    const perUnit = new Map<number, Bounds | null>();
+    let b: Bounds | null = null;
+    const grow = (prev: Bounds | null, x: number, y: number): Bounds => {
+      if (!prev) return { minX: x, minY: y, maxX: x, maxY: y };
+      prev.minX = Math.min(prev.minX, x);
+      prev.minY = Math.min(prev.minY, y);
+      prev.maxX = Math.max(prev.maxX, x);
+      prev.maxY = Math.max(prev.maxY, y);
+      return prev;
+    };
+    const walk = (n: SexpNode, unit: number | null): void => {
+      if (!isList(n)) return;
+      const t = tag(n);
+      if (t === 'symbol') {
+        const m = /_(\d+)_(\d+)$/.exec(atomAt(n, 1) ?? '');
+        if (m) {
+          if (Number(m[2]) >= 2) return; // de Morgan alternate body style
+          unit = Number(m[1]);
+        }
+      }
+      const extend = (x: number, y: number): void => {
+        b = grow(b, x, y);
+        if (unit !== null) perUnit.set(unit, grow(perUnit.get(unit) ?? null, x, y));
+      };
+      if (t === 'rectangle') {
+        const s = child(n, 'start');
+        const e = child(n, 'end');
+        extend(num(s, 1), num(s, 2));
+        extend(num(e, 1), num(e, 2));
+      } else if (t === 'circle') {
+        const c = child(n, 'center');
+        const r = num(child(n, 'radius'), 1);
+        extend(num(c, 1) - r, num(c, 2) - r);
+        extend(num(c, 1) + r, num(c, 2) + r);
+      } else if (t === 'arc') {
+        for (const part of ['start', 'mid', 'end']) {
+          const p = child(n, part);
+          if (p) extend(num(p, 1), num(p, 2));
+        }
+      } else if (t === 'polyline') {
+        for (const xy of children(child(n, 'pts') ?? [], 'xy')) extend(num(xy, 1), num(xy, 2));
+      }
+      // pin/text graphics are deliberately excluded from the body box (design C2)
+      if (t !== 'pin' && t !== 'text') for (const c of n) walk(c, unit);
+    };
+    walk(sym, null);
+    map.set(name, b);
+    const common = perUnit.get(0) ?? null;
+    for (const [unit, ub] of perUnit) {
+      if (unit === 0) continue;
+      const merged =
+        ub && common
+          ? {
+              minX: Math.min(ub.minX, common.minX),
+              minY: Math.min(ub.minY, common.minY),
+              maxX: Math.max(ub.maxX, common.maxX),
+              maxY: Math.max(ub.maxY, common.maxY),
+            }
+          : (ub ?? (common ? { ...common } : null));
+      map.set(`${name}#${unit}`, merged);
+    }
+  }
+  return map;
+}
+
+function textItemsOf(sym: SexpNode[]): TextItem[] {
+  const out: TextItem[] = [];
+  for (const p of children(sym, 'property')) {
+    const key = atomAt(p, 1);
+    if (key !== 'Reference' && key !== 'Value') continue;
+    const at = child(p, 'at');
+    const fx = effectsOf(p);
+    out.push({
+      text: atomAt(p, 2) ?? '',
+      x: num(at, 1),
+      y: num(at, 2),
+      rot: num(at, 3),
+      height: fx.height,
+      hidden: fx.hidden,
+    });
+  }
+  return out;
+}
+
+/**
+ * Everything the legibility checker needs to see per sheet, extracted read-only.
+ * Never serializes and never mutates the file.
+ */
+export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[]> {
+  const sheets = await loadSheets(rootSch);
+  const powerSyms = collectPowerSymbols(sheets);
+  return sheets.map((sheet) => {
+    const paperNode = child(sheet.root, 'paper');
+    const paperName = atomAt(paperNode, 1) ?? null;
+    const portrait = paperNode?.includes('portrait') ?? false;
+    const explicitW = num(paperNode, 2, NaN);
+    const explicitH = num(paperNode, 3, NaN);
+    const tb = child(sheet.root, 'title_block');
+    const tbField = (name: string): string => (tb ? (atomAt(child(tb, name), 1) ?? '') : '');
+    const wires: WireSeg[] = [];
+    for (const w of children(sheet.root, 'wire')) {
+      const pts = children(child(w, 'pts') ?? [], 'xy');
+      for (let i = 1; i < pts.length; i++) {
+        wires.push({ x1: num(pts[i - 1], 1), y1: num(pts[i - 1], 2), x2: num(pts[i], 1), y2: num(pts[i], 2) });
+      }
+    }
+    const labels: LabelItem[] = [];
+    for (const kind of ['label', 'global_label', 'hierarchical_label'] as const) {
+      for (const l of children(sheet.root, kind)) {
+        const at = child(l, 'at');
+        const effects = child(l, 'effects');
+        const justify = effects ? child(effects, 'justify') : undefined;
+        labels.push({
+          name: atomAt(l, 1) ?? '',
+          kind,
+          x: num(at, 1),
+          y: num(at, 2),
+          rot: num(at, 3),
+          height: effectsOf(l).height,
+          justify: justify?.some((c) => c === 'right') ? 'right' : justify?.some((c) => c === 'left') ? 'left' : null,
+        });
+      }
+    }
+    const texts: TextItem[] = children(sheet.root, 'text').map((t) => {
+      const at = child(t, 'at');
+      const fx = effectsOf(t);
+      return { text: atomAt(t, 1) ?? '', x: num(at, 1), y: num(at, 2), rot: num(at, 3), height: fx.height, hidden: fx.hidden };
+    });
+    const rectangles: RectItem[] = children(sheet.root, 'rectangle').map((r) => {
+      const s = child(r, 'start');
+      const e = child(r, 'end');
+      const stroke = child(r, 'stroke');
+      return {
+        x1: num(s, 1),
+        y1: num(s, 2),
+        x2: num(e, 1),
+        y2: num(e, 2),
+        strokeType: atomAt(child(stroke ?? [], 'type'), 1) ?? 'default',
+      };
+    });
+    return {
+      filePath: sheet.filePath,
+      sheetName: sheet.sheetName,
+      paper: {
+        name: paperName,
+        width: Number.isNaN(explicitW) ? null : explicitW,
+        height: Number.isNaN(explicitH) ? null : explicitH,
+        portrait,
+      },
+      titleBlock: tb ? { title: tbField('title'), date: tbField('date'), rev: tbField('rev') } : null,
+      symbols: symbolsOf(sheet).map(({ sym, mirror, node }) => ({
+        ref: sym.ref,
+        libId: sym.libId,
+        value: sym.value,
+        at: sym.at,
+        mirror,
+        isPower: isPowerSymbol(sym.libId, powerSyms),
+        unit: sym.unit,
+        props: textItemsOf(node),
+      })),
+      wires,
+      labels,
+      texts,
+      rectangles,
+      libBounds: libBodyBounds(sheet.root),
+      libPins: libPinDefs(sheet.root),
+    };
+  });
+}
+
 /**
  * Geometric connectivity per sheet: pins, labels, and wire endpoints that share
  * coordinates (or are joined by wires) form a group; a group's net name comes
@@ -319,7 +625,10 @@ export async function pinNets(rootSch: string): Promise<PinNet[]> {
 
     const symPins: { sym: SchematicSymbol; pin: PinDef; k: string }[] = [];
     for (const { sym, mirror } of symbolsOf(sheet)) {
-      const defs = pinDefs.get(sym.libId) ?? [];
+      // a placed unit of a multi-unit symbol shows only its own unit's pins;
+      // resolving the whole package at each instance would invent phantom
+      // connection points at every other unit's coordinates
+      const defs = pinsOfUnit(pinDefs.get(sym.libId) ?? [], sym.unit);
       for (const pin of defs) {
         const abs = pinAbsolute(sym.at, mirror, pin);
         const k = key(abs.x, abs.y);

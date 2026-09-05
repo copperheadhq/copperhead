@@ -168,3 +168,18 @@ describe('sexp parser', () => {
     }
   });
 });
+
+describe('quoted-string escapes', () => {
+  it('maps \\n and \\t to real newline and tab, not the literal letters', () => {
+    // KiCad writes multi-line text items as `line1\nline2`; reading that as
+    // `line1nline2` gives the legibility width model wrong content and length.
+    const [node] = parseSexp('(text "line1\\nline2\\tend")');
+    expect((node as unknown[])[1]).toBe('line1\nline2\tend');
+  });
+
+  it('keeps escaped quotes and backslashes as the literal character', () => {
+    const [node] = parseSexp('(a "q\\"b" "s\\\\t")');
+    expect((node as unknown[])[1]).toBe('q"b');
+    expect((node as unknown[])[2]).toBe('s\\t');
+  });
+});

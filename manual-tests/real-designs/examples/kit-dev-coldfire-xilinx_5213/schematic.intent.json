@@ -1,0 +1,2906 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "ABRT_SW101",
+      "libId": "kit-dev-coldfire-xilinx_5213:SW_PUSH",
+      "value": "SW_PUSH",
+      "footprint": "kit-dev-coldfire:SW_PUSH_SMALL",
+      "group": "Main"
+    },
+    {
+      "ref": "ALLPST101",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_1",
+      "value": "CONN_1",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x01_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "BDM_PORT101",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_13X2",
+      "value": "CONN_13X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x13_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "C101",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C102",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "1nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C103",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C104",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C105",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "1nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C106",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "10pF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C107",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "10pF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C108",
+      "libId": "kit-dev-coldfire-xilinx_5213:CP",
+      "value": "10uF",
+      "footprint": "kit-dev-coldfire:SM1206POL",
+      "group": "Main"
+    },
+    {
+      "ref": "C109",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C110",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C111",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C112",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C113",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C114",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C115",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C116",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C117",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C118",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C119",
+      "libId": "kit-dev-coldfire-xilinx_5213:CP",
+      "value": "100uF",
+      "footprint": "kit-dev-coldfire:SM1206POL",
+      "group": "Main"
+    },
+    {
+      "ref": "CLKOUT101",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_1",
+      "value": "CONN_1",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x01_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "CT101",
+      "libId": "kit-dev-coldfire-xilinx_5213:JUMPER",
+      "value": "JUMPER",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "D101",
+      "libId": "kit-dev-coldfire-xilinx_5213:DIODE",
+      "value": "BAT54",
+      "footprint": "kit-dev-coldfire:D_SOT-23_ANK",
+      "group": "Main"
+    },
+    {
+      "ref": "D102",
+      "libId": "kit-dev-coldfire-xilinx_5213:DIODE",
+      "value": "BAT54",
+      "footprint": "kit-dev-coldfire:D_SOT-23_ANK",
+      "group": "Main"
+    },
+    {
+      "ref": "FB101",
+      "libId": "kit-dev-coldfire-xilinx_5213:INDUCTOR",
+      "value": "BEAD",
+      "footprint": "Resistor_SMD:R_1206_3216Metric_Pad1.30x1.75mm_HandSolder",
+      "group": "Main"
+    },
+    {
+      "ref": "GND101",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_1",
+      "value": "CONN_1",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x01_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "JP101",
+      "libId": "kit-dev-coldfire-xilinx_5213:JUMPER_TRIPLE",
+      "value": "JUMPER_TRIPLE",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x03_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "L101",
+      "libId": "kit-dev-coldfire-xilinx_5213:INDUCTOR",
+      "value": "10uH",
+      "footprint": "Resistor_SMD:R_1206_3216Metric_Pad1.30x1.75mm_HandSolder",
+      "group": "Main"
+    },
+    {
+      "ref": "L102",
+      "libId": "kit-dev-coldfire-xilinx_5213:INDUCTOR",
+      "value": "10uH",
+      "footprint": "Resistor_SMD:R_1206_3216Metric_Pad1.30x1.75mm_HandSolder",
+      "group": "Main"
+    },
+    {
+      "ref": "LEDABRT101",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED_RED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "LED_RST101",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED_RED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "LV101",
+      "libId": "kit-dev-coldfire-xilinx_5213:MC34064P",
+      "value": "DS1818",
+      "footprint": "Package_TO_SOT_THT:TO-92",
+      "group": "Main"
+    },
+    {
+      "ref": "Q101",
+      "libId": "kit-dev-coldfire-xilinx_5213:PNP",
+      "value": "3906",
+      "footprint": "kit-dev-coldfire:SOT23EBC",
+      "group": "Main"
+    },
+    {
+      "ref": "R101",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R102",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R103",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "270",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R104",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "1K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R105",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "20K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R106",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R107",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R108",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R109",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R110",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R111",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R112",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R113",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "0",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R114",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "22",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R115",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4.7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R116",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "270",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R117",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R118",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R119",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R120",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R121",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R122",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R123",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R124",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R125",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "1M",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "RST_SW101",
+      "libId": "kit-dev-coldfire-xilinx_5213:SW_PUSH",
+      "value": "SW_PUSH",
+      "footprint": "kit-dev-coldfire:SW_PUSH_SMALL",
+      "group": "Main"
+    },
+    {
+      "ref": "TA-101",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_1",
+      "value": "CONN_1",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x01_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "U101",
+      "libId": "kit-dev-coldfire-xilinx_5213:74AHC1G14",
+      "value": "74AHC1G14",
+      "footprint": "kit-dev-coldfire:SOT353",
+      "group": "Main"
+    },
+    {
+      "ref": "U102",
+      "libId": "kit-dev-coldfire-xilinx_5213:MCF5213-LQFP100",
+      "value": "MCF5213-LQFP100",
+      "footprint": "Package_QFP:LQFP-100_14x14mm_P0.5mm",
+      "group": "Main"
+    },
+    {
+      "ref": "VDDA101",
+      "libId": "kit-dev-coldfire-xilinx_5213:JUMPER",
+      "value": "JUMPER",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "Y101",
+      "libId": "kit-dev-coldfire-xilinx_5213:CRYSTAL",
+      "value": "8MHz",
+      "footprint": "Crystal:Crystal_HC18-U_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C301",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C302",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C303",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C304",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C305",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C306",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C307",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C308",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C309",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C310",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C311",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "D301",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "D302",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "P301",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_6",
+      "value": "CONN_6",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
+      "group": "xilinx"
+    },
+    {
+      "ref": "P302",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_2X2",
+      "value": "CONN_2X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x02_P2.54mm_Vertical",
+      "group": "xilinx"
+    },
+    {
+      "ref": "P303",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_20X2",
+      "value": "CONN_20X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x20_P2.54mm_Vertical",
+      "group": "xilinx"
+    },
+    {
+      "ref": "R301",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4K7",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "R302",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "3,3",
+      "footprint": "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal",
+      "group": "xilinx"
+    },
+    {
+      "ref": "R303",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "1K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "R304",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "1K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "xilinx"
+    },
+    {
+      "ref": "U301",
+      "libId": "kit-dev-coldfire-xilinx_5213:XCR3256-TQ144",
+      "value": "XCR3256-TQ144",
+      "footprint": "Package_QFP:TQFP-144_20x20mm_P0.5mm",
+      "group": "xilinx"
+    },
+    {
+      "ref": "C201",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C202",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C203",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C204",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C205",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C206",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C207",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C208",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C209",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C210",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C211",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C212",
+      "libId": "kit-dev-coldfire-xilinx_5213:CP",
+      "value": "10uF",
+      "footprint": "Capacitor_THT:CP_Radial_D8.0mm_P5.00mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C213",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C214",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C215",
+      "libId": "kit-dev-coldfire-xilinx_5213:CP",
+      "value": "220uF",
+      "footprint": "Capacitor_THT:CP_Radial_D8.0mm_P5.00mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C216",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C217",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C218",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C219",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C220",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "C221",
+      "libId": "kit-dev-coldfire-xilinx_5213:C",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "CAN_EN201",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_2X2",
+      "value": "CONN_2X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x02_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "CAN_TERM201",
+      "libId": "kit-dev-coldfire-xilinx_5213:JUMPER",
+      "value": "JUMPER",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "COM_SEL201",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_3",
+      "value": "CONN_3",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "COM_SEL202",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_3",
+      "value": "CONN_3",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "COM_SEL203",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_3",
+      "value": "CONN_3",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "D201",
+      "libId": "kit-dev-coldfire-xilinx_5213:DIODE",
+      "value": "1N4004",
+      "footprint": "Diode_THT:D_DO-15_P12.70mm_Horizontal",
+      "group": "inout_user"
+    },
+    {
+      "ref": "F201",
+      "libId": "kit-dev-coldfire-xilinx_5213:FUSE",
+      "value": "FUSE",
+      "footprint": "kit-dev-coldfire:FSUPCMS",
+      "group": "inout_user"
+    },
+    {
+      "ref": "J201",
+      "libId": "kit-dev-coldfire-xilinx_5213:JACK_2P",
+      "value": "JACK_2P",
+      "footprint": "kit-dev-coldfire:JACK_ALIM",
+      "group": "inout_user"
+    },
+    {
+      "ref": "JP201",
+      "libId": "kit-dev-coldfire-xilinx_5213:JUMPER",
+      "value": "JUMPER",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "LED201",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "LED202",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "LED203",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "LED204",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "LED205",
+      "libId": "kit-dev-coldfire-xilinx_5213:LED",
+      "value": "LED",
+      "footprint": "LED_SMD:LED_1206_3216Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "MCU_PORT201",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_30X2",
+      "value": "CONN_30X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x30_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "PULUPEN201",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_4X2",
+      "value": "CONN_4X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x04_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R201",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R202",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "270",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R203",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "270",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R204",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "270",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R205",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R206",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "270",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R207",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "270",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R208",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R209",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "62",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R210",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "1K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R211",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R212",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R213",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R214",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "4,7K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "R215",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "10K",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "RCAN201",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "RCAN202",
+      "libId": "kit-dev-coldfire-xilinx_5213:R",
+      "value": "R",
+      "footprint": "Resistor_SMD:R_0805_2012Metric",
+      "group": "inout_user"
+    },
+    {
+      "ref": "RS201",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_1",
+      "value": "CONN_1",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x01_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "SW201",
+      "libId": "kit-dev-coldfire-xilinx_5213:SW_PUSH",
+      "value": "SW_PUSH",
+      "footprint": "kit-dev-coldfire:SW_PUSH_SMALL",
+      "group": "inout_user"
+    },
+    {
+      "ref": "SW202",
+      "libId": "kit-dev-coldfire-xilinx_5213:SW_PUSH",
+      "value": "SW_PUSH",
+      "footprint": "kit-dev-coldfire:SW_PUSH_SMALL",
+      "group": "inout_user"
+    },
+    {
+      "ref": "SW_ONOFF201",
+      "libId": "kit-dev-coldfire-xilinx_5213:SWITCH_INV",
+      "value": "SWITCH_INV",
+      "footprint": "kit-dev-coldfire:SW_SPDT",
+      "group": "inout_user"
+    },
+    {
+      "ref": "TB201",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_2",
+      "value": "CONN_2",
+      "footprint": "TerminalBlock_Altech:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "inout_user"
+    },
+    {
+      "ref": "U201",
+      "libId": "kit-dev-coldfire-xilinx_5213:74LS125",
+      "value": "74HC125",
+      "footprint": "Package_SO:SOIC-14_3.9x8.7mm_P1.27mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "U202",
+      "libId": "kit-dev-coldfire-xilinx_5213:MAX202",
+      "value": "MAX202",
+      "footprint": "Package_SO:SOIC-16_3.9x9.9mm_P1.27mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "U203",
+      "libId": "kit-dev-coldfire-xilinx_5213:MAX202",
+      "value": "MAX202",
+      "footprint": "Package_SO:SOIC-16_3.9x9.9mm_P1.27mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "U204",
+      "libId": "kit-dev-coldfire-xilinx_5213:MAX202",
+      "value": "MAX202",
+      "footprint": "Package_SO:SOIC-16_3.9x9.9mm_P1.27mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "U205",
+      "libId": "kit-dev-coldfire-xilinx_5213:PCA82C251",
+      "value": "PCA82C251",
+      "footprint": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "UARTCAN201",
+      "libId": "kit-dev-coldfire-xilinx_5213:DB9",
+      "value": "DB9",
+      "footprint": "Connector_Dsub:DSUB-9_Female_Horizontal_P2.77x2.84mm_EdgePinOffset7.70mm_Housed_MountingHolesOffset9.12mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "UARTCAN202",
+      "libId": "kit-dev-coldfire-xilinx_5213:DB9",
+      "value": "DB9",
+      "footprint": "Connector_Dsub:DSUB-9_Female_Horizontal_P2.77x2.84mm_EdgePinOffset7.70mm_Housed_MountingHolesOffset9.12mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "UARTCAN203",
+      "libId": "kit-dev-coldfire-xilinx_5213:DB9",
+      "value": "DB9",
+      "footprint": "Connector_Dsub:DSUB-9_Female_Horizontal_P2.77x2.84mm_EdgePinOffset7.70mm_Housed_MountingHolesOffset9.12mm",
+      "group": "inout_user"
+    },
+    {
+      "ref": "UART_EN201",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_4X2",
+      "value": "CONN_4X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x04_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "UART_EN202",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_4X2",
+      "value": "CONN_4X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x04_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "UART_EN203",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_4X2",
+      "value": "CONN_4X2",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x04_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "VR201",
+      "libId": "kit-dev-coldfire-xilinx_5213:LT1129_QPACK",
+      "value": "LT1129_QPACK",
+      "footprint": "Package_TO_SOT_SMD:TO-263-5_TabPin3",
+      "group": "inout_user"
+    },
+    {
+      "ref": "VREF201",
+      "libId": "kit-dev-coldfire-xilinx_5213:CONN_1",
+      "value": "CONN_1",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x01_P2.54mm_Vertical",
+      "group": "inout_user"
+    },
+    {
+      "ref": "VX_EN201",
+      "libId": "kit-dev-coldfire-xilinx_5213:JUMPER",
+      "value": "JUMPER",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "group": "inout_user"
+    }
+  ],
+  "nets": [
+    {
+      "name": "+3.3V",
+      "pins": [
+        "ABRT_SW101.2",
+        "BDM_PORT101.25",
+        "BDM_PORT101.9",
+        "C101.2",
+        "C110.1",
+        "C111.1",
+        "C112.1",
+        "C113.1",
+        "C114.1",
+        "C115.1",
+        "C116.1",
+        "C117.1",
+        "C118.1",
+        "C119.1",
+        "C202.1",
+        "C203.1",
+        "C204.1",
+        "C208.1",
+        "C209.1",
+        "C215.1",
+        "C216.1",
+        "C217.1",
+        "C219.1",
+        "C301.1",
+        "C302.1",
+        "C303.1",
+        "C304.1",
+        "C305.1",
+        "C306.1",
+        "C307.1",
+        "C308.1",
+        "C309.1",
+        "C310.1",
+        "C311.1",
+        "L101.1",
+        "LEDABRT101.2",
+        "LV101.2",
+        "MCU_PORT201.59",
+        "P301.1",
+        "Q101.1",
+        "R101.1",
+        "R102.1",
+        "R106.1",
+        "R107.1",
+        "R108.1",
+        "R109.1",
+        "R110.1",
+        "R111.1",
+        "R112.2",
+        "R118.2",
+        "R119.2",
+        "R120.2",
+        "R121.2",
+        "R122.2",
+        "R123.2",
+        "R124.2",
+        "R201.1",
+        "R207.2",
+        "R211.1",
+        "R212.1",
+        "R213.1",
+        "R214.1",
+        "R301.1",
+        "R302.1",
+        "RCAN202.1",
+        "U101.5",
+        "U102.1",
+        "U102.14",
+        "U102.2",
+        "U102.22",
+        "U102.23",
+        "U102.34",
+        "U102.41",
+        "U102.55",
+        "U102.57",
+        "U102.68",
+        "U102.81",
+        "U102.93",
+        "U201.14",
+        "U202.16",
+        "U203.16",
+        "U204.16",
+        "U205.3",
+        "U301.115",
+        "U301.123",
+        "U301.130",
+        "U301.144",
+        "U301.24",
+        "U301.50",
+        "U301.51",
+        "U301.58",
+        "U301.73",
+        "U301.76",
+        "U301.95",
+        "VDDA101.1",
+        "VR201.1",
+        "VR201.2",
+        "VX_EN201.1"
+      ]
+    },
+    {
+      "name": "/ALLPST",
+      "pins": [
+        "ALLPST101.1",
+        "U102.86"
+      ]
+    },
+    {
+      "name": "/AN0",
+      "pins": [
+        "MCU_PORT201.10",
+        "U102.43"
+      ]
+    },
+    {
+      "name": "/AN1",
+      "pins": [
+        "MCU_PORT201.12",
+        "U102.44"
+      ]
+    },
+    {
+      "name": "/AN2",
+      "pins": [
+        "MCU_PORT201.14",
+        "U102.45"
+      ]
+    },
+    {
+      "name": "/AN3",
+      "pins": [
+        "MCU_PORT201.16",
+        "U102.46"
+      ]
+    },
+    {
+      "name": "/AN4",
+      "pins": [
+        "MCU_PORT201.18",
+        "U102.54"
+      ]
+    },
+    {
+      "name": "/AN5",
+      "pins": [
+        "MCU_PORT201.20",
+        "U102.53"
+      ]
+    },
+    {
+      "name": "/AN6",
+      "pins": [
+        "MCU_PORT201.22",
+        "U102.52"
+      ]
+    },
+    {
+      "name": "/AN7",
+      "pins": [
+        "MCU_PORT201.24",
+        "U102.51"
+      ]
+    },
+    {
+      "name": "/BKPT-",
+      "pins": [
+        "BDM_PORT101.2",
+        "R107.2",
+        "U102.76"
+      ]
+    },
+    {
+      "name": "/CANRX",
+      "pins": [
+        "CAN_EN201.4",
+        "MCU_PORT201.28",
+        "PULUPEN201.7",
+        "U102.11"
+      ]
+    },
+    {
+      "name": "/CANTX",
+      "pins": [
+        "CAN_EN201.1",
+        "MCU_PORT201.26",
+        "PULUPEN201.5",
+        "U102.10"
+      ]
+    },
+    {
+      "name": "/CLKIN{slash}EXTAL",
+      "pins": [
+        "C107.1",
+        "R125.2",
+        "U102.73",
+        "Y101.1"
+      ]
+    },
+    {
+      "name": "/CLKMOD0",
+      "pins": [
+        "JP101.6",
+        "R101.2",
+        "U102.40"
+      ]
+    },
+    {
+      "name": "/CLKMOD1",
+      "pins": [
+        "JP101.4",
+        "R102.2",
+        "U102.39"
+      ]
+    },
+    {
+      "name": "/DDAT0",
+      "pins": [
+        "BDM_PORT101.19",
+        "U102.77"
+      ]
+    },
+    {
+      "name": "/DDAT1",
+      "pins": [
+        "BDM_PORT101.18",
+        "U102.78"
+      ]
+    },
+    {
+      "name": "/DDAT2",
+      "pins": [
+        "BDM_PORT101.17",
+        "U102.83"
+      ]
+    },
+    {
+      "name": "/DDAT3",
+      "pins": [
+        "BDM_PORT101.16",
+        "U102.84"
+      ]
+    },
+    {
+      "name": "/DSCLK",
+      "pins": [
+        "BDM_PORT101.4",
+        "R108.2",
+        "U102.85"
+      ]
+    },
+    {
+      "name": "/DSI",
+      "pins": [
+        "BDM_PORT101.8",
+        "R109.2",
+        "U102.79"
+      ]
+    },
+    {
+      "name": "/DSO",
+      "pins": [
+        "BDM_PORT101.10",
+        "R110.2",
+        "U102.80"
+      ]
+    },
+    {
+      "name": "/DSPI_DOUT",
+      "pins": [
+        "MCU_PORT201.17",
+        "U102.17",
+        "U301.47"
+      ]
+    },
+    {
+      "name": "/DTIN0",
+      "pins": [
+        "MCU_PORT201.34",
+        "U102.36",
+        "U201.2"
+      ]
+    },
+    {
+      "name": "/DTIN1",
+      "pins": [
+        "MCU_PORT201.36",
+        "U102.37",
+        "U201.5"
+      ]
+    },
+    {
+      "name": "/DTIN2",
+      "pins": [
+        "MCU_PORT201.38",
+        "U102.31",
+        "U201.12"
+      ]
+    },
+    {
+      "name": "/DTIN3",
+      "pins": [
+        "MCU_PORT201.40",
+        "U102.32",
+        "U201.9"
+      ]
+    },
+    {
+      "name": "/GPT0",
+      "pins": [
+        "MCU_PORT201.49",
+        "U102.58"
+      ]
+    },
+    {
+      "name": "/GPT1",
+      "pins": [
+        "MCU_PORT201.50",
+        "U102.59"
+      ]
+    },
+    {
+      "name": "/GPT2",
+      "pins": [
+        "MCU_PORT201.51",
+        "U102.61"
+      ]
+    },
+    {
+      "name": "/GPT3",
+      "pins": [
+        "MCU_PORT201.52",
+        "U102.62"
+      ]
+    },
+    {
+      "name": "/IRQ-1",
+      "pins": [
+        "MCU_PORT201.2",
+        "R118.1",
+        "U102.87",
+        "U301.42"
+      ]
+    },
+    {
+      "name": "/IRQ-2",
+      "pins": [
+        "MCU_PORT201.8",
+        "R119.1",
+        "U102.88",
+        "U301.43"
+      ]
+    },
+    {
+      "name": "/IRQ-3",
+      "pins": [
+        "MCU_PORT201.31",
+        "R120.1",
+        "U102.89",
+        "U301.44"
+      ]
+    },
+    {
+      "name": "/IRQ-4",
+      "pins": [
+        "MCU_PORT201.33",
+        "R121.1",
+        "SW201.1",
+        "U102.90"
+      ]
+    },
+    {
+      "name": "/IRQ-5",
+      "pins": [
+        "MCU_PORT201.35",
+        "R122.1",
+        "SW202.1",
+        "U102.91"
+      ]
+    },
+    {
+      "name": "/IRQ-6",
+      "pins": [
+        "MCU_PORT201.37",
+        "R123.1",
+        "U102.94"
+      ]
+    },
+    {
+      "name": "/IRQ-7",
+      "pins": [
+        "D101.2",
+        "MCU_PORT201.39",
+        "R124.1",
+        "U102.95"
+      ]
+    },
+    {
+      "name": "/JTAG_EN",
+      "pins": [
+        "JP101.2",
+        "R111.2",
+        "U102.26"
+      ]
+    },
+    {
+      "name": "/PST0",
+      "pins": [
+        "BDM_PORT101.15",
+        "U102.65"
+      ]
+    },
+    {
+      "name": "/PST1",
+      "pins": [
+        "BDM_PORT101.14",
+        "U102.66"
+      ]
+    },
+    {
+      "name": "/PST2",
+      "pins": [
+        "BDM_PORT101.13",
+        "U102.69"
+      ]
+    },
+    {
+      "name": "/PST3",
+      "pins": [
+        "BDM_PORT101.12",
+        "U102.70"
+      ]
+    },
+    {
+      "name": "/PWM1",
+      "pins": [
+        "MCU_PORT201.13",
+        "U102.38"
+      ]
+    },
+    {
+      "name": "/PWM3",
+      "pins": [
+        "MCU_PORT201.15",
+        "U102.33"
+      ]
+    },
+    {
+      "name": "/PWM5",
+      "pins": [
+        "MCU_PORT201.30",
+        "U102.60"
+      ]
+    },
+    {
+      "name": "/PWM7",
+      "pins": [
+        "MCU_PORT201.32",
+        "U102.63"
+      ]
+    },
+    {
+      "name": "/QSPI_CLK",
+      "pins": [
+        "MCU_PORT201.21",
+        "PULUPEN201.1",
+        "U102.18",
+        "U301.48"
+      ]
+    },
+    {
+      "name": "/QSPI_CS0",
+      "pins": [
+        "MCU_PORT201.23",
+        "PULUPEN201.3",
+        "U102.20"
+      ]
+    },
+    {
+      "name": "/QSPI_CS1",
+      "pins": [
+        "MCU_PORT201.25",
+        "U102.19",
+        "U301.54"
+      ]
+    },
+    {
+      "name": "/QSPI_CS2",
+      "pins": [
+        "MCU_PORT201.27",
+        "U102.13",
+        "U301.45"
+      ]
+    },
+    {
+      "name": "/QSPI_CS3",
+      "pins": [
+        "MCU_PORT201.29",
+        "U102.12"
+      ]
+    },
+    {
+      "name": "/QSPI_DIN",
+      "pins": [
+        "MCU_PORT201.19",
+        "U102.16",
+        "U301.46"
+      ]
+    },
+    {
+      "name": "/RCON-",
+      "pins": [
+        "MCU_PORT201.53",
+        "R112.1",
+        "U102.21"
+      ]
+    },
+    {
+      "name": "/RSTI-",
+      "pins": [
+        "BDM_PORT101.7",
+        "D102.2",
+        "MCU_PORT201.6",
+        "R106.2",
+        "U102.96"
+      ]
+    },
+    {
+      "name": "/RSTO-",
+      "pins": [
+        "MCU_PORT201.4",
+        "R115.1",
+        "U102.97"
+      ]
+    },
+    {
+      "name": "/TCLK",
+      "pins": [
+        "BDM_PORT101.24",
+        "CLKOUT101.1",
+        "CT101.2",
+        "R114.2",
+        "R117.1"
+      ]
+    },
+    {
+      "name": "/UCTS0",
+      "pins": [
+        "MCU_PORT201.44",
+        "U102.6",
+        "UART_EN201.8"
+      ]
+    },
+    {
+      "name": "/UCTS1",
+      "pins": [
+        "MCU_PORT201.11",
+        "P302.1",
+        "U102.98",
+        "U301.49",
+        "UART_EN202.8"
+      ]
+    },
+    {
+      "name": "/UCTS2",
+      "pins": [
+        "MCU_PORT201.48",
+        "U102.27",
+        "UART_EN203.8"
+      ]
+    },
+    {
+      "name": "/URTS0",
+      "pins": [
+        "MCU_PORT201.42",
+        "U102.9",
+        "UART_EN201.6"
+      ]
+    },
+    {
+      "name": "/URTS1",
+      "pins": [
+        "MCU_PORT201.9",
+        "P302.3",
+        "U102.4",
+        "U301.53",
+        "UART_EN202.6"
+      ]
+    },
+    {
+      "name": "/URTS2",
+      "pins": [
+        "MCU_PORT201.46",
+        "U102.30",
+        "UART_EN203.6"
+      ]
+    },
+    {
+      "name": "/URXD0",
+      "pins": [
+        "MCU_PORT201.43",
+        "U102.7",
+        "UART_EN201.4"
+      ]
+    },
+    {
+      "name": "/URXD1",
+      "pins": [
+        "MCU_PORT201.7",
+        "U102.100",
+        "UART_EN202.4"
+      ]
+    },
+    {
+      "name": "/URXD2",
+      "pins": [
+        "MCU_PORT201.47",
+        "U102.28",
+        "UART_EN203.4"
+      ]
+    },
+    {
+      "name": "/UTXD0",
+      "pins": [
+        "MCU_PORT201.41",
+        "U102.8",
+        "UART_EN201.2"
+      ]
+    },
+    {
+      "name": "/UTXD1",
+      "pins": [
+        "MCU_PORT201.5",
+        "U102.99",
+        "UART_EN202.2"
+      ]
+    },
+    {
+      "name": "/UTXD2",
+      "pins": [
+        "MCU_PORT201.45",
+        "U102.29",
+        "UART_EN203.2"
+      ]
+    },
+    {
+      "name": "/VCCA",
+      "pins": [
+        "C108.1",
+        "C109.1",
+        "L102.2",
+        "MCU_PORT201.55",
+        "MCU_PORT201.57",
+        "U102.49",
+        "U102.50"
+      ]
+    },
+    {
+      "name": "/VDDPLL",
+      "pins": [
+        "C102.1",
+        "C103.1",
+        "L101.2",
+        "U102.74"
+      ]
+    },
+    {
+      "name": "/XTAL",
+      "pins": [
+        "C106.1",
+        "R125.1",
+        "U102.72",
+        "U301.128",
+        "Y101.2"
+      ]
+    },
+    {
+      "name": "/inout_user/CAN_H",
+      "pins": [
+        "CAN_TERM201.1",
+        "COM_SEL203.1",
+        "RCAN201.2",
+        "U205.7"
+      ]
+    },
+    {
+      "name": "/inout_user/CAN_L",
+      "pins": [
+        "COM_SEL201.1",
+        "R209.1",
+        "RCAN202.2",
+        "U205.6"
+      ]
+    },
+    {
+      "name": "/inout_user/CTS0",
+      "pins": [
+        "U202.8",
+        "UARTCAN201.7"
+      ]
+    },
+    {
+      "name": "/inout_user/CTS1",
+      "pins": [
+        "U203.8",
+        "UARTCAN202.7"
+      ]
+    },
+    {
+      "name": "/inout_user/CTS2{slash}CANH",
+      "pins": [
+        "COM_SEL203.2",
+        "UARTCAN203.7"
+      ]
+    },
+    {
+      "name": "/inout_user/RTS0",
+      "pins": [
+        "U202.7",
+        "UARTCAN201.8"
+      ]
+    },
+    {
+      "name": "/inout_user/RTS1",
+      "pins": [
+        "U203.7",
+        "UARTCAN202.8"
+      ]
+    },
+    {
+      "name": "/inout_user/RTS2",
+      "pins": [
+        "U204.14",
+        "UARTCAN203.8"
+      ]
+    },
+    {
+      "name": "/inout_user/RXD0",
+      "pins": [
+        "U202.13",
+        "UARTCAN201.3"
+      ]
+    },
+    {
+      "name": "/inout_user/RXD1",
+      "pins": [
+        "U203.13",
+        "UARTCAN202.3"
+      ]
+    },
+    {
+      "name": "/inout_user/RXD2",
+      "pins": [
+        "COM_SEL202.2",
+        "UARTCAN203.3"
+      ]
+    },
+    {
+      "name": "/inout_user/RxD_CAN",
+      "pins": [
+        "CAN_EN201.2",
+        "U205.4"
+      ]
+    },
+    {
+      "name": "/inout_user/TXD0",
+      "pins": [
+        "U202.14",
+        "UARTCAN201.2"
+      ]
+    },
+    {
+      "name": "/inout_user/TXD1",
+      "pins": [
+        "U203.14",
+        "UARTCAN202.2"
+      ]
+    },
+    {
+      "name": "/inout_user/TXD2{slash}CANL",
+      "pins": [
+        "COM_SEL201.2",
+        "UARTCAN203.2"
+      ]
+    },
+    {
+      "name": "/inout_user/TxD_CAN",
+      "pins": [
+        "CAN_EN201.3",
+        "U205.1"
+      ]
+    },
+    {
+      "name": "/xilinx/+3,3V_OUT",
+      "pins": [
+        "P303.38",
+        "R302.2"
+      ]
+    },
+    {
+      "name": "/xilinx/LED_TEST1",
+      "pins": [
+        "R303.1",
+        "U301.28"
+      ]
+    },
+    {
+      "name": "/xilinx/LED_TEST2",
+      "pins": [
+        "R304.1",
+        "U301.27"
+      ]
+    },
+    {
+      "name": "/xilinx/TCK",
+      "pins": [
+        "P301.5",
+        "R301.2",
+        "U301.89"
+      ]
+    },
+    {
+      "name": "/xilinx/TDI",
+      "pins": [
+        "P301.4",
+        "U301.4"
+      ]
+    },
+    {
+      "name": "/xilinx/TDO",
+      "pins": [
+        "P301.6",
+        "U301.104"
+      ]
+    },
+    {
+      "name": "/xilinx/TMS",
+      "pins": [
+        "P301.3",
+        "U301.20"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D0",
+      "pins": [
+        "P303.1",
+        "U301.12"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D1",
+      "pins": [
+        "P303.3",
+        "U301.11"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D2",
+      "pins": [
+        "P303.5",
+        "U301.7"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D3",
+      "pins": [
+        "P303.7",
+        "U301.8"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D4",
+      "pins": [
+        "P303.9",
+        "U301.2"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D5",
+      "pins": [
+        "P303.11",
+        "U301.143"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D6",
+      "pins": [
+        "P303.13",
+        "U301.140"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D7",
+      "pins": [
+        "P303.15",
+        "U301.138"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D8",
+      "pins": [
+        "P303.17",
+        "U301.136"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D9",
+      "pins": [
+        "P303.19",
+        "U301.131"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D10",
+      "pins": [
+        "P303.21",
+        "U301.122"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D11",
+      "pins": [
+        "P303.23",
+        "U301.119"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D12",
+      "pins": [
+        "P303.25",
+        "U301.114"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D13",
+      "pins": [
+        "P303.27",
+        "U301.111"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D14",
+      "pins": [
+        "P303.29",
+        "U301.109"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D15",
+      "pins": [
+        "P303.31",
+        "U301.108"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D16",
+      "pins": [
+        "P303.33",
+        "U301.100"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D17",
+      "pins": [
+        "P303.35",
+        "U301.101"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D18",
+      "pins": [
+        "P303.37",
+        "U301.97"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D19",
+      "pins": [
+        "P303.39",
+        "U301.96"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D20",
+      "pins": [
+        "P303.4",
+        "U301.6"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D21",
+      "pins": [
+        "P303.6",
+        "U301.10"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D22",
+      "pins": [
+        "P303.8",
+        "U301.5"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D23",
+      "pins": [
+        "P303.10",
+        "U301.1"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D24",
+      "pins": [
+        "P303.12",
+        "U301.142"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D25",
+      "pins": [
+        "P303.14",
+        "U301.139"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D26",
+      "pins": [
+        "P303.16",
+        "U301.137"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D27",
+      "pins": [
+        "P303.18",
+        "U301.134"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D28",
+      "pins": [
+        "P303.20",
+        "U301.132"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D29",
+      "pins": [
+        "P303.22",
+        "U301.117"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D30",
+      "pins": [
+        "P303.24",
+        "U301.118"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D31",
+      "pins": [
+        "P303.26",
+        "U301.116"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D32",
+      "pins": [
+        "P303.28",
+        "U301.98"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D33",
+      "pins": [
+        "P303.30",
+        "U301.112"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D34",
+      "pins": [
+        "P303.32",
+        "U301.113"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D35",
+      "pins": [
+        "P303.34",
+        "U301.107"
+      ]
+    },
+    {
+      "name": "/xilinx/XIL_D36",
+      "pins": [
+        "P303.36",
+        "U301.99"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "BDM_PORT101.11",
+        "BDM_PORT101.20",
+        "BDM_PORT101.23",
+        "BDM_PORT101.3",
+        "BDM_PORT101.5",
+        "C101.1",
+        "C102.2",
+        "C103.2",
+        "C104.2",
+        "C105.2",
+        "C106.2",
+        "C107.2",
+        "C110.2",
+        "C111.2",
+        "C112.2",
+        "C113.2",
+        "C114.2",
+        "C115.2",
+        "C116.2",
+        "C117.2",
+        "C118.2",
+        "C119.2",
+        "C201.1",
+        "C202.2",
+        "C203.2",
+        "C207.2",
+        "C208.2",
+        "C212.2",
+        "C213.2",
+        "C214.2",
+        "C215.2",
+        "C216.2",
+        "C219.2",
+        "C221.2",
+        "C301.2",
+        "C302.2",
+        "C303.2",
+        "C304.2",
+        "C305.2",
+        "C306.2",
+        "C307.2",
+        "C308.2",
+        "C309.2",
+        "C310.2",
+        "C311.2",
+        "COM_SEL202.1",
+        "D201.2",
+        "D301.1",
+        "D302.1",
+        "FB101.1",
+        "GND101.1",
+        "J201.1",
+        "J201.2",
+        "JP101.1",
+        "JP101.3",
+        "JP101.5",
+        "JP201.1",
+        "LED201.1",
+        "LED202.1",
+        "LED203.1",
+        "LED204.1",
+        "LED205.1",
+        "LED_RST101.1",
+        "LV101.3",
+        "MCU_PORT201.3",
+        "MCU_PORT201.54",
+        "MCU_PORT201.60",
+        "P301.2",
+        "P303.2",
+        "P303.40",
+        "R105.2",
+        "R113.2",
+        "R117.2",
+        "R205.1",
+        "R208.1",
+        "R210.2",
+        "R215.1",
+        "RCAN201.1",
+        "RST_SW101.2",
+        "SW201.2",
+        "SW202.2",
+        "TB201.2",
+        "U101.3",
+        "U102.15",
+        "U102.24",
+        "U102.25",
+        "U102.3",
+        "U102.35",
+        "U102.42",
+        "U102.56",
+        "U102.67",
+        "U102.71",
+        "U102.75",
+        "U102.82",
+        "U102.92",
+        "U201.7",
+        "U202.15",
+        "U203.15",
+        "U204.15",
+        "U205.2",
+        "U301.105",
+        "U301.124",
+        "U301.125",
+        "U301.126",
+        "U301.127",
+        "U301.129",
+        "U301.13",
+        "U301.135",
+        "U301.17",
+        "U301.3",
+        "U301.33",
+        "U301.52",
+        "U301.57",
+        "U301.59",
+        "U301.64",
+        "U301.85",
+        "UARTCAN201.5",
+        "UARTCAN202.5",
+        "UARTCAN203.5",
+        "VR201.3"
+      ]
+    },
+    {
+      "name": "GNDA",
+      "pins": [
+        "C108.2",
+        "C109.2",
+        "FB101.2",
+        "MCU_PORT201.56",
+        "MCU_PORT201.58",
+        "U102.47",
+        "U102.48"
+      ]
+    },
+    {
+      "name": "Net-(ABRT_SW101-Pad1)",
+      "pins": [
+        "ABRT_SW101.1",
+        "R104.1"
+      ]
+    },
+    {
+      "name": "Net-(BDM_PORT101-P6)",
+      "pins": [
+        "BDM_PORT101.6",
+        "CT101.1"
+      ]
+    },
+    {
+      "name": "Net-(BDM_PORT101-P22-Pad26)",
+      "pins": [
+        "BDM_PORT101.26",
+        "TA-101.1"
+      ]
+    },
+    {
+      "name": "Net-(C104-Pad1)",
+      "pins": [
+        "C104.1",
+        "R104.2",
+        "R105.1",
+        "U101.2"
+      ]
+    },
+    {
+      "name": "Net-(CAN_TERM201-Pad2)",
+      "pins": [
+        "CAN_TERM201.2",
+        "R209.2"
+      ]
+    },
+    {
+      "name": "Net-(COM_SEL201-P3)",
+      "pins": [
+        "COM_SEL201.3",
+        "U204.7"
+      ]
+    },
+    {
+      "name": "Net-(COM_SEL202-P3)",
+      "pins": [
+        "COM_SEL202.3",
+        "U204.8"
+      ]
+    },
+    {
+      "name": "Net-(COM_SEL203-P3)",
+      "pins": [
+        "COM_SEL203.3",
+        "U204.13"
+      ]
+    },
+    {
+      "name": "Net-(D101-K)",
+      "pins": [
+        "D101.1",
+        "R103.2",
+        "U101.4"
+      ]
+    },
+    {
+      "name": "Net-(D102-K)",
+      "pins": [
+        "C105.1",
+        "D102.1",
+        "LV101.1",
+        "RST_SW101.1"
+      ]
+    },
+    {
+      "name": "Net-(D201-K)",
+      "pins": [
+        "C212.1",
+        "C213.1",
+        "D201.1",
+        "F201.2",
+        "VR201.5"
+      ]
+    },
+    {
+      "name": "Net-(D301-A)",
+      "pins": [
+        "D301.2",
+        "R303.2"
+      ]
+    },
+    {
+      "name": "Net-(D302-A)",
+      "pins": [
+        "D302.2",
+        "R304.2"
+      ]
+    },
+    {
+      "name": "Net-(F201-Pad1)",
+      "pins": [
+        "F201.1",
+        "SW_ONOFF201.2"
+      ]
+    },
+    {
+      "name": "Net-(L102-Pad1)",
+      "pins": [
+        "L102.1",
+        "VDDA101.2"
+      ]
+    },
+    {
+      "name": "Net-(LED201-A)",
+      "pins": [
+        "LED201.2",
+        "R202.1"
+      ]
+    },
+    {
+      "name": "Net-(LED202-A)",
+      "pins": [
+        "LED202.2",
+        "R203.1"
+      ]
+    },
+    {
+      "name": "Net-(LED203-A)",
+      "pins": [
+        "LED203.2",
+        "R204.1"
+      ]
+    },
+    {
+      "name": "Net-(LED204-A)",
+      "pins": [
+        "LED204.2",
+        "R206.1"
+      ]
+    },
+    {
+      "name": "Net-(LED205-A)",
+      "pins": [
+        "LED205.2",
+        "R207.1"
+      ]
+    },
+    {
+      "name": "Net-(LEDABRT101-K)",
+      "pins": [
+        "LEDABRT101.1",
+        "R103.1"
+      ]
+    },
+    {
+      "name": "Net-(LED_RST101-A)",
+      "pins": [
+        "LED_RST101.2",
+        "R116.2"
+      ]
+    },
+    {
+      "name": "Net-(MCU_PORT201-P1)",
+      "pins": [
+        "C201.2",
+        "MCU_PORT201.1",
+        "VX_EN201.2"
+      ]
+    },
+    {
+      "name": "Net-(PULUPEN201-Pad2)",
+      "pins": [
+        "PULUPEN201.2",
+        "R211.2"
+      ]
+    },
+    {
+      "name": "Net-(PULUPEN201-Pad4)",
+      "pins": [
+        "PULUPEN201.4",
+        "R212.2"
+      ]
+    },
+    {
+      "name": "Net-(PULUPEN201-Pad6)",
+      "pins": [
+        "PULUPEN201.6",
+        "R213.2"
+      ]
+    },
+    {
+      "name": "Net-(PULUPEN201-Pad8)",
+      "pins": [
+        "PULUPEN201.8",
+        "R214.2"
+      ]
+    },
+    {
+      "name": "Net-(Q101-B)",
+      "pins": [
+        "Q101.2",
+        "R115.2"
+      ]
+    },
+    {
+      "name": "Net-(Q101-C)",
+      "pins": [
+        "Q101.3",
+        "R116.1"
+      ]
+    },
+    {
+      "name": "Net-(TB201-P1)",
+      "pins": [
+        "J201.3",
+        "SW_ONOFF201.3",
+        "TB201.1"
+      ]
+    },
+    {
+      "name": "Net-(U102-TCLK{slash}PSTCLK{slash}CLKOUT)",
+      "pins": [
+        "R114.1",
+        "U102.64"
+      ]
+    },
+    {
+      "name": "Net-(U102-TEST)",
+      "pins": [
+        "R113.1",
+        "U102.5"
+      ]
+    },
+    {
+      "name": "Net-(U201A-E)",
+      "pins": [
+        "JP201.2",
+        "R201.2",
+        "U201.1",
+        "U201.10",
+        "U201.13",
+        "U201.4"
+      ]
+    },
+    {
+      "name": "Net-(U201A-O)",
+      "pins": [
+        "R202.2",
+        "U201.3"
+      ]
+    },
+    {
+      "name": "Net-(U201B-O)",
+      "pins": [
+        "R203.2",
+        "U201.6"
+      ]
+    },
+    {
+      "name": "Net-(U201C-O)",
+      "pins": [
+        "R206.2",
+        "U201.8"
+      ]
+    },
+    {
+      "name": "Net-(U201D-O)",
+      "pins": [
+        "R204.2",
+        "U201.11"
+      ]
+    },
+    {
+      "name": "Net-(U202-C1+)",
+      "pins": [
+        "C205.1",
+        "U202.1"
+      ]
+    },
+    {
+      "name": "Net-(U202-C1-)",
+      "pins": [
+        "C205.2",
+        "U202.3"
+      ]
+    },
+    {
+      "name": "Net-(U202-C2+)",
+      "pins": [
+        "C206.1",
+        "U202.4"
+      ]
+    },
+    {
+      "name": "Net-(U202-C2-)",
+      "pins": [
+        "C206.2",
+        "U202.5"
+      ]
+    },
+    {
+      "name": "Net-(U202-R1OUT)",
+      "pins": [
+        "U202.12",
+        "UART_EN201.3"
+      ]
+    },
+    {
+      "name": "Net-(U202-R2OUT)",
+      "pins": [
+        "U202.9",
+        "UART_EN201.7"
+      ]
+    },
+    {
+      "name": "Net-(U202-T1IN)",
+      "pins": [
+        "U202.11",
+        "UART_EN201.1"
+      ]
+    },
+    {
+      "name": "Net-(U202-T2IN)",
+      "pins": [
+        "R205.2",
+        "U202.10",
+        "UART_EN201.5"
+      ]
+    },
+    {
+      "name": "Net-(U202-V+)",
+      "pins": [
+        "C204.2",
+        "U202.2"
+      ]
+    },
+    {
+      "name": "Net-(U202-V-)",
+      "pins": [
+        "C207.1",
+        "U202.6"
+      ]
+    },
+    {
+      "name": "Net-(U203-C1+)",
+      "pins": [
+        "C210.1",
+        "U203.1"
+      ]
+    },
+    {
+      "name": "Net-(U203-C1-)",
+      "pins": [
+        "C210.2",
+        "U203.3"
+      ]
+    },
+    {
+      "name": "Net-(U203-C2+)",
+      "pins": [
+        "C211.1",
+        "U203.4"
+      ]
+    },
+    {
+      "name": "Net-(U203-C2-)",
+      "pins": [
+        "C211.2",
+        "U203.5"
+      ]
+    },
+    {
+      "name": "Net-(U203-R1OUT)",
+      "pins": [
+        "U203.12",
+        "UART_EN202.3"
+      ]
+    },
+    {
+      "name": "Net-(U203-R2OUT)",
+      "pins": [
+        "U203.9",
+        "UART_EN202.7"
+      ]
+    },
+    {
+      "name": "Net-(U203-T1IN)",
+      "pins": [
+        "U203.11",
+        "UART_EN202.1"
+      ]
+    },
+    {
+      "name": "Net-(U203-T2IN)",
+      "pins": [
+        "R208.2",
+        "U203.10",
+        "UART_EN202.5"
+      ]
+    },
+    {
+      "name": "Net-(U203-V+)",
+      "pins": [
+        "C209.2",
+        "U203.2"
+      ]
+    },
+    {
+      "name": "Net-(U203-V-)",
+      "pins": [
+        "C214.1",
+        "U203.6"
+      ]
+    },
+    {
+      "name": "Net-(U204-C1+)",
+      "pins": [
+        "C218.1",
+        "U204.1"
+      ]
+    },
+    {
+      "name": "Net-(U204-C1-)",
+      "pins": [
+        "C218.2",
+        "U204.3"
+      ]
+    },
+    {
+      "name": "Net-(U204-C2+)",
+      "pins": [
+        "C220.1",
+        "U204.4"
+      ]
+    },
+    {
+      "name": "Net-(U204-C2-)",
+      "pins": [
+        "C220.2",
+        "U204.5"
+      ]
+    },
+    {
+      "name": "Net-(U204-R1OUT)",
+      "pins": [
+        "U204.12",
+        "UART_EN203.7"
+      ]
+    },
+    {
+      "name": "Net-(U204-R2OUT)",
+      "pins": [
+        "U204.9",
+        "UART_EN203.3"
+      ]
+    },
+    {
+      "name": "Net-(U204-T1IN)",
+      "pins": [
+        "R215.2",
+        "U204.11",
+        "UART_EN203.5"
+      ]
+    },
+    {
+      "name": "Net-(U204-T2IN)",
+      "pins": [
+        "U204.10",
+        "UART_EN203.1"
+      ]
+    },
+    {
+      "name": "Net-(U204-V+)",
+      "pins": [
+        "C217.2",
+        "U204.2"
+      ]
+    },
+    {
+      "name": "Net-(U204-V-)",
+      "pins": [
+        "C221.1",
+        "U204.6"
+      ]
+    },
+    {
+      "name": "Net-(U205-Rsl)",
+      "pins": [
+        "R210.1",
+        "RS201.1",
+        "U205.8"
+      ]
+    },
+    {
+      "name": "Net-(U205-Vref)",
+      "pins": [
+        "U205.5",
+        "VREF201.1"
+      ]
+    },
+    {
+      "name": "Net-(U301-P4)",
+      "pins": [
+        "P302.4",
+        "U301.31"
+      ]
+    },
+    {
+      "name": "Net-(U301-P11)",
+      "pins": [
+        "P302.2",
+        "U301.32"
+      ]
+    },
+    {
+      "name": "Net-(UARTCAN201-P6)",
+      "pins": [
+        "UARTCAN201.1",
+        "UARTCAN201.4",
+        "UARTCAN201.6"
+      ]
+    },
+    {
+      "name": "Net-(UARTCAN202-P6)",
+      "pins": [
+        "UARTCAN202.1",
+        "UARTCAN202.4",
+        "UARTCAN202.6"
+      ]
+    },
+    {
+      "name": "Net-(UARTCAN203-P6)",
+      "pins": [
+        "UARTCAN203.1",
+        "UARTCAN203.4",
+        "UARTCAN203.6"
+      ]
+    }
+  ]
+}

@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
+import { CREATE_ORIGIN } from './fab.js';
 
 /**
  * The create pipeline starts from a brief with no KiCad files, but the agent
@@ -37,8 +38,8 @@ function uuidFrom(seed: string): string {
 function emptySchematic(rootUuid: string): string {
   return `(kicad_sch
 	(version 20231120)
-	(generator "eeschema")
-	(generator_version "8.0")
+	(generator "copperhead-draft")
+	(generator_version "0")
 	(uuid "${rootUuid}")
 	(paper "A4")
 	(lib_symbols)
@@ -147,7 +148,23 @@ function projectFile(slug: string, rootUuid: string): string {
 }
 
 async function persist(repoRoot: string, config: CopperheadConfig): Promise<void> {
+  await mkdir(path.dirname(configPath(repoRoot)), { recursive: true });
   await writeFile(configPath(repoRoot), JSON.stringify(config, null, 2) + '\n', 'utf8');
+}
+
+/**
+ * Stamp the config as create-produced (`origin: "create"`). The marker is what
+ * scopes the legibility finish gate (`isCreateProducedRepo` feeds the
+ * obligations ledger) and the fab release gate — a gate hung on a marker
+ * nothing writes is silently inert, so `runCreate` stamps it up front and
+ * `bootstrapKicadProject` re-stamps on every (re-)scaffold, covering the
+ * rollback path that deletes an uncommitted config.
+ */
+export async function markCreateOrigin(repoRoot: string): Promise<void> {
+  const config = await loadConfig(repoRoot);
+  if (config.origin === CREATE_ORIGIN) return;
+  config.origin = CREATE_ORIGIN;
+  await persist(repoRoot, config);
 }
 
 /**
@@ -160,6 +177,10 @@ async function persist(repoRoot: string, config: CopperheadConfig): Promise<void
 export async function bootstrapKicadProject(repoRoot: string, brief: string): Promise<string | null> {
   const config = await loadConfig(repoRoot);
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) return null;
+  // Only `create` scaffolds through here, so the repo is create-produced by
+  // definition; stamping on every scaffold keeps the marker alive across the
+  // rollback-then-rescaffold path (git clean deletes an uncommitted config).
+  config.origin = CREATE_ORIGIN;
 
   const slug = projectSlug(brief);
   const schRel = `${slug}.kicad_sch`;

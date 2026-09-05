@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
 import { tempFixtureRepo } from './helpers.js';
+import { createHash } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 // Covers the review's F3 gap: the retry / resume-commit branches of runCreate
 // were essentially untested. These drive them with a scripted runAgentLoop and a
@@ -122,6 +125,11 @@ describe('create pipeline resilience (review F3)', () => {
       // The stage was retried once and then completed.
       expect(specSeedCalls).toBe(2);
       expect(res.completed).toContain('spec-seed');
+      const briefHash = await readFile(
+        path.join(repo, 'docs', 'BRIEF.sha256'),
+        'utf8',
+      );
+      expect(briefHash).toContain('sha256:');
 
       // The second attempt carried the diagnosis guidance in its stage prompt.
       const specCalls = mockRunAgentLoop.mock.calls.map(([o]) => o).filter((o) => o.request.includes('spec-seed'));
@@ -195,6 +203,170 @@ describe('create pipeline resilience (review F3)', () => {
       expect(out).toContain('leaving it uncommitted');
       const { stdout } = await execa('git', ['log', '--oneline'], { cwd: repo });
       expect(stdout).not.toMatch(/resume — commit completed stage/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('writes BRIEF.sha256 when spec-seed is resumed', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      const briefPath = await seedRepo(repo);
+
+      await execa('git', ['add', 'brief.md'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'brief'], { cwd: repo });
+
+      // Stage 1 already complete.
+      const docs = path.join(repo, 'docs');
+      await mkdir(docs, { recursive: true });
+      await writeFile(
+        path.join(docs, 'SPEC.md'),
+        '# s\n\n## Budgets\n\n- sleep_current_uA: 25\n',
+        'utf8',
+      );
+
+      // Resume path should create BRIEF.sha256.
+      mockRunAgentLoop.mockImplementation(async () => ok());
+
+      const res = await runCreate({
+        repoRoot: repo,
+        briefPath,
+        model: 'gpt-5',
+        log: () => {},
+      });
+
+      expect(res.ok).toBe(false);
+      expect(res.completed).toEqual(['spec-seed']);
+
+      const briefHash = await readFile(
+        path.join(repo, 'docs', 'BRIEF.sha256'),
+        'utf8',
+      );
+
+      const expectedHash = createHash('sha256')
+        .update('# tiny\n')
+        .digest('hex');
+      expect(briefHash).toContain('brief: brief.md');
+      expect(briefHash).toContain(`sha256: ${expectedHash}`);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('records external brief provenance without leaking an absolute path', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    let externalDir: string | undefined;
+    try {
+      externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
+      const externalBrief = path.join(externalDir, 'outside-brief.md');
+      await writeFile(externalBrief, '# external\n', 'utf8');
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      const res = await runCreate({
+        repoRoot: repo,
+        briefPath: externalBrief,
+        model: 'gpt-5',
+        log: () => {},
+      });
+      expect(res.completed).toContain('spec-seed');
+      const briefHash = await readFile(
+        path.join(repo, 'docs', 'BRIEF.sha256'),
+        'utf8',
+      );
+
+      expect(briefHash).toContain('brief: external:outside-brief.md');
+      expect(briefHash).not.toContain(externalBrief);
+    } finally {
+      if (externalDir) {
+        await rm(externalDir, { recursive: true, force: true });
+      }
+      await cleanup();
+    }
+  });
+
+  it('writes BRIEF.sha256 to the configured docs directory', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      const briefPath = await seedRepo(repo);
+
+      // Use a non-default docs directory.
+      await writeFile(
+        path.join(repo, '.copperhead', 'config.json'),
+        JSON.stringify({ docs: 'documentation' }, null, 2),
+        'utf8',
+      );
+
+      await mkdir(path.join(repo, 'documentation'), { recursive: true });
+      await writeFile(
+        path.join(repo, 'documentation', 'SPEC.md'),
+        '# s\n\n## Budgets\n\n- sleep_current_uA: 25\n',
+        'utf8',
+      );
+
+      mockRunAgentLoop.mockImplementation(async () => ok());
+
+      await runCreate({
+        repoRoot: repo,
+        briefPath,
+        model: 'gpt-5',
+        log: () => {},
+      });
+
+      const briefHash = await readFile(
+        path.join(repo, 'documentation', 'BRIEF.sha256'),
+        'utf8',
+      );
+
+      expect(briefHash).toContain('sha256:');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('writes BRIEF.sha256 to the configured docs directory during a fresh spec-seed run', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      const briefPath = await seedRepo(repo);
+
+      await writeFile(
+        path.join(repo, '.copperhead', 'config.json'),
+        JSON.stringify({ docs: 'documentation' }, null, 2),
+        'utf8',
+      );
+
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('spec-seed')) {
+          await mkdir(path.join(repo, 'documentation'), { recursive: true });
+
+          await writeFile(
+            path.join(repo, 'documentation', 'SPEC.md'),
+            '# s\n\n## Budgets\n\n- sleep_current_uA: 25\n',
+            'utf8',
+          );
+        }
+
+        return ok();
+      });
+
+      await runCreate({
+        repoRoot: repo,
+        briefPath,
+        model: 'gpt-5',
+        log: () => {},
+      });
+
+      const briefHash = await readFile(
+        path.join(repo, 'documentation', 'BRIEF.sha256'),
+        'utf8',
+      );
+
+      expect(briefHash).toContain('sha256:');
     } finally {
       await cleanup();
     }

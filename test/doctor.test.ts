@@ -8,6 +8,7 @@ import {
   formatDoctor,
   type DoctorDeps,
 } from '../src/commands/doctor.js';
+import { MIN_KICAD_MAJOR } from '../src/kicad/cli.js';
 import { tempFixtureRepo } from './helpers.js';
 
 // Deps that make every host-dependent probe deterministic.
@@ -16,6 +17,7 @@ function deps(over: Partial<DoctorDeps> = {}): Partial<DoctorDeps> {
     nodeVersion: 'v20.0.0',
     kicadVersion: async () => 'kicad-cli 9.0.0',
     gitVersion: async () => 'git version 2.43.0',
+    openspecVersion: async () => 'openspec 1.8.0',
     env: {},
     ...over,
   };
@@ -64,6 +66,152 @@ describe('copperhead doctor', () => {
       const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
       expect(kicad.status).toBe('fail');
       expect(kicad.hint).toMatch(/install KiCad/i);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('fails when KiCad version is below 8 (e.g. KiCad 7.x)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'kicad-cli 7.0.10',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r.ok).toBe(false);
+      const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad.status).toBe('fail');
+      expect(kicad.detail).toContain('(< 8)');
+      expect(kicad.hint).toContain('copperhead needs KiCad >= 8');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('passes when KiCad version is >= 8', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r8 = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => '8.0.4',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r8.ok).toBe(true);
+      const kicad8 = r8.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad8.status).toBe('ok');
+      expect(kicad8.detail).toBe('8.0.4');
+
+      const r10 = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'kicad-cli 10.0.5',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(r10.ok).toBe(true);
+      const kicad10 = r10.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad10.status).toBe('ok');
+      expect(kicad10.detail).toBe('kicad-cli 10.0.5');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('enforces the MIN_KICAD_MAJOR floor exported from kicad/cli', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const below = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => `kicad-cli ${MIN_KICAD_MAJOR - 1}.99.0`,
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(below.ok).toBe(false);
+      const kicadBelow = below.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadBelow.status).toBe('fail');
+      expect(kicadBelow.detail).toContain(`(< ${MIN_KICAD_MAJOR})`);
+
+      const at = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => `kicad-cli ${MIN_KICAD_MAJOR}.0.0`,
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(at.ok).toBe(true);
+      const kicadAt = at.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadAt.status).toBe('ok');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('resolves the correct major when stdout contains a spurious N.N before the real version (Finding 4 regression)', async () => {
+    // An unanchored regex would match "OpenGL 3.2" and yield major 3, causing
+    // doctor to report "KiCad 3 is too old" for a perfectly good KiCad 9.
+    // The anchored regex must skip prefix noise on earlier lines.
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          // Simulate a kicad-cli that emits a warning line before its version.
+          kicadVersion: async () => 'OpenGL 3.2 unsupported\n9.0.1',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad.status).toBe('ok');
+      // The detail must carry the full raw string, not just the match.
+      expect(kicad.detail).toContain('9.0.1');
+      expect(r.ok).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('fails when KiCad version response is empty or unparseable', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const rEmpty = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => '',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(rEmpty.ok).toBe(false);
+      const kicadEmpty = rEmpty.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadEmpty.status).toBe('fail');
+      expect(kicadEmpty.detail).toBe('could not parse version');
+      expect(kicadEmpty.hint).toContain('copperhead needs KiCad >= 8');
+
+      const rGarbage = await runDoctor({
+        repoRoot: repo,
+        model: 'gpt-5',
+        deps: deps({
+          kicadVersion: async () => 'unknown version string',
+          env: { OPENAI_API_KEY: 'sk-x' },
+        }),
+      });
+      expect(rGarbage.ok).toBe(false);
+      const kicadGarbage = rGarbage.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicadGarbage.status).toBe('fail');
+      expect(kicadGarbage.detail).toBe('unknown version string');
+      expect(kicadGarbage.hint).toContain('copperhead needs KiCad >= 8');
     } finally {
       await cleanup();
     }
@@ -238,6 +386,55 @@ describe('copperhead doctor', () => {
     }
   });
 
+  it('reports a missing openspec as a failure with an install hint (does not throw)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'claude-code',
+        deps: deps({
+          openspecVersion: async () => {
+            throw Object.assign(new Error('spawn openspec ENOENT'), { code: 'ENOENT' });
+          },
+        }),
+      });
+      const os = r.checks.find((c) => c.name === 'openspec')!;
+      expect(os.status).toBe('fail');
+      expect(os.hint).toContain('@fission-ai/openspec');
+      expect(r.ok).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a raw multi-line shell error never reaches the report unflattened (regression)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      // A shell-shaped error (exit 127, not ENOENT) is not the "not found"
+      // case the probe itself can produce (execa yields ENOENT for that on
+      // every platform), but any unexpected error must still land as a
+      // single line so it cannot break formatDoctor's column layout.
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'claude-code',
+        deps: deps({
+          openspecVersion: async () => {
+            throw Object.assign(
+              new Error('Command failed: openspec --version\n/bin/sh: 1: openspec: not found\n'),
+              { code: 127 },
+            );
+          },
+        }),
+      });
+      const os = r.checks.find((c) => c.name === 'openspec')!;
+      expect(os.status).toBe('fail');
+      expect(os.detail).toContain('openspec: not found');
+      expect(os.detail).not.toContain('\n');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('with a config present, the project check reports the wired schematic and board', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -318,11 +515,12 @@ describe('doctor — OpenAI-compatible endpoints (issue #110)', () => {
   });
 
   it('strips a Gemini-shaped key (AIza..., not sk-...) from the endpoint URL — regression', () => {
-    // redactSecrets' key-shape patterns (sk-, Bearer, npm_, gh*_) don't match
-    // Gemini's AIza... format or Groq's gsk_... format, and Gemini's own
-    // compat endpoint puts the key in the URL as ?key=.... Dropping the whole
-    // query/userinfo (not pattern-matching the key) is what makes this hold
-    // for every provider's key shape, not just the ones tested here.
+    // redactSecrets covers known key shapes (sk-, Bearer, npm_, gh*_, AIza,
+    // gsk_...), but a key embedded in a URL query isn't reliably one of them,
+    // and Gemini's own compat endpoint puts the key in the URL as ?key=....
+    // Dropping the whole query/userinfo (not pattern-matching the key) is
+    // what makes this hold for every provider's key shape, not just the ones
+    // tested here.
     const gemini = {
       baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai?key=AIzaSyABCDEF1234567890shouldnotleak',
       apiKeyEnv: 'GEMINI_API_KEY',

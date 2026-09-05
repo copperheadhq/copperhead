@@ -6,8 +6,8 @@ body:
     attributes:
       value: |
         copperhead is spec-driven. Behavior lives in
-        [openspec/specs/SPEC.md](https://github.com/chouhanindustries/copperhead/blob/main/openspec/specs/SPEC.md),
-        and the near-term plan lives in [ROADMAP.md](https://github.com/chouhanindustries/copperhead/blob/main/ROADMAP.md).
+        [openspec/specs/SPEC.md](https://github.com/copperheadhq/copperhead/blob/main/openspec/specs/SPEC.md),
+        and the near-term plan lives in [ROADMAP.md](https://github.com/copperheadhq/copperhead/blob/main/ROADMAP.md).
         Please skim both before filing: your idea may already be scoped for a later phase.
 
   - type: textarea

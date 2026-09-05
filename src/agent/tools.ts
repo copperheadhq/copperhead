@@ -6,12 +6,16 @@ import { resolveInRepo, isKicadFile } from '../util/paths.js';
 import { runErc, runDrc, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
-import { verifySchematicSymbols } from '../kicad/symlib.js';
+import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
+import { scoreSchematic, formatScore } from '../kicad/score.js';
+import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
+import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import type { CopperheadConfig } from '../config.js';
+import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import { ObligationsLedger } from './ledger.js';
 import type { Transcript } from './transcript.js';
 
@@ -36,6 +40,10 @@ export interface RunContext {
   decisions: string[];
   lastErc: CheckReport | null;
   lastDrc: CheckReport | null;
+  /** Last check_legibility counts; feeds the run summary's verification section. */
+  lastLegibility: { error: number; advisory: number } | null;
+  /** Last score composite (AC-16.21); recorded in the run summary. */
+  lastScore: number | null;
   repairCycles: number;
   finishRequest: FinishRequest | null;
 }
@@ -262,6 +270,17 @@ export const TOOLS: ToolDef[] = [
       if (corrupt) return corrupt;
       const rel = str(args, 'path');
       const abs = resolveInRepo(ctx.repoRoot, rel);
+      // Engine-drafted sheets are regenerated wholesale from the IR: a hand
+      // edit would be destroyed by the next re-draft and would break the
+      // byte-identical staleness check. Geometry repairs go through the IR
+      // (design D5). Hand-drawn schematics never carry the draft generator
+      // marker, so `do` on existing repos is untouched by this guard.
+      if (rel.endsWith('.kicad_sch') && existsSync(abs)) {
+        const head = (await readFile(abs, 'utf8')).slice(0, 400);
+        if (isEngineAuthoredSchematic(head)) {
+          return `refused: ${rel} is engine-drafted from ${defaultIntentPath(rel)}. Revise the intent (edit_file on the intent JSON) and call draft_schematic to regenerate the sheet; direct geometry edits would be lost on the next re-draft.`;
+        }
+      }
       // Text edits can corrupt an s-expression file in ways the editor cannot
       // see; a corrupted file then fails every later ERC/DRC with an opaque
       // error. Validate loadability with KiCad itself and roll the edit back
@@ -347,6 +366,78 @@ export const TOOLS: ToolDef[] = [
   },
   {
     schema: {
+      name: 'search_symbols',
+      description:
+        'Search EVERY installed KiCad symbol library for a part or symbol name; returns matching lib_ids as Lib:Name, exact matches first. Library nicknames rarely follow from the part number (TPS61165DBV is in Driver_LED, AudioJack3 in Connector_Audio, INA226 in Sensor_Energy), so a failed single-library probe proves nothing about availability — use this before concluding a part has no symbol, and before committing any active part to the BOM: a part is only drawable if its symbol appears here.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'part or symbol name, e.g. "TLV320AIC3204" or "AudioJack3"' },
+        },
+        required: ['query'],
+      },
+    },
+    requiresUnlock: false,
+    handler: async (_ctx, args) => {
+      const query = str(args, 'query');
+      const dirs = await symbolSearchDirs();
+      if (!dirs.length) return 'no installed KiCad symbol library directories found on this machine';
+      const hits = await searchInstalledSymbols(query, dirs);
+      if (!hits.length) {
+        return `no installed symbol matches "${query}" (searched every library in: ${dirs.join(', ')}). The part is not capturable on this machine as named — choose a part whose symbol exists, or a same-family variant that does.`;
+      }
+      return `installed symbols matching "${query}":\n${hits.map((h) => `  - ${h}`).join('\n')}`;
+    },
+  },
+  {
+    schema: {
+      name: 'symbol_pins',
+      description:
+        'Return the REAL pins (number, name, electrical type) of an installed KiCad symbol by lib_id, following extends links, plus its unit count — the authoritative source for REF.PIN endpoints, instead of guessing pins or reading .kicad_sym files. Warns when the symbol is multi-unit, which the drafting engine refuses. On a miss it lists the closest names in that library and where the symbol actually lives, so one call answers both "what are the pins" and "which lib_id is right".',
+      parameters: {
+        type: 'object',
+        properties: {
+          lib_id: { type: 'string', description: 'full library identifier, e.g. "Device:R" or "Audio:TLV320AIC3100"' },
+        },
+        required: ['lib_id'],
+      },
+    },
+    requiresUnlock: false,
+    handler: async (_ctx, args) => {
+      const libId = str(args, 'lib_id');
+      const name = libId.includes(':') ? libId.slice(libId.indexOf(':') + 1) : libId;
+      const dirs = await symbolSearchDirs();
+      if (!dirs.length) {
+        return `cannot verify "${libId}": no installed KiCad symbol library directories were found on this machine, so nothing can be resolved or ruled out. Install the KiCad symbol libraries (or set KICAD_SYMBOL_DIR), or choose a part you can verify another way.`;
+      }
+      const r = await resolveLibrarySymbol(libId, dirs);
+      if (r.status === 'ok') {
+        const pins = [...r.pins]
+          .sort((a, b) => comparePinNumbers(a.number, b.number))
+          .map((p) => `  ${p.number}: ${p.name === '~' || !p.name ? '(unnamed)' : p.name} · ${p.type}`);
+        const multi =
+          r.units >= 2
+            ? `\nNOTE: this symbol defines ${r.units} units; the drafting engine places each unit separately under one refdes (U1A/U1B), and net endpoints keep plain package pin numbers.`
+            : '';
+        return `${libId} — ${r.pins.length} pin(s), ${r.units} unit(s):\n${pins.join('\n')}${multi}`;
+      }
+      if (r.status === 'found-elsewhere') {
+        return `"${libId}" does not resolve, but the symbol is installed as: ${r.libIds.join(', ')} — use one of these lib_ids (and call symbol_pins on it for the pin table).`;
+      }
+      const elsewhere = await searchInstalledSymbols(name, dirs, 6);
+      const where = elsewhere.length
+        ? `\ninstalled as: ${elsewhere.join(', ')}`
+        : `\nno installed symbol matches "${name}" in any library — the part is not capturable as named.`;
+      if (r.status === 'no-symbol') {
+        const close = r.candidates.length ? `\nclosest in that library: ${r.candidates.join(', ')}` : '';
+        return `"${libId}" does not exist in that library.${close}${where}`;
+      }
+      const lib = libId.includes(':') ? libId.slice(0, libId.indexOf(':')) : libId;
+      return `no library named "${lib}" is installed.${where}`;
+    },
+  },
+  {
+    schema: {
       name: 'verify_symbols',
       description:
         "Cross-check every lib_symbols entry in the schematic against the KiCad symbol library installed on this machine. Reports pins that diverge from the real part (wrong count, name, or electrical type) and lib_ids that do not exist in the current KiCad version (with the closest real names). ERC cannot catch these — a symbol whose lib_id claims to be a canonical part but whose pins are wrong passes ERC while being wrong. Run this after capturing symbols and reconcile every finding.",
@@ -365,6 +456,103 @@ export const TOOLS: ToolDef[] = [
       const lines = findings.map((f) => `  - [${f.kind}] ${f.detail}`);
       const mismatches = findings.filter((f) => f.kind !== 'no-library').length;
       return `verify_symbols: ${checked} verified, ${skipped} unverifiable (library not installed), ${mismatches} issue(s) to reconcile:\n${lines.join('\n')}`;
+    },
+  },
+  {
+    schema: {
+      name: 'draft_schematic',
+      description:
+        'Regenerate the schematic deterministically from the netlist-intent IR (schematic.intent.json beside the schematic). Pass intent_json to write a new IR first, or omit it to re-draft the existing file. The engine computes ALL geometry (placement, wires, labels, power symbols, group boxes); never author coordinates. The report embeds the legibility findings and score for the fresh sheet. A failed validation leaves the previous schematic untouched.',
+      parameters: {
+        type: 'object',
+        properties: {
+          intent_json: { type: 'string', description: 'full IR document as JSON text (optional: omit to re-draft the current IR)' },
+        },
+        required: [],
+      },
+    },
+    requiresUnlock: true,
+    handler: async (ctx, args) => {
+      if (!ctx.config.schematic) return 'no schematic configured; set one in .copperhead/config.json first';
+      const intentRel = defaultIntentPath(ctx.config.schematic);
+      if (typeof args.intent_json === 'string' && args.intent_json.trim()) {
+        const corrupt = corruptionError({ intent_json: args.intent_json });
+        if (corrupt) return corrupt;
+        try {
+          JSON.parse(args.intent_json);
+        } catch (e) {
+          return `intent_json is not valid JSON (${(e as Error).message}); nothing written`;
+        }
+        await writeFile(resolveInRepo(ctx.repoRoot, intentRel), args.intent_json, 'utf8');
+        ctx.filesTouched.add(intentRel);
+      }
+      const res = await draftSchematic({
+        repoRoot: ctx.repoRoot,
+        schematic: ctx.config.schematic,
+        intentPath: intentRel,
+        docsDir: ctx.config.docs,
+      });
+      if (!res.ok) return res.message;
+      markTouched(ctx, ctx.config.schematic);
+      // embed the checker and score in the draft report (design D5): a
+      // draft-check-score iteration costs one tool call, and the embedded
+      // checker result drives the ledger obligation exactly like check_legibility
+      const docsAbs = path.join(ctx.repoRoot, ctx.config.docs);
+      const leg = await checkLegibility(res.schematicPath, {
+        docsDir: docsAbs,
+        ...(ctx.config.legibility ? { config: ctx.config.legibility } : {}),
+      });
+      ctx.lastLegibility = leg.counts;
+      ctx.ledger.onLegibilityResult(leg.counts.error);
+      const score = await scoreSchematic(res.schematicPath, {
+        docsDir: docsAbs,
+        ...(ctx.config.legibility ? { config: ctx.config.legibility } : {}),
+      });
+      ctx.lastScore = score.composite;
+      return [formatSchematicDraftReport(res.report), formatLegibility(leg), formatScore(score)].join('\n');
+    },
+  },
+  {
+    schema: {
+      name: 'score_schematic',
+      description:
+        'Deterministic quantitative legibility score for the schematic: composite 0-100 with the per-metric breakdown (crossings, bends, alignment, spacing, symmetry, balance, …). Error-severity legibility findings cap the composite. Advisory: informs, never gates by itself.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+    requiresUnlock: false,
+    handler: async (ctx) => {
+      if (!ctx.config.schematic) return 'no schematic configured; score_schematic does not apply yet';
+      const report = await scoreSchematic(path.join(ctx.repoRoot, ctx.config.schematic), {
+        docsDir: path.join(ctx.repoRoot, ctx.config.docs),
+        ...(ctx.config.legibility ? { config: ctx.config.legibility } : {}),
+      });
+      ctx.lastScore = report.composite;
+      return formatScore(report);
+    },
+  },
+  {
+    schema: {
+      name: 'check_legibility',
+      description:
+        'Run the deterministic legibility checker against the schematic: group boxes and captions, symbol/text collisions, grid alignment, frame and title-block use. Returns numbered findings with coordinates and the concrete fix, or "no findings". Error-severity findings must be reconciled before finish; clears the legibility obligation when clean.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+    requiresUnlock: false,
+    handler: async (ctx) => {
+      // Mirrors check_drift's vacuous path: with no schematic configured there is
+      // nothing to be illegible, and leaving the obligation open would deadlock
+      // any stage that edited a stray .kicad_sch without config wiring.
+      if (!ctx.config.schematic) {
+        ctx.ledger.clear('legibility');
+        return 'no schematic configured; legibility does not apply yet';
+      }
+      const report = await checkLegibility(path.join(ctx.repoRoot, ctx.config.schematic), {
+        docsDir: path.join(ctx.repoRoot, ctx.config.docs),
+        ...(ctx.config.legibility ? { config: ctx.config.legibility } : {}),
+      });
+      ctx.lastLegibility = report.counts;
+      ctx.ledger.onLegibilityResult(report.counts.error);
+      return formatLegibility(report);
     },
   },
   {

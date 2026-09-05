@@ -20,17 +20,43 @@ jobs:
           cache: npm
 
       # ERC/DRC tests shell out to kicad-cli, so the real thing has to be here.
+      # kicad-footprints too: ERC's footprint_link_issues check reports every
+      # footprint whose library the host cannot see, and the draft tests assert
+      # violation-free reports — without the stock footprint libraries those
+      # assertions fail on environment, not code (symbols are vendored per
+      # project, so kicad-symbols stays unnecessary).
       - name: Install KiCad
         run: |
           sudo add-apt-repository --yes ppa:kicad/kicad-10.0-releases
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends kicad
+          sudo apt-get install --yes --no-install-recommends kicad kicad-footprints
           kicad-cli --version
+          # Installing the libraries is not enough: kicad-cli resolves footprint
+          # links through the user's global fp-lib-table and never creates the
+          # default one headlessly, so a fresh runner still reports every stock
+          # library as "not included in the configuration". Seed the default
+          # table from KiCad's own template. The global sym-lib-table is left
+          # absent on purpose: symbols are vendored per project, kicad-symbols
+          # is not installed, and a table naming missing files would only add
+          # noise.
+          KICAD_VER="$(kicad-cli --version | cut -d. -f1,2)"
+          mkdir -p "$HOME/.config/kicad/$KICAD_VER"
+          cp /usr/share/kicad/template/fp-lib-table "$HOME/.config/kicad/$KICAD_VER/"
 
       - run: npm ci
       - run: npm run lint:md
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      # Golden-corpus renders (task 9.5): the suite above fails on any pin
+      # violation; this renders every pinned sheet to SVG so a reviewer can
+      # eyeball layout changes from the run page without a checkout.
+      - name: Render golden corpus
+        run: bash scripts/render-goldens.sh golden-renders
+      - name: Upload golden renders
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-renders
+          path: golden-renders/
       # The published tarball is what users get; make sure it still packs.
       - run: npm pack --dry-run

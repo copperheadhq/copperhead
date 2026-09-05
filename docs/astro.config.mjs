@@ -2,7 +2,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLlmsTxt from 'starlight-llms-txt';
 
-const REPO = 'https://github.com/chouhanindustries/copperhead';
+const REPO = 'https://github.com/copperheadhq/copperhead';
 
 // Served at the root of its own subdomain, docs.copperhead.sh. The apex,
 // copperhead.sh, is a separate Cloudflare Worker (the copperhead-site repo),
@@ -100,6 +100,9 @@ export default defineConfig({
           items: [
             { label: 'CLI', link: '/reference/cli/' },
             { label: 'Configuration', link: '/reference/configuration/' },
+            { label: 'Schematic legibility rules', link: '/reference/schematic-legibility/' },
+            { label: 'How schematics are drafted', link: '/reference/schematic-drafting/' },
+            { label: 'The schematic intent file', link: '/reference/schematic-intent/' },
           ],
         },
         {

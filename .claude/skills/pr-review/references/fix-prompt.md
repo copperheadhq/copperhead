@@ -20,7 +20,7 @@ Fill every placeholder. Drop the untested-surface paragraph when there is no unt
 
 ````text
 You are fixing review findings on a pull request in the copperhead repo
-(chouhanindustries/copperhead): a TypeScript CLI agent that designs and edits real
+(copperheadhq/copperhead): a TypeScript CLI agent that designs and edits real
 KiCad projects. Node >= 20. The PR is #<N>, branch <headRefName>, based on <baseRefName>.
 
 Check it out first:

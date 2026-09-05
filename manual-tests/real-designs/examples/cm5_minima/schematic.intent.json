@@ -1,0 +1,1547 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "C101",
+      "libId": "CM5IO:C",
+      "value": "100n",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C102",
+      "libId": "CM5IO:C",
+      "value": "100n",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "D101",
+      "libId": "CM5IO:RCLAMP0502BA",
+      "value": "RCLAMP0502BA",
+      "footprint": "CM5IO:SOT-416",
+      "group": "Main"
+    },
+    {
+      "ref": "H101",
+      "libId": "CM5IO:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "CM5IO:MountingHole_2.2mm_M2_DIN965_Pad_TopBottom",
+      "group": "Main"
+    },
+    {
+      "ref": "H102",
+      "libId": "CM5IO:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "CM5IO:MountingHole_2.7mm_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "H103",
+      "libId": "CM5IO:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "CM5IO:MountingHole_2.7mm_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "H104",
+      "libId": "CM5IO:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "CM5IO:MountingHole_2.7mm_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "H105",
+      "libId": "CM5IO:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "CM5IO:MountingHole_2.7mm_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "J101",
+      "libId": "CM5IO:USB_C_Receptacle_USB2.0_16P",
+      "value": "TYPEC-305-ACP16H458",
+      "footprint": "CM5IO:USB-C-SMD_TYPEC-305-ACP16H458",
+      "group": "Main"
+    },
+    {
+      "ref": "R101",
+      "libId": "CM5IO:R",
+      "value": "2k2",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R102",
+      "libId": "CM5IO:R",
+      "value": "0R",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R103",
+      "libId": "CM5IO:R",
+      "value": "0R",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R104",
+      "libId": "CM5IO:R",
+      "value": "10k",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "SW101",
+      "libId": "CM5IO:MK-11C04-G013",
+      "value": "MK-11C04-G013",
+      "footprint": "CM5IO:SW-SMD_MK-11C04-G013",
+      "group": "Main"
+    },
+    {
+      "ref": "TP101",
+      "libId": "CM5IO:TestPoint_Small",
+      "value": "VBUS",
+      "footprint": "CM5IO:TestPoint_Pad_D1.0mm",
+      "group": "Main"
+    },
+    {
+      "ref": "TP102",
+      "libId": "CM5IO:TestPoint_Small",
+      "value": "+5V_PI",
+      "footprint": "CM5IO:TestPoint_Pad_D1.0mm",
+      "group": "Main"
+    },
+    {
+      "ref": "TP103",
+      "libId": "CM5IO:TestPoint_Small",
+      "value": "+3V3_PI",
+      "footprint": "CM5IO:TestPoint_Pad_D1.0mm",
+      "group": "Main"
+    },
+    {
+      "ref": "TP104",
+      "libId": "CM5IO:TestPoint_Small",
+      "value": "GND",
+      "footprint": "CM5IO:TestPoint_THTPad_D1.0mm_Drill0.5mm",
+      "group": "Main"
+    },
+    {
+      "ref": "TP105",
+      "libId": "CM5IO:TestPoint_Small",
+      "value": "GND",
+      "footprint": "CM5IO:TestPoint_THTPad_D1.0mm_Drill0.5mm",
+      "group": "Main"
+    },
+    {
+      "ref": "TP106",
+      "libId": "CM5IO:TestPoint_Small",
+      "value": "GND",
+      "footprint": "CM5IO:TestPoint_THTPad_D1.0mm_Drill0.5mm",
+      "group": "Main"
+    },
+    {
+      "ref": "CN1",
+      "libId": "CM5IO:SM02B-SRSS-TB(LF)(SN)",
+      "value": "SM02B-SRSS-TB (LF)(SN)",
+      "footprint": "CM5IO:CONN-SMD_2P-P1.00_SM02B-SRSS-TB-LF-SN",
+      "group": "CM5"
+    },
+    {
+      "ref": "Module301",
+      "libId": "CM5IO:ComputeModule5-CM5_GPIO",
+      "value": "ComputeModule5-CM5",
+      "footprint": "CM5IO:Raspberry-Pi-5-Compute-Module_GPIO",
+      "group": "CM5"
+    },
+    {
+      "ref": "Module302",
+      "libId": "CM5IO:ComputeModule5-CM5_HSS",
+      "value": "ComputeModule5-CM5",
+      "footprint": "CM5IO:Raspberry-Pi-5-Compute-Module_HSS",
+      "group": "CM5"
+    },
+    {
+      "ref": "C401",
+      "libId": "CM5IO:C",
+      "value": "100n",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "Ethernet"
+    },
+    {
+      "ref": "J1",
+      "libId": "CM5IO:GLPLX-SMT-188S7-QQ-Y_G",
+      "value": "GLPLX-SMT-188S7",
+      "footprint": "CM5IO:GLPLXSMT188S7QQYG",
+      "group": "Ethernet"
+    },
+    {
+      "ref": "R401",
+      "libId": "CM5IO:R",
+      "value": "470R",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "Ethernet"
+    },
+    {
+      "ref": "R402",
+      "libId": "CM5IO:R",
+      "value": "470R",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "Ethernet"
+    },
+    {
+      "ref": "R403",
+      "libId": "CM5IO:R",
+      "value": "0R",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "Ethernet"
+    },
+    {
+      "ref": "U401",
+      "libId": "CM5IO:TPD4EUSB30",
+      "value": "TPD4EUSB30",
+      "footprint": "CM5IO:USON-10_2.5x1.0mm_P0.5mm",
+      "group": "Ethernet"
+    },
+    {
+      "ref": "U402",
+      "libId": "CM5IO:TPD4EUSB30",
+      "value": "TPD4EUSB30",
+      "footprint": "CM5IO:USON-10_2.5x1.0mm_P0.5mm",
+      "group": "Ethernet"
+    },
+    {
+      "ref": "C501",
+      "libId": "CM5IO:C",
+      "value": "100n",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "HDMI"
+    },
+    {
+      "ref": "C502",
+      "libId": "CM5IO:C",
+      "value": "100n",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "HDMI"
+    },
+    {
+      "ref": "D401",
+      "libId": "copperhead_embedded:PUSB3F96X_1",
+      "value": "PUSB3F96X",
+      "footprint": "CM5IO:DFN2510A-10_L2.5-W1.0-P0.50-BL",
+      "group": "HDMI"
+    },
+    {
+      "ref": "D402",
+      "libId": "copperhead_embedded:PUSB3F96X_1",
+      "value": "PUSB3F96X",
+      "footprint": "CM5IO:DFN2510A-10_L2.5-W1.0-P0.50-BL",
+      "group": "HDMI"
+    },
+    {
+      "ref": "D403",
+      "libId": "copperhead_embedded:PUSB3F96X_1",
+      "value": "PUSB3F96X",
+      "footprint": "CM5IO:DFN2510A-10_L2.5-W1.0-P0.50-BL",
+      "group": "HDMI"
+    },
+    {
+      "ref": "J501",
+      "libId": "CM5IO:HDMI_A_1.4",
+      "value": "GT-HD001B-CNNG1",
+      "footprint": "CM5IO:EDAC 690-019-298-412",
+      "group": "HDMI"
+    },
+    {
+      "ref": "U405",
+      "libId": "CM5IO:STMPS2151STR",
+      "value": "STMPS2151STR",
+      "footprint": "CM5IO:SOT-23-5",
+      "group": "HDMI"
+    },
+    {
+      "ref": "C503",
+      "libId": "CM5IO:C",
+      "value": "100n",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "IO"
+    },
+    {
+      "ref": "C601",
+      "libId": "CM5IO:C",
+      "value": "4u7",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "IO"
+    },
+    {
+      "ref": "D502",
+      "libId": "CM5IO:RCLAMP0502BA",
+      "value": "RCLAMP0502BA",
+      "footprint": "CM5IO:SOT-416",
+      "group": "IO"
+    },
+    {
+      "ref": "D605",
+      "libId": "CM5IO:LED",
+      "value": "GREEN",
+      "footprint": "CM5IO:LED-SMD_L1.7-W0.6-RD",
+      "group": "IO"
+    },
+    {
+      "ref": "D606",
+      "libId": "CM5IO:LED",
+      "value": "GREEN",
+      "footprint": "CM5IO:LED-SMD_L1.7-W0.6-RD",
+      "group": "IO"
+    },
+    {
+      "ref": "J502",
+      "libId": "CM5IO:Conn_01x04_MountingPin",
+      "value": "I2C",
+      "footprint": "CM5IO:JST_SH_BM04B-SRSS-TB_1x04-1MP_P1.00mm_Vertical",
+      "group": "IO"
+    },
+    {
+      "ref": "J503",
+      "libId": "CM5IO:Conn_01x10_MountingPin",
+      "value": "SPI",
+      "footprint": "CM5IO:JST_SUR_BM10B-SURS-TF_1x10-1MP_P0.80mm_Vertical",
+      "group": "IO"
+    },
+    {
+      "ref": "J601",
+      "libId": "CM5IO:Conn_01x04",
+      "value": "JST_SHBM04B-SRSS-TB",
+      "footprint": "CM5IO:JST_SH_BM04B-SRSS-TB_1x04-1MP_P1.00mm_Vertical",
+      "group": "IO"
+    },
+    {
+      "ref": "R107",
+      "libId": "CM5IO:R",
+      "value": "10k",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "IO"
+    },
+    {
+      "ref": "R108",
+      "libId": "CM5IO:R",
+      "value": "10k",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "IO"
+    },
+    {
+      "ref": "R501",
+      "libId": "CM5IO:R_Small",
+      "value": "2k2",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "IO"
+    },
+    {
+      "ref": "R502",
+      "libId": "CM5IO:R_Small",
+      "value": "2k2",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "IO"
+    },
+    {
+      "ref": "R605",
+      "libId": "CM5IO:R",
+      "value": "2k2",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "IO"
+    },
+    {
+      "ref": "R606",
+      "libId": "CM5IO:R",
+      "value": "2k2",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "IO"
+    },
+    {
+      "ref": "SW501",
+      "libId": "CM5IO:TS-1010A-B",
+      "value": "TS-1010A-B",
+      "footprint": "CM5IO:SW-SMD_TS-1010A-B",
+      "group": "IO"
+    },
+    {
+      "ref": "U1",
+      "libId": "CM5IO:LIS3DH",
+      "value": "LIS3DH",
+      "footprint": "CM5IO:LGA-16_3x3mm_P0.5mm_LayoutBorder3x5y",
+      "group": "IO"
+    },
+    {
+      "ref": "U602",
+      "libId": "copperhead_embedded:74LVC1G07_copy_1",
+      "value": "SN74LVC1G14DBVR",
+      "footprint": "CM5IO:SOT-353_SC-70-5",
+      "group": "IO"
+    },
+    {
+      "ref": "C701",
+      "libId": "CM5IO:C",
+      "value": "10u",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "USB"
+    },
+    {
+      "ref": "C702",
+      "libId": "CM5IO:C_Polarized",
+      "value": "100uF",
+      "footprint": "CM5IO:CP_EIA-3528-21_Kemet-B",
+      "group": "USB"
+    },
+    {
+      "ref": "C703",
+      "libId": "CM5IO:C",
+      "value": "10u",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "USB"
+    },
+    {
+      "ref": "D701",
+      "libId": "CM5IO:RCLAMP0502BA",
+      "value": "RCLAMP0502BA",
+      "footprint": "CM5IO:SOT-416",
+      "group": "USB"
+    },
+    {
+      "ref": "R701",
+      "libId": "CM5IO:R",
+      "value": "15k",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "USB"
+    },
+    {
+      "ref": "R702",
+      "libId": "CM5IO:R",
+      "value": "22k",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "USB"
+    },
+    {
+      "ref": "R703",
+      "libId": "CM5IO:R",
+      "value": "22k",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "USB"
+    },
+    {
+      "ref": "U701",
+      "libId": "CM5IO:AP2553W6",
+      "value": "AP22653W6",
+      "footprint": "CM5IO:SOT-23-6",
+      "group": "USB"
+    },
+    {
+      "ref": "USB701",
+      "libId": "CM5IO:TYPEC-305-ACP16H458",
+      "value": "TYPEC-305-ACP16H458",
+      "footprint": "CM5IO:USB-C-SMD_TYPEC-305-ACP16H458",
+      "group": "USB"
+    },
+    {
+      "ref": "C704",
+      "libId": "CM5IO:C",
+      "value": "10u",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "C705",
+      "libId": "CM5IO:C",
+      "value": "10u",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "C706",
+      "libId": "CM5IO:C",
+      "value": "100n",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "C707",
+      "libId": "CM5IO:C",
+      "value": "4.7nF",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "C708",
+      "libId": "CM5IO:C",
+      "value": "10u",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "C709",
+      "libId": "CM5IO:C",
+      "value": "10u",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "C710",
+      "libId": "CM5IO:C",
+      "value": "10u",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "C711",
+      "libId": "CM5IO:C",
+      "value": "10u",
+      "footprint": "CM5IO:C_0805_2012Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "C712",
+      "libId": "CM5IO:C",
+      "value": "100n",
+      "footprint": "CM5IO:C_0402_1005Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "D702",
+      "libId": "CM5IO:LED",
+      "value": "GREEN",
+      "footprint": "CM5IO:LED-SMD_L1.7-W0.6-RD",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "J701",
+      "libId": "CM5IO:Bus_M.2_Socket_M",
+      "value": "Bus_M.2_Socket_M",
+      "footprint": "CM5IO:M.2 M Key socket_2230_2242",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "L701",
+      "libId": "CM5IO:L",
+      "value": "2.2uH",
+      "footprint": "CM5IO:L_Coilcraft_XAL5030-XXX",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "M701",
+      "libId": "CM5IO:SolderNut",
+      "value": "M.2 Solder Nut",
+      "footprint": "CM5IO:MountingHole_3mm_Pad",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "M702",
+      "libId": "CM5IO:SolderNut",
+      "value": "M.2 Solder Nut",
+      "footprint": "CM5IO:MountingHole_3mm_Pad",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "R704",
+      "libId": "CM5IO:R",
+      "value": "100k",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "R705",
+      "libId": "CM5IO:R",
+      "value": "10k",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "R706",
+      "libId": "CM5IO:R",
+      "value": "2k2",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "R707",
+      "libId": "CM5IO:R",
+      "value": "2k2",
+      "footprint": "CM5IO:R_0402_1005Metric",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "U702",
+      "libId": "CM5IO:AP3441SHE-7B",
+      "value": "AP3441SHE-7B",
+      "footprint": "CM5IO:DFN-8-1EP_2x2mm_P0.5mm_EP1.05x1.75mm",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "U703",
+      "libId": "CM5IO:ASEK-32.768KHZ-L-R-T",
+      "value": "ASEK-32.768KHZ-L-R-T",
+      "footprint": "CM5IO:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+      "group": "PCIe-M2"
+    },
+    {
+      "ref": "J802",
+      "libId": "CM5IO:Conn_01x22_Socket",
+      "value": "Conn_01x22_Female",
+      "footprint": "CM5IO:Hirose_FH12-22S-0.5SH_1x22-1MP_P0.50mm_Horizontal",
+      "group": "DSI_CSI"
+    }
+  ],
+  "nets": [
+    {
+      "name": "+1V8",
+      "pins": [
+        "Module301.88",
+        "Module301.90",
+        "R103.1"
+      ]
+    },
+    {
+      "name": "+3V3_PI",
+      "pins": [
+        "C503.1",
+        "C601.1",
+        "J1.12",
+        "J1.14",
+        "J502.4",
+        "J503.1",
+        "J802.22",
+        "Module301.84",
+        "Module301.86",
+        "R102.1",
+        "R107.2",
+        "R501.1",
+        "R502.1",
+        "TP103.1",
+        "U1.1",
+        "U1.14"
+      ]
+    },
+    {
+      "name": "+5V",
+      "pins": [
+        "C101.1",
+        "C102.1",
+        "C501.1",
+        "C701.1",
+        "C704.1",
+        "C705.1",
+        "C706.1",
+        "D605.2",
+        "D606.2",
+        "J101.A4",
+        "J101.A9",
+        "J101.B4",
+        "J101.B9",
+        "J601.1",
+        "Module301.77",
+        "Module301.79",
+        "Module301.81",
+        "Module301.83",
+        "Module301.85",
+        "Module301.87",
+        "R101.1",
+        "R702.2",
+        "R703.2",
+        "TP101.1",
+        "TP102.1",
+        "U405.4",
+        "U405.5",
+        "U602.5",
+        "U701.1",
+        "U702.3"
+      ]
+    },
+    {
+      "name": "+BATT",
+      "pins": [
+        "CN1.1",
+        "Module301.76"
+      ]
+    },
+    {
+      "name": "/CC1",
+      "pins": [
+        "J101.A5",
+        "Module301.94"
+      ]
+    },
+    {
+      "name": "/CC2",
+      "pins": [
+        "J101.B5",
+        "Module301.96"
+      ]
+    },
+    {
+      "name": "/CM5/BL_GPIO24",
+      "pins": [
+        "J503.7",
+        "Module301.45"
+      ]
+    },
+    {
+      "name": "/CM5/CAM_GPIO0",
+      "pins": [
+        "J802.17",
+        "Module301.97"
+      ]
+    },
+    {
+      "name": "/CM5/CAM_GPIO1",
+      "pins": [
+        "J802.18",
+        "Module301.100"
+      ]
+    },
+    {
+      "name": "/CM5/CS_GPIO18",
+      "pins": [
+        "J503.5",
+        "Module301.49"
+      ]
+    },
+    {
+      "name": "/CM5/DC_GPI25",
+      "pins": [
+        "J503.3",
+        "Module301.41"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.C_N",
+      "pins": [
+        "J802.8",
+        "Module302.127"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.C_P",
+      "pins": [
+        "J802.9",
+        "Module302.129"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.D0_N",
+      "pins": [
+        "J802.2",
+        "Module302.115"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.D0_P",
+      "pins": [
+        "J802.3",
+        "Module302.117"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.D1_N",
+      "pins": [
+        "J802.5",
+        "Module302.121"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.D1_P",
+      "pins": [
+        "J802.6",
+        "Module302.123"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.D2_N",
+      "pins": [
+        "J802.11",
+        "Module302.133"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.D2_P",
+      "pins": [
+        "J802.12",
+        "Module302.135"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.D3_N",
+      "pins": [
+        "J802.14",
+        "Module302.139"
+      ]
+    },
+    {
+      "name": "/CM5/DPHY0_P.D3_P",
+      "pins": [
+        "J802.15",
+        "Module302.141"
+      ]
+    },
+    {
+      "name": "/CM5/EEPROM_nWP",
+      "pins": [
+        "Module301.20",
+        "R104.2"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_PI.TRD0_N",
+      "pins": [
+        "J1.3",
+        "Module301.10",
+        "U401.2",
+        "U401.9"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_PI.TRD0_P",
+      "pins": [
+        "J1.2",
+        "Module301.12",
+        "U401.1",
+        "U401.10"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_PI.TRD1_N",
+      "pins": [
+        "J1.5",
+        "Module301.6",
+        "U401.5",
+        "U401.6"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_PI.TRD1_P",
+      "pins": [
+        "J1.4",
+        "Module301.4",
+        "U401.4",
+        "U401.7"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_PI.TRD2_N",
+      "pins": [
+        "J1.7",
+        "Module301.9",
+        "U402.2",
+        "U402.9"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_PI.TRD2_P",
+      "pins": [
+        "J1.6",
+        "Module301.11",
+        "U402.1",
+        "U402.10"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_PI.TRD3_N",
+      "pins": [
+        "J1.9",
+        "Module301.5",
+        "U402.5",
+        "U402.6"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_PI.TRD3_P",
+      "pins": [
+        "J1.8",
+        "Module301.3",
+        "U402.4",
+        "U402.7"
+      ]
+    },
+    {
+      "name": "/CM5/ETH_nLED_ACTIVITY",
+      "pins": [
+        "Module301.15",
+        "R401.1"
+      ]
+    },
+    {
+      "name": "/CM5/GPIO_VREF",
+      "pins": [
+        "Module301.78",
+        "R102.2",
+        "R103.2"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.CEC",
+      "pins": [
+        "D403.1",
+        "D403.10",
+        "J501.13",
+        "Module302.151"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.CK_N",
+      "pins": [
+        "D401.5",
+        "D401.6",
+        "J501.12",
+        "Module302.190"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.CK_P",
+      "pins": [
+        "D401.4",
+        "D401.7",
+        "J501.10",
+        "Module302.188"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.D0_N",
+      "pins": [
+        "D401.2",
+        "D401.9",
+        "J501.9",
+        "Module302.184"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.D0_P",
+      "pins": [
+        "D401.1",
+        "D401.10",
+        "J501.7",
+        "Module302.182"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.D1_N",
+      "pins": [
+        "D402.5",
+        "D402.6",
+        "J501.6",
+        "Module302.178"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.D1_P",
+      "pins": [
+        "D402.4",
+        "D402.7",
+        "J501.4",
+        "Module302.176"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.D2_N",
+      "pins": [
+        "D402.2",
+        "D402.9",
+        "J501.3",
+        "Module302.172"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.D2_P",
+      "pins": [
+        "D402.1",
+        "D402.10",
+        "J501.1",
+        "Module302.170"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.HOTPLUG",
+      "pins": [
+        "D403.2",
+        "D403.9",
+        "J501.19",
+        "Module302.153"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.SCL",
+      "pins": [
+        "D403.5",
+        "D403.6",
+        "J501.15",
+        "Module302.200"
+      ]
+    },
+    {
+      "name": "/CM5/HDMI_PI.SDA",
+      "pins": [
+        "D403.4",
+        "D403.7",
+        "J501.16",
+        "Module302.199"
+      ]
+    },
+    {
+      "name": "/CM5/MISO_GPIO19",
+      "pins": [
+        "J503.10",
+        "Module301.26"
+      ]
+    },
+    {
+      "name": "/CM5/MOSI_GPIO20",
+      "pins": [
+        "J503.9",
+        "Module301.27"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.CLK_N",
+      "pins": [
+        "J701.53",
+        "Module302.112"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.CLK_P",
+      "pins": [
+        "J701.55",
+        "Module302.110"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.PWR_EN",
+      "pins": [
+        "Module302.106",
+        "R704.1",
+        "U702.7"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.RX_N",
+      "pins": [
+        "J701.43",
+        "Module302.118"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.RX_P",
+      "pins": [
+        "J701.41",
+        "Module302.116"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.TX_N",
+      "pins": [
+        "J701.49",
+        "Module302.124"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.TX_P",
+      "pins": [
+        "J701.47",
+        "Module302.122"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.nCLKREQ",
+      "pins": [
+        "J701.52",
+        "Module302.102"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.nRST",
+      "pins": [
+        "J701.50",
+        "Module302.109"
+      ]
+    },
+    {
+      "name": "/CM5/PCIE_PI.nWAKE",
+      "pins": [
+        "J701.54",
+        "Module302.104"
+      ]
+    },
+    {
+      "name": "/CM5/PI_nLED_PWR",
+      "pins": [
+        "Module301.95",
+        "U602.2"
+      ]
+    },
+    {
+      "name": "/CM5/PWM",
+      "pins": [
+        "J601.2",
+        "Module301.19"
+      ]
+    },
+    {
+      "name": "/CM5/PWR_BUT",
+      "pins": [
+        "Module301.92",
+        "SW501.1"
+      ]
+    },
+    {
+      "name": "/CM5/RST_GPIO27",
+      "pins": [
+        "J503.4",
+        "Module301.48"
+      ]
+    },
+    {
+      "name": "/CM5/SCL0",
+      "pins": [
+        "J802.20",
+        "Module301.80"
+      ]
+    },
+    {
+      "name": "/CM5/SCLK_GPIO21",
+      "pins": [
+        "J503.8",
+        "Module301.25"
+      ]
+    },
+    {
+      "name": "/CM5/SDA0",
+      "pins": [
+        "J802.21",
+        "Module301.82"
+      ]
+    },
+    {
+      "name": "/CM5/TACHO",
+      "pins": [
+        "J601.4",
+        "Module301.16"
+      ]
+    },
+    {
+      "name": "/CM5/USB2P.D_N",
+      "pins": [
+        "D701.2",
+        "Module302.136",
+        "USB701.A7",
+        "USB701.B7"
+      ]
+    },
+    {
+      "name": "/CM5/USB2P.D_P",
+      "pins": [
+        "D701.1",
+        "Module302.134",
+        "USB701.A6",
+        "USB701.B6"
+      ]
+    },
+    {
+      "name": "/CM5/VBUS_EN",
+      "pins": [
+        "Module302.111",
+        "U701.3"
+      ]
+    },
+    {
+      "name": "/CM5/nLED_ACTIVITY",
+      "pins": [
+        "Module301.21",
+        "R606.2"
+      ]
+    },
+    {
+      "name": "/CM5/nLED_SPEED_100_1000",
+      "pins": [
+        "Module301.17",
+        "R402.1"
+      ]
+    },
+    {
+      "name": "/CM5/nRPIBOOT",
+      "pins": [
+        "Module301.93",
+        "SW101.C"
+      ]
+    },
+    {
+      "name": "/IO/SCL",
+      "pins": [
+        "D502.1",
+        "J502.2",
+        "Module301.56",
+        "R502.2",
+        "U1.4"
+      ]
+    },
+    {
+      "name": "/IO/SDA",
+      "pins": [
+        "D502.2",
+        "J502.1",
+        "Module301.58",
+        "R501.2",
+        "U1.6"
+      ]
+    },
+    {
+      "name": "/PCIe-M2/FB",
+      "pins": [
+        "C707.2",
+        "R705.2",
+        "R706.1",
+        "U702.1"
+      ]
+    },
+    {
+      "name": "/PCIe-M2/M2_LX",
+      "pins": [
+        "L701.1",
+        "U702.6"
+      ]
+    },
+    {
+      "name": "/USB/CC1",
+      "pins": [
+        "R703.1",
+        "USB701.A5"
+      ]
+    },
+    {
+      "name": "/USB/CC2",
+      "pins": [
+        "R702.1",
+        "USB701.B5"
+      ]
+    },
+    {
+      "name": "/USB_C.D_N",
+      "pins": [
+        "D101.2",
+        "J101.A7",
+        "J101.B7",
+        "Module302.103"
+      ]
+    },
+    {
+      "name": "/USB_C.D_P",
+      "pins": [
+        "D101.1",
+        "J101.A6",
+        "J101.B6",
+        "Module302.105"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C101.2",
+        "C102.2",
+        "C401.2",
+        "C501.2",
+        "C502.2",
+        "C503.2",
+        "C601.2",
+        "C701.2",
+        "C702.2",
+        "C703.2",
+        "C704.2",
+        "C705.2",
+        "C706.2",
+        "C708.2",
+        "C709.2",
+        "C710.2",
+        "C711.2",
+        "C712.2",
+        "CN1.2",
+        "D101.3",
+        "D401.3",
+        "D401.8",
+        "D402.3",
+        "D402.8",
+        "D403.3",
+        "D403.8",
+        "D502.3",
+        "D701.3",
+        "H101.1",
+        "H102.1",
+        "H103.1",
+        "H104.1",
+        "H105.1",
+        "J1.10",
+        "J101.1",
+        "J101.A1",
+        "J101.A12",
+        "J101.B1",
+        "J101.B12",
+        "J501.11",
+        "J501.17",
+        "J501.2",
+        "J501.5",
+        "J501.8",
+        "J501.SH1",
+        "J501.SH2",
+        "J501.SH3",
+        "J501.SH4",
+        "J502.3",
+        "J503.2",
+        "J503.6",
+        "J601.3",
+        "J701.1",
+        "J701.15",
+        "J701.21",
+        "J701.27",
+        "J701.3",
+        "J701.33",
+        "J701.39",
+        "J701.45",
+        "J701.51",
+        "J701.57",
+        "J701.71",
+        "J701.73",
+        "J701.75",
+        "J701.9",
+        "J701.M1",
+        "J701.S1",
+        "J701.S2",
+        "J802.1",
+        "J802.10",
+        "J802.13",
+        "J802.16",
+        "J802.19",
+        "J802.4",
+        "J802.7",
+        "Module301.1",
+        "Module301.13",
+        "Module301.14",
+        "Module301.2",
+        "Module301.22",
+        "Module301.23",
+        "Module301.32",
+        "Module301.33",
+        "Module301.42",
+        "Module301.43",
+        "Module301.52",
+        "Module301.53",
+        "Module301.59",
+        "Module301.60",
+        "Module301.65",
+        "Module301.66",
+        "Module301.7",
+        "Module301.71",
+        "Module301.74",
+        "Module301.8",
+        "Module301.98",
+        "Module302.107",
+        "Module302.108",
+        "Module302.113",
+        "Module302.114",
+        "Module302.119",
+        "Module302.120",
+        "Module302.125",
+        "Module302.126",
+        "Module302.131",
+        "Module302.132",
+        "Module302.137",
+        "Module302.138",
+        "Module302.144",
+        "Module302.150",
+        "Module302.155",
+        "Module302.156",
+        "Module302.161",
+        "Module302.162",
+        "Module302.167",
+        "Module302.168",
+        "Module302.173",
+        "Module302.174",
+        "Module302.179",
+        "Module302.180",
+        "Module302.185",
+        "Module302.186",
+        "Module302.191",
+        "Module302.192",
+        "Module302.197",
+        "Module302.198",
+        "R101.2",
+        "R104.1",
+        "R108.1",
+        "R403.2",
+        "R701.2",
+        "R704.2",
+        "R706.2",
+        "SW101.1",
+        "SW101.4",
+        "SW101.5",
+        "SW501.2",
+        "SW501.3",
+        "SW501.4",
+        "SW501.5",
+        "TP104.1",
+        "TP105.1",
+        "TP106.1",
+        "U1.10",
+        "U1.12",
+        "U1.5",
+        "U401.3",
+        "U401.8",
+        "U402.3",
+        "U402.8",
+        "U405.2",
+        "U602.3",
+        "U701.2",
+        "U702.4",
+        "U702.8",
+        "U702.9",
+        "U703.2",
+        "USB701.1",
+        "USB701.A1",
+        "USB701.A12",
+        "USB701.B1",
+        "USB701.B12"
+      ]
+    },
+    {
+      "name": "HDMI_+5V",
+      "pins": [
+        "C502.1",
+        "J501.18",
+        "U405.1"
+      ]
+    },
+    {
+      "name": "M2_3V3",
+      "pins": [
+        "C707.1",
+        "C708.1",
+        "C709.1",
+        "C710.1",
+        "C711.1",
+        "C712.1",
+        "D702.2",
+        "J701.12",
+        "J701.14",
+        "J701.16",
+        "J701.18",
+        "J701.2",
+        "J701.4",
+        "J701.70",
+        "J701.72",
+        "J701.74",
+        "L701.2",
+        "R705.1",
+        "U703.1",
+        "U703.4"
+      ]
+    },
+    {
+      "name": "Net-(D605-K)",
+      "pins": [
+        "D605.1",
+        "R605.1"
+      ]
+    },
+    {
+      "name": "Net-(D606-K)",
+      "pins": [
+        "D606.1",
+        "R606.1"
+      ]
+    },
+    {
+      "name": "Net-(D702-K)",
+      "pins": [
+        "D702.1",
+        "R707.1"
+      ]
+    },
+    {
+      "name": "Net-(J1-K_GREEN)",
+      "pins": [
+        "J1.11",
+        "R401.2"
+      ]
+    },
+    {
+      "name": "Net-(J1-K_YELLOW)",
+      "pins": [
+        "J1.13",
+        "R402.2"
+      ]
+    },
+    {
+      "name": "Net-(J1-MP1)",
+      "pins": [
+        "J1.15",
+        "J1.16",
+        "R403.1"
+      ]
+    },
+    {
+      "name": "Net-(J1-VCC)",
+      "pins": [
+        "C401.1",
+        "J1.1"
+      ]
+    },
+    {
+      "name": "Net-(J701-DAS{slash}~{DSS}{slash}~{LED1})",
+      "pins": [
+        "J701.10",
+        "R707.2"
+      ]
+    },
+    {
+      "name": "Net-(J701-SUSCLK)",
+      "pins": [
+        "J701.68",
+        "U703.3"
+      ]
+    },
+    {
+      "name": "Net-(R605-Pad2)",
+      "pins": [
+        "R605.2",
+        "U602.4"
+      ]
+    },
+    {
+      "name": "Net-(U1-CS)",
+      "pins": [
+        "R107.1",
+        "U1.8"
+      ]
+    },
+    {
+      "name": "Net-(U1-SDO)",
+      "pins": [
+        "R108.2",
+        "U1.7"
+      ]
+    },
+    {
+      "name": "Net-(U701-ILIM)",
+      "pins": [
+        "R701.1",
+        "U701.5"
+      ]
+    },
+    {
+      "name": "VBUS_USB2.0",
+      "pins": [
+        "C702.1",
+        "C703.1",
+        "U701.6",
+        "USB701.A4",
+        "USB701.A9",
+        "USB701.B4",
+        "USB701.B9"
+      ]
+    }
+  ]
+}

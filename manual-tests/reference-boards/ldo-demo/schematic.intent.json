@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "parts": [
+    { "ref": "J1", "libId": "Connector_Generic:Conn_01x02", "value": "Conn_01x02", "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", "group": "Power" },
+    { "ref": "U1", "libId": "Regulator_Linear:AP1117-15", "value": "AP1117-33", "footprint": "Package_TO_SOT_SMD:SOT-223-3_TabPin2", "group": "Power" },
+    { "ref": "C1", "libId": "Device:C", "value": "10u", "footprint": "Capacitor_SMD:C_0805_2012Metric", "group": "Power" },
+    { "ref": "C2", "libId": "Device:C", "value": "10u", "footprint": "Capacitor_SMD:C_0805_2012Metric", "group": "Power" },
+    { "ref": "R1", "libId": "Device:R", "value": "330", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Indicator" },
+    { "ref": "D1", "libId": "Device:LED", "value": "green", "footprint": "LED_SMD:LED_0603_1608Metric", "group": "Indicator" }
+  ],
+  "nets": [
+    { "name": "VIN", "pins": ["J1.1", "U1.3", "C1.1"] },
+    { "name": "GND", "pins": ["J1.2", "U1.1", "C1.2", "C2.2", "D1.1"] },
+    { "name": "3V3", "pins": ["U1.2", "C2.1", "R1.1"] },
+    { "name": "LED_A", "pins": ["R1.2", "D1.2"] }
+  ],
+  "hints": { "date": "2026-07-31" }
+}

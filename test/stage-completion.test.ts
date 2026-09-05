@@ -104,6 +104,46 @@ describe('spec-seed isComplete', () => {
       expect(await stageNamed('spec-seed')(root, DOCS)).toBe(true);
     });
   });
+
+  // I17: the budgets live under subsections, so the parent heading's own body is
+  // empty. Ending the section at the next heading of ANY depth read this fully
+  // populated spec as an unfilled placeholder and failed the stage after it had
+  // already committed its work.
+  it('returns true when the Budgets section carries its content in subsections', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'SPEC.md'),
+        `# My Project\n\n## 3. Electrical budgets\n\n### 3.1 Input and rails\n\n| ID | Budget | Value |\n|----|--------|-------|\n| B-1 | VIN | 12 V |\n\n### 3.2 Battery\n\n- charge_current_mA: 500\n\n## 4. Motion requirements\n\n- 90 deg index\n`,
+        'utf8',
+      );
+      expect(await stageNamed('spec-seed')(root, DOCS)).toBe(true);
+    });
+  });
+
+  it('returns false when the Budgets section holds subheadings but no content', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'SPEC.md'),
+        `# My Project\n\n## Budgets\n\n### Power\n\n<!-- TODO -->\n\n### Thermal\n\n## Assumptions\n`,
+        'utf8',
+      );
+      expect(await stageNamed('spec-seed')(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('does not let a later sibling section satisfy the Budgets contract', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'SPEC.md'),
+        `# My Project\n\n## Budgets\n\n<!-- Add hard budgets here -->\n\n## Assumptions\n\n- USB-C assumed ASSUMED\n`,
+        'utf8',
+      );
+      expect(await stageNamed('spec-seed')(root, DOCS)).toBe(false);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -371,4 +411,35 @@ describe('devplan isComplete', () => {
       expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
     });
   });
+});
+
+// ---------------------------------------------------------------------------
+// Stage 4: schematic — legibility joins the contract (AC-16.22)
+// ---------------------------------------------------------------------------
+describe('schematic isComplete: legibility gate', () => {
+  it('error-severity findings keep the stage active; a clean sheet completes', async () => {
+    const { tempFixtureRepo } = await import('./helpers.js');
+    const { runInit } = await import('../src/memory/scaffold.js');
+    const { readFile, writeFile: wf } = await import('node:fs/promises');
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      // the fixture's caption must name a documented subsystem
+      const subsPath = path.join(repo, 'docs', 'SUBSYSTEMS.md');
+      await wf(subsPath, (await readFile(subsPath, 'utf8')) + '\n## Keyer\n\nKey input block.\n', 'utf8');
+      const isComplete = stageNamed('schematic');
+      expect(await isComplete(repo, DOCS)).toBe(true);
+
+      // strip the group box: every symbol becomes ungrouped (error severity),
+      // while symbols, drift, and ERC stay green — only legibility blocks now
+      const schPath = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const sch = await readFile(schPath, 'utf8');
+      const stripped = sch.replace(/  \(rectangle \(start 80 84\)[\s\S]*?\n  \)\n/, '');
+      expect(stripped).not.toBe(sch);
+      await wf(schPath, stripped, 'utf8');
+      expect(await isComplete(repo, DOCS)).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  }, 60000);
 });

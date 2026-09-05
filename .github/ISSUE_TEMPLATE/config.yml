@@ -4,8 +4,8 @@ contact_links:
     url: https://docs.copperhead.sh
     about: Installation, commands, configuration, and the KiCad integration.
   - name: Questions and ideas
-    url: https://github.com/chouhanindustries/copperhead/discussions
+    url: https://github.com/copperheadhq/copperhead/discussions
     about: Ask how to do something, or float an idea before it becomes a feature request.
   - name: Report a security vulnerability
-    url: https://github.com/chouhanindustries/copperhead/security/advisories/new
+    url: https://github.com/copperheadhq/copperhead/security/advisories/new
     about: Report privately. Please do not open a public issue for a security problem.

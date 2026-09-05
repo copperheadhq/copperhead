@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { execa } from 'execa';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -12,8 +13,9 @@ import {
   type CompatSettings,
   type CopperheadConfig,
 } from '../config.js';
-import { kicadCliVersion } from '../kicad/cli.js';
+import { kicadCliVersion, MIN_KICAD_MAJOR } from '../kicad/cli.js';
 import { redactSecrets } from '../util/redact.js';
+import { isNotFoundError } from '../util/preflight.js';
 
 const execFileP = promisify(execFile);
 
@@ -44,6 +46,7 @@ export interface DoctorDeps {
   nodeVersion: string;
   kicadVersion: () => Promise<string>;
   gitVersion: () => Promise<string>;
+  openspecVersion: () => Promise<string>;
   env: NodeJS.ProcessEnv;
 }
 
@@ -54,6 +57,15 @@ function defaultDeps(): DoctorDeps {
     // `git --version` prints "git version 2.34.1"; keep only the number, the
     // report already labels the row "git".
     gitVersion: async () => (await execFileP('git', ['--version'])).stdout.trim().replace(/^git version\s+/, ''),
+    /**
+     * Probes `openspec --version` via execa, the same probe shape as the real
+     * call site (src/openspec/cli.ts): execa resolves Windows .cmd/.bat shims
+     * via cross-spawn without a shell, so a missing binary still yields ENOENT
+     * (what isNotFoundError expects) on every platform, instead of a
+     * shell-reported exit 127/"not found".
+     * @returns the trimmed stdout of `openspec --version` (e.g. "1.8.0").
+     */
+    openspecVersion: async () => (await execa('openspec', ['--version'])).stdout.trim(),
     env: process.env,
   };
 }
@@ -73,15 +85,46 @@ function nodeCheck(version: string): DoctorCheck {
   };
 }
 
+// MIN_KICAD_MAJOR (imported from kicad/cli.ts) enforces the minimum supported KiCad version for ERC/DRC.
+// Behaviour note: kicadCheck() returns status: 'fail' (exit non-zero) for any
+// kicad-cli version below this threshold, and for output that contains no
+// parseable N.N version token. This is intentional user-visible behaviour and
+// is NOT a no-op hint correction: users on KiCad 7 will see doctor fail where
+// it previously succeeded. The gate mirrors the README's stated requirement and
+// follows the same pattern as MIN_NODE_MAJOR above.
+
 async function kicadCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
   try {
-    return { name: 'kicad-cli', status: 'ok', detail: await probe() };
+    const raw = await probe();
+    // Anchored match: require a version-shaped token at the start of a line so
+    // an incidental N.N elsewhere in stdout (e.g. "OpenGL 3.2 unsupported")
+    // does not shadow the real KiCad version. The `m` flag makes ^ match
+    // line-starts within a multi-line string.
+    const match = raw.match(/(?:^|\n)\s*(?:kicad-cli\s+)?v?(\d+)\.\d+/m);
+    const major = match ? Number(match[1]) : NaN;
+    if (!Number.isFinite(major)) {
+      return {
+        name: 'kicad-cli',
+        status: 'fail',
+        detail: raw || 'could not parse version',
+        hint: `copperhead needs KiCad >= ${MIN_KICAD_MAJOR}; install or configure a compatible kicad-cli.`,
+      };
+    }
+    if (major < MIN_KICAD_MAJOR) {
+      return {
+        name: 'kicad-cli',
+        status: 'fail',
+        detail: `${raw} (< ${MIN_KICAD_MAJOR})`,
+        hint: `copperhead needs KiCad >= ${MIN_KICAD_MAJOR}; upgrade KiCad (https://www.kicad.org/download/).`,
+      };
+    }
+    return { name: 'kicad-cli', status: 'ok', detail: raw };
   } catch {
     return {
       name: 'kicad-cli',
       status: 'fail',
       detail: 'not found on PATH',
-      hint: 'install KiCad >= 9 (bundles kicad-cli); ERC/DRC gates need it.',
+      hint: 'install KiCad >= 8 (bundles kicad-cli); ERC/DRC gates need it.',
     };
   }
 }
@@ -95,6 +138,41 @@ async function gitCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
       status: 'fail',
       detail: 'not found on PATH',
       hint: 'install git; copperhead snapshots and commits its work.',
+    };
+  }
+}
+
+/**
+ * Report whether the `openspec` CLI is reachable, needed for `validate_change`
+ * and the `create` pipeline. Fails soft like `kicadCheck`/`gitCheck`: a
+ * missing or erroring probe is returned as a `fail` check, never thrown.
+ * @param probe resolves the openspec version string, or rejects if the CLI
+ *   can't be run (e.g. not found on PATH).
+ * @returns an `ok` check with the version on success; a `fail` check with an
+ *   install hint when `probe` rejects with a not-found error (per
+ *   `isNotFoundError`), or a `fail` check with the flattened error message
+ *   otherwise.
+ */
+async function openspecCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
+  try {
+    return { name: 'openspec', status: 'ok', detail: await probe() };
+  } catch (err) {
+    if (isNotFoundError(err)) {
+      return {
+        name: 'openspec',
+        status: 'fail',
+        detail: 'not found on PATH',
+        hint: 'npm i -g @fission-ai/openspec; validate_change and the create pipeline need it.',
+      };
+    }
+    // Collapse embedded newlines/whitespace from a raw shell/subprocess error:
+    // formatDoctor's column layout assumes a single-line detail, and wrapWords
+    // splits on plain spaces only.
+    const rawMessage = (err as Error).message || String(err);
+    return {
+      name: 'openspec',
+      status: 'fail',
+      detail: rawMessage.replace(/\s+/g, ' ').trim(),
     };
   }
 }
@@ -131,9 +209,9 @@ export function checkCredential(
     const settings = compat ?? { apiKeyEnv: DEFAULT_API_KEY_ENV };
     // Display only: some endpoints embed a credential in the URL itself (a
     // query param, userinfo) — Gemini's compat endpoint does this with
-    // ?key=..., in a format redactSecrets' key-shape patterns don't cover.
-    // Drop the query and userinfo entirely rather than pattern-matching, so
-    // this holds regardless of what a given provider's key looks like.
+    // ?key=.... redactSecrets covers known key shapes, but a key embedded in
+    // a URL query isn't reliably one of them, so drop the query and userinfo
+    // entirely rather than pattern-matching, regardless of shape.
     // isLocalEndpoint() below still runs against the raw settings.baseURL,
     // never this.
     const where = (() => {
@@ -380,6 +458,7 @@ export async function runDoctor(opts: RunDoctorOptions): Promise<DoctorReport> {
     nodeCheck(deps.nodeVersion),
     await kicadCheck(deps.kicadVersion),
     await gitCheck(deps.gitVersion),
+    await openspecCheck(deps.openspecVersion),
     providerCheck(opts.model, config, deps.env),
   ];
   if (resolvedModel) {

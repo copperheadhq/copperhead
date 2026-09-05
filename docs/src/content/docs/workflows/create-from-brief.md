@@ -57,7 +57,7 @@ Five headings do the work:
 
 Anything you leave out, the agent picks a default and flags it `ASSUMED` in `docs/SPEC.md`. Read those flags early: correcting an assumption before the schematic stage is much cheaper than after layout.
 
-Six ready-made briefs ship in [`examples/`](https://github.com/chouhanindustries/copperhead/tree/main/examples), graded by how much the agent has to hold in its head at once.
+Six ready-made briefs ship in [`examples/`](https://github.com/copperheadhq/copperhead/tree/main/examples), graded by how much the agent has to hold in its head at once.
 
 ## 2. Run the pipeline
 

@@ -2,9 +2,32 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
+/**
+ * Optional `legibility` block: checker thresholds and per-family severity
+ * overrides (`off` disables a family). Unknown keys and invalid values are
+ * ignored by the checker's own sanitizer, so a config typo cannot crash a run.
+ */
+export interface LegibilityUserConfig {
+  thresholds?: {
+    gridPitch?: number;
+    minPitch?: number;
+    utilization?: number;
+    maxWireLength?: number;
+    familyCap?: number;
+  };
+  severity?: Record<string, 'error' | 'advisory' | 'off'>;
+  /** Scorer tuning: per-metric weights and the known-good composite floor. */
+  score?: {
+    weights?: Record<string, number>;
+    floor?: number;
+  };
+}
+
 export interface CopperheadConfig {
   schematic: string | null;
   board: string | null;
+  /** Schematic legibility checker thresholds and severity overrides. */
+  legibility?: LegibilityUserConfig;
   docs: string;
   model: string | null;
   maxTurns: number;
@@ -115,6 +138,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(typeof raw.apiKeyEnv === 'string' && raw.apiKeyEnv.trim() ? { apiKeyEnv: raw.apiKeyEnv.trim() } : {}),
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
+    ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
   };
 }
 

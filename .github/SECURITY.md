@@ -13,7 +13,7 @@ copperhead is pre-1.0 and moves fast. Only the latest published release on npm r
 
 **Do not open a public issue for a security problem.**
 
-Report privately through [GitHub's private vulnerability reporting](https://github.com/chouhanindustries/copperhead/security/advisories/new). That opens a draft advisory only the maintainers and you can see.
+Report privately through [GitHub's private vulnerability reporting](https://github.com/copperheadhq/copperhead/security/advisories/new). That opens a draft advisory only the maintainers and you can see.
 
 If you cannot use GitHub advisories, email <animeshchouhan@outlook.com> with `[copperhead security]` in the subject.
 

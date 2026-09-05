@@ -9,7 +9,7 @@ Implementable items are planned as OpenSpec changes (proposal, design, delta spe
 | Roadmap item | OpenSpec change |
 | --- | --- |
 | Phase 0 (housekeeping) + Phase 1 items 2-4 (evidence, benchmark, CI) | [prove-live-acceptance](openspec/changes/prove-live-acceptance/) |
-| Model benchmarking, the task suite, and the whitepaper | [copperhead-benchmarks](https://github.com/chouhanindustries/copperhead-benchmarks) (separate repository) |
+| Model benchmarking, the task suite, and the whitepaper | [copperbench](https://github.com/copperheadhq/copperbench) (separate repository) |
 | Phase 1 item 1 (run the live suite) | remaining tasks in [build-copperhead-phase-1](openspec/changes/build-copperhead-phase-1/tasks.md) |
 | Phase 2 item 1 (fab release gate) | [add-fab-release-gate](openspec/changes/add-fab-release-gate/) |
 | Phase 2 item 2 (supplier BOM export) | [add-supplier-bom-export](openspec/changes/add-supplier-bom-export/) |
@@ -26,6 +26,8 @@ Phase 3 item 3 (launch) and Phase 4 are process and content work, tracked here r
 **Solid.** `init` and `check`/`verify` are deterministic, LLM-free, and green in CI against a real KiCad fixture. The two invariants are covered by structural tests, not prompts: edit tools are absent from the tool list until an OpenSpec proposal validates, `finish` blocks on open ledger obligations and unverified ERC, `DECISIONS.md` is append-only, the pre-commit hook blocks desynced hand edits, and the `check` module graph is asserted to never import a provider SDK.
 
 **Implemented, not yet proven.** The agent loop (`do`, `sync --resolve`, `create`) is complete and structurally gated for both providers, but the live acceptance suite (AC-3.x, provider parity per AC-3.10) has not been observed passing end to end. The suite exists and is key-gated; the gap is running it.
+
+**Shipped.** Deterministic schematic drafting: the engine computes placement, routing, power symbols, and group boxes from the netlist intent, a read-only legibility checker gates drawing quality, and a scorer reports the sheet's composite advisorily. `draft schematic` and `score schematic` are LLM-free and network-free like the rest of `check`. Closes #136 and #159.
 
 **Pending.** The `add-part-research-tools` OpenSpec change is proposed with design and tasks written, not yet implemented.
 
@@ -66,7 +68,8 @@ Ranked by fit with the two invariants. Items 1 and 2 extend the LLM-free `check`
 
 1. **Import from code-first HDLs, do not fight them.** tscircuit and atopile both export KiCad; accept their output as input. Their users become copperhead users at the layout, verification, and drift stage, with no rewrite asked of anyone.
 2. **Constraint packs.** Shareable, versioned budget and rule presets as plain JSON: battery-powered device, USB-PD, EMC-conscious layout. Community contributions that compound. Everything stays readable markdown and JSON in the user's repo, per the no-lock-in commitment.
-3. **Own the category framing.** "Drift is a build failure" positions copperhead as CI for hardware design, not another AI designer. Every competitor claims design; none can make the verification guarantee. Write it as a build-log post and keep making the argument.
+3. **Layout levers beyond the hand-rolled engine.** Two successors are documented rather than built, both judged by the Tier C harness so a swap has to prove itself on the same corpus. **elkjs** (EPL-2.0, license-compatible as an unmodified dependency) stays the escape hatch for topologies the rule-based placer draws awkwardly; it was rejected for v1 because it is an 8 MB GWT transpilation that cannot be debugged when a layout is wrong and has no grid support, so every coordinate would need snap-and-repair. A **template corpus** (tscircuit-style idiom matching) is the successor to the built-in idiom rules, for when the rule set stops generalizing. Reach for either only when the scorer says the current engine has run out of road.
+4. **Own the category framing.** "Drift is a build failure" positions copperhead as CI for hardware design, not another AI designer. Every competitor claims design; none can make the verification guarantee. Write it as a build-log post and keep making the argument.
 
 ## Non-goals (unchanged)
 

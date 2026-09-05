@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "parts": [
+    { "ref": "J1", "libId": "Connector_Generic:Conn_01x02", "value": "Conn_01x02", "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", "group": "Power" },
+    { "ref": "CP1", "libId": "Device:C_Polarized", "value": "22u", "footprint": "Capacitor_SMD:CP_Elec_4x4.5", "group": "Power" },
+    { "ref": "U1", "libId": "MCU_Microchip_ATtiny:ATtiny25V-10S", "value": "ATtiny85-20S", "footprint": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm", "group": "MCU" },
+    { "ref": "C1", "libId": "Device:C", "value": "100n", "footprint": "Capacitor_SMD:C_0603_1608Metric", "group": "MCU" },
+    { "ref": "R1", "libId": "Device:R", "value": "10k", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "MCU" },
+    { "ref": "R2", "libId": "Device:R", "value": "100k", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Driver" },
+    { "ref": "Q1", "libId": "Device:Q_NPN", "value": "MMBT3904", "footprint": "Package_TO_SOT_SMD:SOT-23", "group": "Driver" },
+    { "ref": "D1", "libId": "Device:D", "value": "1N4148W", "footprint": "Diode_SMD:D_SOD-123", "group": "Driver" },
+    { "ref": "J2", "libId": "Connector_Generic:Conn_01x02", "value": "Conn_01x02", "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical", "group": "Driver" }
+  ],
+  "nets": [
+    { "name": "5V", "pins": ["J1.1", "U1.8", "C1.1", "CP1.1", "R1.1", "D1.1", "J2.1"] },
+    { "name": "GND", "pins": ["J1.2", "U1.4", "C1.2", "CP1.2", "R2.2", "Q1.E"] },
+    { "name": "nRESET", "pins": ["U1.1", "R1.2"] },
+    { "name": "DRIVE", "pins": ["U1.5", "R2.1", "Q1.B"] },
+    { "name": "SW", "pins": ["Q1.C", "D1.2", "J2.2"] }
+  ],
+  "noConnect": ["U1.2", "U1.3", "U1.6", "U1.7"],
+  "hints": { "date": "2026-07-31" }
+}

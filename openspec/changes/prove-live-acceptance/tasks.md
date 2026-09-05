@@ -21,7 +21,7 @@
 
 ## 4. Telegraph benchmark
 
-> **Superseded by [copperhead-benchmarks](https://github.com/chouhanindustries/copperhead-benchmarks), a separate repository.** The bespoke `traps.json` format is expressible in that suite's general assertion vocabulary, so Telegraph lands there as a task under the shared manifest rather than as a one-off runner here. Strike this section once that suite's runner exists; sections 1 to 3 and 5 are unaffected and remain in this repo's scope.
+> **Superseded by [copperbench](https://github.com/copperheadhq/copperbench), a separate repository.** The bespoke `traps.json` format is expressible in that suite's general assertion vocabulary, so Telegraph lands there as a task under the shared manifest rather than as a one-off runner here. Strike this section once that suite's runner exists; sections 1 to 3 and 5 are unaffected and remain in this repo's scope.
 
 - [ ] 4.1 Pin the Open Telegraph brief under `benchmarks/telegraph/` and write `traps.json` (budget refusal, constraint citations, drift catches, gate events) with ids and transcript/repo-state matchers
 - [ ] 4.2 Implement `scripts/benchmark-telegraph.ts`: scratch-directory `create` run, trap evaluation, per-trap output, non-zero on failure; `npm run benchmark:telegraph`

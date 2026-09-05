@@ -179,6 +179,77 @@ program
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
   .action(checkAction);
 
+// `draft` and `score` are command groups taking the artifact as a noun
+// (`draft schematic` today, `draft pcb` when layout drafting exists), so the
+// verb alone never has to guess what it applies to.
+const draftGroup = program
+  .command('draft')
+  .description('deterministically draft an artifact from its declared intent; no LLM, no network');
+draftGroup
+  .command('schematic')
+  .description('draft the schematic from schematic.intent.json')
+  .option('--intent <path>', 'repo-relative intent file (default: schematic.intent.json beside the schematic)')
+  .action(async (opts: { intent?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { loadConfig } = await import('./config.js');
+      const { draftSchematic, defaultIntentPath, formatSchematicDraftReport } = await import('./kicad/draft/draft.js');
+      const config = await loadConfig(repo);
+      if (!config.schematic) {
+        console.error('no schematic configured in .copperhead/config.json');
+        process.exit(1);
+      }
+      const res = await draftSchematic({
+        repoRoot: repo,
+        schematic: config.schematic,
+        intentPath: opts.intent ?? defaultIntentPath(config.schematic),
+        docsDir: config.docs,
+      });
+      if (!res.ok) {
+        if (json) console.log(JSON.stringify({ ok: false, findings: res.findings }, null, 2));
+        else console.error(res.message);
+        process.exit(1);
+      }
+      if (json) console.log(JSON.stringify({ ok: true, report: res.report }, null, 2));
+      else console.log(formatSchematicDraftReport(res.report));
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+const scoreGroup = program
+  .command('score')
+  .description('quantitative quality score for an artifact; advisory exit code; no LLM, no network');
+scoreGroup
+  .command('schematic')
+  .description('legibility and layout score for the schematic')
+  .action(async () => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { loadConfig } = await import('./config.js');
+      const { scoreSchematic, formatScore } = await import('./kicad/score.js');
+      const path = await import('node:path');
+      const config = await loadConfig(repo);
+      if (!config.schematic) {
+        console.error('no schematic configured in .copperhead/config.json');
+        process.exit(1);
+      }
+      const report = await scoreSchematic(path.join(repo, config.schematic), {
+        docsDir: path.join(repo, config.docs),
+        ...(config.legibility ? { config: config.legibility } : {}),
+      });
+      console.log(json ? JSON.stringify(report, null, 2) : formatScore(report));
+      process.exit(0); // the exit code never depends on the composite (AC-16.26 family)
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
 program
   .command('doctor')
   .description('env preflight: kicad-cli, git, node, and the model provider credential; no LLM, no network')
