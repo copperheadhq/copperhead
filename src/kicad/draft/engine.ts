@@ -703,10 +703,24 @@ const segCrossesBody = (x1: number, y1: number, x2: number, y2: number, b: Bound
  */
 export function draftSchematicPlacement(validated: ValidatedIntent, projectName: string, today: string): { model: PlacementModel; report: SchematicDraftReport } {
   const reserves = new Map<string, { left: number; right: number }>();
+  let frameSlack = 0;
   for (let round = 0; ; round++) {
-    const { model, report, rects } = draftOnce(validated, projectName, today, reserves);
+    const { model, report, rects } = draftOnce(validated, projectName, today, reserves, frameSlack);
     if (round >= 3) return { model, report };
     let widened = false;
+    // A row or column wrapped to the full usable width leaves no room for the
+    // text its boxes grow to hold afterwards, and a box then crosses the
+    // frame (usb-atmega-node's IO Headers on A3). Any box past the frame
+    // shrinks the usable frame by the overflow and the sheet is drafted again.
+    const paper = PAPERS.find((p) => p.name === report.sheetFit.paper);
+    if (paper) {
+      const over = Math.max(0, ...rects.flatMap((r) => [FRAME - r.x1, r.x2 - (paper.w - FRAME), FRAME - r.y1, r.y2 - (paper.h - FRAME)]));
+      if (over > 0.01) {
+        frameSlack += over + U;
+        widened = true;
+        trace(`a group box crosses the frame by ${over.toFixed(2)} mm; the usable frame shrinks by ${frameSlack.toFixed(2)} mm and the sheet is drafted again`);
+      }
+    }
     for (let i = 0; i < rects.length; i++) {
       for (let j = i + 1; j < rects.length; j++) {
         const a = rects[i]!;
@@ -731,6 +745,7 @@ function draftOnce(
   projectName: string,
   today: string,
   reserves: Map<string, { left: number; right: number }>,
+  frameSlack = 0,
 ): { model: PlacementModel; report: SchematicDraftReport; rects: { name: string; x1: number; y1: number; x2: number; y2: number }[] } {
   const { intent, symbols, docGroups } = validated;
   const notes: string[] = [];
@@ -1282,6 +1297,34 @@ function draftOnce(
       // that row would join it (every single pull-up beside a pull-down on
       // the next pin was refused for this). An odd gap keeps it between rows.
       const HANG_GAP = 3 * U;
+      /**
+       * How far the labels on one side of an anchor actually reach, given
+       * what has been claimed on it: a pin whose parts hang carries no stub
+       * label any more, only its run's name (and only when the net has
+       * endpoints elsewhere), so the lanes may start that much closer to the
+       * IC. `labelExtents` assumes a stub label on every pin and put the
+       * lanes 15 mm further out than the drawing needed.
+       */
+      const sideReach = (icKey: string, dx: -1 | 1): number => {
+        const ic = instByKey.get(icKey)!;
+        let reach = 0;
+        for (const pin of ic.sym.pins) {
+          if (outward(pin).dx !== dx) continue;
+          const net = netByEndpoint.get(`${ic.ref}.${pin.number}`);
+          if (!net) continue;
+          const nameW = Math.max(1, net.name.length) * TEXT_RESERVE * LABEL_HEIGHT;
+          if ((netClasses.get(net.name)?.cls ?? 'signal') !== 'signal') {
+            reach = Math.max(reach, (STUB + 2) * U + 1.905 + nameW);
+            continue;
+          }
+          const eps = net.pins.map(epKey);
+          const claimed = eps.some((e) => e !== null && boundTo.get(e.key) === icKey);
+          const elsewhere = eps.some((e) => e === null || (e.key !== icKey && !memberKeySet.has(e.key) && !decapOwner.has(e.key)));
+          if (claimed) reach = Math.max(reach, elsewhere ? nameW + FLAG_PAD + U : STUB * U);
+          else reach = Math.max(reach, STUB * U + nameW + FLAG_PAD);
+        }
+        return reach;
+      };
       const HANG_POWER_END = 8 * U;
       /** Rows a power symbol and its name need past a pin: stub, bar, text. */
       const POWER_CLEAR_ROWS = 6;
@@ -1500,7 +1543,8 @@ function draftOnce(
           // the lanes blocked the row for the pin's own hung parts (Q1 on
           // VBUS_FET_EN left R17 unreachable), and a run on another row
           // starting inside the lanes crossed their bodies.
-          const laneReach = dx === 1 ? ext.right : ext.left;
+          const laneReach = sideReach(icKey, dx);
+          void ext;
           const lanesW = anyShelved ? slots.length * pitch : 0;
           for (const il of inlineSide) il.offset += anyShelved ? ceilU(laneReach + 2 * U) * U + lanesW : 0;
           const inlineW = Math.max(0, ...inlineSide.map((il) => il.offset + il.len));
@@ -1644,8 +1688,15 @@ function draftOnce(
       const colH = (col: string[]): number => col.reduce((s, r, i) => s + cellDims.get(r)!.h + (i ? ROW_GAP : 0), 0);
       const isIC = (key: string): boolean => instByKey.get(key)!.sym.pins.length >= 3;
       const anchorH = Math.max(0, ...members.filter((m) => isIC(m.key)).map((m) => cellDims.get(m.key)!.h));
-      const squareSide = Math.ceil(Math.sqrt(columns.reduce((s, c) => s + colH(c) * Math.max(...c.map((r) => cellDims.get(r)!.w)), 0)));
-      const balanceH = Math.max(anchorH, squareSide);
+      const cellArea = columns.reduce((s, c) => s + colH(c) * Math.max(...c.map((r) => cellDims.get(r)!.w)), 0);
+      const squareSide = Math.ceil(Math.sqrt(cellArea));
+      // Under a band budget the group is shaped to FILL the band's width, not
+      // to be square: a column of eight test points re-rows into two of four
+      // and the button blocks stack three deep, the grid a person draws when
+      // the group must sit in a 250 mm column (esp32-amp's UI group went
+      // from 364 × 150 to the width of its neighbours).
+      const targetH = bandBudgetW === Infinity ? squareSide : Math.max(Math.ceil(cellArea / bandBudgetW), Math.ceil(squareSide / 2));
+      const balanceH = Math.max(anchorH, targetH);
 
       /** Split `col` into the fewest equal-height chunks that each fit
        * `budget`; a single cell never splits, and a column shorter than
@@ -1654,28 +1705,62 @@ function draftOnce(
         const total = colH(col);
         if (total <= budget || col.length < minCells) return [col];
         const k = Math.ceil(total / budget);
-        const target = Math.ceil(total / k);
-        const chunks: string[][] = [];
-        let cur: string[] = [];
-        let h = 0;
-        for (const ref of col) {
-          const add = cellDims.get(ref)!.h + (cur.length ? ROW_GAP : 0);
-          if (cur.length && h + add > target) {
-            chunks.push(cur);
-            cur = [ref];
-            h = cellDims.get(ref)!.h;
-          } else {
-            cur.push(ref);
-            h += add;
+        const fill = (cap: number): string[][] => {
+          const chunks: string[][] = [];
+          let cur: string[] = [];
+          let h = 0;
+          for (const ref of col) {
+            const add = cellDims.get(ref)!.h + (cur.length ? ROW_GAP : 0);
+            if (cur.length && h + add > cap) {
+              chunks.push(cur);
+              cur = [ref];
+              h = cellDims.get(ref)!.h;
+            } else {
+              cur.push(ref);
+              h += add;
+            }
           }
-        }
-        if (cur.length) chunks.push(cur);
-        return chunks;
+          if (cur.length) chunks.push(cur);
+          return chunks;
+        };
+        // Equal chunks first, for the look of balanced columns; but equal
+        // targets can overflow into one chunk more than the budget allows
+        // (five 31-unit cells against a target of 84 fell 2-2-1, not 3-2),
+        // and then the greedy fill to the budget itself is the answer.
+        const balanced = fill(Math.ceil(total / k));
+        return balanced.length <= k ? balanced : fill(budget);
       };
       const BALANCE_MIN_CELLS = 4;
+      // Under a band budget, the lowest column height at which the group's
+      // columns fit the band side by side in ONE band wins: shorter columns
+      // mean more of them and a group that wraps onto bands anyway, taller
+      // ones a group that fills the band's width in one pass (five button
+      // blocks as two columns of three beside two columns of test points).
+      let chosenH = balanceH;
+      if (bandBudgetW !== Infinity) {
+        const widthAt = (h: number): number => {
+          const cols = columns.flatMap((col) => splitColumn(col, h, BALANCE_MIN_CELLS));
+          // the same channel and facing-label widening the placement below applies
+          return cols.reduce((sum, c, i) => {
+            const next = cols[i + 1];
+            return sum + Math.max(...c.map((r) => cellDims.get(r)!.w)) + (next ? CHANNEL + widenBy(labelExtents(c).right, labelExtents(next).left, 2 * MARGIN + CHANNEL) : 0);
+          }, 0);
+        };
+        // against the band the columns actually get (the budget less the
+        // group's own label reserves), not the raw budget
+        const ceiling = Math.max(balanceH, ...columns.map(colH));
+        for (let h = balanceH; h <= ceiling; h += 2) {
+          if (widthAt(h) <= bandW) {
+            chosenH = h;
+            break;
+          }
+        }
+        if (widthAt(chosenH) > bandW) chosenH = ceiling;
+      }
       const columnsToPlace: string[][] = columns.flatMap((col) =>
-        splitColumn(col, balanceH, BALANCE_MIN_CELLS).flatMap((c) => (sheetBudget === Infinity ? [c] : splitColumn(c, sheetBudget))),
+        splitColumn(col, chosenH, BALANCE_MIN_CELLS).flatMap((c) => (sheetBudget === Infinity ? [c] : splitColumn(c, sheetBudget))),
       );
+      trace(`group "${gname}" columns (band ${bandBudgetW === Infinity ? 'inf' : bandBudgetW}u, col budget ${colBudgetH === Infinity ? 'inf' : colBudgetH}u, balance ${balanceH}u chosen ${chosenH}u): ${columnsToPlace.map((c) => `[${c.map((k) => `${instByKey.get(k)!.ref}:${cellDims.get(k)!.w}x${cellDims.get(k)!.h}`).join(' ')}]`).join(' ')}`);
       let colX = groupX;
       let groupMaxY = 0;
       let bandTop = 0; // y origin (units) of the current band of columns
@@ -2111,7 +2196,8 @@ function draftOnce(
         const side = hangs.filter((o) => o.ic === hg.ic && o.dx === hg.dx);
         const pitch = Math.max(0, ...side.map((o) => o.w)) + U;
         const ext = labelExtents([hg.ic]);
-        const reach = hg.dx === 1 ? ext.right : ext.left;
+        const reach = sideReach(hg.ic, hg.dx);
+        void ext;
         const firstSlot = grid(Math.round((s.x + hg.dx * (reach + 2 * U + pitch / 2)) / U));
         const slotX = grid(Math.round((firstSlot + hg.dx * hg.slot * pitch) / U));
         trace(`hang ${hg.chain.map((k) => instByKey.get(k)!.ref).join('+')} on ${instByKey.get(hg.ic)!.ref}.${hg.pin.number}: stub (${s.x}, ${s.y}) reach ${reach.toFixed(2)} pitch ${pitch.toFixed(2)} slot ${hg.slot} -> x ${hg.straight ? s.x : slotX}${hg.straight ? ' (straight)' : ''}`);
@@ -2415,8 +2501,8 @@ function draftOnce(
   // A hint pins the width budget; otherwise try every sheet, smallest first.
   const candidates = hinted ? [hinted] : PAPERS;
   const gap = GROUP_GAP * U;
-  const usableW = (p: { w: number }): number => p.w - 2 * FRAME;
-  const usableH = (p: { h: number }): number => p.h - 2 * FRAME - TITLE_STRIP;
+  const usableW = (p: { w: number }): number => p.w - 2 * FRAME - frameSlack;
+  const usableH = (p: { h: number }): number => p.h - 2 * FRAME - TITLE_STRIP - frameSlack;
 
   /**
    * Shelf-wrap the group rects to a width budget; returns per-group offsets.
@@ -2508,7 +2594,97 @@ function draftOnce(
     return { deltas, w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   };
 
-  type SheetFit = { paper: (typeof PAPERS)[number]; wrap: { deltas: { dx: number; dy: number }[]; w: number; h: number } | null };
+  /**
+   * The column-major counterpart of `wrapTo`: groups keep their declared
+   * order but fill top-to-bottom, then left-to-right, the way a person lays
+   * a newspaper page. Consecutive runs form columns no taller than `budgetH`;
+   * a column is as wide as its widest group (label extents included) and the
+   * breaks are chosen to minimise the total width. Groups of like width stack
+   * well this way (the engagement sheet's three 250 mm groups in one column,
+   * its three 205 mm groups in the next), which rows of mismatched heights
+   * never achieve.
+   */
+  const wrapColumns = (budgetH: number): { deltas: { dx: number; dy: number }[]; w: number; h: number; kind: 'columns' } => {
+    const originX = groupRects[0]!.x1;
+    const topY = Math.min(...groupRects.map((r) => r.y1));
+    const leftExtOf = (name: string): number => groupExtents.get(name)?.left ?? 0;
+    const rightExtOf = (name: string): number => groupExtents.get(name)?.right ?? 0;
+    const gap = GROUP_GAP * U;
+    const n = groupRects.length;
+    const hOf = (r: (typeof groupRects)[number]): number => r.y2 - r.y1;
+    const wOf = (r: (typeof groupRects)[number]): number => r.x2 - r.x1 + leftExtOf(r.name) + rightExtOf(r.name);
+    const runH = (i: number, j: number): number => {
+      let h = 0;
+      for (let k = i; k <= j; k++) h += hOf(groupRects[k]!) + (k > i ? gap : 0);
+      return h;
+    };
+    const best: number[] = new Array(n + 1).fill(Infinity);
+    const cut: number[] = new Array(n + 1).fill(0);
+    best[0] = 0;
+    for (let j = 1; j <= n; j++) {
+      let colW = 0;
+      for (let i = j; i >= 1; i--) {
+        colW = Math.max(colW, wOf(groupRects[i - 1]!));
+        if (i < j && runH(i - 1, j - 1) > budgetH) break;
+        const w = best[i - 1]! + colW + (i > 1 ? gap : 0);
+        if (w < best[j]!) {
+          best[j] = w;
+          cut[j] = i - 1;
+        }
+      }
+    }
+    const starts: number[] = [];
+    for (let j = n; j > 0; j = cut[j]!) starts.unshift(cut[j]!);
+    const deltas: { dx: number; dy: number }[] = [];
+    let colOriginUnits = Math.round(originX / U);
+    let maxH = 0;
+    for (let k = 0; k < starts.length; k++) {
+      const a = starts[k]!;
+      const b = k + 1 < starts.length ? starts[k + 1]! : n;
+      const members = groupRects.slice(a, b);
+      const colLeft = Math.max(...members.map((r) => leftExtOf(r.name)));
+      let yUnits = Math.round(topY / U);
+      for (const r of members) {
+        deltas.push({ dx: (colOriginUnits + Math.ceil(colLeft / U)) * U - grid(Math.round(r.x1 / U)), dy: yUnits * U - grid(Math.round(r.y1 / U)) });
+        yUnits += Math.ceil(hOf(r) / U) + GROUP_GAP;
+      }
+      maxH = Math.max(maxH, (yUnits - GROUP_GAP) * U - topY);
+      colOriginUnits += Math.ceil(Math.max(...members.map(wOf)) / U) + GROUP_GAP;
+    }
+    if (process.env['COPPERHEAD_DRAFT_TRACE']) {
+      trace(`column wrap at ${budgetH.toFixed(0)}: ${starts.map((a, k) => `[${groupRects.slice(a, k + 1 < starts.length ? starts[k + 1]! : n).map((r) => r.name.slice(0, 2).trim()).join('+')}]`).join(' ')} -> ${best[n]!.toFixed(0)} wide`);
+    }
+    return { deltas, w: best[n]!, h: maxH, kind: 'columns' };
+  };
+
+  type SheetFit = {
+    paper: (typeof PAPERS)[number];
+    wrap: { deltas: { dx: number; dy: number }[]; w: number; h: number; kind?: 'rows' | 'columns' } | null;
+    /** The content runs into the title strip beside the title block (the corner itself stays clear). */
+    intoStrip?: boolean;
+  };
+  /** The title block's width along the bottom edge, as the checker measures it. */
+  const TITLE_BLOCK_W = 110;
+  /**
+   * Does wrapped content of `w` × `h` fit sheet `p`? The title strip is
+   * reserved across the whole width by default; content taller than that
+   * may still fit when the group boxes that reach into the strip stay clear
+   * of the title block's own corner (a person lays the left-hand column down
+   * to the frame and keeps the bottom-right for the block).
+   */
+  const fitsFrame = (p: (typeof PAPERS)[number], w: number, h: number, rects: { x1: number; y1: number; x2: number; y2: number }[]): { ok: boolean; intoStrip: boolean } => {
+    if (w > usableW(p)) return { ok: false, intoStrip: false };
+    if (h <= usableH(p)) return { ok: true, intoStrip: false };
+    if (h > usableH(p) + TITLE_STRIP - 4 * U) return { ok: false, intoStrip: false };
+    // final placement: centred in width, top-aligned (the frame plus four units) in height
+    const minX = Math.min(...rects.map((r) => r.x1));
+    const minY = Math.min(...rects.map((r) => r.y1));
+    const x0 = FRAME + Math.max(0, (usableW(p) - w) / 2) - minX;
+    const y0 = FRAME + 4 * U - minY;
+    const corner = { minX: p.w - FRAME - TITLE_BLOCK_W, minY: p.h - FRAME - TITLE_STRIP, maxX: p.w - FRAME, maxY: p.h - FRAME };
+    const clear = rects.every((r) => !(r.x1 + x0 < corner.maxX && r.x2 + x0 > corner.minX && r.y1 + y0 < corner.maxY && r.y2 + y0 > corner.minY));
+    return { ok: clear, intoStrip: clear };
+  };
   /**
    * Whether the current placement fits sheet `p`, with the group shelf-wrap
    * deltas that make it fit. `wrap` is null when there is nothing to reflow:
@@ -2517,8 +2693,18 @@ function draftOnce(
    */
   const fitsOn = (p: (typeof PAPERS)[number]): SheetFit | null => {
     if (groupRects.length > 1) {
+      const wrappedRects = (d: { dx: number; dy: number }[]): { x1: number; y1: number; x2: number; y2: number }[] =>
+        groupRects.map((r, i) => ({ x1: r.x1 + d[i]!.dx, y1: r.y1 + d[i]!.dy, x2: r.x2 + d[i]!.dx, y2: r.y2 + d[i]!.dy }));
       const w = wrapTo(usableW(p));
-      return w.w <= usableW(p) && w.h <= usableH(p) ? { paper: p, wrap: w } : null;
+      const fw = fitsFrame(p, w.w, w.h, wrappedRects(w.deltas));
+      if (fw.ok) return { paper: p, wrap: { ...w, kind: 'rows' }, intoStrip: fw.intoStrip };
+      // rows of mismatched heights may miss where columns of like widths fit
+      for (const budgetH of [usableH(p), usableH(p) + TITLE_STRIP - 4 * U]) {
+        const c = wrapColumns(budgetH);
+        const fc = fitsFrame(p, c.w, c.h, wrappedRects(c.deltas));
+        if (fc.ok) return { paper: p, wrap: c, intoStrip: fc.intoStrip };
+      }
+      return null;
     }
     const r = groupRects[0];
     return !r || (r.x2 - r.x1 <= usableW(p) && r.y2 - r.y1 <= usableH(p)) ? { paper: p, wrap: null } : null;
@@ -2546,12 +2732,14 @@ function draftOnce(
     let best: { w: number; h: number } | null = null;
     // finer fractions re-row a tall group's columns until the groups are
     // short enough for two or three rows of them to stack on the sheet
-    for (const frac of [1, 0.7, 0.5, 0.4, 0.35, 0.3, 0.25]) {
-      const b = placeAllGroups(Math.floor(usableW(p) / U), Math.floor((usableH(p) * frac) / U));
+    for (const [frac, div] of [1, 0.7, 0.5, 0.4, 0.35, 0.3, 0.25].flatMap((fr) => [1, 2, 2.5, 3].map((d) => [fr, d] as const))) {
+      // band budgets of a half and a third of the sheet fold a wide flat
+      // group (five button blocks in a row) toward the width of a column
+      const b = placeAllGroups(Math.floor(usableW(p) / div / U), Math.floor((usableH(p) * frac) / U));
       const f = fitsOn(p);
       if (groupRects.length > 1) {
         const w = wrapTo(usableW(p));
-        trace(`try ${p.name} frac ${frac}: wrapped ${w.w.toFixed(0)}x${w.h.toFixed(0)} vs ${usableW(p)}x${usableH(p)}; ${groupRects.map((r) => `${r.name.slice(0, 12)}=${(r.x2 - r.x1).toFixed(0)}x${(r.y2 - r.y1).toFixed(0)}`).join(' ')}`);
+        trace(`try ${p.name} frac ${frac} div ${div}: wrapped ${w.w.toFixed(0)}x${w.h.toFixed(0)} vs ${usableW(p)}x${usableH(p)}; ${groupRects.map((r) => `${r.name.slice(0, 12)}=${(r.x2 - r.x1).toFixed(0)}x${(r.y2 - r.y1).toFixed(0)}`).join(' ')}`);
       }
       if (f) return { fit: f, bands: b };
       // remember the closest miss so a failed pass can say how far off it was
@@ -2650,8 +2838,13 @@ function draftOnce(
   }
   if (fit.wrap) {
     const wrap = fit.wrap;
-    const rows = new Set(wrap.deltas.map((d) => d.dy)).size;
-    if (rows > 1) notes.push(`groups wrapped onto ${rows} rows to fit the sheet`);
+    if (wrap.kind === 'columns') {
+      const cols = new Set(wrap.deltas.map((d) => d.dx)).size;
+      notes.push(`groups wrapped onto ${cols} columns to fit the sheet (declared order runs down each column)`);
+    } else {
+      const rows = new Set(wrap.deltas.map((d) => d.dy)).size;
+      if (rows > 1) notes.push(`groups wrapped onto ${rows} rows to fit the sheet`);
+    }
     groupRects.forEach((r, i) => {
       const d = wrap.deltas[i]!;
       if (!d.dx && !d.dy) return;
@@ -3517,12 +3710,16 @@ function draftOnce(
         // side, then side by side on one line.
         if (pinSidesOf(pl).has('left') && pinSidesOf(pl).has('right') && !pinSidesOf(pl).has('top')) {
           const hh = 1.27;
+          // Both texts on ONE side first, and side by side on one line before
+          // stacked: two parts on rows two pitches apart then keep their texts
+          // in their own half of the gap (C27's value and L3's reference met
+          // in the middle of the five millimetres between their rows).
           ladder.push(
-            [{ x: cx, y: pl.body.minY - hh }, { x: cx, y: pl.body.maxY + hh }],
             [{ x: cx, y: pl.body.minY - hh - 2.54 }, { x: cx, y: pl.body.minY - hh }],
-            [{ x: cx, y: pl.body.maxY + hh }, { x: cx, y: pl.body.maxY + hh + 2.54 }],
             [{ x: cx - textW / 2 - 0.635, y: pl.body.minY - hh }, { x: cx + textW / 2 + 0.635, y: pl.body.minY - hh }],
+            [{ x: cx, y: pl.body.maxY + hh }, { x: cx, y: pl.body.maxY + hh + 2.54 }],
             [{ x: cx - textW / 2 - 0.635, y: pl.body.maxY + hh }, { x: cx + textW / 2 + 0.635, y: pl.body.maxY + hh }],
+            [{ x: cx, y: pl.body.minY - hh }, { x: cx, y: pl.body.maxY + hh }],
           );
         }
         // rungs reach past a rail symbol and its name on a top or bottom
@@ -4028,7 +4225,7 @@ function draftOnce(
   // the bottom edge is the engine's own usable bottom, ABOVE the title strip:
   // content that fills the sheet's height exactly would otherwise carry the
   // centering pass's 4-unit downward offset into the reserved corner
-  dy = clampShift(dy, fullMinY, fullMaxY, FRAME, paper.h - FRAME - TITLE_STRIP);
+  dy = clampShift(dy, fullMinY, fullMaxY, FRAME, fit.intoStrip ? paper.h - FRAME : paper.h - FRAME - TITLE_STRIP);
   const shift = <T extends { x?: number; y?: number; x1?: number; y1?: number; x2?: number; y2?: number }>(o: T): T => {
     if (o.x !== undefined) o.x += dx;
     if (o.y !== undefined) o.y += dy;

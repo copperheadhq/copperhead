@@ -320,3 +320,23 @@ describe('a flag attaches only behind its tip (AC-16.46)', () => {
     }
   });
 });
+
+describe('KiCad 10 hidden fields', () => {
+  it('reads `(hide yes)` on the property itself, not only inside effects', async () => {
+    // eeschema 10 writes a hidden power reference as a direct `(hide yes)`
+    // child; measured as visible it sat on the symbol's own wire
+    const body = `(wire (pts (xy 101.6 101.6) (xy 101.6 111.76)) (stroke (width 0) (type default)) (uuid "dddd0000-0000-4000-8000-000000000101"))
+(symbol (lib_id "power:GND") (at 101.6 111.76 0) (uuid "aaaa0000-0000-4000-8000-000000000901")
+  (property "Reference" "#PWR01" (at 101.6 105.41 0) (hide yes) (effects (font (size 1.27 1.27))))
+  (property "Value" "GND" (at 101.6 115.57 0) (effects (font (size 1.27 1.27))))
+  (pin "1" (uuid "bbbb0000-0000-4000-8000-000000000901"))
+)`;
+    const { file, cleanup } = await inTemp(sch(body));
+    try {
+      const rep = await checkLegibility(file, { docsDir: null });
+      expect(rep.findings.filter((f) => f.kind === 'text-collision' && /#PWR01/.test(f.detail))).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+});

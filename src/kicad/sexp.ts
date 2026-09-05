@@ -405,10 +405,16 @@ function effectsOf(node: SexpNode[]): { height: number; hidden: boolean } {
   const effects = child(node, 'effects');
   const font = effects ? child(effects, 'font') : undefined;
   const size = font ? child(font, 'size') : undefined;
-  // hidden: legacy bare `hide` atom, or v9 `(hide yes)`
+  // hidden: legacy bare `hide` atom, v9 `(hide yes)` inside effects, or
+  // KiCad 10's `(hide yes)` as a direct child of the property (a sheet
+  // re-saved by eeschema 10 flagged every hidden power reference as text
+  // on a wire until this was read)
   const hideNode = effects ? child(effects, 'hide') : undefined;
+  const hideProp = child(node, 'hide');
   const hidden =
-    (effects?.some((c) => c === 'hide') ?? false) || (hideNode !== undefined && atomAt(hideNode, 1) !== 'no');
+    (effects?.some((c) => c === 'hide') ?? false) ||
+    (hideNode !== undefined && atomAt(hideNode, 1) !== 'no') ||
+    (hideProp !== undefined && atomAt(hideProp, 1) !== 'no');
   return { height: size ? num(size, 1, 1.27) : 1.27, hidden };
 }
 
