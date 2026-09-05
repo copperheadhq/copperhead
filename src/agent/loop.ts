@@ -567,11 +567,25 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     }
     nudges = 0;
 
-    for (const call of res.toolCalls) {
+    for (let callIndex = 0; callIndex < res.toolCalls.length; callIndex++) {
+      const call = res.toolCalls[callIndex]!;
       const result = await dispatchTool(ctx, call.name, call.args);
       await transcript.event('tool', { name: call.name, args: call.args, result });
       r.toolResult(call.name, result.split('\n')[0] ?? '');
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
+
+      // finish ends the run immediately. Do not dispatch calls queued after it
+      // in the same batched response: a later mutation could invalidate the
+      // verification or sync gates that finish just checked.
+      if (ctx.finishRequest && callIndex < res.toolCalls.length - 1) {
+        const skipped = res.toolCalls.slice(callIndex + 1).map(({ id, name, args }) => ({ id, name, args }));
+        await transcript.event('tool-calls-skipped-after-finish', {
+          reason: 'finish ended the run',
+          skipped,
+        });
+        log(`skipped ${skipped.length} tool call(s) queued after finish`);
+        break;
+      }
     }
 
     if (ctx.repairCycles > config.maxRepairCycles) {
