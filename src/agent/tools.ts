@@ -664,7 +664,6 @@ export const TOOLS: ToolDef[] = [
         ...(deferred.length ? { deferred } : {}),
       });
       ctx.ledger.onConstraintChange(key, openNow);
-      ctx.ledger.clear('constraint-dual-write', key);
       const parts = [`constraint ${key} recorded`];
       parts.push(`revisit obligations opened for: ${openNow.join(', ') || '(none)'}`);
       if (deferred.length) {
