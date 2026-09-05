@@ -372,7 +372,7 @@ describe('pin-anchored hangs (#220 phase 3)', () => {
     // a person attaches 0.90 to 1.00 (research/GOOD-SCHEMATIC.md); these
     // floors are where the engine stands with hangs and no rotation, so a
     // regression shows and progress can raise them
-    const floors: Record<string, number> = { 'buck-12v-5v': 0.45, 'ldo-demo': 0.8, 'usb-atmega-node': 0.55, 'npn-switch': 0.1 };
+    const floors: Record<string, number> = { 'buck-12v-5v': 0.55, 'ldo-demo': 0.8, 'usb-atmega-node': 0.7, 'npn-switch': 0.25 };
     for (const [board, floor] of Object.entries(floors)) {
       const { ws } = await measured(board);
       const attached = ws.twoPin ? ws.twoPinAttached / ws.twoPin : 1;
@@ -390,6 +390,21 @@ describe('pin-anchored hangs (#220 phase 3)', () => {
     const labels = sheets[0]!.labels.filter((l) => l.name === 'COMP');
     expect(labels.length, 'COMP labels').toBe(1);
     expect(report.notes.filter((n) => /^hang refused/.test(n))).toEqual([]);
+  }, 60000);
+
+  it('lays a series part on its pin\'s row, turned to face the pin, and wires it (AC-16.36, AC-16.37)', async () => {
+    // buck-12v-5v: the bootstrap cap C4 between BOOT and SW and the output
+    // inductor L1 on SW are series elements and lie on their rows; the
+    // library cap is vertical, so it is drawn rotated. The Schottky D1, a
+    // horizontal-pinned diode to ground, turns upright to hang.
+    const { sheets, report } = await measured('buck-12v-5v');
+    expect(report.mergedNets).toEqual([]);
+    const sh = sheets[0]!;
+    const rotated = sh.symbols.filter((s) => !s.isPower && s.at.rot !== 0);
+    expect(rotated.map((s) => s.ref).sort(), 'rotated parts').toEqual(expect.arrayContaining(['C4', 'D1']));
+    // every rotated two-lead part has at least one lead wired straight to another part
+    const ws = measureWiringStyle(sheets);
+    expect(ws.twoPinAttached).toBeGreaterThan(0);
   }, 60000);
 
   it('a hang the clearance check refuses is reported, never silently dropped', async () => {

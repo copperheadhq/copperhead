@@ -237,9 +237,14 @@ function labelBounds(l: { name: string; x: number; y: number; rot: number; heigh
       ? { minX: l.x - h / 2, minY: l.y - w, maxX: l.x + h / 2, maxY: l.y }
       : { minX: l.x - h / 2, minY: l.y, maxX: l.x + h / 2, maxY: l.y + w };
   }
+  // Vertically the text STANDS on its anchor: eeschema draws a horizontal
+  // label bottom-justified, so the box runs one height above the anchor line
+  // and nothing below it. Measuring it centred put half the box below the
+  // wire the label sits on and called every label on a horizontal wire "text
+  // on a wire" — the ordinary way a person names a wire.
   return justified === 'right'
-    ? { minX: l.x - w, minY: l.y - h / 2, maxX: l.x, maxY: l.y + h / 2 }
-    : { minX: l.x, minY: l.y - h / 2, maxX: l.x + w, maxY: l.y + h / 2 };
+    ? { minX: l.x - w, minY: l.y - h, maxX: l.x, maxY: l.y }
+    : { minX: l.x, minY: l.y - h, maxX: l.x + w, maxY: l.y };
 }
 
 function segIntersectsBounds(s: WireSeg, b: Bounds): boolean {
