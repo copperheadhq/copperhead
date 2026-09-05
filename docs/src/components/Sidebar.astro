@@ -1,0 +1,75 @@
+---
+/**
+ * Sidebar override. Same structure as Starlight's default (so the sidebar
+ * state persister keeps working), with a custom sublist renderer and a small
+ * version footer pinned to the bottom of the panel on desktop.
+ */
+import MobileMenuFooter from '@astrojs/starlight/components/MobileMenuFooter.astro';
+import SidebarPersister from '@astrojs/starlight/components/SidebarPersister.astro';
+import { Icon } from '@astrojs/starlight/components';
+import SidebarSublist from './SidebarSublist.astro';
+import pkg from '../../../package.json';
+
+const { sidebar } = Astro.locals.starlightRoute;
+const releaseUrl = `https://github.com/copperheadhq/copperhead/releases/tag/v${pkg.version}`;
+---
+
+<SidebarPersister>
+	<SidebarSublist sublist={sidebar} />
+</SidebarPersister>
+
+<div class="md:sl-hidden">
+	<MobileMenuFooter />
+</div>
+
+<div class="sl-hidden md:sl-block version-wrap">
+	<a class="version sl-flex" href={releaseUrl}>
+		<Icon name="github" size="0.9rem" />
+		<span class="tag">v{pkg.version}</span>
+		<span class="license">Apache-2.0</span>
+	</a>
+</div>
+
+<style>
+	/* Pinned to the bottom of the sidebar panel; the list scrolls underneath. */
+	.version-wrap {
+		position: sticky;
+		bottom: 0;
+		margin-top: auto;
+		padding-top: 1.25rem;
+		padding-bottom: 0.75rem;
+		background: linear-gradient(to bottom, transparent, var(--sl-color-bg-sidebar) 40%);
+	}
+	.version {
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		background-color: var(--sl-color-black);
+		font-size: var(--sl-text-xs);
+		font-weight: 500;
+		color: var(--sl-color-gray-2);
+		text-decoration: none;
+		white-space: nowrap;
+		transition:
+			border-color 0.12s,
+			color 0.12s;
+	}
+	.version:hover {
+		border-color: var(--sl-color-gray-4);
+		color: var(--sl-color-white);
+	}
+	.version svg {
+		color: var(--sl-color-gray-3);
+		flex-shrink: 0;
+	}
+	.tag {
+		font-family: var(--__sl-font-mono);
+	}
+	.license {
+		margin-inline-start: auto;
+		color: var(--sl-color-gray-3);
+		font-weight: 400;
+	}
+</style>

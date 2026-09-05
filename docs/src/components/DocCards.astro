@@ -1,0 +1,19 @@
+---
+/** Two-column grid of DocCard links (single column on narrow viewports). */
+---
+
+<div class="doc-cards not-content"><slot /></div>
+
+<style>
+	.doc-cards {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+	}
+	@media (min-width: 40rem) {
+		.doc-cards {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 0.875rem;
+		}
+	}
+</style>

@@ -1,0 +1,221 @@
+---
+/**
+ * Sidebar list renderer.
+ *
+ * Differences from Starlight's default:
+ * - group labels are small uppercase headings; the collapse caret only shows on hover
+ * - links are pill-shaped rows with an optional leading icon, set per link in the
+ *   sidebar config via `attrs: { 'data-icon': '<starlight icon name>' }`
+ * - the active page is highlighted with a tinted pill instead of a solid block
+ * - no tree lines on nested lists
+ */
+import { Badge, Icon } from '@astrojs/starlight/components';
+import SidebarRestorePoint from '@astrojs/starlight/components/SidebarRestorePoint.astro';
+import type { StarlightRouteData } from '@astrojs/starlight/route-data';
+import type { StarlightIcon } from '@astrojs/starlight/types';
+
+type SidebarEntry = StarlightRouteData['sidebar'][number];
+type SidebarLink = Extract<SidebarEntry, { type: 'link' }>;
+
+interface Props {
+	sublist: SidebarEntry[];
+	nested?: boolean;
+}
+
+const { sublist, nested } = Astro.props;
+
+/** Flatten a sidebar tree into its links. */
+function flatten(entries: SidebarEntry[]): SidebarLink[] {
+	return entries.flatMap((entry) => (entry.type === 'link' ? [entry] : flatten(entry.entries)));
+}
+
+/** Read the optional icon name off a link's attrs. */
+function iconOf(entry: SidebarLink): StarlightIcon | undefined {
+	const icon = (entry.attrs as Record<string, unknown>)['data-icon'];
+	return typeof icon === 'string' ? (icon as StarlightIcon) : undefined;
+}
+
+/** Attrs to spread onto the anchor, minus the ones this component consumes. */
+function anchorAttrs(entry: SidebarLink): Record<string, unknown> {
+	const { 'data-icon': _icon, class: _class, ...rest } = entry.attrs as Record<string, unknown>;
+	return rest;
+}
+---
+
+<ul class:list={{ 'top-level': !nested }}>
+	{
+		sublist.map((entry) => (
+			<li>
+				{entry.type === 'link' ? (
+					<a
+						href={entry.href}
+						aria-current={entry.isCurrent ? 'page' : undefined}
+						class:list={['item', { large: !nested }, entry.attrs.class]}
+						{...anchorAttrs(entry)}
+					>
+						{iconOf(entry) && <Icon name={iconOf(entry)!} class="item-icon" size="1rem" />}
+						<span class="label">{entry.label}</span>
+						{entry.badge && (
+							<Badge
+								variant={entry.badge.variant}
+								class={entry.badge.class}
+								text={entry.badge.text}
+							/>
+						)}
+					</a>
+				) : (
+					<details open={flatten(entry.entries).some((i) => i.isCurrent) || !entry.collapsed}>
+						<summary>
+							<span class="group-label">
+								<span class="group-title">{entry.label}</span>
+								{entry.badge && (
+									<Badge
+										variant={entry.badge.variant}
+										class={entry.badge.class}
+										text={entry.badge.text}
+									/>
+								)}
+							</span>
+							<Icon name="right-caret" class="caret" size="1rem" />
+						</summary>
+						<SidebarRestorePoint />
+						<Astro.self sublist={entry.entries} nested />
+					</details>
+				)}
+			</li>
+		))
+	}
+</ul>
+
+<style>
+	ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	li {
+		overflow-wrap: anywhere;
+	}
+
+	.top-level > li + li {
+		margin-top: 1.125rem;
+	}
+
+	/* Lists inside a group. */
+	ul ul {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		margin-top: 0.25rem;
+	}
+
+	/* Third level and deeper: indent under the parent. */
+	ul ul ul {
+		margin-inline-start: 1.25rem;
+	}
+
+	summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: 0.25rem 0.75rem;
+		border-radius: 0.5rem;
+		cursor: pointer;
+		user-select: none;
+	}
+	summary::marker,
+	summary::-webkit-details-marker {
+		display: none;
+	}
+	summary:hover {
+		background-color: var(--ch-hover-bg);
+	}
+
+	.group-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		min-width: 0;
+	}
+	.group-title {
+		font-size: 0.6875rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--sl-color-white);
+	}
+
+	.caret {
+		flex-shrink: 0;
+		opacity: 0;
+		color: var(--sl-color-gray-3);
+		transition:
+			opacity 0.15s,
+			transform 0.2s ease-in-out;
+	}
+	summary:hover .caret,
+	summary:focus-visible .caret {
+		opacity: 1;
+	}
+	:global([dir='rtl']) .caret {
+		transform: rotateZ(180deg);
+	}
+	[open] > summary .caret {
+		transform: rotateZ(90deg);
+	}
+
+	.item {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		padding: 0.4rem 0.75rem;
+		border-radius: 0.5rem;
+		font-size: var(--sl-text-sm);
+		line-height: 1.35;
+		color: var(--sl-color-gray-2);
+		text-decoration: none;
+		transition:
+			background-color 0.12s,
+			color 0.12s;
+	}
+	.item:hover,
+	.item:focus-visible {
+		color: var(--sl-color-white);
+		background-color: var(--ch-hover-bg);
+	}
+	.item-icon {
+		flex-shrink: 0;
+		color: var(--sl-color-gray-3);
+		transition: color 0.12s;
+	}
+	.item:hover .item-icon {
+		color: var(--sl-color-gray-2);
+	}
+	.label {
+		min-width: 0;
+	}
+
+	.item[aria-current='page'],
+	.item[aria-current='page']:hover,
+	.item[aria-current='page']:focus-visible {
+		font-weight: 600;
+		color: var(--sl-color-text-accent);
+		background-color: var(--ch-pill-bg);
+	}
+	.item[aria-current='page'] .item-icon {
+		color: var(--sl-color-text-accent);
+	}
+
+	/* Bigger touch targets in the mobile drawer. */
+	@media (max-width: 49.99rem) {
+		.item {
+			padding: 0.5rem 0.75rem;
+			font-size: var(--sl-text-base);
+		}
+		.top-level > li + li {
+			margin-top: 1.25rem;
+		}
+	}
+</style>

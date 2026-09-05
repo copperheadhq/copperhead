@@ -1,50 +1,116 @@
 ---
-title: copperhead
+title: Welcome to copperhead
 description: Cursor for circuit boards. An AI agent that designs, documents, and validates real PCBs from a prompt, working directly on existing KiCad repositories.
-template: splash
 head:
   - tag: title
     content: copperhead
-hero:
-  title: copperhead
-  tagline: Cursor for circuit boards. An AI agent that designs, documents, and validates real PCBs from a prompt, working directly on existing KiCad repositories.
-  actions:
-    - text: Get started
-      link: /getting-started/quickstart/
-      icon: right-arrow
-    - text: CLI reference
-      link: /reference/cli/
-      variant: minimal
-    - text: copperhead.sh
-      link: https://copperhead.sh
-      variant: minimal
-      icon: external
-    - text: GitHub
-      link: https://github.com/copperheadhq/copperhead
-      variant: minimal
-      icon: github
+tableOfContents:
+  minHeadingLevel: 2
+  maxHeadingLevel: 2
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import JumpLink from '../../components/JumpLink.astro';
+import DocCards from '../../components/DocCards.astro';
+import DocCard from '../../components/DocCard.astro';
 
-<CardGrid>
-  <Card title="Edits the real files" icon="pencil">
-    Works on `.kicad_sch` and `.kicad_pcb` s-expression text in your own repo.
-    Your KiCad install stays the editor; there is no new format and no lock-in.
-  </Card>
-  <Card title="Spec-gated in" icon="document">
-    The agent cannot touch a KiCad file until a validated change proposal
-    exists. The edit tools are structurally absent from its tool list until
-    then, so every edit traces back to a documented intent.
-  </Card>
-  <Card title="Verification-gated out" icon="approve-check">
-    No mutation is done until `kicad-cli` ERC (and DRC, if the board changed)
-    passes. The agent reads its own errors back and repairs, or rolls back to
-    the git snapshot.
-  </Card>
-  <Card title="Docs as memory" icon="open-book">
-    Design docs are the agent's memory and its output. Decisions land in an
-    append-only DECISIONS.md, and every run writes a human-readable summary
-    next to its transcript.
-  </Card>
-</CardGrid>
+copperhead is an open-source CLI agent for KiCad. Give it a product brief or a one-line change request and it writes a change proposal, edits the `.kicad_sch` and `.kicad_pcb` files in your repository, runs ERC and DRC through `kicad-cli` until they pass, and records what it decided and why in your design docs.
+
+Your KiCad install stays the editor, git stays the safety net, and a human still signs off. It is not an autorouter and it does not introduce a new file format.
+
+## Jump right in
+
+<JumpLink
+  href="/getting-started/quickstart/"
+  icon="rocket"
+  title="Quickstart"
+  description="Install copperhead, choose a model backend, and run your first verified change."
+/>
+<JumpLink
+  href="/getting-started/agent-install/"
+  icon="puzzle"
+  title="Agent install"
+  description="Onboard from inside your AI coding assistant with a single pasteable prompt."
+/>
+
+## Keep exploring
+
+### copperhead basics
+
+<DocCards>
+  <DocCard
+    href="/getting-started/introduction/"
+    title="Introduction"
+    description="What copperhead is, how the agent works, and what it deliberately is not."
+  />
+  <DocCard
+    href="/concepts/agent-loop/"
+    title="The agent loop"
+    description="What one run actually does, from reading the docs to writing down why."
+  />
+  <DocCard
+    href="/concepts/guardrails/"
+    title="Guardrails"
+    description="The two invariants that gate edits in and verification out, and the ledger that keeps docs honest."
+  />
+  <DocCard
+    href="/concepts/docs-as-memory/"
+    title="Docs as memory"
+    description="The markdown in your repo is the agent's memory, its output, and the thing verification protects."
+  />
+</DocCards>
+
+### Get things done
+
+<DocCards>
+  <DocCard
+    href="/workflows/create-from-brief/"
+    title="Design from a brief"
+    description="From a markdown product brief to a full, verified design package."
+  />
+  <DocCard
+    href="/workflows/edit-existing-board/"
+    title="Edit an existing board"
+    description="One natural-language change request, one verified, committed change."
+  />
+  <DocCard
+    href="/workflows/verify-and-sync/"
+    title="Verify and sync"
+    description="Keep the KiCad files, the design docs, and the constraint registry agreeing, in CI and at commit time."
+  />
+  <DocCard
+    href="/getting-started/demo/"
+    title="Simple demo"
+    description="Run the create pipeline end to end against the USB-C power breakout brief."
+  />
+</DocCards>
+
+### Reference
+
+<DocCards>
+  <DocCard href="/reference/cli/" title="CLI" description="Every command, flag, and exit code." />
+  <DocCard
+    href="/reference/configuration/"
+    title="Configuration"
+    description="Config file keys, environment variables, model selection, and the files copperhead writes."
+  />
+  <DocCard
+    href="/reference/schematic-drafting/"
+    title="How schematics are drafted"
+    description="The deterministic drafting engine and how a netlist intent becomes a placed, readable sheet."
+  />
+  <DocCard
+    href="/reference/schematic-intent/"
+    title="The schematic intent file"
+    description="The full specification of schematic.intent.json, the drafting engine's only input."
+  />
+  <DocCard
+    href="/reference/schematic-legibility/"
+    title="Schematic legibility rules"
+    description="The drafting standard for generated schematics and the checks that enforce it."
+  />
+  <DocCard
+    href="https://github.com/copperheadhq/copperhead/blob/main/openspec/specs/SPEC.md"
+    title="Technical spec"
+    description="Architecture, tool schemas, safety rails, and the binary acceptance criteria."
+  />
+</DocCards>
