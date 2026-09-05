@@ -15,16 +15,16 @@ const U = 1.27;
 /** Stub length from a pin to its label/power symbol, in grid units. */
 const STUB = 2;
 /** Cell margin around a symbol body (room for stubs, labels, text), in units. */
-const MARGIN = 6;
+const MARGIN = 4;
 /** Padding, grid units, a group box keeps around the label and field text it
  * encloses, and the clearance kept between two such boxes. */
 const BOX_PAD = 1;
 const BOX_GAP = 4;
 /** Vertical gap between rows and horizontal channel between columns, units. */
-const ROW_GAP = 4;
-const CHANNEL = 8;
+const ROW_GAP = 3;
+const CHANNEL = 6;
 /** Gap between group boxes, units. */
-const GROUP_GAP = 8;
+const GROUP_GAP = 6;
 /** Local nets up to this many endpoints may be wired (design D2). */
 const MAX_WIRED_ENDPOINTS = 4;
 /** Wire-span budget in mm beyond which a net becomes labels. */
@@ -88,9 +88,14 @@ const labelBoxAt = (name: string, x: number, y: number, rot: number, kind: EmitL
     if (r === 180) return { minX: x - w, minY: y - h, maxX: x, maxY: y + h };
     return { minX: x, minY: y - h, maxX: x + w, maxY: y + h };
   }
+  // A plain label STANDS on its anchor line: the checker measures it that way
+  // (`labelBounds`), and so does the engine. The union box that also reached
+  // half a height below the line dated from the checker's centred days; kept,
+  // it made every name on a row collide with that row's own continuing wire
+  // (esp32-amp's UART_TXD could stand nowhere on its 9 mm run).
   return rot === 180
-    ? { minX: x - textW, minY: y - LABEL_HEIGHT, maxX: x, maxY: y + LABEL_HEIGHT / 2 }
-    : { minX: x, minY: y - LABEL_HEIGHT, maxX: x + textW, maxY: y + LABEL_HEIGHT / 2 };
+    ? { minX: x - textW, minY: y - LABEL_HEIGHT, maxX: x, maxY: y }
+    : { minX: x, minY: y - LABEL_HEIGHT, maxX: x + textW, maxY: y };
 };
 /** KiCad's label rotation for text running outward along a stub direction. */
 const rotOutward = (o: { dx: number; dy: number }): number => (o.dx === -1 ? 180 : o.dy === -1 ? 90 : o.dy === 1 ? 270 : 0);
@@ -592,14 +597,9 @@ const boundsOverlap = (a: Bounds, b: Bounds): boolean =>
  */
 const labelTextBox = (name: string, x: number, y: number, rot: number, kind: EmitLabel['kind'] = 'local'): Bounds =>
   // A local label is bottom-justified on its anchor: on paper the text stands
-  // on the wire line and rises one full height above it. The checker's
-  // `labelBounds` measures it centred, half a height each side. The engine
-  // must clear BOTH — the sheet it draws is gated by the checker and read on
-  // paper — so its box is the union: a full height above the anchor and half
-  // a height below. Centred alone let a part's reference on the row above a
-  // label pass as clear while the two overlapped on paper (esp32-amp's R26
-  // over AMP_PDN); standing alone let the checker see label text on a wire.
-  // A global label's flag is measured as eeschema draws it (`labelBoxAt`).
+  // on the wire line and rises one full height above it, and the checker's
+  // `labelBounds` measures exactly that. A global label's flag is measured as
+  // eeschema draws it (`labelBoxAt`).
   labelBoxAt(name, x, y, rot, kind, LABEL_ADVANCE);
 
 /**
@@ -2447,10 +2447,52 @@ function draftOnce(
     // next row landed on the tall box's bottom. Each box moves to the common
     // top; its height is then its own.
     const topY = Math.min(...groupRects.map((r) => r.y1));
-    for (const r of groupRects) {
-      // A group wider than the whole budget still starts its own row; it will
-      // overflow, and the caller rejects this paper for it.
-      if (r.x1 > rowOriginX && r.x2 - rowOriginX + rowLeftExt + rightExtOf(r.name) > budgetW) {
+    // Rows are consecutive runs of groups (reading order is kept), but WHICH
+    // consecutive runs is chosen to minimise the stack's height, not by
+    // filling each row until the next group no longer fits: first-fit paired
+    // esp32-amp's two tallest groups with two short ones and stacked five
+    // rows where four would do. A group wider than the whole budget still
+    // starts its own row; it will overflow, and the caller rejects this paper
+    // for it.
+    const n = groupRects.length;
+    const heightOf = (r: (typeof groupRects)[number]): number => r.y2 - r.y1;
+    const runFits = (i: number, j: number): boolean =>
+      i === j || groupRects[j]!.x2 - groupRects[i]!.x1 + leftExtOf(groupRects[i]!.name) + rightExtOf(groupRects[j]!.name) <= budgetW;
+    const best: number[] = new Array(n + 1).fill(Infinity);
+    const cut: number[] = new Array(n + 1).fill(0);
+    best[0] = 0;
+    for (let j = 1; j <= n; j++) {
+      let rowMax = 0;
+      for (let i = j; i >= 1; i--) {
+        rowMax = Math.max(rowMax, heightOf(groupRects[i - 1]!));
+        if (!runFits(i - 1, j - 1)) break;
+        const h = best[i - 1]! + rowMax + (i > 1 ? gap : 0);
+        if (h < best[j]!) {
+          best[j] = h;
+          cut[j] = i - 1;
+        }
+      }
+      if (best[j] === Infinity) {
+        // no run ending here fits: the group is its own (overflowing) row
+        best[j] = best[j - 1]! + heightOf(groupRects[j - 1]!) + (j > 1 ? gap : 0);
+        cut[j] = j - 1;
+      }
+    }
+    const starts: number[] = [];
+    for (let j = n; j > 0; j = cut[j]!) starts.unshift(cut[j]!);
+    const rowStart = new Set(starts);
+    if (process.env['COPPERHEAD_DRAFT_TRACE']) {
+      const rows: string[] = [];
+      for (let k = 0; k < starts.length; k++) {
+        const a = starts[k]!;
+        const b = k + 1 < starts.length ? starts[k + 1]! : n;
+        const members = groupRects.slice(a, b);
+        rows.push(`[${members.map((r) => r.name.slice(0, 2).trim()).join('+')} h${Math.max(...members.map(heightOf)).toFixed(0)}]`);
+      }
+      trace(`wrap at ${budgetW.toFixed(0)}: rows ${rows.join(' ')} -> ${best[n]!.toFixed(0)} tall`);
+    }
+    for (const [idx, r] of groupRects.entries()) {
+      if (idx > 0 && rowStart.has(idx)) {
         dyUnits += Math.ceil((rowH + gap) / U);
         rowOriginX = r.x1;
         rowLeftExt = leftExtOf(r.name);
@@ -2460,6 +2502,7 @@ function draftOnce(
       deltas.push({ dx: grid(Math.round((originX - rowOriginX) / U)), dy: dyUnits * U + lift });
       rowH = Math.max(rowH, r.y2 + lift - topY);
     }
+    void rowLeftExt;
     const xs = groupRects.flatMap((r, i) => [r.x1 + deltas[i]!.dx, r.x2 + deltas[i]!.dx]);
     const ys = groupRects.flatMap((r, i) => [r.y1 + deltas[i]!.dy, r.y2 + deltas[i]!.dy]);
     return { deltas, w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
@@ -2501,9 +2544,15 @@ function draftOnce(
   const budgetMisses: string[] = [];
   const tryPaperBudgeted = (p: (typeof PAPERS)[number]): { fit: SheetFit; bands: Map<string, number> } | null => {
     let best: { w: number; h: number } | null = null;
-    for (const frac of [1, 0.7, 0.5]) {
+    // finer fractions re-row a tall group's columns until the groups are
+    // short enough for two or three rows of them to stack on the sheet
+    for (const frac of [1, 0.7, 0.5, 0.4, 0.35, 0.3, 0.25]) {
       const b = placeAllGroups(Math.floor(usableW(p) / U), Math.floor((usableH(p) * frac) / U));
       const f = fitsOn(p);
+      if (groupRects.length > 1) {
+        const w = wrapTo(usableW(p));
+        trace(`try ${p.name} frac ${frac}: wrapped ${w.w.toFixed(0)}x${w.h.toFixed(0)} vs ${usableW(p)}x${usableH(p)}; ${groupRects.map((r) => `${r.name.slice(0, 12)}=${(r.x2 - r.x1).toFixed(0)}x${(r.y2 - r.y1).toFixed(0)}`).join(' ')}`);
+      }
       if (f) return { fit: f, bands: b };
       // remember the closest miss so a failed pass can say how far off it was
       if (groupRects.length) {
@@ -3547,8 +3596,9 @@ function draftOnce(
   // are the label's own attachment and never count as collisions.
   for (const rec of wiredLabels) {
     const lb = labels[rec.label]!;
-    const clearWired = (x: number, y: number, rot: number): boolean => {
+    const clearWired = (x: number, y: number, rot: number, pad = TEXT_PAD): boolean => {
       const box = labelTextBox(lb.name, x, y, rot, lb.kind);
+      const padBox = (b: Bounds): Bounds => ({ minX: b.minX - pad, minY: b.minY - pad, maxX: b.maxX + pad, maxY: b.maxY + pad });
       const blocked = (why: string): false => {
         trace(`label ${lb.name} at (${x}, ${y}, ${rot}) blocked by ${why}`);
         return false;
@@ -3567,7 +3617,8 @@ function draftOnce(
         if (r === 90) return Math.min(w.y1, w.y2) >= y - 0.01;
         return Math.max(w.y1, w.y2) <= y + 0.01;
       };
-      if (bodies.some((b) => boundsOverlap(box, b))) return blocked('a body');
+      const hitBody = [...placed.entries()].find(([, pl]) => boundsOverlap(box, pl.body));
+      if (hitBody) return blocked(`the body of ${hitBody[0]} (${JSON.stringify(hitBody[1].body)})`);
       if (textObstacles.some((b) => boundsOverlap(padBox(box), b))) return blocked('field text');
       if (wires.some((w) => !attached(w) && segHitsBox(w, box))) return blocked('a wire');
       return !labels.some(
@@ -3614,6 +3665,17 @@ function draftOnce(
       lb.y = alt.y;
       continue;
     }
+    // reading leftward from a point on the run is the same text on the same
+    // wire; a run whose right-hand end is a part's body (a resistor on the
+    // row) often clears only that way
+    const altLeft = [...rec.pts, ...interiorGridPoints(rec.segs, U)].find((p) => clearWired(p.x, p.y, 180));
+    if (altLeft) {
+      trace(`label ${lb.name} reads leftward from (${altLeft.x}, ${altLeft.y})`);
+      lb.x = altLeft.x;
+      lb.y = altLeft.y;
+      lb.rot = 180;
+      continue;
+    }
     // No segment endpoint clears, but the label may sit at ANY point of its
     // own net's wires: walk the interior grid points of each segment too
     // (#220 phase 2). Endpoints stay the first choice so a run that used to
@@ -3631,6 +3693,22 @@ function draftOnce(
       trace(`label ${lb.name} moved to an interior point (${inner.x}, ${inner.y})`);
       lb.x = inner.x;
       lb.y = inner.y;
+      continue;
+    }
+    // Last resort before leaving the name on a body: the full pad cannot be
+    // had on a 2.54 mm pin row under a flag (a flag's half height plus a
+    // standing label's height already fill the pitch), so accept a quarter
+    // pad at the first point that clears everything else.
+    // (A flag on the row above already reaches a full height below its line,
+    // so against it even a quarter pad is too much; touching boxes are not a
+    // collision to the checker, and are the last rung.)
+    const tightCandidates = [...rec.pts.map((p) => ({ ...p, rot: 0 })), ...interiorGridPoints(rec.segs, U).map((p) => ({ ...p, rot: 0 })), ...rec.pts.map((p) => ({ ...p, rot: 180 }))];
+    const tight = tightCandidates.find((c) => clearWired(c.x, c.y, c.rot, TEXT_PAD / 4)) ?? tightCandidates.find((c) => clearWired(c.x, c.y, c.rot, 0));
+    if (tight) {
+      trace(`label ${lb.name} placed at (${tight.x}, ${tight.y}, ${tight.rot}) with a reduced pad`);
+      lb.x = tight.x;
+      lb.y = tight.y;
+      lb.rot = tight.rot;
       continue;
     }
     trace(`label ${lb.name}: no clear point on its run; left at (${lb.x}, ${lb.y})`);

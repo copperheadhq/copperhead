@@ -122,9 +122,12 @@ describe('a failed compaction is reported, never silent', () => {
       const note = report.notes.find((n) => /^sheet not compacted:/.test(n));
       expect(note, report.notes.join('; ')).toBeDefined();
       for (const m of report.sheetFit.misses) expect(note).toContain(m);
-    } else {
-      expect(report.sheetFit.compaction).toBe('compacted');
+    } else if (report.sheetFit.compaction === 'compacted') {
       expect(report.notes.some((n) => /^sheet compacted:/.test(n))).toBe(true);
+    } else {
+      // tighter cells since the fourth placement pass: the fixture's natural
+      // sheet now inks above the floor, so there was nothing to compact
+      expect(report.sheetFit.compaction).toBe('not-needed');
     }
   });
 

@@ -1,6 +1,24 @@
 (kicad_symbol_lib
 	(version 20231120)
 	(generator "copperhead-vendor")
+(symbol "PWR_FLAG"
+	(power)
+	(pin_names (offset 0))
+	(exclude_from_sim yes)
+	(in_bom no)
+	(on_board no)
+	(property "Reference" "#FLG" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+	(property "Value" "PWR_FLAG" (at 0 -3.556 0) (effects (font (size 1.27 1.27)) hide))
+	(symbol "PWR_FLAG_0_1"
+		(polyline (pts (xy 0 1.27) (xy -1.016 1.905) (xy 0 2.54) (xy 1.016 1.905) (xy 0 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+	)
+	(symbol "PWR_FLAG_1_1"
+		(pin power_out line (at 0 0 90) (length 0) hide
+			(name "pwr" (effects (font (size 1.27 1.27))))
+			(number "1" (effects (font (size 1.27 1.27))))
+		)
+	)
+)
 (symbol "+3V3"
 	(power)
 	(pin_names (offset 0))
@@ -10,7 +28,8 @@
 	(property "Reference" "#PWR" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
 	(property "Value" "+3V3" (at 0 3.556 0) (effects (font (size 1.27 1.27)) hide))
 	(symbol "+3V3_0_1"
-		(polyline (pts (xy -1.27 1.27) (xy 1.27 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+		(polyline (pts (xy 0 0) (xy 0 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+		(polyline (pts (xy -0.762 1.27) (xy 0 2.54) (xy 0.762 1.27) (xy -0.762 1.27)) (stroke (width 0.254) (type default)) (fill (type outline)))
 	)
 	(symbol "+3V3_1_1"
 		(pin power_in line (at 0 0 90) (length 0) hide
@@ -28,9 +47,8 @@
 	(property "Reference" "#PWR" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
 	(property "Value" "GND" (at 0 -3.556 0) (effects (font (size 1.27 1.27)) hide))
 	(symbol "GND_0_1"
-		(polyline (pts (xy -1.27 -1.27) (xy 1.27 -1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
-		(polyline (pts (xy -0.762 -1.778) (xy 0.762 -1.778)) (stroke (width 0.254) (type default)) (fill (type none)))
-		(polyline (pts (xy -0.254 -2.286) (xy 0.254 -2.286)) (stroke (width 0.254) (type default)) (fill (type none)))
+		(polyline (pts (xy 0 0) (xy 0 -1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+		(polyline (pts (xy -1.27 -1.27) (xy 1.27 -1.27) (xy 0 -2.54) (xy -1.27 -1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
 	)
 	(symbol "GND_1_1"
 		(pin power_in line (at 0 0 270) (length 0) hide
@@ -48,7 +66,8 @@
 	(property "Reference" "#PWR" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
 	(property "Value" "VBUS" (at 0 3.556 0) (effects (font (size 1.27 1.27)) hide))
 	(symbol "VBUS_0_1"
-		(polyline (pts (xy -1.27 1.27) (xy 1.27 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+		(polyline (pts (xy 0 0) (xy 0 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+		(polyline (pts (xy -0.762 1.27) (xy 0 2.54) (xy 0.762 1.27) (xy -0.762 1.27)) (stroke (width 0.254) (type default)) (fill (type outline)))
 	)
 	(symbol "VBUS_1_1"
 		(pin power_in line (at 0 0 90) (length 0) hide
@@ -66,29 +85,12 @@
 	(property "Reference" "#PWR" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
 	(property "Value" "VBUS_F" (at 0 3.556 0) (effects (font (size 1.27 1.27)) hide))
 	(symbol "VBUS_F_0_1"
-		(polyline (pts (xy -1.27 1.27) (xy 1.27 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+		(polyline (pts (xy 0 0) (xy 0 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+		(polyline (pts (xy -0.762 1.27) (xy 0 2.54) (xy 0.762 1.27) (xy -0.762 1.27)) (stroke (width 0.254) (type default)) (fill (type outline)))
 	)
 	(symbol "VBUS_F_1_1"
 		(pin power_in line (at 0 0 90) (length 0) hide
 			(name "VBUS_F" (effects (font (size 1.27 1.27))))
-			(number "1" (effects (font (size 1.27 1.27))))
-		)
-	)
-)
-(symbol "PWR_FLAG"
-	(power)
-	(pin_names (offset 0))
-	(exclude_from_sim yes)
-	(in_bom no)
-	(on_board no)
-	(property "Reference" "#FLG" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-	(property "Value" "PWR_FLAG" (at 0 -3.556 0) (effects (font (size 1.27 1.27)) hide))
-	(symbol "PWR_FLAG_0_1"
-		(polyline (pts (xy 0 1.27) (xy -1.016 1.905) (xy 0 2.54) (xy 1.016 1.905) (xy 0 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
-	)
-	(symbol "PWR_FLAG_1_1"
-		(pin power_out line (at 0 0 90) (length 0) hide
-			(name "pwr" (effects (font (size 1.27 1.27))))
 			(number "1" (effects (font (size 1.27 1.27))))
 		)
 	)

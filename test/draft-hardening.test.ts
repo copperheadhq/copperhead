@@ -482,6 +482,27 @@ describe('point identity is the emitted coordinate, not the float', () => {
 });
 
 describe('power net names cannot corrupt the generated symbol source', () => {
+  it('vendorGenerated replaces a stale cached block instead of keeping it', async () => {
+    // The cached power lib is the engine's own output. When the engine's
+    // drawing changes, a cache that keeps the old block makes ERC report a
+    // lib_symbol_mismatch on every power symbol of the sheet.
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-vendor-gen-'));
+    try {
+      const src = new SymbolSource(repo, [SYMLIB]);
+      const stale = '(symbol "GND"\n\t(power)\n\t(property "Value" "GND" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))\n)';
+      await src.vendorGenerated('copperhead_power:GND', stale);
+      const fresh = powerSymbolSource('GND', 'ground');
+      await src.vendorGenerated(fresh.libId, fresh.sourceText);
+      await src.vendorGenerated('copperhead_power:+3V3', powerSymbolSource('+3V3', 'rail').sourceText);
+      const text = await readFile(path.join(repo, 'sym-lib-cache', 'copperhead_power.kicad_sym'), 'utf8');
+      expect(extractSymbolBlock(text, 'GND')).toBe(fresh.sourceText);
+      expect(text.match(/\(symbol "GND"/g)).toHaveLength(1);
+      expect(extractSymbolBlock(text, '+3V3')).not.toBeNull();
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('powerSymbolSource escapes quotes and backslashes into a single parseable block', () => {
     for (const name of ['V"CC', 'V\\CC']) {
       const src = powerSymbolSource(name, 'rail');

@@ -83,6 +83,11 @@ export interface EmitLabel {
 export const CAPTION_SIZE = 3.5;
 /** Font height, mm, of every net label. */
 export const LABEL_SIZE = 1.27;
+/** Stroke thickness, mm, of label text and the flag outline drawn with it;
+ * KiCad's default is size/8 ≈ 0.16, too faint against a coloured wire. */
+export const LABEL_THICKNESS = 0.2;
+/** Wire stroke width, mm; 0 would mean KiCad's default of 0.1524. */
+export const WIRE_WIDTH = 0.254;
 
 export interface PlacementModel {
   projectName: string;
@@ -186,7 +191,7 @@ export function emitSchematic(model: PlacementModel): string {
   for (const w of wires) {
     L.push('\t(wire');
     L.push(`\t\t(pts (xy ${knum(w.x1)} ${knum(w.y1)}) (xy ${knum(w.x2)} ${knum(w.y2)}))`);
-    L.push(`\t\t(stroke (width 0) (type default)${colorOf(w.net)})`);
+    L.push(`\t\t(stroke (width ${knum(WIRE_WIDTH)}) (type default)${colorOf(w.net)})`);
     L.push(`\t\t(uuid ${q(id(`wire/${w.net}/${w.index}`))})`);
     L.push('\t)');
   }
@@ -218,7 +223,7 @@ export function emitSchematic(model: PlacementModel): string {
       const rot = ((lb.rot % 360) + 360) % 360;
       const justify = rot === 180 || rot === 270 ? 'right' : 'left';
       L.push(`\t(global_label ${q(lb.name)} (shape ${lb.shape ?? 'passive'}) (at ${knum(lb.x)} ${knum(lb.y)} ${knum(rot)}) (fields_autoplaced yes)`);
-      L.push(`\t\t(effects (font (size ${knum(LABEL_SIZE)} ${knum(LABEL_SIZE)})${colorOf(lb.name)}) (justify ${justify}))`);
+      L.push(`\t\t(effects (font (size ${knum(LABEL_SIZE)} ${knum(LABEL_SIZE)}) (thickness ${knum(LABEL_THICKNESS)})${colorOf(lb.name)}) (justify ${justify}))`);
       L.push(`\t\t(uuid ${uuid})`);
       L.push(`\t\t(property "Intersheetrefs" "\${INTERSHEET_REFS}" (at ${knum(lb.x)} ${knum(lb.y)} 0)`);
       L.push(`\t\t\t(effects (font (size ${knum(LABEL_SIZE)} ${knum(LABEL_SIZE)})) hide)`);
@@ -231,7 +236,7 @@ export function emitSchematic(model: PlacementModel): string {
     const justify = lb.rot === 180 || lb.rot === 270 ? 'right bottom' : 'left bottom';
     const drawRot = lb.rot === 180 ? 0 : lb.rot === 270 ? 90 : lb.rot;
     L.push(`\t(label ${q(lb.name)} (at ${knum(lb.x)} ${knum(lb.y)} ${knum(drawRot)})`);
-    L.push(`\t\t(effects (font (size ${knum(LABEL_SIZE)} ${knum(LABEL_SIZE)})${colorOf(lb.name)}) (justify ${justify}))`);
+    L.push(`\t\t(effects (font (size ${knum(LABEL_SIZE)} ${knum(LABEL_SIZE)}) (thickness ${knum(LABEL_THICKNESS)})${colorOf(lb.name)}) (justify ${justify}))`);
     L.push(`\t\t(uuid ${uuid})`);
     L.push('\t)');
   }
