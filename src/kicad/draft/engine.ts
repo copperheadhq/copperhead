@@ -19,6 +19,11 @@ const STUB = 2;
 const BASE_MARGIN = 4;
 /** Cell margin once the cell is sized from what it actually drew. */
 const MEASURED_MARGIN = 2;
+/** Vertical cell margin, units: rows are tighter than columns because a
+ * part's texts sit beside it, not above and below; a pin that faces up or
+ * down with a rail or ground on it reserves `POWER_REACH` instead. */
+const VMARGIN = 2;
+const POWER_REACH = 6;
 /** Clear grid units kept beyond a cell's measured drawn extent. */
 const MEASURE_PAD = 1;
 /** What a cell drew beyond its body, mm on each side, measured on a finished draft. */
@@ -29,9 +34,9 @@ const BOX_PAD = 1;
 const BOX_GAP = 4;
 /** Vertical gap between rows and horizontal channel between columns, units. */
 const ROW_GAP = 3;
-const CHANNEL = 6;
+const CHANNEL = 4;
 /** Gap between group boxes, units. */
-const GROUP_GAP = 6;
+const GROUP_GAP = 4;
 /** Local nets up to this many endpoints may be wired (design D2). */
 const MAX_WIRED_ENDPOINTS = 4;
 /** Wire-span budget in mm beyond which a net becomes labels. */
@@ -979,6 +984,21 @@ function draftOnce(
         const signal = signalNetOfPin.get(ep);
         const power = signal ? undefined : netByEndpoint.get(ep);
         if (!signal && !power) continue;
+        // a small signal net whose every endpoint is in this group is wired,
+        // not labelled: no flag reaches out from it (counting one for every
+        // pin put 27 mm between groups whose facing sides carry no label). A
+        // larger in-group net may still end in stub labels, so it keeps its
+        // reserve.
+        if (signal) {
+          const net = netByEndpoint.get(ep);
+          const others = (net?.pins ?? []).filter((other) => other !== ep).map((other) => /^([^.]+)\./.exec(other)?.[1] ?? '');
+          const leaves = !net || net.pins.length > MAX_WIRED_ENDPOINTS || others.some((ref) => partByRef.get(ref)?.group !== inst!.part.group);
+          // only when every other endpoint is a two-lead part (or a test
+          // point): those hang on the pin and are wired by construction; two
+          // ICs of one group may still sit past wire span and take labels
+          const hangs = others.every((ref) => (symbols.get(ref)?.pins.length ?? 3) <= 2);
+          if (!leaves && hangs) continue;
+        }
         // a signal: stub plus the label's flag (text, margins and tip); a
         // rail or ground on a sideways pin: the longer power stub, the bar,
         // and the name drawn outward in line
@@ -1169,11 +1189,11 @@ function draftOnce(
           // cell's left edge and topPad + MARGIN from its top
           const shelfL = Math.max(0, ceilU(mo.left) + MEASURE_PAD - MARGIN);
           const shelfR = Math.max(0, ceilU(mo.right) + MEASURE_PAD - MARGIN);
-          const topPad = Math.max(0, ceilU(mo.top) + MEASURE_PAD - MARGIN);
-          const below = Math.max(MARGIN, ceilU(mo.bottom) + MEASURE_PAD);
+          const topPad = Math.max(0, ceilU(mo.top) + MEASURE_PAD - VMARGIN);
+          const below = Math.max(VMARGIN, ceilU(mo.bottom) + MEASURE_PAD);
           cellDims.set(m.key, {
             w: shelfL + MARGIN + ceilU(b.maxX - b.minX) + MARGIN + shelfR,
-            h: topPad + MARGIN + ceilU(b.maxY - b.minY) + below,
+            h: topPad + VMARGIN + ceilU(b.maxY - b.minY) + below,
             body: b,
             shelfL,
             shelfR,
@@ -1181,13 +1201,19 @@ function draftOnce(
           });
           continue;
         }
+        // a rail or ground on a pin facing up or down draws a stub, a bar and
+        // a name past the body: that pin's side reserves the symbol's reach
+        const powered = (dy: number): boolean =>
+          m.sym.pins.some((p) => outward(p).dy === dy && netByEndpoint.has(`${m.ref}.${p.number}`) && (netClasses.get(netByEndpoint.get(`${m.ref}.${p.number}`)!.name)?.cls ?? 'signal') !== 'signal');
+        const topReach = powered(-1) ? POWER_REACH : 0;
+        const botReach = powered(1) ? POWER_REACH : 0;
         cellDims.set(m.key, {
           w: ceilU(b.maxX - b.minX) + 2 * MARGIN,
-          h: ceilU(b.maxY - b.minY) + 2 * MARGIN,
+          h: Math.max(0, topReach - VMARGIN) + VMARGIN + ceilU(b.maxY - b.minY) + VMARGIN + Math.max(0, botReach - VMARGIN),
           body: b,
           shelfL: 0,
           shelfR: 0,
-          topPad: 0,
+          topPad: Math.max(0, topReach - VMARGIN),
         });
       }
 
@@ -1418,7 +1444,7 @@ function draftOnce(
         }
         return reach;
       };
-      const HANG_POWER_END = 8 * U;
+      const HANG_POWER_END = 5 * U;
       /** Rows a power symbol and its name need past a pin: stub, bar, text. */
       const POWER_CLEAR_ROWS = 6;
       // Parts hang on ICs first, then on connectors and switches: a fuse
@@ -1666,12 +1692,15 @@ function draftOnce(
               const reach = Math.max(b.maxY, -b.minY) + STUB * U + POWER_CLEAR_ROWS * U;
               if (measured?.has(icKey)) continue;
               dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - (-il.pin.y - reach)));
-              dims.h = Math.max(dims.h, ceilU(Math.max(deepest, -il.pin.y + reach) - Math.min(highest, -il.pin.y - reach)) + 2 * MARGIN);
+              dims.h = Math.max(dims.h, ceilU(Math.max(deepest, -il.pin.y + reach) - Math.min(highest, -il.pin.y - reach)) + VMARGIN + 2);
             }
           }
           if (!measured?.has(icKey)) {
             dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - highest));
-            dims.h = Math.max(dims.h, ceilU(deepest - highest) + 2 * MARGIN);
+            // the chain's end already carries the symbol's own room; two
+            // units of air below it, not a full margin (a button block's cell
+            // was 39 mm tall where a drafter draws it on a 25 mm pitch)
+            dims.h = Math.max(dims.h, ceilU(deepest - highest) + VMARGIN + 2);
           }
         }
       }
@@ -1722,7 +1751,7 @@ function draftOnce(
         const bottom = Math.max(-dims.body.minY, rowRel + HANG_GAP + hDown);
         const top = Math.min(-dims.body.maxY, rowRel - HANG_GAP - hUp);
         dims.topPad = Math.max(dims.topPad, ceilU(-dims.body.maxY - top));
-        dims.h = Math.max(dims.h, ceilU(bottom - top) + 2 * MARGIN);
+        dims.h = Math.max(dims.h, ceilU(bottom - top) + VMARGIN + 2);
       }
       void nodeAnchors;
       for (const col of columns) {
@@ -1794,8 +1823,18 @@ function draftOnce(
       // and the button blocks stack three deep, the grid a person draws when
       // the group must sit in a 250 mm column (esp32-amp's UI group went
       // from 364 × 150 to the width of its neighbours).
-      const searchBand = bandW;
-      const targetH = bandBudgetW === Infinity ? squareSide : Math.max(Math.ceil(cellArea / bandBudgetW), Math.ceil(squareSide / 2));
+      // A group with no IC to lead it (buttons, test points, LEDs) has no
+      // natural shape, and its columns line up as a strip five blocks wide;
+      // shape it no wider than twice its square side, the grid a person
+      // draws. Groups led by an IC keep the IC's own proportions.
+      const shapeToAspect = anchors.length === 0;
+      const aspectBand = Math.ceil(2.5 * squareSide);
+      const searchBand = shapeToAspect ? Math.min(aspectBand, bandW) : bandW;
+      const targetH = shapeToAspect
+        ? Math.max(Math.ceil(cellArea / searchBand), Math.ceil(squareSide / 2))
+        : bandBudgetW === Infinity
+          ? squareSide
+          : Math.max(Math.ceil(cellArea / bandBudgetW), Math.ceil(squareSide / 2));
       const balanceH = Math.max(anchorH, targetH);
 
       /** Split `col` into the fewest equal-height chunks that each fit
@@ -1837,7 +1876,7 @@ function draftOnce(
       // ones a group that fills the band's width in one pass (five button
       // blocks as two columns of three beside two columns of test points).
       let chosenH = balanceH;
-      if (bandBudgetW !== Infinity) {
+      if (bandBudgetW !== Infinity || shapeToAspect) {
         const widthAt = (h: number): number => {
           const cols = columns.flatMap((col) => splitColumn(col, h, BALANCE_MIN_CELLS));
           // the same channel and facing-label widening the placement below applies
@@ -1855,7 +1894,7 @@ function draftOnce(
             break;
           }
         }
-        if (widthAt(chosenH) > searchBand) chosenH = ceiling;
+        if (widthAt(chosenH) > searchBand) chosenH = shapeToAspect ? balanceH : ceiling;
       }
       const columnsToPlace: string[][] = columns.flatMap((col) =>
         splitColumn(col, chosenH, BALANCE_MIN_CELLS).flatMap((c) => (sheetBudget === Infinity ? [c] : splitColumn(c, sheetBudget))),
@@ -1891,7 +1930,7 @@ function draftOnce(
           // the body sits at the top of its cell, under the room any up-hang
           // needs; a cell with nothing hung is body plus margins, so this is
           // its centre as before
-          const cy = rowY + dims.topPad + MARGIN + Math.floor(ceilU(b.maxY - b.minY) / 2);
+          const cy = rowY + dims.topPad + VMARGIN + Math.floor(ceilU(b.maxY - b.minY) / 2);
           // origin so the body centers on the cell center, snapped to grid
           const ox = grid(cx - Math.round((b.minX + b.maxX) / 2 / U));
           const oy = grid(cy + Math.round((b.minY + b.maxY) / 2 / U));
@@ -2139,7 +2178,7 @@ function draftOnce(
         return true;
       };
       /** The room a rail/ground end grows past its pin: stub, bar, value text. */
-      const POWER_CLEAR = 8 * U;
+      const POWER_CLEAR = 5 * U;
       const powerEndBox = (axisX: number, pinY: number, dir: -1 | 1): Bounds => ({
         minX: axisX - 3 * U,
         maxX: axisX + 3 * U,
