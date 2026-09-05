@@ -6,6 +6,7 @@ import { checkDrift } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { parseCanonicalTables } from '../memory/bom-table.js';
 import { runAgentLoop } from '../agent/loop.js';
 import type { RunMetaInput } from '../agent/runmeta.js';
 import type { ProgressRenderer } from '../agent/render.js';
@@ -90,13 +91,32 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   if (existsSync(pinsH) && existsSync(path.join(docsDir, 'PINOUT.md'))) {
     const header = await readFile(pinsH, 'utf8');
     const pinout = await readFile(path.join(docsDir, 'PINOUT.md'), 'utf8');
+    const validNames = new Set<string>();
+    const strip = (s: string | undefined): string => (s ?? '').replace(/`/g, '').trim();
+    for (const { header: tHeader, rows: tRows } of parseCanonicalTables(pinout)) {
+      const col = (re: RegExp): number => tHeader.cells.findIndex((c) => re.test(c));
+      const netI = col(/^net$/i);
+      const nameI = col(/^name$/i);
+      const signalI = col(/^signal$/i);
+      const pinI = col(/^pin$/i);
+      if (pinI < 0 || (netI < 0 && nameI < 0 && signalI < 0)) continue; // only read canonical pin-assignment tables
+      for (const r of tRows) {
+        for (const idx of [netI, nameI, signalI]) {
+          if (idx >= 0 && r.cells[idx]) {
+            const val = strip(r.cells[idx]);
+            if (val) validNames.add(val.toLowerCase());
+          }
+        }
+      }
+    }
     for (const m of header.matchAll(/#define\s+PIN_(\w+)\s+(\S+)/g)) {
-      if (!pinout.includes(m[1]!)) {
+      const pinName = m[1]!;
+      if (!validNames.has(pinName.toLowerCase())) {
         resolvable.push({
           kind: 'pins-h',
           doc: 'firmware/src/pins.h',
-          claim: `defines PIN_${m[1]}`,
-          actual: 'PINOUT.md does not mention it',
+          claim: `defines PIN_${pinName}`,
+          actual: 'PINOUT.md does not assign it',
           resolution: 'regenerate pins.h from PINOUT.md (PINOUT.md is the single source of truth)',
         });
       }

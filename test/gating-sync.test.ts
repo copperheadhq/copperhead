@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { writeFile, readFile } from 'node:fs/promises';
+import { writeFile, readFile, mkdir } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
 import { availableTools, dispatchTool, type RunContext } from '../src/agent/tools.js';
@@ -386,6 +386,60 @@ describe('copperhead sync verify phase (AC-7)', () => {
       expect(report.violations).toHaveLength(1);
       expect(report.violations[0]!.description).toContain('GPIO14');
       expect(report.violations[0]!.governedBy).toBe('esp32-s3 datasheet');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('pins-h check verifies structurally against PINOUT.md table, rejecting substring matches (#105)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const firmwareDir = path.join(repo, 'firmware', 'src');
+      await mkdir(firmwareDir, { recursive: true });
+      await writeFile(
+        path.join(firmwareDir, 'pins.h'),
+        '#define PIN_KEY 5\n#define PIN_GPIO 21\n#define PIN_3V 8\n',
+        'utf8',
+      );
+      const report = await syncVerify(repo);
+      const pinsHItems = report.resolvable.filter((i) => i.kind === 'pins-h');
+      expect(pinsHItems).toHaveLength(3);
+      expect(pinsHItems.map((i) => i.claim)).toEqual([
+        'defines PIN_KEY',
+        'defines PIN_GPIO',
+        'defines PIN_3V',
+      ]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('pins-h check ignores Notes, Refdes, and Pin number columns when verifying pin names (#105)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const pinoutPath = path.join(repo, 'docs', 'PINOUT.md');
+      await writeFile(
+        pinoutPath,
+        '| Refdes | Pin | Net | Notes |\n|---|---|---|---|\n| U1 | 5 | KEY_DAH | KEY |\n',
+        'utf8',
+      );
+      const firmwareDir = path.join(repo, 'firmware', 'src');
+      await mkdir(firmwareDir, { recursive: true });
+      await writeFile(
+        path.join(firmwareDir, 'pins.h'),
+        '#define PIN_KEY_DAH 5\n#define PIN_KEY 5\n#define PIN_5 21\n#define PIN_U1 1\n',
+        'utf8',
+      );
+      const report = await syncVerify(repo);
+      const pinsHItems = report.resolvable.filter((i) => i.kind === 'pins-h');
+      expect(pinsHItems).toHaveLength(3);
+      expect(pinsHItems.map((i) => i.claim)).toEqual([
+        'defines PIN_KEY',
+        'defines PIN_5',
+        'defines PIN_U1',
+      ]);
     } finally {
       await cleanup();
     }
