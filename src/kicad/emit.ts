@@ -68,6 +68,8 @@ export interface PlacementModel {
   noConnects: { x: number; y: number }[];
   rectangles: { x1: number; y1: number; x2: number; y2: number; stroke: 'solid' | 'dash'; name: string }[];
   captions: { text: string; x: number; y: number; name: string }[];
+  /** Wire and label colour per net, RGB 0..255; nets absent here draw in the theme default. */
+  netColors?: Record<string, [number, number, number]>;
 }
 
 /**
@@ -147,11 +149,15 @@ export function emitSchematic(model: PlacementModel): string {
     L.push(`\t(no_connect (at ${knum(n.x)} ${knum(n.y)}) (uuid ${q(id(`no_connect/${knum(n.x)},${knum(n.y)}`))}))`);
   }
 
+  const colorOf = (net: string): string => {
+    const c = model.netColors?.[net];
+    return c ? ` (color ${c[0]} ${c[1]} ${c[2]} 1)` : '';
+  };
   const wires = [...model.wires].sort((a, b) => a.net.localeCompare(b.net) || a.index - b.index);
   for (const w of wires) {
     L.push('\t(wire');
     L.push(`\t\t(pts (xy ${knum(w.x1)} ${knum(w.y1)}) (xy ${knum(w.x2)} ${knum(w.y2)}))`);
-    L.push('\t\t(stroke (width 0) (type default))');
+    L.push(`\t\t(stroke (width 0) (type default)${colorOf(w.net)})`);
     L.push(`\t\t(uuid ${q(id(`wire/${w.net}/${w.index}`))})`);
     L.push('\t)');
   }
@@ -178,7 +184,7 @@ export function emitSchematic(model: PlacementModel): string {
     const justify = lb.rot === 180 || lb.rot === 270 ? 'right bottom' : 'left bottom';
     const drawRot = lb.rot === 180 ? 0 : lb.rot === 270 ? 90 : lb.rot;
     L.push(`\t(label ${q(lb.name)} (at ${knum(lb.x)} ${knum(lb.y)} ${knum(drawRot)})`);
-    L.push(`\t\t(effects (font (size 1.27 1.27)) (justify ${justify}))`);
+    L.push(`\t\t(effects (font (size 1.27 1.27)${colorOf(lb.name)}) (justify ${justify}))`);
     L.push(`\t\t(uuid ${q(id(`label/${lb.name}/${knum(lb.x)},${knum(lb.y)}`))})`);
     L.push('\t)');
   }

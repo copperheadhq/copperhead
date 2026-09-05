@@ -1346,37 +1346,37 @@
 	(no_connect (at 132.08 85.09) (uuid "c692da2e-5866-51ac-9a36-d0338f6a6c75"))
 	(wire
 		(pts (xy 104.14 119.38) (xy 104.14 116.84))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "11d69809-2b58-539f-a6c3-0c9a735edc53")
 	)
 	(wire
 		(pts (xy 57.15 68.58) (xy 57.15 66.04))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "5568511a-acd5-5efa-99d9-6c2be3d6e7c0")
 	)
 	(wire
 		(pts (xy 236.22 71.12) (xy 231.14 71.12))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "430901db-5e32-5d78-bb8a-4f7403c2a9ce")
 	)
 	(wire
 		(pts (xy 72.39 72.39) (xy 67.31 72.39))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "c871c77c-bb61-5127-b842-586c72efe73c")
 	)
 	(wire
 		(pts (xy 173.99 71.12) (xy 168.91 71.12))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "7038d7a0-9211-5e4c-ac29-c59a26e08b15")
 	)
 	(wire
 		(pts (xy 151.13 74.93) (xy 151.13 72.39))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "182d7c1e-e412-5adb-ab86-12a3c8e404d4")
 	)
 	(wire
 		(pts (xy 116.84 67.31) (xy 116.84 64.77))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 170 30 30 1))
 		(uuid "0540a8a1-b93a-50e0-860d-798886058e84")
 	)
 	(wire
@@ -1411,32 +1411,32 @@
 	)
 	(wire
 		(pts (xy 104.14 127) (xy 104.14 129.54))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "78e857ab-1394-5b34-b112-aa38491ad1e3")
 	)
 	(wire
 		(pts (xy 57.15 76.2) (xy 57.15 78.74))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "f4b98b09-f758-5ab3-b76c-1ba8904b7e2c")
 	)
 	(wire
 		(pts (xy 72.39 74.93) (xy 67.31 74.93))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "4291ad6d-6d4d-5665-8461-ebbd341c1441")
 	)
 	(wire
 		(pts (xy 210.82 77.47) (xy 210.82 80.01))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "9e1dce32-7556-5488-9721-d8a4ec2457bc")
 	)
 	(wire
 		(pts (xy 240.03 99.06) (xy 240.03 101.6))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "c49ba9a5-3fd6-5069-aa26-521b5205b780")
 	)
 	(wire
 		(pts (xy 116.84 97.79) (xy 116.84 100.33))
-		(stroke (width 0) (type default))
+		(stroke (width 0) (type default) (color 70 70 70 1))
 		(uuid "783f0ebf-e171-5b2d-b222-05defc8f9918")
 	)
 	(wire

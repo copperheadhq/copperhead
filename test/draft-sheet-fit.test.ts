@@ -415,6 +415,32 @@ describe('pin-anchored hangs (#220 phase 3)', () => {
   }, 60000);
 });
 
+describe('nets are coloured by function', () => {
+  it('colours a signal family together, rails and grounds by class, and leaves a lone signal alone', async () => {
+    // usb-atmega-node: ISP_MISO/MOSI/SCK and UART_RX/TX are families; AREF
+    // stands alone; +3V3 is a rail and GND a ground
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-colour-'));
+    try {
+      await cp(path.join(CONTROL, 'usb-atmega-node'), repo, { recursive: true });
+      const intent = JSON.parse(await readFile(path.join(repo, 'schematic.intent.json'), 'utf8')) as SchematicIntent;
+      const v = await validateIntent(intent, new SymbolSource(repo, []), path.join(repo, 'docs'));
+      expect(v.ok).toBe(true);
+      const { model } = draftSchematicPlacement(v.validated!, 'usb-atmega-node', '2020-01-01');
+      const c = model.netColors!;
+      expect(c.ISP_MISO).toBeDefined();
+      expect(c.ISP_MISO).toEqual(c.ISP_MOSI);
+      expect(c.ISP_MISO).toEqual(c.ISP_SCK);
+      expect(c.UART_RX).toEqual(c.UART_TX);
+      expect(c.UART_RX).not.toEqual(c.ISP_MISO);
+      expect(c.AREF).toBeUndefined();
+      expect(c['+3V3']).toEqual([170, 30, 30]);
+      expect(c.GND).toEqual([70, 70, 70]);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('reference boards pass the sheet-fit gate', () => {
   it('every committed board explains its paper when it inks less than the floor', async () => {
     const boards = (await readdir(CONTROL, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);

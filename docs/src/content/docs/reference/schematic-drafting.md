@@ -127,3 +127,20 @@ A part whose run from the IC pin ends on a signal net rather than a rail or grou
 ## Local runs are wired
 
 The wire pass no longer decides a net whole. Its endpoints are clustered by group and wire span, and every cluster that routes cleanly is drawn as one wired run with one label, whatever the rest of the net does; a cluster that will not route whole is drawn as its largest routable subset, and only the endpoints left over keep a stub and a label. So a part hung on a pin or lying on its row is wired to it even when the net also leaves the group or carries more endpoints than one run may hold. A run's name goes at the top of its trunk, or at the left end of a horizontal run, wherever it clears every body.
+
+## Conventions the sheet follows
+
+The target the engine draws toward, collected from practitioner guides, a hand-drawn reference board and the KiStack schematic skill's checklist, re-expressed here. Where a rule is the engine's, it is enforced by construction and gated; where it is the intent's, the stage prompt asks for it.
+
+| Convention | Whose | How |
+| --- | --- | --- |
+| Signals flow left to right; the IC leads its group; connectors on the left | engine | IC-first layering, connector column |
+| A part sits on the pin it serves: shunts hang, series parts lie on the row, test points rise beside their net | engine | pin-anchored hangs, inline runs, test-point hangs |
+| Wire what is local, label what is not; one label per wired run | engine | cluster-first routing |
+| Rails and grounds are symbols, rails up and grounds down, one per bank of caps | engine | power pass, bank trunks |
+| Decoupling in banks with shared symbols; a PWR_FLAG at each undriven rail's first endpoint | engine | bank idiom, flag synthesis |
+| Every part carries a reference and a value that collide with nothing; all text horizontal | engine | field slot ladder, text gates |
+| Related nets coloured together: rails, grounds, and every family of signals sharing a prefix; lone signals in the theme default | engine | wire and label colour |
+| Subsystems as captioned boxes that enclose their own text; page sized to content; boxes compact | engine | group rects, enclosure, compaction |
+| Bus and interface nets share a prefix; differential pairs end in +/- or P/N; values carry units | intent | stage prompt |
+| Notes, datasheet references and design intent on the sheet | not yet | needs a notes field in the intent |
