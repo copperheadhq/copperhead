@@ -485,3 +485,64 @@ describe('the squeeze: cells sized from what they drew', () => {
     else expect(report.notes.some((n) => /^cells measured:/.test(n))).toBe(false);
   });
 });
+
+/** Seven groups of stacked MCUs at mixed heights, in declared order: the
+ * shape of the engagement sheet (tall, short, tall, short, short, tall,
+ * short) with nothing hung, so only the wrap decides the sheet. */
+function sevenGroups(): SchematicIntent {
+  const parts = [];
+  const noConnect: string[] = [];
+  const nets: { name: string; pins: string[] }[] = [];
+  const heights = [6, 2, 7, 3, 3, 5, 3];
+  let n = 0;
+  for (const [g, count] of heights.entries()) {
+    const refs: string[] = [];
+    for (let i = 0; i < count; i++) {
+      n++;
+      parts.push({ ref: `U${n}`, libId: 'CopperMCU:MCU8', value: 'MCU8', group: `G${g + 1}` });
+      for (const p of ['3', '4', '5', '6', '7', '8']) noConnect.push(`U${n}.${p}`);
+      refs.push(`U${n}`);
+    }
+    nets.push({ name: `VCC${g + 1}`, pins: refs.map((r) => `${r}.1`) });
+    nets.push({ name: `GND`, pins: [...(nets.find((x) => x.name === 'GND')?.pins ?? []), ...refs.map((r) => `${r}.2`)] });
+  }
+  return { version: 1, parts, nets: nets.filter((x, i, all) => x.name !== 'GND' || all.findIndex((y) => y.name === 'GND') === i), noConnect };
+}
+
+describe('the look: a wrapped sheet is fitted again on measured label reach (AC-16.63)', () => {
+  it('records the look on a wrapped sheet and never keeps a larger sheet or a worse draft', async () => {
+    const { model, report } = await place(sevenGroups());
+    const wrapped = report.notes.some((n) => /wrapped onto|laid in \d+ columns/.test(n));
+    if (!wrapped) return;
+    expect(report.sheetFit.look).toBeDefined();
+    const look = report.sheetFit.look!;
+    const idx = (p: string): number => Object.keys(PAPER_DIMS).indexOf(p);
+    expect(idx(look.paperAfter)).toBeLessThanOrEqual(idx(look.paperBefore));
+    expect(look.paperAfter).toBe(report.paper);
+    if (look.kept && look.paperAfter !== look.paperBefore) {
+      expect(report.notes.some((n) => /^label reach measured: the wrap fitted again takes/.test(n))).toBe(true);
+    }
+    expectInsideFrame(model);
+  });
+});
+
+describe('masonry wrap: groups dealt to columns that each stack their own (AC-16.62)', () => {
+  it('fits the seven mixed-height groups on a sheet, with every group box inside the frame and no two overlapping', async () => {
+    const { model, report } = await place(sevenGroups());
+    expectInsideFrame(model);
+    const boxes = model.rectangles;
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const b = boxes[j]!;
+        const ox = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1);
+        const oy = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+        expect(ox <= 0.01 || oy <= 0.01).toBe(true);
+      }
+    }
+    // the fit shape is named in the notes when the groups wrapped
+    if (report.notes.some((n) => /laid in \d+ columns/.test(n))) {
+      expect(report.notes.some((n) => /each column stacks its own groups/.test(n))).toBe(true);
+    }
+  });
+});

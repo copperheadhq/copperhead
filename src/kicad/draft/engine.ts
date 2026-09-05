@@ -228,6 +228,12 @@ export interface SchematicDraftReport {
     misses: string[];
     /** The squeeze: cells re-sized from what they drew, round by round. */
     squeeze?: { rounds: number; boxAreaBefore: number; boxAreaAfter: number };
+    /**
+     * The look: a wrapped sheet drafted again with each group's label reach
+     * measured from the first draft instead of estimated. `paperBefore` is
+     * the first draft's sheet, `paperAfter` the sheet kept.
+     */
+    look?: { kept: boolean; paperBefore: string; paperAfter: string };
   };
   notes: string[];
   /**
@@ -735,8 +741,18 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   let areaBefore = 0;
   const boxArea = (rects: { x1: number; y1: number; x2: number; y2: number }[]): number => rects.reduce((a, r) => a + (r.x2 - r.x1) * (r.y2 - r.y1), 0);
   let retries = 0;
+  // The look. Before any wrap is fitted the engine can only estimate how far
+  // a group's labels reach past its cells, and it estimates generously: a
+  // label's width beside every pin that might carry one. Those reserves
+  // decide how many groups share a row or column, so a wrapped sheet is
+  // drafted once more with the reach every box was actually measured to
+  // take, and that draft is kept when it fits the same or a smaller sheet
+  // with the gates still holding.
+  let reachMeasured: Map<string, { left: number; right: number }> | undefined;
+  let look: 'not-yet' | 'drafting' | 'done' = 'not-yet';
+  let lookVerdict: { kept: boolean; paperBefore: string; paperAfter: string } | undefined;
   for (let round = 0; round < 16; round++) {
-    const { model, report, rects, measured: nextMeasured } = draftOnce(validated, projectName, today, reserves, frameSlack, measured, wrapGap);
+    const { model, report, rects, measured: nextMeasured, reach, wrapped } = draftOnce(validated, projectName, today, reserves, frameSlack, measured, wrapGap, reachMeasured);
     let widened = false;
     // A row or column wrapped to the full usable width leaves no room for the
     // text its boxes grow to hold afterwards, and a box then crosses the
@@ -791,6 +807,25 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     if (!best) {
       areaBefore = area;
       best = { model, report, area, refusals, paperIdx };
+      if (look === 'not-yet' && wrapped && passes) {
+        look = 'drafting';
+        reachMeasured = reach;
+        trace(`label reach measured: ${[...reach].map(([g, r]) => `${g.slice(0, 2).trim()} ${r.left.toFixed(1)}/${r.right.toFixed(1)}`).join(', ')}; the wrap is fitted again on it`);
+        continue;
+      }
+    } else if (look === 'drafting') {
+      look = 'done';
+      if (passes && refusals <= best.refusals && (paperIdx < best.paperIdx || (paperIdx === best.paperIdx && area <= best.area))) {
+        trace(`measured-reach draft kept: ${report.paper}, boxes ${area.toFixed(0)} mm² (was ${best.report.paper}, ${best.area.toFixed(0)} mm²)`);
+        lookVerdict = { kept: true, paperBefore: best.report.paper, paperAfter: report.paper };
+        if (paperIdx < best.paperIdx) report.notes.push(`label reach measured: the wrap fitted again takes ${report.paper}, not ${best.report.paper}`);
+        areaBefore = area;
+        best = { model, report, area, refusals, paperIdx };
+      } else {
+        trace(`measured-reach draft not kept: ${passes ? `${report.paper}, boxes ${area.toFixed(0)} mm²` : 'gates failed'} against ${best.report.paper}, ${best.area.toFixed(0)} mm²`);
+        lookVerdict = { kept: false, paperBefore: best.report.paper, paperAfter: best.report.paper };
+        reachMeasured = undefined;
+      }
     } else if (passes && refusals <= best.refusals && paperIdx <= best.paperIdx && area < best.area * 0.97) {
       best = { model, report, area, refusals, paperIdx };
     } else {
@@ -808,6 +843,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   }
   const out = best!;
   out.report.sheetFit.squeeze = { rounds: squeezeRounds, boxAreaBefore: Math.round(areaBefore), boxAreaAfter: Math.round(out.area) };
+  if (lookVerdict) out.report.sheetFit.look = lookVerdict;
   if (squeezeRounds > 0) {
     out.report.notes.push(`cells measured: group boxes ${Math.round(areaBefore / 1000)} k mm² to ${Math.round(out.area / 1000)} k mm² over ${squeezeRounds} round(s) on ${out.report.paper}`);
   }
@@ -822,7 +858,15 @@ function draftOnce(
   frameSlack = 0,
   measured?: Map<string, Overhang>,
   wrapGap = 0,
-): { model: PlacementModel; report: SchematicDraftReport; rects: { name: string; x1: number; y1: number; x2: number; y2: number }[]; measured: Map<string, Overhang> } {
+  reachMeasured?: Map<string, { left: number; right: number }>,
+): {
+  model: PlacementModel;
+  report: SchematicDraftReport;
+  rects: { name: string; x1: number; y1: number; x2: number; y2: number }[];
+  measured: Map<string, Overhang>;
+  reach: Map<string, { left: number; right: number }>;
+  wrapped: boolean;
+} {
   // a measured round keeps only a small margin: the measured overhang says
   // where the drawing actually reaches
   const MARGIN = measured ? MEASURED_MARGIN : BASE_MARGIN;
@@ -1038,7 +1082,12 @@ function draftOnce(
   const boundTo = new Map<string, string>();
   const groupExtents = new Map<string, { left: number; right: number }>();
   for (const gname of groupNames) {
-    const e = labelExtents(instances.filter((i) => i.part.group === gname && !i.sym.isPower).map((i) => i.key));
+    // The estimate reserves a label's width beside every pin that might take
+    // one; the drawing seldom uses a tenth of it. A round that has seen the
+    // drawing reserves what its box actually grew past its cells, plus a
+    // unit.
+    const m = reachMeasured?.get(gname);
+    const e = m ? { left: m.left + U, right: m.right + U } : labelExtents(instances.filter((i) => i.part.group === gname && !i.sym.isPower).map((i) => i.key));
     const r = reserves.get(gname);
     groupExtents.set(gname, { left: e.left + (r?.left ?? 0), right: e.right + (r?.right ?? 0) });
   }
@@ -2965,9 +3014,89 @@ function draftOnce(
     return { deltas, w: best[n]!, h: maxH, kind: 'columns' };
   };
 
+  /**
+   * The grid a person lays when neither rows nor columns fit: k columns,
+   * groups dealt to them in declared order (group i in column i mod k), each
+   * column stacking its own groups from the top. Reading order runs along
+   * the rows as before, but a short group no longer holds a whole row's
+   * height open beside a tall one (the hand-laid A2 sheet: power, amplifier
+   * and UI in one column, PD, MCU and UART in the next, rails in the third).
+   */
+  const wrapMasonry = (k: number, budgetH: number): { deltas: { dx: number; dy: number }[]; w: number; h: number; kind: 'masonry' } | null => {
+    const originX = groupRects[0]!.x1;
+    const topY = Math.min(...groupRects.map((r) => r.y1));
+    const leftExtOf = (name: string): number => groupExtents.get(name)?.left ?? 0;
+    const rightExtOf = (name: string): number => groupExtents.get(name)?.right ?? 0;
+    const n = groupRects.length;
+    const wOf = (i: number): number => groupRects[i]!.x2 - groupRects[i]!.x1 + leftExtOf(groupRects[i]!.name) + rightExtOf(groupRects[i]!.name);
+    const hOf = (i: number): number => groupRects[i]!.y2 - groupRects[i]!.y1;
+    const gap = GROUP_GAP * U + wrapGap;
+    // Every way of dealing n groups to k columns (order kept within a
+    // column, columns in the order their first groups are declared) is tried
+    // and the narrowest that fits the height wins; ties go to the shorter.
+    // Seven groups in three columns is 301 deals; a sheet with more groups
+    // than the enumeration affords deals them round-robin.
+    const total = k ** n;
+    let cols: number[][] | null = null;
+    let bestW = Infinity;
+    let bestH = Infinity;
+    const judge = (assign: number[]): void => {
+      const cs: number[][] = Array.from({ length: k }, () => []);
+      assign.forEach((c, i) => cs[c]!.push(i));
+      if (cs.some((c) => !c.length)) return;
+      const hs = cs.map((c) => c.reduce((h, i, m) => h + hOf(i) + (m ? gap : 0), 0));
+      const maxH = Math.max(...hs);
+      if (maxH > budgetH) return;
+      const w = cs.reduce((acc, c) => acc + Math.max(...c.map(wOf)), 0) + (k - 1) * gap;
+      if (w < bestW - 1e-6 || (Math.abs(w - bestW) <= 1e-6 && maxH < bestH)) {
+        bestW = w;
+        bestH = maxH;
+        cols = cs;
+      }
+    };
+    if (total <= 2_000_000) {
+      // columns are opened in reading order: the first group starts the
+      // first column, and a group may start a new column only when every
+      // earlier one is open (a restricted-growth string), so the same deal
+      // is never judged under k! column orders
+      const assign: number[] = new Array(n).fill(0);
+      const grow = (i: number, open: number): void => {
+        if (i === n) {
+          if (open === k) judge(assign);
+          return;
+        }
+        for (let c = 0; c < Math.min(open + 1, k); c++) {
+          assign[i] = c;
+          grow(i + 1, Math.max(open, c + 1));
+        }
+      };
+      grow(0, 0);
+    } else {
+      judge(groupRects.map((_, i) => i % k));
+    }
+    if (!cols) return null;
+    const colW = (cols as number[][]).map((c) => Math.max(0, ...c.map(wOf)));
+    const colH = (cols as number[][]).map((c) => c.reduce((h, i, m) => h + hOf(i) + (m ? gap : 0), 0));
+    const deltas: { dx: number; dy: number }[] = new Array(groupRects.length);
+    let colOriginUnits = Math.round(originX / U);
+    for (const [ci, c] of (cols as number[][]).entries()) {
+      const colLeft = Math.max(0, ...c.map((i) => leftExtOf(groupRects[i]!.name)));
+      let yUnits = Math.round(topY / U);
+      for (const i of c) {
+        const r = groupRects[i]!;
+        deltas[i] = { dx: (colOriginUnits + Math.ceil(colLeft / U)) * U - grid(Math.round(r.x1 / U)), dy: yUnits * U - grid(Math.round(r.y1 / U)) };
+        yUnits += Math.ceil((r.y2 - r.y1) / U) + GROUP_GAP + Math.ceil(wrapGap / U);
+      }
+      colOriginUnits += Math.ceil(colW[ci]! / U) + (ci + 1 < k ? GROUP_GAP + Math.ceil(wrapGap / U) : 0);
+    }
+    const w = (colOriginUnits - Math.round(originX / U)) * U;
+    trace(`masonry wrap k=${k} at ${budgetH.toFixed(0)}: ${(cols as number[][]).map((c) => `[${c.map((i) => groupRects[i]!.name.slice(0, 2).trim()).join('+')}]`).join(' ')} -> ${w.toFixed(0)} wide, ${Math.max(...colH).toFixed(0)} tall`);
+    return { deltas, w, h: Math.max(...colH), kind: 'masonry' };
+  };
+
   type SheetFit = {
     paper: (typeof PAPERS)[number];
-    wrap: { deltas: { dx: number; dy: number }[]; w: number; h: number; kind?: 'rows' | 'columns' } | null;
+    wrap: { deltas: { dx: number; dy: number }[]; w: number; h: number; kind?: 'rows' | 'columns' | 'masonry' } | null;
     /** The content runs into the title strip beside the title block (the corner itself stays clear). */
     intoStrip?: boolean;
   };
@@ -3011,6 +3140,14 @@ function draftOnce(
         const c = wrapColumns(budgetH);
         const fc = fitsFrame(p, c.w, c.h, wrappedRects(c.deltas));
         if (fc.ok) return { paper: p, wrap: c, intoStrip: fc.intoStrip };
+      }
+      for (const budgetH of [usableH(p), usableH(p) + TITLE_STRIP - 4 * U]) {
+        for (let k = 2; k <= Math.min(4, groupRects.length - 1); k++) {
+          const m = wrapMasonry(k, budgetH);
+          if (!m) continue;
+          const fm = fitsFrame(p, m.w, m.h, wrappedRects(m.deltas));
+          if (fm.ok) return { paper: p, wrap: m, intoStrip: fm.intoStrip };
+        }
       }
       return null;
     }
@@ -3149,8 +3286,13 @@ function draftOnce(
     if (wrap.kind === 'columns') {
       const cols = new Set(wrap.deltas.map((d) => d.dx)).size;
       notes.push(`groups wrapped onto ${cols} columns to fit the sheet (declared order runs down each column)`);
+    } else if (wrap.kind === 'masonry') {
+      const cols = new Set(wrap.deltas.map((d) => d.dx)).size;
+      notes.push(`groups laid in ${cols} columns to fit the sheet (declared order runs along the rows; each column stacks its own groups)`);
     } else {
-      const rows = new Set(wrap.deltas.map((d) => d.dy)).size;
+      // rows are counted by where their boxes land, not by the shift each
+      // took to get there (groups of one row start at different heights)
+      const rows = new Set(wrap.deltas.map((d, i) => Math.round((groupRects[i]!.y1 + d.dy) / U))).size;
       if (rows > 1) notes.push(`groups wrapped onto ${rows} rows to fit the sheet`);
     }
     groupRects.forEach((r, i) => {
@@ -4435,6 +4577,9 @@ function draftOnce(
 
   // ---------- sheet: content-derived paper, balanced placement ----------
   // ---------- group boxes enclose their text ----------
+  // what the wrap was fitted on, to measure how far the text grew each box
+  const rectsBeforeText = groupRects.map((r) => ({ name: r.name, x1: r.x1, x2: r.x2 }));
+  const reachOut = new Map<string, { left: number; right: number }>();
   // A box drawn from bodies plus a fixed margin cuts through the text its
   // parts carry: with the IC in the leftmost column, its left-facing pin
   // labels ran out through the box edge (EN, BTN_PLAY, SPK_L+ on esp32-amp),
@@ -4506,6 +4651,11 @@ function draftOnce(
       }
       r.y1 = grid(Math.floor(r.y1 / U));
     }
+    // measured before the boxes are aligned: alignment is a choice, not text
+    for (const [i, r] of groupRects.entries()) {
+      const before = rectsBeforeText[i]!;
+      reachOut.set(r.name, { left: Math.max(0, before.x1 - r.x1), right: Math.max(0, r.x2 - before.x2) });
+    }
     // Boxes in one row of the wrap share a bottom edge, boxes in one column
     // a right edge, when the neighbour's space is free anyway: a row of
     // boxes ending at three different heights reads as three afterthoughts.
@@ -4513,12 +4663,12 @@ function draftOnce(
       const byLine = new Map<number, typeof groupRects>();
       for (const [i, r] of groupRects.entries()) {
         const d = fit.wrap.deltas[i]!;
-        const line = fit.wrap.kind === 'columns' ? d.dx : d.dy;
+        const line = fit.wrap.kind === 'columns' || fit.wrap.kind === 'masonry' ? d.dx : d.dy;
         byLine.set(line, [...(byLine.get(line) ?? []), r]);
       }
       for (const line of byLine.values()) {
         if (line.length < 2) continue;
-        if (fit.wrap.kind === 'columns') {
+        if (fit.wrap.kind === 'columns' || fit.wrap.kind === 'masonry') {
           const right = Math.max(...line.map((r) => r.x2));
           for (const r of line) r.x2 = right;
         } else {
@@ -4824,5 +4974,5 @@ function draftOnce(
     labelOverlaps,
     labelOverlapBudgetExceeded,
   };
-  return { model, report, rects: groupRects, measured: measuredOut };
+  return { model, report, rects: groupRects, measured: measuredOut, reach: reachOut, wrapped: fit.wrap !== null };
 }
