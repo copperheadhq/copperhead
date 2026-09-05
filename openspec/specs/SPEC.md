@@ -536,6 +536,7 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-16.10 (declared no-connect passes ERC)** An IR declaring `U1.8` no-connect emits a `(no_connect …)` marker at that pin, and ERC reports no unconnected-pin violation for it.
 - **AC-16.11 (report embeds check and score)** A successful draft's report carries the checker's findings (or a clean statement) and the score composite with its breakdown, without separate tool calls.
 - **AC-16.31 (straight-through passives)** A series RC between two aligned pins, drafted within one group, puts both passives on the shared axis with zero bends in every wire of the chain.
+- **AC-16.35 (parts hang on the pin they serve)** A vertical two-lead part whose net reaches an IC's side pin within one group is placed on that pin's row beside the IC, below it when entered through its top lead and above it through its bottom lead, with a series chain continued through two-endpoint links; every hangable endpoint of the pin's net hangs, so the net draws as one wired net with one label. A hang the clearance check refuses is drawn in a column and reported by name in the draft notes.
 
 **Emission — determinism and fidelity**
 
