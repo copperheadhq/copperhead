@@ -1546,6 +1546,15 @@ function draftOnce(
             // landed rows away from the other pin and that pin's branch ran
             // along a third row under a label. On the row, the far net
             // reaches the other pin's row through the router's trunk.
+            // A bridge to another pin of this IC (a bootstrap cap between BST
+            // and SW) hangs in a lane toward that pin's row, its far lead
+            // joined to that row by one short jog: laid along the row it sat
+            // past every lane and every series part, and the bank under the
+            // group followed the row out (rails 112 mm wide, 91 by hand).
+            // (Hanging a bridge cap in a lane toward the other pin's row was
+            // tried: four attachments lost and crossings doubled, because the
+            // other row's run then had to reach the lane through the comb.
+            // A bridge stays on the row.)
             if (farCls === 'ground') {
               trace(`${ic.ref}.${pin.number} ${net.name}: ${instByKey.get(first.key)!.ref} hangs down (to ${farNet!.name})`);
               claimHang(icKey, pin, dx, first, 1);
@@ -1862,12 +1871,36 @@ function draftOnce(
           if (cur.length) chunks.push(cur);
           return chunks;
         };
-        // Equal chunks first, for the look of balanced columns; but equal
-        // targets can overflow into one chunk more than the budget allows
-        // (five 31-unit cells against a target of 84 fell 2-2-1, not 3-2),
-        // and then the greedy fill to the budget itself is the answer.
-        const balanced = fill(Math.ceil(total / k));
-        return balanced.length <= k ? balanced : fill(budget);
+        // Balanced chunks first, for the look of level columns: the split of
+        // the column into k consecutive chunks that minimises the tallest
+        // chunk (a greedy fill to an equal target fell 7-1 on eight test
+        // points of two heights, and 2-2-1 on five equal cells). If even
+        // that tallest chunk is over the budget, fill to the budget instead.
+        const hs = col.map((ref) => cellDims.get(ref)!.h);
+        const n = hs.length;
+        const runH = (i: number, j: number): number => hs.slice(i, j + 1).reduce((a, b) => a + b, 0) + ROW_GAP * (j - i);
+        const bestMax: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));
+        const cutAt: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(0));
+        bestMax[0]![0] = 0;
+        for (let parts = 1; parts <= k; parts++) {
+          for (let j = 1; j <= n; j++) {
+            for (let i = parts - 1; i < j; i++) {
+              const v = Math.max(bestMax[parts - 1]![i]!, runH(i, j - 1));
+              if (v < bestMax[parts]![j]!) {
+                bestMax[parts]![j] = v;
+                cutAt[parts]![j] = i;
+              }
+            }
+          }
+        }
+        if (bestMax[k]![n]! > budget) return fill(budget);
+        const chunks: string[][] = [];
+        for (let parts = k, j = n; parts >= 1; parts--) {
+          const i = cutAt[parts]![j]!;
+          chunks.unshift(col.slice(i, j));
+          j = i;
+        }
+        return chunks;
       };
       const BALANCE_MIN_CELLS = 4;
       // Under a band budget, the lowest column height at which the group's
