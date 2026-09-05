@@ -226,13 +226,19 @@ const scoreGroup = program
 scoreGroup
   .command('schematic')
   .description('legibility and layout score for the schematic')
-  .action(async () => {
+  .option('--file <path>', 'score this .kicad_sch instead of the configured schematic (any sheet, no repo needed)')
+  .action(async (opts: { file?: string }) => {
     const repo = repoOf(program.opts());
     const json = Boolean(program.opts().json);
     try {
       const { loadConfig } = await import('./config.js');
       const { scoreSchematic, formatScore } = await import('./kicad/score.js');
       const path = await import('node:path');
+      if (opts.file) {
+        const report = await scoreSchematic(path.resolve(opts.file), { docsDir: null });
+        console.log(json ? JSON.stringify(report, null, 2) : formatScore(report));
+        process.exit(0);
+      }
       const config = await loadConfig(repo);
       if (!config.schematic) {
         console.error('no schematic configured in .copperhead/config.json');

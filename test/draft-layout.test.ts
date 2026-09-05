@@ -71,12 +71,16 @@ describe('shelf-wrap: the group ribbon reflows into rows (design D12)', () => {
   it('wraps a long ribbon into rows, preserves reading order, and fits a smaller sheet', async () => {
     const { model, report } = await place(ribbon(8));
 
-    expect(report.notes).toContain('groups wrapped onto 2 rows to fit the sheet');
+    // how many rows depends on how wide a group draws (the engine reserves
+    // text at paper width, so a group carries its rail names and its fields
+    // in its footprint); what must hold is that it wrapped, and that the
+    // rows read in declared order, left to right then top to bottom
+    const wrapNote = report.notes.find((n) => /^groups wrapped onto \d+ rows to fit the sheet$/.test(n));
+    expect(wrapNote, report.notes.join('; ')).toBeDefined();
     const rows = rowsOf(model.rectangles);
-    expect(rows).toEqual([
-      ['G01', 'G02', 'G03', 'G04'],
-      ['G05', 'G06', 'G07', 'G08'],
-    ]);
+    expect(rows.length).toBe(Number(/\d+/.exec(wrapNote!)![0]));
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    expect(rows.flat()).toEqual(['G01', 'G02', 'G03', 'G04', 'G05', 'G06', 'G07', 'G08']);
 
     // the point of wrapping: eight groups in a single row is a ~9:1 ribbon that
     // forces a huge sheet; wrapped, the same content fits A4
@@ -507,10 +511,14 @@ describe('compaction: a mostly-empty sheet reflows onto a smaller one (#220 phas
 
   it('splits the tall column and takes the smallest sheet that holds it', async () => {
     const { model, report } = await place(stack(16));
-    expect(report.notes.some((n) => /^sheet compacted:/.test(n)), report.notes.join('; ')).toBe(true);
-    // the single 16-cell column spans well past A3's usable height, so an
-    // uncompacted fit needs a large sheet; the reflowed block must land on
-    // something smaller than A2 and stay inside the frame
+    // The in-group balance already re-rows the 16-cell strip into columns
+    // no taller than the group's square side, so the natural layout lands
+    // on a small sheet by itself; the paper pass then either compacts it
+    // further or says why it could not. Either way the choice is explained.
+    expect(report.notes.some((n) => /^sheet (not )?compacted:/.test(n)), report.notes.join('; ')).toBe(true);
+    // the single 16-cell column would span well past A3's usable height, so
+    // an unbalanced, uncompacted fit needs a large sheet; the reflowed block
+    // must land on something smaller than A2 and stay inside the frame
     expect(['A5', 'A4', 'A3']).toContain(report.paper);
     expect(report.mergedNets).toEqual([]);
     const PAPER_DIMS: Record<string, { w: number; h: number }> = {
@@ -576,7 +584,9 @@ describe('stacked pins are one point on the sheet', () => {
 
     // the surviving stub leaves that shared point, so both pins stay on GND
     const shared = pointOf(pin2);
-    const stubs = model.wires.filter((w) => w.x1 === shared.x && w.y1 === shared.y);
+    // wire coordinates are file-rounded; the pin point is a raw subtraction
+    const near = (a: number, b: number) => Math.abs(a - b) < 0.005;
+    const stubs = model.wires.filter((w) => near(w.x1, shared.x) && near(w.y1, shared.y));
     expect(stubs).toHaveLength(1);
     expect(stubs[0]!.net).toBe('GND');
   });
@@ -621,44 +631,60 @@ describe('power-symbol value text lands away from the part it serves', () => {
 });
 
 describe('label nudging keeps a stub label attached and clear', () => {
-  it('rides a colliding label outward along its own stub (buck-12v-5v)', async () => {
-    // Nets draft in name order, so "COMP" cannot see the trunk "COMP_Z" is
-    // about to run through its label. The nudge pass fixes that after routing.
-    const src = path.join(CONTROL, 'buck-12v-5v');
-    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-nudge-'));
-    try {
-      await cp(src, repo, { recursive: true });
-      const intent = JSON.parse(await readFile(path.join(repo, 'schematic.intent.json'), 'utf8')) as SchematicIntent;
-      // no symbolDirs override: resolution comes from the committed cache
-      const symsource = new SymbolSource(repo, []);
-      const v = await validateIntent(intent, symsource, path.join(repo, 'docs'));
-      expect(v.ok, v.findings.map((f) => f.detail).join('; ')).toBe(true);
-      const { model } = draftSchematicPlacement(v.validated!, 'buck-12v-5v', '2020-01-01');
+  it('rides a colliding label outward along its own stub', async () => {
+    // Nets draft in name order, so an earlier net's label cannot see the
+    // trunk a later net is about to run through it. The nudge pass fixes
+    // that after routing. This fixture is a small IC-with-passives group in
+    // the fixture library whose routing produces exactly one such collision
+    // (found by searching seeded random intents against the engine): the
+    // committed buck-12v-5v board no longer collides once its groups draft
+    // IC-first with balanced columns, which is the point of those passes.
+    const intent: SchematicIntent = {
+      version: 1,
+      parts: [
+        { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' },
+        { ref: 'U2', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'AUX' },
+        { ref: 'R1', libId: 'Device:R', value: '10k', group: 'MAIN' },
+        { ref: 'R2', libId: 'Device:R', value: '10k', group: 'MAIN' },
+        { ref: 'R3', libId: 'Device:R', value: '10k', group: 'MAIN' },
+        { ref: 'C1', libId: 'Device:C', value: '100n', group: 'MAIN' },
+        { ref: 'C2', libId: 'Device:C', value: '100n', group: 'MAIN' },
+        { ref: 'C3', libId: 'Device:C', value: '100n', group: 'MAIN' },
+      ],
+      nets: [
+        { name: 'COMP', pins: ['U1.5', 'C2.2'] },
+        { name: 'COMP_Z', pins: ['C2.1', 'C3.2', 'C1.1'] },
+        { name: 'FB', pins: ['U1.7', 'R3.1', 'C3.1'] },
+        { name: 'RT', pins: ['U1.6', 'C1.2'] },
+        { name: 'BOOT', pins: ['U1.4', 'R2.1', 'R2.2'] },
+        { name: 'GND', pins: ['U1.2', 'U2.2', 'R1.1', 'R1.2', 'R3.2'] },
+        { name: 'VCC', pins: ['U1.1', 'U2.1'] },
+      ],
+      noConnect: ['U1.3', 'U1.8', 'U2.3', 'U2.4', 'U2.5', 'U2.6', 'U2.7', 'U2.8'],
+    };
+    const { model, symbols } = await place(intent);
 
-      // pin points of every placed part, to tell a pin stub from a trunk
-      const pinPoints = new Set<string>();
-      for (const s of model.symbols) {
-        for (const p of v.validated!.symbols.get(s.ref)?.pins ?? []) {
-          pinPoints.add(`${s.at.x + p.x},${s.at.y - p.y}`);
-        }
+    // pin points of every placed part, to tell a pin stub from a trunk
+    const pinPoints = new Set<string>();
+    for (const s of model.symbols) {
+      for (const p of symbols.get(s.ref)?.pins ?? []) {
+        pinPoints.add(`${s.at.x + p.x},${s.at.y - p.y}`);
       }
-      const stubOf = (l: { x: number; y: number }) =>
-        model.wires.find((w) => w.x2 === l.x && w.y2 === l.y && pinPoints.has(`${w.x1},${w.y1}`));
-
-      const stubLabels = model.labels.map((l) => ({ l, w: stubOf(l) })).filter((e) => e.w !== undefined);
-      expect(stubLabels.length).toBeGreaterThan(0);
-
-      // every stub label is still an endpoint of the stub that starts at its
-      // pin: nudging extends the wire, it never detaches the label from it
-      const lengths = stubLabels.map((e) => Math.hypot(e.w!.x2 - e.w!.x1, e.w!.y2 - e.w!.y1) / U);
-      for (const len of lengths) {
-        expect(len).toBeGreaterThan(STUB - 0.001);
-        expect(len).toBeLessThanOrEqual(STUB + 4); // MAX_LABEL_NUDGE
-      }
-      // and at least one of them actually moved
-      expect(lengths.some((len) => len > STUB + 0.001)).toBe(true);
-    } finally {
-      await rm(repo, { recursive: true, force: true });
     }
+    const stubOf = (l: { x: number; y: number }) =>
+      model.wires.find((w) => w.x2 === l.x && w.y2 === l.y && pinPoints.has(`${w.x1},${w.y1}`));
+
+    const stubLabels = model.labels.map((l) => ({ l, w: stubOf(l) })).filter((e) => e.w !== undefined);
+    expect(stubLabels.length).toBeGreaterThan(0);
+
+    // every stub label is still an endpoint of the stub that starts at its
+    // pin: nudging extends the wire, it never detaches the label from it
+    const lengths = stubLabels.map((e) => Math.hypot(e.w!.x2 - e.w!.x1, e.w!.y2 - e.w!.y1) / U);
+    for (const len of lengths) {
+      expect(len).toBeGreaterThan(STUB - 0.001);
+      expect(len).toBeLessThanOrEqual(STUB + 4); // MAX_LABEL_NUDGE
+    }
+    // and at least one of them actually moved
+    expect(lengths.some((len) => len > STUB + 0.001)).toBe(true);
   }, 30000);
 });
