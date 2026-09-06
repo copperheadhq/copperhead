@@ -23,7 +23,16 @@ import { collectRunMeta, renderCliHeader, type RunMeta, type RunMetaInput } from
 import { plainRenderer, fmtDuration, fmtTokens, type ProgressRenderer } from './render.js';
 import { styleHeaderLines } from './theme.js';
 import { ObligationsLedger } from './ledger.js';
-import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun } from '../util/git.js';
+import {
+  gitPreflight,
+  isDirty,
+  snapshot,
+  restore,
+  commitAll,
+  changedFiles,
+  preserveFailedRun,
+  checkpointTree,
+} from '../util/git.js';
 import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
@@ -76,6 +85,16 @@ export interface RunResult {
   transcriptDir: string;
   filesTouched: string[];
   commit: string | null;
+  /**
+   * A checkpoint commit captured from the dirty tree just before an
+   * unsuccessful run rolled it back (issue #208), or null on a successful run
+   * or when there was nothing to capture. Not yet pointed at by any ref: the
+   * caller decides where, since only it knows the stage (see
+   * util/git.js#recordWipRef). Capturing here, before restore(), is what
+   * makes this the failed attempt's own work rather than whatever the tree
+   * happens to hold after rollback.
+   */
+  failedAttemptCommit: string | null;
   /** Cost/telemetry for this run. Surfaced by the create pipeline's per-stage
    *  cost table (5.2) so the expensive stages are obvious across runs. */
   stats: RunStats;
@@ -381,6 +400,11 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     // it, so a budget-exhaustion (or any) failure is recoverable (issue #15).
     const preserved = await preserveFailedRun(repoRoot, ctx.runId);
     if (preserved) await transcript.event('work-preserved', { stash: preserved });
+    // Capture the dirty tree as a checkpoint commit before the rollback below
+    // destroys it, so the create pipeline can point a stage's WIP ref at the
+    // failed attempt itself rather than the clean, already-restored tree it
+    // would otherwise see (issue #208).
+    const failedAttemptCommit = await checkpointTree(repoRoot, `copperhead: WIP checkpoint — NOT CERTIFIED (${reason})`);
     // The rollback itself can fail (git in a bad state). That must not become
     // an unhandled throw that skips run-end and summary.md — the summary is
     // most valuable exactly when the tree is left in an unknown state.
@@ -432,6 +456,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       transcriptDir: transcript.dir,
       filesTouched: [],
       commit: null,
+      failedAttemptCommit,
       stats: runStats,
       cacheHits: cacheHits(),
     };
@@ -615,6 +640,9 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       const { outcome, summary } = ctx.finishRequest;
       const files = [...ctx.filesTouched];
       if (outcome === 'refuse') {
+        // Same reasoning as fail(): capture before restore() destroys it, so
+        // a refused run's partial work is recoverable via the WIP ref too.
+        const failedAttemptCommit = await checkpointTree(repoRoot, `copperhead: WIP checkpoint — NOT CERTIFIED (refused: ${summary})`);
         await restore(repoRoot, snap);
         await transcript.event('run-refused', { summary });
         const runStats = stats('refused');
@@ -644,6 +672,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           transcriptDir: transcript.dir,
           filesTouched: [],
           commit: null,
+          failedAttemptCommit,
           stats: runStats,
           cacheHits: cacheHits(),
         };
@@ -691,6 +720,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           transcriptDir: transcript.dir,
           filesTouched: files,
           commit: null,
+          failedAttemptCommit: null,
           stats: runStats,
           cacheHits: cacheHits(),
         };
@@ -772,6 +802,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         transcriptDir: transcript.dir,
         filesTouched: files,
         commit,
+        failedAttemptCommit: null,
         stats: runStats,
         cacheHits: cacheHits(),
       };

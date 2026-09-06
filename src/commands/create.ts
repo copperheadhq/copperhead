@@ -8,7 +8,7 @@ import { exportSvg, runErc } from '../kicad/cli.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
-import { isDirty, commitAll, changedFiles } from '../util/git.js';
+import { isDirty, commitAll, changedFiles, recordWipRef, wipRef } from '../util/git.js';
 import type { CompatSettings, CopperheadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
 import { runAgentLoop, makeProvider, type BudgetExhaustedStats } from '../agent/loop.js';
@@ -914,6 +914,24 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       if (!failure) {
         stageDone = true;
         break;
+      }
+
+      // The attempt did not complete the stage, and — when runAgentLoop
+      // itself rolled the tree back (a genuine failure or refusal) — its work
+      // was captured as a checkpoint commit before that rollback ran (see
+      // RunResult.failedAttemptCommit). Point this stage's side ref at it
+      // here, once the stage is known, so accepted work is recoverable and a
+      // human can diff what the attempt actually produced (issue #208). The
+      // branch is untouched: only stage-complete commits ever land on it.
+      const wip = res.failedAttemptCommit;
+      if (wip) {
+        await recordWipRef(opts.repoRoot, stage.name, wip);
+        opts.log(
+          stageLine(
+            stage.name,
+            `attempt ${attempt} work checkpointed at ${wipRef(stage.name)} (${wip.slice(0, 10)}); inspect with \`git show ${wip.slice(0, 10)}\``,
+          ),
+        );
       }
 
       if (attempt > config.maxStageRetries) {
