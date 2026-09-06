@@ -303,6 +303,17 @@ copperhead sync [--dry-run]
     silently rewritten. `--dry-run` prints the full inconsistency report
     and writes nothing. Idempotent: a second run finds nothing to do.
 
+copperhead mcp [--repo <path>]            # EXPERIMENTAL
+    Serve the gated pipeline to MCP hosts over stdio as five opaque,
+    outcome-level tools (copperhead_check / _do / _sync / _init / _doctor).
+    No file-edit, raw-KiCad, or partial-loop tool is exposed, so a host
+    agent cannot skip spec-gating or verification by any sequence of
+    calls; every mutating tool runs the same loop the CLI runs. The
+    surface declares a `0.` protocol major and is unstable: tool names,
+    inputs, and result shapes may change in any release. stdio only — the
+    server opens no network transport, and LLM calls happen exactly where
+    the CLI already makes them.
+
 copperhead explain <refdes|net|pin>       # stretch
     Answer "why is R7 here?" from docs + schematic context.
 
@@ -429,6 +440,7 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 
 - Refuse to run `do` or `repl` on a dirty git tree (offer `--allow-dirty`, whose snapshot pairs a `git stash create` object for tracked changes with a tree object for untracked files, so the rollback restores both rather than letting `git clean` delete what the stash never captured). An untracked file that exists but cannot be read refuses the run by name: it cannot be snapshotted, and the rollback would delete it regardless, so proceeding would break exactly the promise `--allow-dirty` makes. Untracked paths that vanish before the snapshot is taken are skipped rather than refused
 - All file tools sandboxed to repo root; no network tools in Phase 1
+- Every rail above applies identically to the MCP entry point (`copperhead mcp`), which is a transport adapter over the same command entry points and adds no privileges of its own. Any path a host supplies is contained to the repo root by `resolveInRepo` before use, exactly as a CLI-supplied path is
 - `.env` in `.gitignore` from first commit; keys only via env vars — never written to any file, transcript, or commit
 - Transcripts in `.copperhead/runs/` redact anything matching `sk-[A-Za-z0-9_-]+`
 - The Codex CLI's native read access and `~/.codex/sessions/` logs are outside Copperhead's enforcement/redaction boundary; the Codex path documents this host-local exposure explicitly

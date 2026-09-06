@@ -408,6 +408,29 @@ program
   });
 
 program
+  .command('mcp')
+  .description('EXPERIMENTAL: serve the gated pipeline to MCP hosts over stdio (unstable surface)')
+  // `--repo` is also a global flag, but a host config reads as
+  // `args: ["mcp", "--repo", "/path"]`, so the command accepts it locally too.
+  .option('--repo <path>', 'target repository (default: cwd)')
+  .action(async (opts: { repo?: string }) => {
+    const repo = repoOf(opts.repo ? { repo: opts.repo } : program.opts());
+    try {
+      // Imported lazily, like `skill`: the MCP SDK and zod are a ~150ms load
+      // that every other command — including the pre-commit `check` — would
+      // otherwise pay, and a resolution failure here would take down the whole
+      // CLI rather than just this command.
+      const { startMcpServer } = await import('./mcp/server.js');
+      // Never returns until the host closes stdio. Nothing is printed to
+      // stdout here or anywhere downstream: it carries JSON-RPC alone.
+      await startMcpServer({ repoRoot: repo });
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
   .command('demo')
   .description('tour of what copperhead does, or run the USB-C breakout create pipeline')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code (or a provider-specific model id)')
