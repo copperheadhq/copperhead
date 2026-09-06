@@ -97,7 +97,7 @@ Staleness is prevented mechanically, not by prompting. The loop maintains an in-
 
 The ledger state is written into `summary.md`, so an aborted run shows exactly which sync obligations were left open. This turns "keep everything in sync" from an instruction the model might forget into a gate the run cannot pass without satisfying — the same philosophy as ERC/DRC (nothing is done until the tools agree).
 
-For human edits outside the agent: `init` installs a git pre-commit hook that runs `copperhead check` (ERC + DRC + drift + openspec validate + mechanical constraints), so a hand edit that desyncs docs fails at commit time too. Opt-out via `init --no-hooks`; the hook script is a two-liner calling the installed CLI, never a copy of logic.
+For human edits outside the agent: `init` installs a git pre-commit hook that runs `copperhead check` (ERC + DRC + drift + openspec validate + mechanical constraints), so a hand edit that desyncs docs fails at commit time too. Opt-out via `init --no-hooks`; the hook script is a two-liner calling the installed CLI, never a copy of logic. Copperhead's own commits bypass this hook (using `--no-verify`) because they have already passed the identical run-level verification gates inside the loop.
 
 `docs/CHANGELOG.md` is the design changelog: append-only, one entry per committed run, newest first — the narrative "what changed and why" companion to git history, written for hardware reviewers who won't read diffs of s-expressions.
 

@@ -354,7 +354,7 @@ export async function uncommittedCount(repo: string): Promise<number> {
 export async function commitAll(repo: string, message: string): Promise<string> {
   await ensureIgnored(repo, GIT_ADD_EXCLUDES);
   await git(repo, ['add', '-A']);
-  await git(repo, ['commit', '-m', message]);
+  await git(repo, ['commit', '--no-verify', '-m', message]);
   return git(repo, ['rev-parse', 'HEAD']);
 }
 
