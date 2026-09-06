@@ -79,9 +79,14 @@ export interface HistoryCapStats {
    * prefix covers it. A provider that places cache breakpoints (Anthropic) uses
    * this to keep a breakpoint on the last message that did *not* change, so the
    * stable head of the conversation still hits the cache on the turn a new trim
-   * first fires. The view is monotone (`truncateBefore` only grows, superseded
-   * stays superseded, `clip` is deterministic), so each message is rewritten at
-   * most once and the cost is one partial miss per newly-firing trim.
+   * first fires.
+   *
+   * The view is monotone per trim kind (`truncateBefore` only grows, superseded
+   * stays superseded, `clip` is deterministic), but a message can still be
+   * rewritten twice across a run: a result clipped when it left `keepRecent` is
+   * rewritten again, to a stub, once a later read of the same path supersedes it.
+   * Re-reading a file is the workload this exists for, so budget two partial
+   * cache misses for such a message, not one.
    */
   firstChanged: number | null;
 }

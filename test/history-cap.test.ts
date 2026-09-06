@@ -8,6 +8,7 @@ import { toolReadFile } from '../src/agent/filetools.js';
 import { TOOLS, type RunContext } from '../src/agent/tools.js';
 import { renderConversation, renderDelta } from '../src/agent/providers/tool-protocol.js';
 import { runAgentLoop } from '../src/agent/loop.js';
+import { CachingProvider } from '../src/agent/response-cache.js';
 import { loadConfig, DEFAULTS } from '../src/config.js';
 import { runInit } from '../src/memory/scaffold.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -744,6 +745,80 @@ describe('capHistory in the agent loop', () => {
       await cleanup();
     }
   }, 20000);
+
+  it('does not count a saving for a turn replayed from the llm-cache', async () => {
+    // The counter must reflect what actually went over the wire. A cache replay
+    // sends nothing, so trimming it saved nothing: without the `cached` skip a
+    // fully replayed stage prints "characters trimmed" beside 0 tokens.
+    // (`runAgentLoop` skips its own CachingProvider wrap for an injected
+    // provider, so the replay is modelled here by a provider that reports the
+    // flag CachingProvider sets, asserted separately below.)
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, installHooks: false });
+      await writeFile(path.join(repo, 'big.txt'), 'a big file\n'.repeat(2000), 'utf8');
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'fixture'], { cwd: repo });
+
+      // Reads the same path twice, so supersession has real work to do.
+      const script = (cached: boolean): Provider => {
+        let turn = 0;
+        return {
+          name: cached ? 'scripted-replay' : 'scripted-live',
+          async chat(): Promise<Turn> {
+            turn++;
+            const usage = { inputTokens: cached ? 0 : 100, outputTokens: cached ? 0 : 10 };
+            const base = turn <= 2
+              ? { text: null, toolCalls: [{ id: `read-${turn}`, name: 'read_file', args: { path: 'big.txt' } }], usage }
+              : { text: null, toolCalls: [{ id: 'fin', name: 'finish', args: { outcome: 'done', summary: 'done' } }], usage };
+            return cached ? { ...base, cached: true } : base;
+          },
+        };
+      };
+      const run = async (cached: boolean): Promise<number | undefined> => {
+        const res = await runAgentLoop({
+          repoRoot: repo,
+          request: 'read it twice',
+          model: 'gpt-5',
+          provider: script(cached),
+          maxTurns: 20,
+          log: () => {},
+          meta: { command: 'do', modelSource: 'flag', version: '0.0.0-test', kicadCliVersion: '0.0.0' },
+        });
+        return res.stats.capCharsSaved;
+      };
+
+      // Control: a live turn genuinely keeps those characters off the wire.
+      expect(await run(false)).toBeGreaterThan(0);
+      // A replayed turn sent nothing, so it must not be credited with a saving.
+      expect(await run(true)).toBeUndefined();
+    } finally {
+      await cleanup();
+    }
+  }, 30000);
+
+  it('CachingProvider flags a replayed turn as cached', async () => {
+    // The other half of the contract above: the flag the loop keys off is really
+    // set on a cache hit, and absent on the miss that populated it.
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-llmcache-'));
+    const inner: Provider = {
+      name: 'scripted',
+      async chat(): Promise<Turn> {
+        return { text: 'hello', toolCalls: [], usage: { inputTokens: 42, outputTokens: 7 } };
+      },
+    };
+    const caching = new CachingProvider(inner, dir, () => {}, 'gpt-5');
+    const msgs: Msg[] = [{ role: 'user', content: 'hi' }];
+
+    const miss = await caching.chat(msgs, []);
+    expect(miss.cached).toBeUndefined();
+    expect(miss.usage.inputTokens).toBe(42);
+
+    const hit = await caching.chat(msgs, []);
+    expect(hit.cached).toBe(true);
+    expect(hit.usage).toEqual({ inputTokens: 0, outputTokens: 0 }); // replay costs nothing
+    expect(hit.text).toBe('hello');
+  });
 
   it('counts the saving once per attempt, so a retried turn is not under-reported', async () => {
     const { repo, cleanup } = await tempFixtureRepo();

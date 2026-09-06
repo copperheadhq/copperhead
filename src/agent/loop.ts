@@ -544,11 +544,20 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
             // than on the success path.
             if (sent.stats?.charsSaved && !chatRes?.cached) {
               capCharsSaved += sent.stats.charsSaved;
-              await transcript.event('history-capped', {
-                turn: turn + 1,
-                attempt: ++capAttempt,
-                ...sent.stats,
-              });
+              // Swallow a transcript failure here. This runs in a `finally`, so
+              // on the path where `provider.chat` already rejected (a timeout, or
+              // a 429 headed for `withRetry`) an unhandled rejection from the
+              // transcript write would propagate *in place of* the provider
+              // error, and `withRetry` would see something it cannot classify as
+              // retryable. Losing one accounting line beats masking the real
+              // failure.
+              await transcript
+                .event('history-capped', {
+                  turn: turn + 1,
+                  attempt: ++capAttempt,
+                  ...sent.stats,
+                })
+                .catch(() => {});
             }
           }
         },
