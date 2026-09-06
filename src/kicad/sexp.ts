@@ -675,3 +675,60 @@ export async function pinNets(rootSch: string): Promise<PinNet[]> {
   }
   return out;
 }
+
+export interface BoardFootprint {
+  ref: string;
+  value: string;
+  footprintId: string;
+  at: { x: number; y: number; rot: number };
+  layer: string;
+}
+
+/** Parse and list all footprints present on a KiCad PCB layout board file (.kicad_pcb). */
+export async function listBoardFootprints(boardPath: string): Promise<BoardFootprint[]> {
+  const abs = path.resolve(boardPath);
+  const text = await readFile(abs, 'utf8');
+  const roots = parseSexp(text);
+  const boardNode = roots.find((r) => tag(r) === 'kicad_pcb');
+  if (!boardNode || !isList(boardNode)) {
+    throw new Error(`not a KiCad PCB file: ${boardPath}`);
+  }
+
+  const out: BoardFootprint[] = [];
+  for (const fpNode of children(boardNode, 'footprint')) {
+    const footprintId = atomAt(fpNode, 1) ?? '';
+
+    let ref = '';
+    let value = '';
+
+    for (const prop of children(fpNode, 'property')) {
+      if (atomAt(prop, 1) === 'Reference') ref = atomAt(prop, 2) ?? '';
+      if (atomAt(prop, 1) === 'Value') value = atomAt(prop, 2) ?? '';
+    }
+
+    if (!ref || !value) {
+      for (const txt of children(fpNode, 'fp_text')) {
+        if (!ref && atomAt(txt, 1) === 'reference') ref = atomAt(txt, 2) ?? '';
+        if (!value && atomAt(txt, 1) === 'value') value = atomAt(txt, 2) ?? '';
+      }
+    }
+
+    const atNode = child(fpNode, 'at');
+    const x = parseFloat(atomAt(atNode, 1) ?? '0');
+    const y = parseFloat(atomAt(atNode, 2) ?? '0');
+    const rot = parseFloat(atomAt(atNode, 3) ?? '0');
+
+    const layerNode = child(fpNode, 'layer');
+    const layer = atomAt(layerNode, 1) ?? 'F.Cu';
+
+    out.push({
+      ref: ref || '?',
+      value,
+      footprintId,
+      at: { x, y, rot },
+      layer,
+    });
+  }
+
+  return out.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
+}
