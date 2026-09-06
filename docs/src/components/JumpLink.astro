@@ -1,0 +1,82 @@
+---
+/**
+ * A single wide link row for the landing page's "Jump right in" section:
+ * leading icon, title, optional one-line description, trailing chevron.
+ */
+import { Icon } from '@astrojs/starlight/components';
+import type { StarlightIcon } from '@astrojs/starlight/types';
+
+interface Props {
+	href: string;
+	title: string;
+	description?: string;
+	icon?: StarlightIcon;
+}
+
+const { href, title, description, icon } = Astro.props;
+---
+
+<a class="jump-link not-content" {href}>
+	{icon && <Icon name={icon} class="jump-icon" size="1.125rem" />}
+	<span class="body">
+		<span class="title">{title}</span>
+		{description && <span class="description">{description}</span>}
+	</span>
+	<Icon name="right-caret" class="caret rtl:flip" size="1.125rem" />
+</a>
+
+<style>
+	.jump-link {
+		display: flex;
+		align-items: center;
+		gap: 0.875rem;
+		padding: 0.875rem 1.125rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		background-color: var(--sl-color-black);
+		color: var(--sl-color-white);
+		text-decoration: none;
+		transition:
+			border-color 0.15s,
+			transform 0.15s;
+	}
+	.jump-link + .jump-link {
+		margin-top: 0.75rem;
+	}
+	.jump-link:hover {
+		border-color: var(--sl-color-accent);
+		transform: translateY(-1px);
+	}
+	.jump-icon {
+		flex-shrink: 0;
+		color: var(--sl-color-text-accent);
+	}
+	.body {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+	.title {
+		font-size: var(--sl-text-base);
+		font-weight: 600;
+		line-height: 1.3;
+	}
+	.description {
+		font-size: var(--sl-text-sm);
+		line-height: 1.45;
+		color: var(--sl-color-gray-3);
+	}
+	.caret {
+		flex-shrink: 0;
+		color: var(--sl-color-gray-3);
+		transition:
+			color 0.15s,
+			transform 0.15s;
+	}
+	.jump-link:hover .caret {
+		color: var(--sl-color-text-accent);
+		transform: translateX(2px);
+	}
+</style>

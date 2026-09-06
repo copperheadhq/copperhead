@@ -1,23 +1,474 @@
-/* Copper accent, matching the brand color #b87333. */
+/* ------------------------------------------------------------------------
+ * copperhead docs theme
+ *
+ * A neutral, near-black palette with the copper brand accent, in the style
+ * of a "clean" GitBook site: filled rounded sidebar panel, pill-highlighted
+ * navigation, a narrow content column, and quiet borders instead of shadows.
+ *
+ * Starlight names its gray scale from the dark palette, so in BOTH modes
+ * `--sl-color-white` is the strongest text colour and `--sl-color-black` is
+ * the page background. Everything here is unlayered on purpose: it beats
+ * Starlight's own layered rules without needing !important.
+ * ---------------------------------------------------------------------- */
+
 :root {
-  --sl-color-accent-low: #3a230f;
-  --sl-color-accent: #b87333;
-  --sl-color-accent-high: #eec9a5;
+	--sl-font: 'Inter Variable';
+	--sl-font-mono: 'IBM Plex Mono';
+
+	/* Dark palette */
+	--sl-color-white: #f7f8f8;
+	--sl-color-gray-1: #e3e5e8;
+	--sl-color-gray-2: #b3b8be;
+	--sl-color-gray-3: #8a9098;
+	--sl-color-gray-4: #4c4f53;
+	--sl-color-gray-5: #343638;
+	--sl-color-gray-6: #232425;
+	--sl-color-black: #1b1b1c;
+
+	--sl-color-accent-low: #3b2614;
+	--sl-color-accent: #c47a3a;
+	--sl-color-accent-high: #f2b57e;
+
+	--sl-color-text: var(--sl-color-gray-1);
+	--sl-color-text-accent: #e6a366;
+	--sl-color-text-invert: var(--sl-color-black);
+	--sl-color-bg: var(--sl-color-black);
+	--sl-color-bg-nav: var(--sl-color-black);
+	--sl-color-bg-sidebar: var(--sl-color-gray-6);
+	--sl-color-bg-inline-code: var(--sl-color-gray-6);
+	--sl-color-bg-accent: var(--sl-color-accent);
+	--sl-color-hairline-light: var(--sl-color-gray-5);
+	--sl-color-hairline: var(--sl-color-gray-5);
+	--sl-color-hairline-shade: var(--sl-color-gray-5);
+	--sl-color-backdrop-overlay: rgb(0 0 0 / 0.6);
+
+	/* Theme-specific helpers used by the components */
+	--ch-hover-bg: rgb(255 255 255 / 0.05);
+	--ch-pill-bg: color-mix(in srgb, var(--sl-color-accent) 16%, transparent);
+	--ch-panel-ring: rgb(255 255 255 / 0.04);
+	--ch-on-accent: #1b1b1c;
+	--ch-accent-hover: #d48a48;
+
+	/* Type scale (GitBook-ish: h1 34px, h2 24px, h3 20px) */
+	--sl-text-h1: 2.125rem;
+	--sl-text-h2: 1.5rem;
+	--sl-text-h3: 1.25rem;
+	--sl-text-h4: 1.0625rem;
+	--sl-text-h5: 1rem;
+	--sl-text-code: 0.875rem;
+	--sl-text-code-sm: 0.8125rem;
+	--sl-line-height: 1.65;
+	--sl-line-height-headings: 1.25;
+
+	/* Layout */
+	--sl-sidebar-width: 18rem;
+	--sl-content-width: 48rem;
+	--sl-main-pad: 0 0 4rem 0;
 }
 
 :root[data-theme='light'] {
-  --sl-color-accent-low: #f5e3d2;
-  --sl-color-accent: #9c5c22;
-  --sl-color-accent-high: #4d2e10;
+	--sl-color-white: #1a1b1e;
+	--sl-color-gray-1: #2b2d32;
+	--sl-color-gray-2: #545962;
+	--sl-color-gray-3: #6d747f;
+	--sl-color-gray-4: #c2c8d2;
+	--sl-color-gray-5: #e3e7ed;
+	--sl-color-gray-6: #eff2f6;
+	--sl-color-gray-7: #f7f8fa;
+	--sl-color-black: #ffffff;
+
+	--sl-color-accent-low: #f8e9db;
+	--sl-color-accent: #a35d1f;
+	--sl-color-accent-high: #5d3411;
+
+	--sl-color-text-accent: #9a5619;
+	--sl-color-text-invert: #ffffff;
+	--sl-color-bg-nav: #ffffff;
+	--sl-color-bg-sidebar: var(--sl-color-gray-7);
+	--sl-color-bg-inline-code: var(--sl-color-gray-6);
+	--sl-color-hairline-light: var(--sl-color-gray-5);
+	--sl-color-hairline: var(--sl-color-gray-5);
+	--sl-color-hairline-shade: var(--sl-color-gray-5);
+	--sl-color-backdrop-overlay: rgb(20 22 26 / 0.5);
+
+	--ch-hover-bg: rgb(0 0 0 / 0.045);
+	--ch-pill-bg: color-mix(in srgb, var(--sl-color-accent) 11%, transparent);
+	--ch-panel-ring: rgb(0 0 0 / 0.05);
+	--ch-on-accent: #ffffff;
+	--ch-accent-hover: #8f4f18;
 }
 
-/* The external-link arrow on copperhead.sh links inherits a muted gray and is
-   easy to miss; render it in the copper accent. */
-a[href='https://copperhead.sh'] svg {
-  color: var(--sl-color-accent);
+@media (min-width: 72rem) {
+	:root {
+		--sl-content-pad-x: 2rem;
+	}
 }
 
-/* On the hero action, also bump it past the stock 1.5rem icon size. */
-.hero a[href='https://copperhead.sh'] svg {
-  font-size: 1.75rem;
+/* ---- Base ------------------------------------------------------------- */
+
+body {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+	background-color: color-mix(in srgb, var(--sl-color-accent) 35%, transparent);
+}
+
+.sidebar-pane,
+.right-sidebar {
+	scrollbar-width: thin;
+	scrollbar-color: var(--sl-color-gray-5) transparent;
+}
+
+/* ---- Header ------------------------------------------------------------ */
+
+header.header {
+	border-bottom: 1px solid color-mix(in srgb, var(--sl-color-gray-5) 75%, transparent);
+}
+
+.site-title {
+	gap: 0.5rem;
+	font-size: 1.125rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	color: var(--sl-color-white);
+}
+.site-title img {
+	height: 1.375rem;
+	width: auto;
+}
+
+/* Search trigger */
+@media (min-width: 50rem) {
+	button[data-open-modal] {
+		height: 2.5rem;
+		width: 100%;
+		max-width: 30rem;
+		padding-inline: 0.75rem 0.5rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.75rem;
+		background-color: var(--sl-color-gray-6);
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+		transition:
+			border-color 0.12s,
+			color 0.12s;
+	}
+	button[data-open-modal]:hover {
+		border-color: var(--sl-color-gray-4);
+		color: var(--sl-color-gray-1);
+		background-color: var(--sl-color-gray-6);
+	}
+	button[data-open-modal] > kbd {
+		gap: 0.25rem;
+		padding: 0;
+		background: transparent;
+	}
+	button[data-open-modal] > kbd > kbd {
+		padding: 0.05rem 0.35rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.3rem;
+		background-color: var(--sl-color-black);
+		font-family: var(--__sl-font-mono);
+		font-size: 0.6875rem;
+		color: var(--sl-color-gray-3);
+	}
+	dialog {
+		border-radius: 1rem;
+	}
+}
+
+/* ---- Sidebar ----------------------------------------------------------- */
+
+@media (min-width: 50rem) {
+	.sidebar-pane {
+		--ch-sidebar-inset: 1rem;
+		inset-block-start: calc(var(--sl-nav-height) + var(--ch-sidebar-inset));
+		inset-block-end: var(--ch-sidebar-inset);
+		inset-inline-start: var(--ch-sidebar-inset);
+		width: calc(var(--sl-sidebar-width) - var(--ch-sidebar-inset));
+		border-inline-end: 0;
+		border-radius: 1rem;
+		background-color: var(--sl-color-bg-sidebar);
+		box-shadow: inset 0 0 0 1px var(--ch-panel-ring);
+	}
+	.sidebar-content {
+		padding: 1rem 0.75rem 0;
+	}
+	.sidebar-content::after {
+		display: none;
+	}
+}
+
+/* Mobile drawer footer (social icons + theme toggle) */
+.mobile-preferences {
+	border-top-color: var(--sl-color-gray-5);
+}
+
+/* ---- Right rail (table of contents) ----------------------------------- */
+
+.right-sidebar {
+	border-inline-start: 0;
+}
+.right-sidebar-panel {
+	padding: 1.75rem 1rem;
+}
+.right-sidebar-panel h2 {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+	padding-inline: 0.625rem;
+	font-size: 0.6875rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--sl-color-gray-3);
+}
+.right-sidebar-panel h2::before {
+	content: '';
+	width: 0.875rem;
+	height: 0.875rem;
+	flex-shrink: 0;
+	background-color: currentColor;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M4 6h16v2H4zm4 5h12v2H8zm-4 5h16v2H4z'/%3E%3C/svg%3E")
+		center / contain no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M4 6h16v2H4zm4 5h12v2H8zm-4 5h16v2H4z'/%3E%3C/svg%3E")
+		center / contain no-repeat;
+}
+starlight-toc a {
+	--pad-inline: 0.625rem;
+	padding-block: 0.3rem;
+	border-radius: 0.375rem;
+	font-size: var(--sl-text-sm);
+	line-height: 1.35;
+	color: var(--sl-color-gray-3);
+	transition:
+		background-color 0.12s,
+		color 0.12s;
+}
+starlight-toc a:hover {
+	color: var(--sl-color-white);
+	background-color: var(--ch-hover-bg);
+}
+starlight-toc a[aria-current='true'] {
+	color: var(--sl-color-text-accent);
+	background-color: var(--ch-pill-bg);
+}
+/* List only the headings, not the page title itself (both TOC renderers). */
+:is(starlight-toc, mobile-starlight-toc) li:has(> a[href='#_top']) {
+	display: none;
+}
+
+/* Mobile "On this page" bar */
+mobile-starlight-toc nav {
+	border-top-color: var(--sl-color-gray-5);
+}
+mobile-starlight-toc summary {
+	border-bottom-color: var(--sl-color-gray-5);
+}
+mobile-starlight-toc .toggle {
+	border-radius: 0.5rem;
+	border-color: var(--sl-color-gray-5);
+}
+
+/* ---- Content column ---------------------------------------------------- */
+
+.content-panel {
+	padding: 2rem var(--sl-content-pad-x) 0.5rem;
+}
+.content-panel + .content-panel {
+	border-top: 0;
+	padding-top: 0.75rem;
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6):not(:where(.not-content *)) {
+	font-weight: 600;
+	letter-spacing: -0.015em;
+	text-wrap: balance;
+}
+.sl-markdown-content :not(h1, h2, h3, h4, h5, h6) + h2:not(:where(.not-content *)) {
+	margin-top: 2.75rem;
+}
+.sl-markdown-content :not(h1, h2, h3, h4, h5, h6) + h3:not(:where(.not-content *)) {
+	margin-top: 2rem;
+}
+
+.sl-markdown-content :is(p, li, td, dd, blockquote) a:not(:where(.not-content *)) {
+	color: var(--sl-color-text-accent);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+	transition: text-decoration-color 0.12s;
+}
+.sl-markdown-content :is(p, li, td, dd, blockquote) a:hover:not(:where(.not-content *)) {
+	color: var(--sl-color-text-accent);
+	text-decoration-color: currentColor;
+}
+
+.sl-markdown-content code:not(:where(.not-content *)) {
+	padding: 0.1em 0.4em;
+	border-radius: 0.375rem;
+	box-shadow: inset 0 0 0 1px var(--sl-color-gray-5);
+	font-size: 0.875em;
+}
+
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+	border-inline-start: 2px solid var(--sl-color-gray-4);
+	color: var(--sl-color-gray-2);
+}
+
+.sl-markdown-content hr:not(:where(.not-content *)) {
+	border-color: var(--sl-color-gray-5);
+}
+
+.sl-markdown-content th:not(:where(.not-content *)) {
+	font-size: var(--sl-text-sm);
+	color: var(--sl-color-gray-2);
+}
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+	border-bottom-color: var(--sl-color-gray-5);
+}
+
+.sl-markdown-content kbd:not(:where(.not-content *)) {
+	padding: 0.1em 0.4em;
+	border: 1px solid var(--sl-color-gray-5);
+	border-radius: 0.3rem;
+	background-color: var(--sl-color-gray-6);
+	font-family: var(--__sl-font-mono);
+	font-size: 0.8em;
+}
+
+/* Asides: rounded, quietly tinted cards instead of a heavy left border. */
+.starlight-aside {
+	padding: 1rem 1.125rem;
+	border: 1px solid color-mix(in srgb, var(--sl-color-asides-border) 28%, transparent);
+	border-radius: 0.75rem;
+	background-color: color-mix(in srgb, var(--sl-color-asides-border) 6%, transparent);
+	color: var(--sl-color-text);
+}
+.starlight-aside__title {
+	font-size: var(--sl-text-sm);
+	color: var(--sl-color-white);
+}
+.starlight-aside__icon {
+	color: var(--sl-color-asides-border);
+}
+.starlight-aside__content a {
+	color: var(--sl-color-text-accent);
+}
+
+/* Code blocks (Expressive Code) */
+.expressive-code .frame {
+	box-shadow: none;
+}
+
+/* Search dialog: copper focus ring on the query box instead of the browser default. */
+#starlight__search .pagefind-ui__search-input:focus {
+	outline: 2px solid var(--sl-color-accent);
+	outline-offset: -1px;
+}
+
+/* ---- Footer: pagination cards, then meta ------------------------------
+ * The order comes from the Footer.astro override, not CSS `order`, so that
+ * keyboard focus order follows what is on screen (WCAG 2.4.3).
+ * ---------------------------------------------------------------------- */
+
+footer .meta a:hover {
+	color: var(--sl-color-white);
+}
+
+.pagination-links {
+	gap: 0.875rem;
+	margin-top: 3rem;
+}
+.pagination-links a {
+	gap: 0.75rem;
+	padding: 0.875rem 1rem;
+	border: 1px solid var(--sl-color-gray-5);
+	border-radius: 0.75rem;
+	box-shadow: none;
+	font-size: var(--sl-text-xs);
+	color: var(--sl-color-gray-3);
+	transition:
+		border-color 0.15s,
+		transform 0.15s;
+}
+.pagination-links a:hover {
+	border-color: var(--sl-color-accent);
+	transform: translateY(-1px);
+}
+.pagination-links svg {
+	font-size: 1.125rem;
+	color: var(--sl-color-gray-3);
+}
+.pagination-links .link-title {
+	font-size: var(--sl-text-base);
+	font-weight: 500;
+	color: var(--sl-color-white);
+	transition: color 0.15s;
+}
+.pagination-links a:hover .link-title {
+	color: var(--sl-color-text-accent);
+}
+
+/* ---- Built-in Starlight cards, if used in content ---------------------- */
+
+.sl-link-card {
+	border-color: var(--sl-color-gray-5);
+	border-radius: 0.75rem;
+	box-shadow: none;
+}
+.sl-link-card:hover {
+	background: transparent;
+	border-color: var(--sl-color-accent);
+}
+.sl-link-card .title {
+	font-size: var(--sl-text-base);
+}
+.card {
+	border-color: var(--sl-color-gray-5);
+	border-radius: 0.75rem;
+}
+
+/* ---- Print -------------------------------------------------------------
+ * Starlight's print.css forces a light palette, but it is unlayered too, so
+ * it ties with this file's :root on specificity and loses on document order
+ * (it is linked first). Without this block a dark-mode reader prints light
+ * text on a near-black page. Listing [data-theme='dark'] as well keeps this
+ * ahead of the light-mode block below it.
+ * ---------------------------------------------------------------------- */
+
+@media print {
+	:root,
+	:root[data-theme='dark'] {
+		--sl-color-white: #1a1b1e;
+		--sl-color-gray-1: #2b2d32;
+		--sl-color-gray-2: #545962;
+		--sl-color-gray-3: #6d747f;
+		--sl-color-gray-4: #c2c8d2;
+		--sl-color-gray-5: #e3e7ed;
+		--sl-color-gray-6: #eff2f6;
+		--sl-color-gray-7: #f7f8fa;
+		--sl-color-black: #ffffff;
+
+		--sl-color-accent-low: #f8e9db;
+		--sl-color-accent: #a35d1f;
+		--sl-color-accent-high: #5d3411;
+
+		--sl-color-text: var(--sl-color-gray-1);
+		--sl-color-text-accent: #9a5619;
+		--sl-color-text-invert: #ffffff;
+		--sl-color-bg: var(--sl-color-black);
+		--sl-color-bg-nav: var(--sl-color-black);
+		--sl-color-bg-sidebar: var(--sl-color-black);
+		--sl-color-bg-inline-code: var(--sl-color-gray-6);
+
+		--ch-hover-bg: transparent;
+		--ch-pill-bg: transparent;
+		--ch-panel-ring: transparent;
+		--ch-on-accent: #ffffff;
+	}
 }

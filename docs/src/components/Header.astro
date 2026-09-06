@@ -1,0 +1,162 @@
+---
+/**
+ * Site header override.
+ *
+ * Layout: logo and wordmark on the left, a wide search box that starts where
+ * the content column starts, and a right-hand group with text links, the
+ * GitHub icon, the theme toggle, and a filled call-to-action button.
+ */
+import config from 'virtual:starlight/user-config';
+import Search from '@astrojs/starlight/components/Search.astro';
+import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
+import { Icon } from '@astrojs/starlight/components';
+import ThemeSelect from './ThemeSelect.astro';
+
+const shouldRenderSearch =
+	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
+
+const social = config.social ?? [];
+const textLinks = social.filter((link) => link.icon !== 'github');
+const github = social.find((link) => link.icon === 'github');
+---
+
+<div class="header">
+	<div class="title-wrapper sl-flex">
+		<SiteTitle />
+	</div>
+	<div class="search-wrapper sl-flex print:hidden">
+		{shouldRenderSearch && <Search />}
+	</div>
+	<div class="sl-hidden md:sl-flex print:hidden right-group">
+		{
+			textLinks.map(({ label, href }) => (
+				<a class="nav-link" {href}>
+					{label}
+					<Icon name="external" size="0.8em" />
+				</a>
+			))
+		}
+		{
+			github && (
+				<a class="icon-link" href={github.href} rel="me" aria-label={github.label}>
+					<Icon name="github" size="1.15rem" />
+				</a>
+			)
+		}
+		<ThemeSelect />
+		<a class="cta" href="/getting-started/quickstart/">Get started</a>
+	</div>
+</div>
+
+<style>
+	.header {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		height: 100%;
+	}
+
+	.title-wrapper {
+		/* Prevent long titles overflowing and covering the search and menu buttons on narrow viewports. */
+		overflow: clip;
+		/* Avoid clipping focus ring around link inside title wrapper. */
+		padding: 0.25rem;
+		margin: -0.25rem;
+		min-width: 0;
+		flex: 0 0 auto;
+	}
+
+	.search-wrapper {
+		flex: 1 1 auto;
+		justify-content: flex-end;
+		min-width: 0;
+	}
+
+	.right-group {
+		flex: 0 0 auto;
+		align-items: center;
+		gap: 0.375rem;
+		margin-inline-start: auto;
+	}
+
+	.nav-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.4rem 0.625rem;
+		border-radius: 0.5rem;
+		font-size: var(--sl-text-sm);
+		font-weight: 500;
+		color: var(--sl-color-gray-2);
+		text-decoration: none;
+		white-space: nowrap;
+		transition:
+			color 0.12s,
+			background-color 0.12s;
+	}
+	.nav-link svg {
+		color: var(--sl-color-gray-3);
+	}
+	.nav-link:hover {
+		color: var(--sl-color-white);
+		background-color: var(--ch-hover-bg);
+	}
+
+	.icon-link {
+		display: grid;
+		place-items: center;
+		width: 2.125rem;
+		height: 2.125rem;
+		border-radius: 0.5rem;
+		color: var(--sl-color-gray-2);
+		transition:
+			color 0.12s,
+			background-color 0.12s;
+	}
+	.icon-link:hover {
+		color: var(--sl-color-white);
+		background-color: var(--ch-hover-bg);
+	}
+
+	.cta {
+		display: inline-flex;
+		align-items: center;
+		height: 2.25rem;
+		margin-inline-start: 0.375rem;
+		padding-inline: 1rem;
+		border-radius: 999px;
+		background-color: var(--sl-color-accent);
+		color: var(--ch-on-accent);
+		font-size: var(--sl-text-sm);
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+		transition:
+			background-color 0.12s,
+			transform 0.12s;
+	}
+	.cta:hover {
+		background-color: var(--ch-accent-hover);
+		transform: translateY(-1px);
+	}
+
+	@media (min-width: 50rem) {
+		.search-wrapper {
+			justify-content: flex-start;
+		}
+	}
+
+	/* Between the tablet and desktop breakpoints there is no room for the text links. */
+	@media (min-width: 50rem) and (max-width: 63.99rem) {
+		.nav-link {
+			display: none;
+		}
+	}
+
+	/* From desktop up, the search box starts where the content column starts. */
+	@media (min-width: 64rem) {
+		.title-wrapper {
+			width: calc(var(--sl-sidebar-width) - var(--sl-nav-pad-x));
+		}
+	}
+</style>
