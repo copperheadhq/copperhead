@@ -122,6 +122,7 @@ copperhead doctor                    # env preflight: node, kicad-cli, git, open
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
 copperhead create --brief brief.md   # brief → full output package
 copperhead export bom --supplier jlcpcb   # supplier-ready ordering file from docs/BOM.md
+copperhead mcp                       # EXPERIMENTAL: serve the gated pipeline to MCP hosts over stdio
 ```
 
 Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, `skill run`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
@@ -173,6 +174,39 @@ copperhead export bom --supplier mouser --spares 15     # Mouser cart CSV, 15% s
 
 Nothing is a black box: decisions land in an append-only `docs/DECISIONS.md`, every run writes a human-readable summary next to its transcript, and a per-run `docs/CHANGELOG.md` narrates the design history.
 
+## MCP server (experimental)
+
+Coding agents are already pointed at KiCad repos through generic file tools, which
+means a host agent can rewrite a `.kicad_sch` with no spec gate, no verification,
+and no rollback. `copperhead mcp` closes that: it serves the gated pipeline to any
+MCP host as five opaque, outcome-level tools — `copperhead_check`, `copperhead_do`,
+`copperhead_sync`, `copperhead_init`, `copperhead_doctor` — and nothing finer. There is no file-edit
+tool, no raw KiCad tool, and no partial-loop tool to reach around, so a host agent
+cannot skip spec-gating or verification by any sequence of calls.
+
+```jsonc
+// .mcp.json
+{
+  "mcpServers": {
+    "copperhead": {
+      "command": "copperhead",
+      "args": ["mcp", "--repo", "/absolute/path/to/your/kicad/project"]
+    }
+  }
+}
+```
+
+> **The surface is experimental and unstable.** It declares a `0.` protocol major:
+> tool names, inputs, and result shapes may change in any release, and there is no
+> registry listing until the stabilization criteria are met. Host configuration for
+> Claude Code and generic stdio hosts, the companion skill, the Codex gap, and those
+> criteria are all in [`integrations/`](integrations/README.md).
+
+`copperhead_check`, `copperhead_init` and `copperhead_doctor` need no credential; `copperhead_do` and
+`copperhead_sync` with `resolve: true` refuse with a typed error naming the missing
+environment variable. The server opens no network transport of its own — stdio only,
+and LLM calls happen exactly where the CLI already makes them.
+
 ## What it is not
 
 - **Not an autorouter.** Routing stays human or delegated; copperhead produces the DRC-clean draft that layout tools optimize from.
@@ -218,6 +252,7 @@ Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and 
 
 - [`AGENTS.md`](AGENTS.md): repository instructions loaded automatically by Codex and compatible coding agents; [`CLAUDE.md`](CLAUDE.md) provides the corresponding Claude Code guidance
 - [`src/`](src/): CLI ([`cli.ts`](src/cli.ts), [`commands/`](src/commands/)), the provider-agnostic agent loop ([`agent/`](src/agent/)), the `kicad-cli` wrapper and s-expression reader ([`kicad/`](src/kicad/)), and doc/constraint memory ([`memory/`](src/memory/))
+- [`integrations/`](integrations/README.md): MCP host configuration and the companion Claude Code skill
 - [`test/`](test/): offline suite plus [`fixtures/`](test/fixtures/), a tiny known-good KiCad project
 - [`openspec/specs/SPEC.md`](openspec/specs/SPEC.md): the full technical specification, including binary acceptance criteria
 - [`openspec/changes/build-copperhead-phase-1/`](openspec/changes/build-copperhead-phase-1/): the implementation plan with proposal, design decisions, capability specs, and task checklist

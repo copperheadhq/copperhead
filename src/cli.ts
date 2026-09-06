@@ -22,6 +22,7 @@ import { DEFAULT_BOARDS, DEFAULT_SPARES } from './kicad/bom-export.js';
 import { runAgentLoop, type BudgetExhaustedStats } from './agent/loop.js';
 import { makeRenderer } from './agent/render.js';
 import { kicadCliVersion } from './kicad/cli.js';
+import { startMcpServer } from './mcp/server.js';
 import { loadEnvFile } from './util/env.js';
 import { budgetExtraTurns, budgetPromptText, parseMaxTurns, repoOf } from './util/cli-args.js';
 
@@ -396,6 +397,24 @@ program
         meta: { command: 'sync', modelSource: source, version, kicadCliVersion: kicadVer },
       });
       process.exit(res.ok ? 0 : 1);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('mcp')
+  .description('EXPERIMENTAL: serve the gated pipeline to MCP hosts over stdio (unstable surface)')
+  // `--repo` is also a global flag, but a host config reads as
+  // `args: ["mcp", "--repo", "/path"]`, so the command accepts it locally too.
+  .option('--repo <path>', 'target repository (default: cwd)')
+  .action(async (opts: { repo?: string }) => {
+    const repo = repoOf(opts.repo ? { repo: opts.repo } : program.opts());
+    try {
+      // Never returns until the host closes stdio. Nothing is printed to
+      // stdout here or anywhere downstream: it carries JSON-RPC alone.
+      await startMcpServer({ repoRoot: repo });
     } catch (err) {
       console.error((err as Error).message);
       process.exit(1);

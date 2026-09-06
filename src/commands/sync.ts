@@ -6,7 +6,7 @@ import { checkDrift } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
-import { runAgentLoop } from '../agent/loop.js';
+import { runAgentLoop, type RunResult } from '../agent/loop.js';
 import type { RunMetaInput } from '../agent/runmeta.js';
 import type { ProgressRenderer } from '../agent/render.js';
 
@@ -172,7 +172,7 @@ export async function syncResolve(
   model: string,
   log: (s: string) => void,
   extras?: { renderer?: ProgressRenderer; meta?: RunMetaInput },
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; run: RunResult }> {
   const reportText = formatSyncReport(report);
   const res = await runAgentLoop({
     repoRoot,
@@ -183,5 +183,7 @@ export async function syncResolve(
     ...(extras?.renderer ? { renderer: extras.renderer } : {}),
     ...(extras?.meta ? { meta: extras.meta } : {}),
   });
-  return { ok: res.outcome === 'success' };
+  // The full RunResult travels with the verdict so a non-CLI caller (the MCP
+  // server) can report the transcript path and files touched the way `do` does.
+  return { ok: res.outcome === 'success', run: res };
 }
