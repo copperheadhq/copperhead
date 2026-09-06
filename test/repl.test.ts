@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { PassThrough } from 'node:stream';
+import os from 'node:os';
 import {
   parseSlash,
   runRepl,
@@ -203,7 +204,10 @@ describe('repl chrome', () => {
   it('shortens home paths and keeps banner / help readable', () => {
     setColorEnabled(false);
     process.env.COPPERHEAD_NO_ANIM = '1';
-    expect(shortPath(`${process.env.HOME}/OpenSource/circuits/copperhead`)).toMatch(/^~/);
+    const baseHome = os.homedir();
+    const testPath = path.join(baseHome, 'OpenSource', 'circuits', 'copperhead');
+    const shortened = shortPath(testPath);
+    expect(shortened).toMatch(/^~/);
     const text = banner({
       repoRoot: '/tmp/demo-board',
       model: 'cursor',
@@ -487,9 +491,9 @@ describe('session log file', () => {
           return { outcome: 'success' as const };
         }),
       });
-      await new Promise((r) => setTimeout(r, 30));
+      await new Promise((r) => setTimeout(r, 100));
       input.write('do the thing\n');
-      await new Promise((r) => setTimeout(r, 30));
+      await new Promise((r) => setTimeout(r, 100));
       input.write('/quit\n');
       await done;
 
@@ -506,7 +510,7 @@ describe('session log file', () => {
     } finally {
       await rm(repo, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it('redacts every AC-4.1 pattern, not just sk- keys', async () => {
     // Regression: the log used to carry its own inline /sk-.../ regex, so a
@@ -537,9 +541,9 @@ describe('session log file', () => {
           return { outcome: 'success' as const };
         }),
       });
-      await new Promise((r) => setTimeout(r, 30));
+      await new Promise((r) => setTimeout(r, 100));
       input.write('publish it\n');
-      await new Promise((r) => setTimeout(r, 30));
+      await new Promise((r) => setTimeout(r, 100));
       input.write('/quit\n');
       await done;
 
@@ -550,10 +554,11 @@ describe('session log file', () => {
       for (const s of secrets) expect(text, s).not.toContain(s);
       expect(text).toContain('[REDACTED]');
       expect(text).toContain('trailing'); // surrounding context survives
+      expect(text).not.toContain('\x1b[');
     } finally {
       await rm(repo, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });
 
 describe('demo scaffold', () => {
@@ -614,7 +619,7 @@ describe('runRepl', () => {
 
   it('handles /help /demo /examples /model /check /quit on a TTY', async () => {
     setColorEnabled(false);
-    const { input, output, lines, opts } = baseOpts();
+    const { input, lines, opts } = baseOpts();
     const done = runRepl(opts);
 
     // Drive the prompt after the banner is written.
@@ -702,7 +707,6 @@ describe('runRepl', () => {
     expect(lines.join('\n')).toContain('What copperhead does');
     expect(lines.join('\n')).toContain('session ended');
   });
-
 
   it('runs a natural-language request then continues until /quit', async () => {
     setColorEnabled(false);

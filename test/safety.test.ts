@@ -307,7 +307,7 @@ describe('git guard (AC-3.8, AC-3.6)', () => {
     }
   });
 
-  it('refuses the run, naming the file, when an untracked path cannot be read', async () => {
+  it.skipIf(process.platform === 'win32')('refuses the run, naming the file, when an untracked path cannot be read', async () => {
     // Regression: every untracked path went straight into `git update-index`,
     // which aborts the whole batch on the first it cannot open. snapshot() runs
     // before the first turn, so one stray root-owned or mode-000 file refused
