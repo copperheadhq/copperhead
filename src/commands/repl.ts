@@ -229,7 +229,7 @@ export function banner(opts: ReplOptions): string[] {
 }
 
 /** Plain prompt text; the input area paints it copper (nbsp after ❯, like Claude Code). */
-const PROMPT = '❯ ';
+export const PROMPT = '❯ ';
 
 function isTtyStream(input: NodeJS.ReadableStream, output: NodeJS.WritableStream): boolean {
   return Boolean((input as NodeJS.ReadStream).isTTY) && Boolean((output as NodeJS.WriteStream).isTTY);

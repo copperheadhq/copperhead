@@ -26,6 +26,9 @@ export interface RunStats {
   tokensOut: number;
   perTurn: { turn: number; in: number; out: number }[];
   durationMs: number;
+  /** Characters history capping kept off the wire across the run. Absent when
+   *  capping is disabled or never had anything to trim. */
+  capCharsSaved?: number;
 }
 
 export interface RunSummaryData {
@@ -58,6 +61,7 @@ function renderRunStats(s: RunStats): string[] {
     `- **Repair cycles:** ${s.repairCyclesUsed} / ${s.maxRepairCycles}`,
     `- **Tokens:** ${fmtTokens(s.tokensIn)} in / ${fmtTokens(s.tokensOut)} out`,
     `- **Duration:** ${fmtDuration(s.durationMs)}`,
+    ...(s.capCharsSaved ? [`- **History capping:** ${s.capCharsSaved} characters trimmed from the request view`] : []),
     ...(s.perTurn.length
       ? [`- **Per turn:** ${s.perTurn.map((t) => `${t.turn}: ${t.in}/${t.out}`).join(' · ')}`]
       : []),

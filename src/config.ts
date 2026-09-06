@@ -50,6 +50,13 @@ export interface CopperheadConfig {
    * so retries/restarts reuse work already paid for. Default on. */
   llmCache: boolean;
   /**
+   * Trim settled history out of each request so a long stage does not re-send
+   * (and re-pay for) every earlier file read and edit payload on every turn.
+   * Affects only what is sent to the provider; the transcript keeps full
+   * fidelity. Default on - turn it off to reproduce a run's exact prompts.
+   */
+  historyCap: boolean;
+  /**
    * Base URL of an OpenAI-compatible endpoint (Groq, OpenRouter, Gemini's
    * compat endpoint, a local Ollama). Consulted only by the `compat`
    * route (design D2), so a stray value never redirects a plain `gpt-5` run.
@@ -92,6 +99,7 @@ export const DEFAULTS: Omit<CopperheadConfig, 'schematic' | 'board'> = {
   heartbeatMs: 30000,
   maxStageRetries: 2,
   llmCache: true,
+  historyCap: true,
 };
 
 export function configPath(repoRoot: string): string {
@@ -125,6 +133,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
         ? (raw.maxStageRetries as number)
         : DEFAULTS.maxStageRetries,
     llmCache: raw.llmCache !== false,
+    historyCap: raw.historyCap !== false,
     ...(typeof raw.baseURL === 'string' && raw.baseURL.trim() ? { baseURL: raw.baseURL.trim() } : {}),
     ...(typeof raw.apiKeyEnv === 'string' && raw.apiKeyEnv.trim() ? { apiKeyEnv: raw.apiKeyEnv.trim() } : {}),
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),

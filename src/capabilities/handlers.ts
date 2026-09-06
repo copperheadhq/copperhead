@@ -29,6 +29,23 @@ export interface HandlerDef {
   handler: (ctx: RunContext, args: Record<string, unknown>) => Promise<string | HandlerOutcome>;
 }
 
+/**
+ * Coerce a `read_file` line bound to a finite number, or `undefined` when it is
+ * absent or cannot be one. Tool args arrive straight from `JSON.parse` of model
+ * output with no schema coercion, so a stringified `"4"` is ordinary input; it
+ * coerces to a partial read here, matching what `toolReadFile` already does with
+ * `Math.max`/`Math.min`. Garbage (`"abc"`, `null`) drops the bound. Normalizing
+ * once, then writing the result back into the call's args, keeps the history's
+ * record of the call in step with what the tool actually did - history.ts's
+ * `rangeOf` then only ever sees a finite number or an absent bound, so it cannot
+ * model a partial read as a whole-file one and wrongly supersede real content.
+ */
+const lineBound = (v: unknown): number | undefined => {
+  if (v === undefined || v === null || v === '') return undefined;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 export const HANDLERS: HandlerDef[] = [
   {
     schema: {
@@ -45,13 +62,26 @@ export const HANDLERS: HandlerDef[] = [
       },
     },
     requiresUnlock: false,
-    handler: (ctx, args) =>
-      toolReadFile(
-        ctx.repoRoot,
-        str(args, 'path'),
-        args.start_line as number | undefined,
-        args.end_line as number | undefined,
-      ),
+    handler: async (ctx, args) => {
+      // Normalize the line bounds in place, so the conversation records the
+      // range the read actually used and history.ts sees only well-formed
+      // numbers. Delete a dropped bound rather than leave a non-numeric value
+      // behind for a later reader to misinterpret.
+      const start = lineBound(args.start_line);
+      const end = lineBound(args.end_line);
+      if (start === undefined) delete args.start_line;
+      else args.start_line = start;
+      if (end === undefined) delete args.end_line;
+      else args.end_line = end;
+      // Report the outcome explicitly rather than letting the text be sniffed.
+      // A read that returned content succeeded, whatever that content says: a
+      // repo can legitimately hold a file starting `error:` (a build log, a
+      // pasted traceback), and `textResult` would classify that as a failure.
+      // History capping reads the resulting `failed` flag to decide whether a
+      // read may supersede an earlier one, so a misread status silently drops
+      // real file content from later requests (design D3c).
+      return { ok: true, text: await toolReadFile(ctx.repoRoot, str(args, 'path'), start, end) };
+    },
   },
   {
     schema: {

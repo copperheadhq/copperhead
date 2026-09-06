@@ -5,6 +5,7 @@ import type { Msg, Provider, Turn } from './types.js';
 import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
 import { flatten } from './envelope.js';
 import { CachingProvider } from './response-cache.js';
+import { capHistory } from './history.js';
 import { withTimeout, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js';
 import { buildSystemPrompt } from './prompts.js';
 import { loadConstraints, reopenDeferredAffects } from '../memory/constraints.js';
@@ -346,6 +347,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   let tokensIn = 0;
   let tokensOut = 0;
   let turnsUsed = 0;
+  /** Characters kept out of the wire by history capping, summed over the run. */
+  let capCharsSaved = 0;
   const perTurn: { turn: number; in: number; out: number }[] = [];
   let plan: string | null = null;
   let nudges = 0;
@@ -362,6 +365,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     tokensOut,
     perTurn,
     durationMs: Date.now() - startMs,
+    ...(capCharsSaved ? { capCharsSaved } : {}),
   });
 
   /** One outcome line, printed last at every terminal branch (AC-8.5). */
@@ -500,14 +504,64 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           )
         : null;
     heartbeat?.unref?.();
+    // Trim settled history out of the request only - `messages` itself stays
+    // whole, so the transcript, the ledger, and the next turn's own capping all
+    // still see full fidelity. Length and order are preserved, which is what
+    // keeps the claude-code session-resume index (`sentCount`) and every
+    // provider's toolCallId pairing valid.
+    const sent = config.historyCap ? capHistory(messages) : { messages, stats: null };
+    // The capped view is built once but `withRetry` may put it on the wire more
+    // than once, so the saving is counted per attempt: `capCharsSaved` measures
+    // characters actually kept off the wire, not characters trimmed. The
+    // transcript event stays one per attempt too, carrying its attempt number,
+    // so a retried turn is legible rather than looking like double-counting.
+    let capAttempt = 0;
     try {
       res = await withRetry(
-        () =>
-          withTimeout(
-            () => provider.chat(messages, tools, { onStream: (chars) => (streamedChars = chars) }),
-            config.turnTimeoutMs,
-            () => provider.close?.(),
-          ),
+        async () => {
+          let chatRes: Turn | undefined;
+          try {
+            chatRes = await withTimeout(
+              () =>
+                provider.chat(sent.messages, tools, {
+                  onStream: (chars) => (streamedChars = chars),
+                  // Let a prompt-caching provider keep a breakpoint below the
+                  // lowest message capping rewrote, so trimming an old message
+                  // does not invalidate the whole cached prefix.
+                  ...(sent.stats?.firstChanged != null
+                    ? { stablePrefixBefore: sent.stats.firstChanged }
+                    : {}),
+                }),
+              config.turnTimeoutMs,
+              () => provider.close?.(),
+            );
+            return chatRes;
+          } finally {
+            // Account for what actually went over the wire. A turn replayed from
+            // the llm-cache sends nothing, so trimming it saved nothing and must
+            // not be counted. Every other outcome did put the capped request on
+            // the wire, including an attempt that came back 429: those bytes were
+            // genuinely kept off it, which is why this sits in a `finally` rather
+            // than on the success path.
+            if (sent.stats?.charsSaved && !chatRes?.cached) {
+              capCharsSaved += sent.stats.charsSaved;
+              // Swallow a transcript failure here. This runs in a `finally`, so
+              // on the path where `provider.chat` already rejected (a timeout, or
+              // a 429 headed for `withRetry`) an unhandled rejection from the
+              // transcript write would propagate *in place of* the provider
+              // error, and `withRetry` would see something it cannot classify as
+              // retryable. Losing one accounting line beats masking the real
+              // failure.
+              await transcript
+                .event('history-capped', {
+                  turn: turn + 1,
+                  attempt: ++capAttempt,
+                  ...sent.stats,
+                })
+                .catch(() => {});
+            }
+          }
+        },
         { onRetry: (attempt) => log(`rate limited; retry ${attempt}`) },
       );
     } catch (err) {
@@ -593,9 +647,24 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     for (const call of res.toolCalls) {
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
-      await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
+      await transcript.event('tool', {
+        name: call.name,
+        args: call.args,
+        result,
+        envelope,
+        ...(envelope.ok ? {} : { failed: true }),
+      });
       r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
-      messages.push({ role: 'tool', toolCallId: call.id, content: result });
+      // Carry the failure status on the message rather than leaving later
+      // readers to infer it from the text: a file can legitimately begin with
+      // the same words a tool error does. History capping reads this flag so a
+      // failed read never supersedes a successful one.
+      messages.push({
+        role: 'tool',
+        toolCallId: call.id,
+        content: result,
+        ...(envelope.ok ? {} : { failed: true }),
+      });
     }
 
     if (ctx.repairCycles > config.maxRepairCycles) {

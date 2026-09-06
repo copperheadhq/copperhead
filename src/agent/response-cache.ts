@@ -70,7 +70,7 @@ export class CachingProvider implements Provider {
         this.hits++;
         this.log?.(`llm-cache: replayed a cached response (hit #${this.hits}, no tokens spent)`);
         // Report zero usage: replaying a cached turn costs nothing.
-        return { ...cached, usage: { inputTokens: 0, outputTokens: 0 } };
+        return { ...cached, usage: { inputTokens: 0, outputTokens: 0 }, cached: true };
       } catch {
         // corrupt/partial cache file — fall through and regenerate
       }
