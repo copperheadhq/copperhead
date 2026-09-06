@@ -1,8 +1,15 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
+import {
+  checkRoutingCompleteness,
+  checkDocumentationPresence,
+  isCreateProducedRepo,
+  type FabCheckResult,
+} from '../kicad/fab.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '../memory/constraints.js';
 import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
@@ -14,6 +21,23 @@ import { openspecValidate } from '../openspec/cli.js';
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
  * (AC-2). This module must never import a provider.
  */
+
+/** The fabrication release-gate checks implemented so far. BOM readiness,
+ * schematic-to-PCB match, and output freshness are separate add-fab-release-gate
+ * tasks (1.2–1.4); until they land they are *not* reported at all, so the gate
+ * never claims a check it did not actually run. */
+export interface FabGateResult {
+  routing: FabCheckResult;
+  docs: FabCheckResult;
+}
+
+/** Options for {@link runCheck}; `fab` runs the release gate over the DRC already done. */
+export interface CheckOptions {
+  fab?: boolean;
+  /** Escalate `UNVERIFIED` BOM rows to failures (no-op until BOM readiness lands). */
+  strict?: boolean;
+}
+
 export interface CheckResult {
   ok: boolean;
   erc: { ok: boolean; violations: number } | null;
@@ -21,6 +45,8 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  /** Present only when `--fab` was requested. */
+  fab?: FabGateResult;
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -37,7 +63,7 @@ export interface CheckResult {
   };
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+export async function runCheck(repoRoot: string, log: (s: string) => void, opts: CheckOptions = {}): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
@@ -122,12 +148,41 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let fab: FabGateResult | undefined;
+  if (opts.fab) {
+    // Routing completeness reuses the DRC already run above — never a second
+    // kicad-cli call (spec: "reuse the DRC run already performed by check").
+    const routing = checkRoutingCompleteness(drc);
+    // Documentation presence is pure over file contents (task 1.5).
+    const docsDir = config.docs.replace(/[/\\]+$/, '');
+    const layoutAbs = path.join(repoRoot, docsDir, 'LAYOUT.md');
+    const layoutMd = existsSync(layoutAbs) ? await readFile(layoutAbs, 'utf8') : null;
+    const docs = checkDocumentationPresence({
+      layoutMd,
+      devplanExists: existsSync(path.join(repoRoot, docsDir, 'DEVPLAN.md')),
+      isCreateRepo: isCreateProducedRepo(config),
+    });
+    // Only the implemented checks are reported: routing (task 1.1) and docs
+    // (task 1.5). BOM readiness, schematic-to-PCB match, and output freshness
+    // (tasks 1.2/1.3/1.4) are omitted rather than faked as pass.
+    fab = { routing, docs };
+    for (const [name, r] of Object.entries(fab)) {
+      const mark = r.status === 'fail' ? '✗' : r.status === 'warn' ? '⚠' : '✓';
+      log(`fab ${name} ${mark}`);
+      for (const v of r.violations) {
+        const loc = v.location ? ` (${v.location})` : '';
+        log(`  - ${v.claim}: ${v.actual}${loc}`);
+      }
+    }
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (fab === undefined || Object.values(fab).every((r) => r.status !== 'fail'));
 
   return {
     ok,
@@ -136,6 +191,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    ...(fab ? { fab } : {}),
     legibility,
   };
 }

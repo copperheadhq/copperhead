@@ -41,3 +41,7 @@ Purely additive flag; no behavior change without `--fab`. Rollback is removing t
 ## Open Questions
 
 - Whether stage 6 should start writing the export hash record immediately (task here) or wait for a dedicated `copperhead export` command (Phase 3 idea); this change writes it in stage 6 and any future export path inherits the contract.
+
+## Issue #252 follow-on (placement/routing engine boundary)
+
+The routing-completeness gate (task 1.1) and the `--fab`/`--strict` CLI wiring (tasks 3.1–3.3) were delivered under issue #252; the remaining checks (BOM readiness, schematic-to-PCB match, output freshness — tasks 1.2–1.4) are unchanged and out of #252's scope. The engine adapter layer the issue also proposes (`PlacementEngine`/`RoutingEngine`, a TypeScript Specctra DSN/SES bridge, a deterministic grid placer, and a local Freerouting adapter) landed as standalone, fixture-tested modules in `src/kicad/layout/` — not yet wired into the `create` pipeline, which needs the board-placement prerequisite (#227/#141) first.

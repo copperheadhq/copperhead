@@ -95,6 +95,35 @@ describe('copperhead check (AC-2)', () => {
     }
   }, 60_000);
 
+  it('--fab: reports only the implemented checks (routing + docs); docs gate fails on empty draft-quality', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      // init scaffolds LAYOUT.md with an empty `## Draft quality` placeholder, so
+      // the docs gate (and therefore the whole --fab gate) must fail until filled.
+      const res = await runCheck(repo, silent, { fab: true });
+      expect(res.fab).toBeDefined();
+      expect(Object.keys(res.fab!).sort()).toEqual(['docs', 'routing']);
+      // Unimplemented checks (bom/schPcbMatch/outputs) are absent, never faked as pass.
+      expect(res.fab!).not.toHaveProperty('bom');
+      expect(res.fab!).not.toHaveProperty('schPcbMatch');
+      expect(res.fab!).not.toHaveProperty('outputs');
+      expect(res.fab!.routing.status).toBe('pass'); // bare outline: nothing unrouted
+      expect(res.fab!.docs.status).toBe('fail');
+      expect(res.ok).toBe(false);
+
+      // Fill the section and the gate goes green (routing stays pass).
+      const layoutPath = path.join(repo, 'docs', 'LAYOUT.md');
+      const layout = await readFile(layoutPath, 'utf8');
+      await writeFile(layoutPath, layout.replace('## Draft quality', '## Draft quality\n\nPlaced as a grid; nets unrouted.'), 'utf8');
+      const res2 = await runCheck(repo, silent, { fab: true });
+      expect(res2.fab!.docs.status).toBe('pass');
+      expect(res2.ok).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+
   it('broken schematic (unconnected pin): fails with location (AC-2.2)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
