@@ -55,16 +55,24 @@ export interface StageDiagnosis {
   usage?: { inputTokens: number; outputTokens: number };
 }
 
-/** Extract the first brace-balanced JSON object from text, tolerating quoting and
- * escaping, and interpret it as a StageDiagnosis. Anything unparseable is treated
- * as "abort" so an ambiguous diagnosis never loops the pipeline forever. */
+/**
+ * Scans brace-balanced JSON candidates in text to locate a StageDiagnosis payload
+ * with a recognized verdict ('retry' or 'abort'). If a valid JSON candidate lacks a
+ * recognized verdict, its reason is retained as a fallback while scanning continues.
+ * Anything unparseable or ambiguous defaults to "abort" so the pipeline never loops.
+ */
 export function parseDiagnosis(text: string | null): StageDiagnosis {
   if (!text) return { verdict: 'abort', reason: 'no diagnosis produced' };
-  const start = text.indexOf('{');
-  if (start >= 0) {
+
+  let fallbackReason: string | undefined;
+
+  for (let start = 0; start < text.length; start++) {
+    if (text[start] !== '{') continue;
+
     let depth = 0;
     let inStr = false;
     let esc = false;
+
     for (let i = start; i < text.length; i++) {
       const ch = text[i];
       if (inStr) {
@@ -77,22 +85,32 @@ export function parseDiagnosis(text: string | null): StageDiagnosis {
       else if (ch === '{') depth++;
       else if (ch === '}' && --depth === 0) {
         try {
-          const o = JSON.parse(text.slice(start, i + 1)) as Partial<StageDiagnosis>;
-          const verdict = o.verdict === 'retry' ? 'retry' : 'abort';
-          return {
-            verdict,
-            reason: typeof o.reason === 'string' ? o.reason : 'no reason given',
-            ...(verdict === 'retry' && typeof o.guidance === 'string' && o.guidance.trim()
-              ? { guidance: o.guidance.trim() }
-              : {}),
-          };
+          const candidate = text.slice(start, i + 1);
+          const o = JSON.parse(candidate) as Partial<StageDiagnosis>;
+          if (typeof o === 'object' && o !== null) {
+            if (typeof o.reason === 'string' && o.reason.trim()) {
+              fallbackReason = o.reason.trim();
+            }
+            if (o.verdict === 'retry' || o.verdict === 'abort') {
+              const verdict = o.verdict === 'retry' ? 'retry' : 'abort';
+              return {
+                verdict,
+                reason: typeof o.reason === 'string' && o.reason.trim() ? o.reason.trim() : 'no reason given',
+                ...(verdict === 'retry' && typeof o.guidance === 'string' && o.guidance.trim()
+                  ? { guidance: o.guidance.trim() }
+                  : {}),
+              };
+            }
+          }
         } catch {
+          // Not valid JSON starting at this brace; break inner loop to try next candidate '{'
           break;
         }
       }
     }
   }
-  return { verdict: 'abort', reason: 'diagnosis was not valid JSON' };
+
+  return { verdict: 'abort', reason: fallbackReason ?? 'diagnosis was not valid JSON' };
 }
 
 /** Compact, most-recent-last excerpt of a run's transcript for the diagnostician:

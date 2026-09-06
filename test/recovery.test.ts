@@ -56,10 +56,30 @@ describe('parseDiagnosis', () => {
     expect(d.guidance).toBeUndefined();
   });
 
+  it('parses retry verdict when leading prose contains stray braces (Fixes #101)', () => {
+    const d = parseDiagnosis('Check {pins.h} before proceeding:\n{"verdict":"retry","reason":"dropped edit","guidance":"apply the edit"}');
+    expect(d.verdict).toBe('retry');
+    expect(d.reason).toBe('dropped edit');
+    expect(d.guidance).toBe('apply the edit');
+  });
+
+  it('skips a verdictless object before a retry diagnosis', () => {
+    const d = parseDiagnosis('{"reason":"ignore"}\n{"verdict":"retry","reason":"dropped edit","guidance":"apply the edit"}');
+    expect(d.verdict).toBe('retry');
+    expect(d.reason).toBe('dropped edit');
+    expect(d.guidance).toBe('apply the edit');
+  });
+
+  it('preserves real reason text on valid JSON missing a recognized verdict', () => {
+    const d = parseDiagnosis('{"reason":"the tool call was dropped silently"}');
+    expect(d.verdict).toBe('abort');
+    expect(d.reason).toBe('the tool call was dropped silently');
+  });
+
   it('fails safe to abort on non-JSON or missing verdict', () => {
     expect(parseDiagnosis('no json here').verdict).toBe('abort');
     expect(parseDiagnosis(null).verdict).toBe('abort');
-    expect(parseDiagnosis('{"reason":"x"}').verdict).toBe('abort');
+    expect(parseDiagnosis('{"reason":"x"}').reason).toBe('x');
   });
 });
 
