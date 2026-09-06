@@ -10,6 +10,7 @@ import { defineSkill } from '../src/capabilities/define.js';
 import { ToolRegistry } from '../src/agent/registry.js';
 import {
   runSkill,
+  runSkillCli,
   listSkills,
   catalogNameFromCli,
   providerForSkillRun,
@@ -247,6 +248,28 @@ describe('tool-registry catalog', () => {
     }
   });
 
+  it('verify_symbols stays ok when the only findings are uninstalled libraries', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      // One lib_symbols entry from a library that cannot exist on any machine:
+      // findings is non-empty but every entry is 'no-library', the unverifiable
+      // bucket. verifySchematicSymbols documents that absence of a library is
+      // never a mismatch, so the tool must not report failure for "0 issue(s)".
+      await writeFile(
+        path.join(repo, ctx.config.schematic),
+        '(kicad_sch (version 20231120) (generator "test") (lib_symbols (symbol "NoSuchLib9x:Widget" ' +
+          '(pin passive line (at 0 0 0) (length 2.54) (name "A") (number "1")))))\n',
+      );
+      const env = await dispatchToolResult(ctx, 'verify_symbols', {});
+      expect(flatten(env)).toContain('0 issue(s) to reconcile');
+      expect(env.ok).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('a thrown 429 retries through withRetry; a plain exception surfaces once (design D10)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -462,6 +485,66 @@ describe('skill CLI', () => {
     }
   });
 
+  it('closes the provider after a skill run, on both the ok and the failing path', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      // A saved-login provider owns a temp working directory; leaving it behind
+      // is the I8 disk-fill mode runAgentLoop's finally exists to prevent, and
+      // `skill run` has no agent loop to inherit that from.
+      let closes = 0;
+      const provider: Provider = {
+        name: 'closable',
+        async chat() {
+          throw new Error('provider 502');
+        },
+        async close() {
+          closes++;
+        },
+      };
+      const failed = await runSkillCli({ repoRoot: repo, name: 'generate-report', provider, json: false });
+      expect(failed.code).toBe(1);
+      expect(failed.text).toContain('provider 502');
+      expect(closes).toBe(1);
+
+      // The throw path (unknown skill) must not leak the provider it already built.
+      await expect(
+        runSkillCli({ repoRoot: repo, name: 'banana', provider, json: false }),
+      ).rejects.toThrow(/unknown skill/);
+      expect(closes).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a provider whose close throws still yields the run result', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const warnings: string[] = [];
+      const provider: Provider = {
+        name: 'grumpy',
+        async chat() {
+          return { text: 'done', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
+        },
+        async close() {
+          throw new Error('cleanup exploded');
+        },
+      };
+      const res = await runSkillCli({
+        repoRoot: repo,
+        name: 'generate-report',
+        provider,
+        json: false,
+        warn: (l) => warnings.push(l),
+      });
+      expect(res.code).toBe(1);
+      expect(warnings.join('\n')).toContain('cleanup exploded');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('formats the JSON skill envelope', () => {
     const text = formatSkillEnvelope({ ok: true, summary: 'report', viewHint: 'diagnostic' }, true);
     expect(JSON.parse(text)).toMatchObject({ ok: true, summary: 'report' });
@@ -479,12 +562,15 @@ describe('skill CLI', () => {
     }
   });
 
+  // `runSkill` resolves through the module singleton by design, so closing a
+  // gate on it is the only seam that reaches the "unavailable" branch. Capture
+  // and restore bracket the whole body — including the fixture — so no assertion
+  // can leave the singleton (or a temp repo) behind for the next test.
   it('names a registered skill that is unavailable in the current repo', async () => {
-    const { repo, cleanup } = await tempFixtureRepo();
     const skill = registry.get('generate_report');
-    expect(skill?.kind).toBe('skill');
-    if (skill?.kind !== 'skill') return;
+    if (skill?.kind !== 'skill') throw new Error('generate_report is not a registered skill');
     const gate = skill.gate;
+    const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
       skill.gate = () => false;
@@ -495,6 +581,7 @@ describe('skill CLI', () => {
       skill.gate = gate;
       await cleanup();
     }
+    expect(registry.get('generate_report')?.gate).toBe(gate);
   });
 
   it('run without a key names the missing env', async () => {

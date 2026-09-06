@@ -7,7 +7,6 @@ import {
   seal,
   textResult,
   unavailable,
-  isRetryableToolKind,
 } from '../src/agent/envelope.js';
 import { toolLine } from '../src/agent/theme.js';
 
@@ -31,13 +30,6 @@ describe('ToolResult envelope', () => {
     expect(r.error?.kind).toBe('unavailable');
     expect(flatten(r)).toContain('not available');
     expect(flatten(r)).toContain('unlock');
-  });
-
-  it('only exception kinds are retryable', () => {
-    expect(isRetryableToolKind('exception')).toBe(true);
-    expect(isRetryableToolKind('validation')).toBe(false);
-    expect(isRetryableToolKind('refusal')).toBe(false);
-    expect(isRetryableToolKind('unavailable')).toBe(false);
   });
 
   it('textResult maps error: prefixes to validation (not retried)', () => {

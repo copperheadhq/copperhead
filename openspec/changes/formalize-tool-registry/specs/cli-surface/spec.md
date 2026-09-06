@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: `skill` command
-The CLI SHALL provide `copperhead skill list` and `copperhead skill run <name>`. `skill list` SHALL print registered skills and whether each would be present in `registry.list(ctx)` for the current repo, make zero LLM calls, make zero network calls, and create no transcript or run directory. `skill run <name>` SHALL invoke that skill's nested sub-run with the same definition the model catalog uses and print the resulting envelope. A missing API key on `skill run` SHALL exit non-zero with a message naming the missing env var and without a stack trace. An unknown skill name SHALL exit non-zero naming the name.
+The CLI SHALL provide `copperhead skill list` and `copperhead skill run <name>`. `skill list` SHALL print registered skills and whether each would be present in `registry.list(ctx)` for the current repo, make zero LLM calls, make zero network calls, and create no transcript or run directory. `skill run <name>` SHALL invoke that skill's nested sub-run with the same definition the model catalog uses and print the resulting envelope. A missing API key on `skill run` SHALL exit non-zero with a message naming the missing env var and without a stack trace. An unknown skill name SHALL exit non-zero naming the name. `skill run` SHALL close the provider it created before the process exits, on the success, failure, and throw paths alike, so no saved-login working directory or subprocess outlives the command.
 
 #### Scenario: Help lists skill
 - **WHEN** `copperhead --help` is run
@@ -24,3 +24,7 @@ The CLI SHALL provide `copperhead skill list` and `copperhead skill run <name>`.
 #### Scenario: unknown skill
 - **WHEN** `copperhead skill run does-not-exist` is invoked
 - **THEN** the process exits non-zero and the message contains `does-not-exist`
+
+#### Scenario: run releases its provider
+- **WHEN** `copperhead skill run <name>` finishes, whether the report succeeded, the provider threw, or the skill name was unknown
+- **THEN** the provider it created has been closed before the process exits, and a provider whose `close` itself throws yields a warning rather than losing the run result
