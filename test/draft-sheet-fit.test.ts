@@ -8,6 +8,7 @@ import { validateIntent, type SchematicIntent } from '../src/kicad/draft/ir.js';
 import { draftSchematicPlacement } from '../src/kicad/draft/engine.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { readSheetGeometry } from '../src/kicad/sexp.js';
+import { CAPTION_SIZE } from '../src/kicad/emit.js';
 import { measureWiringStyle } from '../src/kicad/score.js';
 
 /**
@@ -121,9 +122,12 @@ describe('a failed compaction is reported, never silent', () => {
       const note = report.notes.find((n) => /^sheet not compacted:/.test(n));
       expect(note, report.notes.join('; ')).toBeDefined();
       for (const m of report.sheetFit.misses) expect(note).toContain(m);
-    } else {
-      expect(report.sheetFit.compaction).toBe('compacted');
+    } else if (report.sheetFit.compaction === 'compacted') {
       expect(report.notes.some((n) => /^sheet compacted:/.test(n))).toBe(true);
+    } else {
+      // tighter cells since the fourth placement pass: the fixture's natural
+      // sheet now inks above the floor, so there was nothing to compact
+      expect(report.sheetFit.compaction).toBe('not-needed');
     }
   });
 
@@ -240,8 +244,10 @@ describe('the IC leads its group', () => {
     // inputs still enter from the left: a connector stays at depth 0
     const { model } = await draftBoard('usb-atmega-node');
     const at = (ref: string) => model.symbols.find((s) => s.ref === ref)!.at;
-    expect(at('J1').x).toBeLessThan(at('U2').x); // Power Input's USB jack, Regulation's LDO
-    expect(at('J1').x).toBeLessThan(at('U1').x); // and the MCU
+    // never to the right: a column-major wrap may stack a group under the
+    // jack's group, which puts the two at one x
+    expect(at('J1').x).toBeLessThanOrEqual(at('U2').x); // Power Input's USB jack, Regulation's LDO
+    expect(at('J1').x).toBeLessThanOrEqual(at('U1').x); // and the MCU
   });
 });
 
@@ -338,8 +344,8 @@ describe('text keeps clear of text at paper width', () => {
           if (!s.hideValue) items.push({ name: `${s.ref} "${s.value}"`, b: centred(s.value, s.valueAt.x, s.valueAt.y) });
         }
         for (const c of model.captions) {
-          const w = Math.max(1, c.text.length) * ADV * 2;
-          items.push({ name: `caption "${c.text}"`, b: { minX: c.x, maxX: c.x + w, minY: c.y, maxY: c.y + 2 } });
+          const w = Math.max(1, c.text.length) * ADV * CAPTION_SIZE;
+          items.push({ name: `caption "${c.text}"`, b: { minX: c.x, maxX: c.x + w, minY: c.y, maxY: c.y + CAPTION_SIZE } });
         }
         const pairs: string[] = [];
         for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) if (overlap(items[i]!.b, items[j]!.b)) pairs.push(`${items[i]!.name} × ${items[j]!.name}`);
@@ -372,7 +378,10 @@ describe('pin-anchored hangs (#220 phase 3)', () => {
     // a person attaches 0.90 to 1.00 (research/GOOD-SCHEMATIC.md); these
     // floors are where the engine stands with hangs and no rotation, so a
     // regression shows and progress can raise them
-    const floors: Record<string, number> = { 'buck-12v-5v': 0.55, 'ldo-demo': 0.8, 'usb-atmega-node': 0.7, 'npn-switch': 0.25 };
+    // raised with each placement pass: connectors and switches now anchor
+    // hangs and a transistor ends the run that drives it (npn-switch 0.25 to
+    // 0.57, usb-atmega-node 0.71 to 0.88)
+    const floors: Record<string, number> = { 'buck-12v-5v': 0.55, 'ldo-demo': 0.8, 'usb-atmega-node': 0.85, 'npn-switch': 0.55 };
     for (const [board, floor] of Object.entries(floors)) {
       const { ws } = await measured(board);
       const attached = ws.twoPin ? ws.twoPinAttached / ws.twoPin : 1;
@@ -464,4 +473,76 @@ describe('reference boards pass the sheet-fit gate', () => {
       }
     }
   }, 60000);
+});
+
+describe('the squeeze: cells sized from what they drew', () => {
+  it('reports its rounds and never grows the group boxes', async () => {
+    const { report } = await place(mcusWithBank(4, 24));
+    expect(report.sheetFit.squeeze).toBeDefined();
+    const sq = report.sheetFit.squeeze!;
+    expect(sq.boxAreaAfter).toBeLessThanOrEqual(sq.boxAreaBefore);
+    if (sq.rounds > 0) expect(report.notes.some((n) => /^cells measured:/.test(n))).toBe(true);
+    else expect(report.notes.some((n) => /^cells measured:/.test(n))).toBe(false);
+  });
+});
+
+/** Seven groups of stacked MCUs at mixed heights, in declared order: the
+ * shape of the engagement sheet (tall, short, tall, short, short, tall,
+ * short) with nothing hung, so only the wrap decides the sheet. */
+function sevenGroups(): SchematicIntent {
+  const parts = [];
+  const noConnect: string[] = [];
+  const nets: { name: string; pins: string[] }[] = [];
+  const heights = [6, 2, 7, 3, 3, 5, 3];
+  let n = 0;
+  for (const [g, count] of heights.entries()) {
+    const refs: string[] = [];
+    for (let i = 0; i < count; i++) {
+      n++;
+      parts.push({ ref: `U${n}`, libId: 'CopperMCU:MCU8', value: 'MCU8', group: `G${g + 1}` });
+      for (const p of ['3', '4', '5', '6', '7', '8']) noConnect.push(`U${n}.${p}`);
+      refs.push(`U${n}`);
+    }
+    nets.push({ name: `VCC${g + 1}`, pins: refs.map((r) => `${r}.1`) });
+    nets.push({ name: `GND`, pins: [...(nets.find((x) => x.name === 'GND')?.pins ?? []), ...refs.map((r) => `${r}.2`)] });
+  }
+  return { version: 1, parts, nets: nets.filter((x, i, all) => x.name !== 'GND' || all.findIndex((y) => y.name === 'GND') === i), noConnect };
+}
+
+describe('the look: a wrapped sheet is fitted again on measured label reach (AC-16.63)', () => {
+  it('records the look on a wrapped sheet and never keeps a larger sheet or a worse draft', async () => {
+    const { model, report } = await place(sevenGroups());
+    const wrapped = report.notes.some((n) => /wrapped onto|laid in \d+ columns/.test(n));
+    if (!wrapped) return;
+    expect(report.sheetFit.look).toBeDefined();
+    const look = report.sheetFit.look!;
+    const idx = (p: string): number => Object.keys(PAPER_DIMS).indexOf(p);
+    expect(idx(look.paperAfter)).toBeLessThanOrEqual(idx(look.paperBefore));
+    expect(look.paperAfter).toBe(report.paper);
+    if (look.kept && look.paperAfter !== look.paperBefore) {
+      expect(report.notes.some((n) => /^label reach measured: the wrap fitted again takes/.test(n))).toBe(true);
+    }
+    expectInsideFrame(model);
+  });
+});
+
+describe('masonry wrap: groups dealt to columns that each stack their own (AC-16.62)', () => {
+  it('fits the seven mixed-height groups on a sheet, with every group box inside the frame and no two overlapping', async () => {
+    const { model, report } = await place(sevenGroups());
+    expectInsideFrame(model);
+    const boxes = model.rectangles;
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const b = boxes[j]!;
+        const ox = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1);
+        const oy = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+        expect(ox <= 0.01 || oy <= 0.01).toBe(true);
+      }
+    }
+    // the fit shape is named in the notes when the groups wrapped
+    if (report.notes.some((n) => /laid in \d+ columns/.test(n))) {
+      expect(report.notes.some((n) => /each column stacks its own groups/.test(n))).toBe(true);
+    }
+  });
 });

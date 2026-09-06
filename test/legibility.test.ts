@@ -165,6 +165,38 @@ describe('legibility checker: edge semantics', () => {
     }
   });
 
+  it('a global label is measured as its flag: centred on the wire, margins and tip included', async () => {
+    // "R1" reference text 3 mm below the anchor line of a rightward flag: a
+    // local label (standing above its wire) would clear it, the flag's
+    // outline (a height each side of the line) does not.
+    const body = `
+      (wire (pts (xy 60 80) (xy 73.66 80)) (stroke (width 0) (type default)) (uuid "aaaa0000-0000-4000-8000-00000000w001"))
+      (global_label "FLAG_NET" (shape input) (at 73.66 80 0) (fields_autoplaced yes) (effects (font (size 1.27 1.27)) (justify left)) (uuid "aaaa0000-0000-4000-8000-00000000gl01"))
+      (text "R1 value" (at 76 81 0) (effects (font (size 1.27 1.27))) (uuid "aaaa0000-0000-4000-8000-00000000t001"))`;
+    const { file, cleanup } = await inTemp(sch(body));
+    try {
+      const report = await checkLegibility(file, { docsDir: DOCS });
+      expect(report.findings.filter((f) => f.kind === 'text-collision').map((f) => f.refs)).toEqual([[`text "R1 value"`, `label "FLAG_NET"`]]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a global flag continuing a vertical wire is not a label-orientation finding', async () => {
+    const body = `
+      (wire (pts (xy 60 90) (xy 60 80)) (stroke (width 0) (type default)) (uuid "aaaa0000-0000-4000-8000-00000000w001"))
+      (global_label "UP_NET" (shape passive) (at 60 80 90) (fields_autoplaced yes) (effects (font (size 1.27 1.27)) (justify left)) (uuid "aaaa0000-0000-4000-8000-00000000gl01"))
+      (label "LONE" (at 100 80 90) (effects (font (size 1.27 1.27))) (uuid "aaaa0000-0000-4000-8000-00000000lbl2"))`;
+    const { file, cleanup } = await inTemp(sch(body));
+    try {
+      const report = await checkLegibility(file, { docsDir: DOCS });
+      const turned = report.findings.filter((f) => f.kind === 'label-orientation').map((f) => f.refs[0]);
+      expect(turned).toEqual(['LONE']);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('under-estimates text extents: a marginal near-collision is not reported (design C3)', async () => {
     // A 180-rotated label extends leftward from its anchor toward the body.
     // At the true stroke-font advance (~0.85 x height) the text would reach the
@@ -254,6 +286,57 @@ describe('legibility wiring', () => {
       expect(res.ok).toBe(true); // legibility never affects the exit path (AC-16.25)
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('a flag attaches only behind its tip (AC-16.46)', () => {
+  const flag = (x: number, y: number, rot: number): string => `(global_label "X" (shape passive) (at ${x} ${y} ${rot}) (fields_autoplaced yes)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "cccc0000-0000-4000-8000-000000000001")
+    (property "Intersheetrefs" "\${INTERSHEET_REFS}" (at ${x} ${y} 0) (effects (font (size 1.27 1.27)) hide))
+  )`;
+  const wire = (x1: number, y1: number, x2: number, y2: number): string =>
+    `(wire (pts (xy ${x1} ${y1}) (xy ${x2} ${y2})) (stroke (width 0) (type default)) (uuid "dddd0000-0000-4000-8000-0000000${String(Math.round(x2 * 100)).padStart(5, '0')}"))`;
+
+  it('a wire continuing under a flag\'s text is text on a wire', async () => {
+    // the wire runs from 100 to 130 through the anchor at 110; the flag's text extends right over it
+    const { file, cleanup } = await inTemp(sch(`${wire(101.6, 101.6, 132.08, 101.6)}\n${flag(111.76, 101.6, 0)}`));
+    try {
+      const rep = await checkLegibility(file, { docsDir: null });
+      expect(rep.findings.some((f) => f.kind === 'text-collision' && /X.*sits on a wire/.test(f.detail))).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a wire ending at the flag\'s tip is its attachment, not a collision', async () => {
+    const { file, cleanup } = await inTemp(sch(`${wire(101.6, 101.6, 111.76, 101.6)}\n${flag(111.76, 101.6, 0)}`));
+    try {
+      const rep = await checkLegibility(file, { docsDir: null });
+      expect(rep.findings.filter((f) => f.kind === 'text-collision')).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('KiCad 10 hidden fields', () => {
+  it('reads `(hide yes)` on the property itself, not only inside effects', async () => {
+    // eeschema 10 writes a hidden power reference as a direct `(hide yes)`
+    // child; measured as visible it sat on the symbol's own wire
+    const body = `(wire (pts (xy 101.6 101.6) (xy 101.6 111.76)) (stroke (width 0) (type default)) (uuid "dddd0000-0000-4000-8000-000000000101"))
+(symbol (lib_id "power:GND") (at 101.6 111.76 0) (uuid "aaaa0000-0000-4000-8000-000000000901")
+  (property "Reference" "#PWR01" (at 101.6 105.41 0) (hide yes) (effects (font (size 1.27 1.27))))
+  (property "Value" "GND" (at 101.6 115.57 0) (effects (font (size 1.27 1.27))))
+  (pin "1" (uuid "bbbb0000-0000-4000-8000-000000000901"))
+)`;
+    const { file, cleanup } = await inTemp(sch(body));
+    try {
+      const rep = await checkLegibility(file, { docsDir: null });
+      expect(rep.findings.filter((f) => f.kind === 'text-collision' && /#PWR01/.test(f.detail))).toEqual([]);
+    } finally {
+      await cleanup();
     }
   });
 });

@@ -308,14 +308,26 @@ export class SymbolSource {
     return [...this.libs].sort();
   }
 
-  /** Write an engine-generated symbol block into the vendored cache (power lib). */
+  /**
+   * Write an engine-generated symbol block into the vendored cache (power lib).
+   *
+   * A generated block is the engine's, not a vendor's: when the engine's
+   * drawing of a rail or ground changes, the cached copy must follow, or every
+   * embedded power symbol on the sheet raises a lib_symbol_mismatch warning
+   * against the stale library (the triangle-ground redraw hit 111 of them on
+   * esp32-amp). A block already cached byte-for-byte is left alone.
+   */
   async vendorGenerated(libId: string, block: string): Promise<void> {
     const lib = libId.slice(0, libId.indexOf(':'));
     const name = libId.slice(libId.indexOf(':') + 1);
     const file = path.join(this.cacheDir(), vendorFileName(lib));
     await mkdir(this.cacheDir(), { recursive: true });
-    const text = existsSync(file) ? await readFile(file, 'utf8') : emptyVendorLib();
-    if (!extractSymbolBlock(text, name)) await writeFile(file, appendToVendorLib(text, block), 'utf8');
+    let text = existsSync(file) ? await readFile(file, 'utf8') : emptyVendorLib();
+    const cached = extractSymbolBlock(text, name);
+    if (cached !== block) {
+      if (cached) text = text.replace(cached + '\n', '').replace(cached, '');
+      await writeFile(file, appendToVendorLib(text, block), 'utf8');
+    }
     this.libs.add(lib);
   }
 
@@ -473,15 +485,16 @@ export function powerSymbolSource(rawNet: string, kind: 'rail' | 'ground'): { li
   const name = powerNetToken(rawNet);
   const libId = `copperhead_power:${name}`;
   // Symbol space is Y-up and the schematic transform flips it: negative-Y
-  // graphics here render BELOW the connection point on the sheet. Ground bars
-  // hang below their pin (angle 270 = line toward -Y body); rail bars sit
-  // above (angle 90).
+  // graphics here render BELOW the connection point on the sheet. A ground
+  // hangs below its pin (angle 270 = line toward -Y body) as a stem and an
+  // open triangle, the reference-ground glyph; a rail rises above (angle 90)
+  // as a stem and a filled arrowhead, the way KiCad's own +3V3 draws. Both
+  // reach 2.54 from the pin, inside the 2-unit box the engine reserves.
   const body =
     kind === 'ground'
       ? `\t(symbol "${name}_0_1"
-\t\t(polyline (pts (xy -1.27 -1.27) (xy 1.27 -1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
-\t\t(polyline (pts (xy -0.762 -1.778) (xy 0.762 -1.778)) (stroke (width 0.254) (type default)) (fill (type none)))
-\t\t(polyline (pts (xy -0.254 -2.286) (xy 0.254 -2.286)) (stroke (width 0.254) (type default)) (fill (type none)))
+\t\t(polyline (pts (xy 0 0) (xy 0 -1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+\t\t(polyline (pts (xy -1.27 -1.27) (xy 1.27 -1.27) (xy 0 -2.54) (xy -1.27 -1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
 \t)
 \t(symbol "${name}_1_1"
 \t\t(pin power_in line (at 0 0 270) (length 0) hide
@@ -490,7 +503,8 @@ export function powerSymbolSource(rawNet: string, kind: 'rail' | 'ground'): { li
 \t\t)
 \t)`
       : `\t(symbol "${name}_0_1"
-\t\t(polyline (pts (xy -1.27 1.27) (xy 1.27 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+\t\t(polyline (pts (xy 0 0) (xy 0 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+\t\t(polyline (pts (xy -0.762 1.27) (xy 0 2.54) (xy 0.762 1.27) (xy -0.762 1.27)) (stroke (width 0.254) (type default)) (fill (type outline)))
 \t)
 \t(symbol "${name}_1_1"
 \t\t(pin power_in line (at 0 0 90) (length 0) hide

@@ -1,0 +1,9 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "Connector")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Connector.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Connector_Generic")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Connector_Generic.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Device")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Device.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "MCU_Microchip_ATmega")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/MCU_Microchip_ATmega.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Regulator_Linear")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Regulator_Linear.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "copperhead_power")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/copperhead_power.kicad_sym")(options "")(descr "copperhead vendored"))
+)

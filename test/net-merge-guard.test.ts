@@ -134,7 +134,7 @@ Connector.
       const wires: Seg[] = [...text.matchAll(/\(wire\s*\(pts\s*\(xy ([\d.-]+) ([\d.-]+)\)\s*\(xy ([\d.-]+) ([\d.-]+)\)/g)].map(
         (m) => ({ x1: +m[1]!, y1: +m[2]!, x2: +m[3]!, y2: +m[4]! }),
       );
-      const labels = [...text.matchAll(/\(label "([^"]+)"\s*\(at ([\d.-]+) ([\d.-]+)/g)].map((m) => ({
+      const labels = [...text.matchAll(/\((?:global_)?label "([^"]+)"(?: \(shape \w+\))?\s*\(at ([\d.-]+) ([\d.-]+)/g)].map((m) => ({
         name: m[1]!,
         x: +m[2]!,
         y: +m[3]!,

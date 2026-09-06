@@ -41,6 +41,8 @@ export interface EmitSymbol {
   value: string;
   footprint: string;
   at: { x: number; y: number; rot: number };
+  /** KiCad `(mirror x|y)`: y flips the symbol left-for-right (a transistor whose base must face right). */
+  mirror?: 'x' | 'y';
   /** Reference/Value text anchors (absolute). Hidden properties reuse the origin. */
   refAt: { x: number; y: number };
   valueAt: { x: number; y: number };
@@ -55,6 +57,38 @@ export interface EmitSymbol {
   unit?: number;
 }
 
+/** Flag outline of a global label: KiCad's shape vocabulary, chosen from the
+ * electrical type of the pin the label serves (`shape` is cosmetic in ERC). */
+export type LabelShape = 'input' | 'output' | 'bidirectional' | 'passive';
+
+export interface EmitLabel {
+  name: string;
+  x: number;
+  y: number;
+  /** KiCad's own rotation: text extends right (0), up (90), left (180) or
+   * down (270) from the anchor, in schematic Y-down coordinates. */
+  rot: number;
+  /** A `global` label draws as a bordered flag whose tip sits on the wire
+   * end; a `local` one is bare text standing on its wire. Nets that leave a
+   * wired run through a stub carry global flags everywhere (a local and a
+   * global label of one name do not connect in KiCad); a net wired whole
+   * keeps a plain local name on the run. Unstated means local. */
+  kind?: 'local' | 'global';
+  /** Flag shape of a global label; unstated means passive (a plain box). */
+  shape?: LabelShape;
+}
+
+/** Font height, mm, of a group caption; bold so a subsystem title reads at
+ * arm's length on an A1/A2 sheet. */
+export const CAPTION_SIZE = 3.5;
+/** Font height, mm, of every net label. */
+export const LABEL_SIZE = 1.27;
+/** Stroke thickness, mm, of label text and the flag outline drawn with it;
+ * KiCad's default is size/8 ≈ 0.16, too faint against a coloured wire. */
+export const LABEL_THICKNESS = 0.2;
+/** Wire stroke width, mm; 0 would mean KiCad's default of 0.1524. */
+export const WIRE_WIDTH = 0.254;
+
 export interface PlacementModel {
   projectName: string;
   paper: string;
@@ -64,7 +98,7 @@ export interface PlacementModel {
   symbols: EmitSymbol[];
   wires: { x1: number; y1: number; x2: number; y2: number; net: string; index: number }[];
   junctions: { x: number; y: number }[];
-  labels: { name: string; x: number; y: number; rot: number }[];
+  labels: EmitLabel[];
   noConnects: { x: number; y: number }[];
   rectangles: { x1: number; y1: number; x2: number; y2: number; stroke: 'solid' | 'dash'; name: string }[];
   captions: { text: string; x: number; y: number; name: string }[];
@@ -157,7 +191,7 @@ export function emitSchematic(model: PlacementModel): string {
   for (const w of wires) {
     L.push('\t(wire');
     L.push(`\t\t(pts (xy ${knum(w.x1)} ${knum(w.y1)}) (xy ${knum(w.x2)} ${knum(w.y2)}))`);
-    L.push(`\t\t(stroke (width 0) (type default)${colorOf(w.net)})`);
+    L.push(`\t\t(stroke (width ${knum(WIRE_WIDTH)}) (type default)${colorOf(w.net)})`);
     L.push(`\t\t(uuid ${q(id(`wire/${w.net}/${w.index}`))})`);
     L.push('\t)');
   }
@@ -174,18 +208,36 @@ export function emitSchematic(model: PlacementModel): string {
   const caps = [...model.captions].sort((a, b) => a.name.localeCompare(b.name));
   for (const c of caps) {
     L.push(`\t(text ${q(c.text)} (at ${knum(c.x)} ${knum(c.y)} 0)`);
-    L.push('\t\t(effects (font (size 2 2)) (justify left top))');
+    L.push(`\t\t(effects (font (size ${knum(CAPTION_SIZE)} ${knum(CAPTION_SIZE)}) bold) (justify left top))`);
     L.push(`\t\t(uuid ${q(id(`caption/${c.name}`))})`);
     L.push('\t)');
   }
 
   const labels = [...model.labels].sort((a, b) => a.name.localeCompare(b.name) || a.x - b.x || a.y - b.y);
   for (const lb of labels) {
+    const uuid = q(id(`label/${lb.name}/${knum(lb.x)},${knum(lb.y)}`));
+    if (lb.kind === 'global') {
+      // eeschema's own encoding of a flag: the stored angle is the true one
+      // and the justification names the side of the anchor the text is on
+      // (left = extends right/up, right = extends left/down)
+      const rot = ((lb.rot % 360) + 360) % 360;
+      const justify = rot === 180 || rot === 270 ? 'right' : 'left';
+      L.push(`\t(global_label ${q(lb.name)} (shape ${lb.shape ?? 'passive'}) (at ${knum(lb.x)} ${knum(lb.y)} ${knum(rot)}) (fields_autoplaced yes)`);
+      L.push(`\t\t(effects (font (size ${knum(LABEL_SIZE)} ${knum(LABEL_SIZE)}) (thickness ${knum(LABEL_THICKNESS)})${colorOf(lb.name)}) (justify ${justify}))`);
+      L.push(`\t\t(uuid ${uuid})`);
+      L.push(`\t\t(property "Intersheetrefs" "\${INTERSHEET_REFS}" (at ${knum(lb.x)} ${knum(lb.y)} 0)`);
+      L.push(`\t\t\t(effects (font (size ${knum(LABEL_SIZE)} ${knum(LABEL_SIZE)})) hide)`);
+      L.push('\t\t)');
+      L.push('\t)');
+      continue;
+    }
+    // a local label never draws upside down: 180/270 are drawn as 0/90 with
+    // the justification mirrored, which is how eeschema itself stores them
     const justify = lb.rot === 180 || lb.rot === 270 ? 'right bottom' : 'left bottom';
     const drawRot = lb.rot === 180 ? 0 : lb.rot === 270 ? 90 : lb.rot;
     L.push(`\t(label ${q(lb.name)} (at ${knum(lb.x)} ${knum(lb.y)} ${knum(drawRot)})`);
-    L.push(`\t\t(effects (font (size 1.27 1.27)${colorOf(lb.name)}) (justify ${justify}))`);
-    L.push(`\t\t(uuid ${q(id(`label/${lb.name}/${knum(lb.x)},${knum(lb.y)}`))})`);
+    L.push(`\t\t(effects (font (size ${knum(LABEL_SIZE)} ${knum(LABEL_SIZE)}) (thickness ${knum(LABEL_THICKNESS)})${colorOf(lb.name)}) (justify ${justify}))`);
+    L.push(`\t\t(uuid ${uuid})`);
     L.push('\t)');
   }
 
@@ -202,16 +254,22 @@ export function emitSchematic(model: PlacementModel): string {
     L.push('\t(symbol');
     L.push(`\t\t(lib_id ${q(s.libId)})`);
     L.push(`\t\t(at ${knum(s.at.x)} ${knum(s.at.y)} ${knum(s.at.rot)})`);
+    if (s.mirror) L.push(`\t\t(mirror ${s.mirror})`);
     L.push(`\t\t(unit ${unit})`);
     L.push('\t\t(exclude_from_sim no)');
     L.push('\t\t(in_bom yes)');
     L.push('\t\t(on_board yes)');
     L.push('\t\t(dnp no)');
     L.push(`\t\t(uuid ${q(sid)})`);
-    L.push(`\t\t(property "Reference" ${q(s.ref)} (at ${knum(s.refAt.x)} ${knum(s.refAt.y)} 0)`);
+    // KiCad adds the symbol's rotation to a property's angle when it draws
+    // the text, so a part turned 90 or 270 stores 90 to keep its reference
+    // and value reading horizontally (every rotated resistor in KiCad's own
+    // demos does). Storing 0 stood the bootstrap caps' values on end.
+    const fieldRot = s.at.rot % 180 === 90 ? 90 : 0;
+    L.push(`\t\t(property "Reference" ${q(s.ref)} (at ${knum(s.refAt.x)} ${knum(s.refAt.y)} ${fieldRot})`);
     L.push(`\t\t\t(effects (font (size 1.27 1.27))${hideRef})`);
     L.push('\t\t)');
-    L.push(`\t\t(property "Value" ${q(s.value)} (at ${knum(s.valueAt.x)} ${knum(s.valueAt.y)} 0)`);
+    L.push(`\t\t(property "Value" ${q(s.value)} (at ${knum(s.valueAt.x)} ${knum(s.valueAt.y)} ${fieldRot})`);
     L.push(`\t\t\t(effects (font (size 1.27 1.27))${hideValue})`);
     L.push('\t\t)');
     L.push(`\t\t(property "Footprint" ${q(s.footprint)} (at ${knum(s.at.x)} ${knum(s.at.y)} 0)`);

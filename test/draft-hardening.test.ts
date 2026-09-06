@@ -332,6 +332,78 @@ async function draftIntent(
   return { res, repo, cleanup: () => rm(repo, { recursive: true, force: true }) };
 }
 
+describe('net labels are global flags shaped by their pin and turned with their stub', () => {
+  /**
+   * Bare local labels sat on wire ends as floating text, always horizontal,
+   * with 180/270 faked through justification. A flag at the end of a stub is
+   * what a reviewer expects: the outline ties the name to the wire, the
+   * rotation follows the stub, the shape says what the pin is. And a net may
+   * not mix kinds: a local label and a global label of one name are two nets
+   * to KiCad, so every name on the sheet is one kind or the other.
+   */
+  it('emits global flags at stubs, per-pin shapes, stub-following rotation, and one label kind per net', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-flags-'));
+    try {
+      const docs = path.join(repo, 'docs');
+      await mkdir(docs, { recursive: true });
+      await writeFile(path.join(docs, 'SUBSYSTEMS.md'), '## Alpha\n\n## Beta\n', 'utf8');
+      await writeFile(
+        path.join(repo, 'schematic.intent.json'),
+        JSON.stringify({
+          version: 1,
+          parts: [
+            { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'Alpha' },
+            { ref: 'R1', libId: 'Device:R', value: '10k', group: 'Beta' },
+            { ref: 'R2', libId: 'Device:R', value: '10k', group: 'Beta' },
+          ],
+          nets: [
+            // U1.3 is an input pin on the MCU's left; U1.4 a bidirectional on its right
+            { name: 'SIG_IN', pins: ['U1.3', 'R1.1'], kind: 'signal' },
+            { name: 'SIG_IO', pins: ['U1.4', 'R2.1'], kind: 'signal' },
+            { name: 'SIG_TAIL', pins: ['R1.2', 'R2.2'], kind: 'signal' },
+          ],
+        }),
+        'utf8',
+      );
+      const res = await draftSchematic({
+        repoRoot: repo,
+        schematic: 'board.kicad_sch',
+        intentPath: 'schematic.intent.json',
+        docsDir: docs,
+        symbolDirs: [SYMLIB],
+      });
+      expect(res.ok, res.ok ? '' : res.message).toBe(true);
+      if (!res.ok) return;
+      const text = await readFile(res.schematicPath, 'utf8');
+
+      // the MCU's stubs: leftward input pin reads leftward as an input flag,
+      // rightward bidirectional pin reads rightward as a bidirectional flag
+      expect(text).toMatch(/\(global_label "SIG_IN" \(shape input\) \(at [\d.]+ [\d.]+ 180\)[\s\S]*?\(justify right\)/);
+      expect(text).toMatch(/\(global_label "SIG_IO" \(shape bidirectional\) \(at [\d.]+ [\d.]+ 0\)[\s\S]*?\(justify left\)/);
+      // a resistor's vertical pin: a passive box on its stub, reading along
+      // the row when nothing stands there (the drafting standard keeps text
+      // horizontal), else standing on or hanging from the stub
+      expect(text).toMatch(/\(global_label "SIG_IN" \(shape passive\) \(at [\d.]+ [\d.]+ (0|90|180|270)\)/);
+      // no bare local label shares a name with a flag
+      const locals = new Set([...text.matchAll(/\(label "([^"]+)"/g)].map((m) => m[1]!));
+      const globals = new Set([...text.matchAll(/\(global_label "([^"]+)"/g)].map((m) => m[1]!));
+      expect([...locals].filter((n) => globals.has(n))).toEqual([]);
+      // every flag carries the hidden intersheet-refs field eeschema expects
+      expect((text.match(/\(global_label /g) ?? []).length).toBe((text.match(/"Intersheetrefs"/g) ?? []).length);
+
+      const leg = await checkLegibility(res.schematicPath, { docsDir: docs });
+      expect(leg.findings.filter((f) => f.severity === 'error'), JSON.stringify(leg.findings, null, 2)).toEqual([]);
+      // the sheet loads in KiCad and every flag is connected to something:
+      // the repro leaves MCU supply pins open on purpose, so only the
+      // label-related ERC families are asserted
+      const erc = await runErc(res.schematicPath);
+      expect(erc.violations.filter((v) => /label/i.test(`${v.type} ${v.description}`))).toEqual([]);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  }, 60000);
+});
+
 describe('facing long-named labels draft clean by construction', () => {
   /**
    * The reviewed head could emit a sheet that failed its own error-severity
@@ -410,6 +482,27 @@ describe('point identity is the emitted coordinate, not the float', () => {
 });
 
 describe('power net names cannot corrupt the generated symbol source', () => {
+  it('vendorGenerated replaces a stale cached block instead of keeping it', async () => {
+    // The cached power lib is the engine's own output. When the engine's
+    // drawing changes, a cache that keeps the old block makes ERC report a
+    // lib_symbol_mismatch on every power symbol of the sheet.
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-vendor-gen-'));
+    try {
+      const src = new SymbolSource(repo, [SYMLIB]);
+      const stale = '(symbol "GND"\n\t(power)\n\t(property "Value" "GND" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))\n)';
+      await src.vendorGenerated('copperhead_power:GND', stale);
+      const fresh = powerSymbolSource('GND', 'ground');
+      await src.vendorGenerated(fresh.libId, fresh.sourceText);
+      await src.vendorGenerated('copperhead_power:+3V3', powerSymbolSource('+3V3', 'rail').sourceText);
+      const text = await readFile(path.join(repo, 'sym-lib-cache', 'copperhead_power.kicad_sym'), 'utf8');
+      expect(extractSymbolBlock(text, 'GND')).toBe(fresh.sourceText);
+      expect(text.match(/\(symbol "GND"/g)).toHaveLength(1);
+      expect(extractSymbolBlock(text, '+3V3')).not.toBeNull();
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('powerSymbolSource escapes quotes and backslashes into a single parseable block', () => {
     for (const name of ['V"CC', 'V\\CC']) {
       const src = powerSymbolSource(name, 'rail');

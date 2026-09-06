@@ -1,0 +1,23 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {},
+      "rules": {}
+    }
+  },
+  "erc": {
+    "rule_severities": {}
+  },
+  "libraries": {
+    "pinned_footprint_libs": [],
+    "pinned_symbol_libs": []
+  },
+  "meta": {
+    "filename": "usb-atmega-node.kicad_pro",
+    "version": 1
+  },
+  "schematic": {
+    "legacy_lib_dir": "",
+    "legacy_lib_list": []
+  }
+}
