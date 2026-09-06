@@ -75,9 +75,15 @@ describe('capability conformance', () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const ctx = await lockedCtx(repo);
+      // The property is about what `list` HANDS OUT, not about the declared
+      // gate: a skill declaring edit_file legitimately has an open ownGate
+      // (defineSkill defaults it to `() => true`) and is correctly absent while
+      // locked. Asserting on ownGate would fail that skill the day someone adds
+      // one; asserting on membership fails only the case that actually matters —
+      // a listed skill whose declared tools are not all open.
+      const listed = new Set(registry.list(ctx).map((e) => e.name));
       for (const s of registry.skills()) {
-        const conj = registry.conjunction(s.tools, ctx);
-        if (s.ownGate(ctx)) expect(conj, s.name).toBe(true);
+        if (listed.has(s.name)) expect(registry.conjunction(s.tools, ctx), s.name).toBe(true);
       }
     } finally {
       await cleanup();

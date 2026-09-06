@@ -4,6 +4,12 @@ import path from 'node:path';
 import type { Msg, Provider } from './types.js';
 import { resolveLibrarySymbol, searchInstalledSymbols, symbolSearchDirs, listInstalledLibraries } from '../kicad/symlib.js';
 
+/**
+ * How many times a hung provider turn is retried before the run gives up. One
+ * policy, two turn loops: the main agent loop and the nested skill sub-run.
+ */
+export const MAX_TURN_TIMEOUTS = 3;
+
 /** Thrown when a single provider turn blows past its watchdog deadline. */
 export class TurnTimeoutError extends Error {
   constructor(public readonly ms: number) {

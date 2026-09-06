@@ -349,21 +349,26 @@ skillCmd
   .action(async (name: string, opts: { model?: string; scope?: string }) => {
     const repo = repoOf(program.opts());
     const json = Boolean(program.opts().json);
+    // `process.exit` skips pending finally blocks, so the provider close has to
+    // finish before the exit call — hence the code is carried out, not exited on.
+    let code = 1;
     try {
-      const { runSkill, providerForSkillRun, formatSkillEnvelope } = await import('./commands/skill.js');
+      const { runSkillCli, providerForSkillRun } = await import('./commands/skill.js');
       const { provider } = await providerForSkillRun(repo, opts.model);
-      const result = await runSkill({
+      const res = await runSkillCli({
         repoRoot: repo,
         name,
         args: { scope: opts.scope === 'power' ? 'power' : 'all' },
         provider,
+        json,
       });
-      console.log(formatSkillEnvelope(result, json));
-      process.exit(result.ok ? 0 : 1);
+      console.log(res.text);
+      code = res.code;
     } catch (err) {
       console.error((err as Error).message);
-      process.exit(1);
+      code = 1;
     }
+    process.exit(code);
   });
 
 program

@@ -5,7 +5,7 @@ import type { Msg, Provider, Turn } from './types.js';
 import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
 import { flatten } from './envelope.js';
 import { CachingProvider } from './response-cache.js';
-import { withTimeout, TurnTimeoutError } from './recovery.js';
+import { withTimeout, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js';
 import { buildSystemPrompt } from './prompts.js';
 import { loadConstraints, reopenDeferredAffects } from '../memory/constraints.js';
 import { isCreateProducedRepo, isEngineAuthoredSchematic } from '../kicad/fab.js';
@@ -350,7 +350,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   let plan: string | null = null;
   let nudges = 0;
   let turnTimeouts = 0;
-  const maxTurnTimeouts = 3;
+  const maxTurnTimeouts = MAX_TURN_TIMEOUTS;
 
   const stats = (exitPath: ExitPath): RunStats => ({
     exitPath,

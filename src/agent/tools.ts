@@ -3,7 +3,7 @@ import { corruptionError } from '../capabilities/helpers.js';
 import { flatten, failResult, seal, unavailable, type ToolResult } from './envelope.js';
 import { registry } from './registry.js';
 import { withRetry, isRateLimit } from '../util/retry.js';
-import { TurnTimeoutError, withTimeout } from './recovery.js';
+import { MAX_TURN_TIMEOUTS, TurnTimeoutError, withTimeout } from './recovery.js';
 import type { RunContext } from './context.js';
 import type { Msg, Provider, Turn } from './types.js';
 
@@ -83,7 +83,7 @@ export async function runSkillSubRun(opts: {
           );
           break;
         } catch (err) {
-          if (err instanceof TurnTimeoutError && timeoutRetries++ < 3) {
+          if (err instanceof TurnTimeoutError && timeoutRetries++ < MAX_TURN_TIMEOUTS) {
             await ctx.transcript.event('skill-turn-timeout', {
               skill: skill.name,
               ms: ctx.config.turnTimeoutMs,

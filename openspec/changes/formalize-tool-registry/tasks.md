@@ -62,3 +62,12 @@
 - [x] 8.4 Keep `skill list` filesystem-side-effect-free and give off-list skill calls an accurate unavailable reason
 - [x] 8.5 Clone registry entries before binding default gates; cover weak gates, singleton isolation, refusal, JSON, no-provider, nudge, exception, retry, timeout, partial, and repeated-result paths
 - [x] 8.6 Re-run typecheck, focused tests, full offline suite, build, and `openspec validate formalize-tool-registry`; document environment-only failures honestly
+
+## 9. PR #255 second-round review fixes
+
+- [x] 9.1 Close the provider `skill run` created on every exit path (`runSkillCli`), so no saved-login working directory or subprocess outlives the command
+- [x] 9.2 `verify_symbols` reports `ok` from real mismatches, not from the unverifiable `no-library` bucket
+- [x] 9.3 Conformance asserts the property that matters — a skill present in `registry.list(ctx)` has every declared tool's gate open — instead of the declared `ownGate`
+- [x] 9.4 Availability test brackets its singleton gate swap so no assertion can leak it; drop the dead `isRetryableToolKind` export (retry policy stays pinned by the 429/exception dispatch test)
+- [x] 9.5 One `MAX_TURN_TIMEOUTS` constant shared by the main loop and the nested sub-run
+- [x] 9.6 Re-run typecheck, build, full offline suite, and `openspec validate formalize-tool-registry`
