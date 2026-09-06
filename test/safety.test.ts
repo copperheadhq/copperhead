@@ -6,7 +6,7 @@ import path from 'node:path';
 import { resolveInRepo, SandboxError, isKicadFile } from '../src/util/paths.js';
 import { redactSecrets } from '../src/util/redact.js';
 import { withRetry } from '../src/util/retry.js';
-import { toolWriteFile, toolEditFile, toolSearch } from '../src/agent/filetools.js';
+import { toolWriteFile, toolEditFile, toolSearch, globToRegex } from '../src/agent/filetools.js';
 import { Transcript } from '../src/agent/transcript.js';
 import { isDirty, hasCommits, snapshot, restore } from '../src/util/git.js';
 import { PreflightError } from '../src/util/preflight.js';
@@ -186,6 +186,55 @@ describe('file tools', () => {
     const mdOnly = await toolSearch(dir, 'KEY_DAH', '**/*.md');
     expect(mdOnly).toHaveLength(1);
     expect(mdOnly[0]!.file).toBe('a.md');
+  });
+
+  it('globToRegex normalizes path separators and distinguishes root vs nested globs', () => {
+    // Normalizes backslashes in glob input
+    expect(globToRegex('docs\\*.md').test('docs/BOM.md')).toBe(true);
+    expect(globToRegex('docs/*.md').test('docs/BOM.md')).toBe(true);
+
+    // Directory-scoped glob matches immediate children only
+    const docsGlob = globToRegex('docs/*.md');
+    expect(docsGlob.test('docs/BOM.md')).toBe(true);
+    expect(docsGlob.test('docs/sub/BOM.md')).toBe(false);
+    expect(docsGlob.test('BOM.md')).toBe(false);
+
+    // Root-level glob matches top-level files only, never subdirectories
+    const rootGlob = globToRegex('*.md');
+    expect(rootGlob.test('README.md')).toBe(true);
+    expect(rootGlob.test('docs/BOM.md')).toBe(false);
+    expect(rootGlob.test('docs/sub/BOM.md')).toBe(false);
+
+    // Recursive glob matches top-level and nested
+    const recGlob = globToRegex('**/*.md');
+    expect(recGlob.test('README.md')).toBe(true);
+    expect(recGlob.test('docs/BOM.md')).toBe(true);
+    expect(recGlob.test('docs/sub/BOM.md')).toBe(true);
+  });
+
+  it('toolSearch correctly filters directory-scoped and root-scoped globs across directories', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-glob-'));
+    await mkdir(path.join(dir, 'docs', 'sub'), { recursive: true });
+    await writeFile(path.join(dir, 'README.md'), 'TARGET_FIND');
+    await writeFile(path.join(dir, 'docs', 'BOM.md'), 'TARGET_FIND');
+    await writeFile(path.join(dir, 'docs', 'sub', 'NOTE.md'), 'TARGET_FIND');
+    await writeFile(path.join(dir, 'other.txt'), 'TARGET_FIND');
+
+    // Root-level glob only matches top-level README.md
+    const rootMatches = await toolSearch(dir, 'TARGET_FIND', '*.md');
+    expect(rootMatches.map((m) => m.file)).toEqual(['README.md']);
+
+    // Directory-scoped glob matches docs/BOM.md (with POSIX slashes)
+    const dirMatches = await toolSearch(dir, 'TARGET_FIND', 'docs/*.md');
+    expect(dirMatches.map((m) => m.file)).toEqual(['docs/BOM.md']);
+
+    // Directory-scoped glob with backslash input matches docs/BOM.md
+    const winDirMatches = await toolSearch(dir, 'TARGET_FIND', 'docs\\*.md');
+    expect(winDirMatches.map((m) => m.file)).toEqual(['docs/BOM.md']);
+
+    // Recursive glob matches all markdown files
+    const recMatches = await toolSearch(dir, 'TARGET_FIND', '**/*.md');
+    expect(recMatches.map((m) => m.file).sort()).toEqual(['README.md', 'docs/BOM.md', 'docs/sub/NOTE.md'].sort());
   });
 
   it('isKicadFile covers the design formats', () => {
