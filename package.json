@@ -62,13 +62,14 @@
     "realdesigns": "tsx scripts/draft-real-designs.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.113.0",
+    "@anthropic-ai/sdk": "^0.122.0",
     "commander": "^12.1.0",
     "execa": "^9.5.2",
     "openai": "^6.49.0"
   },
   "optionalDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.217"
+    "@anthropic-ai/claude-agent-sdk": "^0.3.217",
+    "@anthropic-ai/vertex-sdk": "^0.19.6"
   },
   "devDependencies": {
     "@openai/codex-sdk": "^0.144.6",

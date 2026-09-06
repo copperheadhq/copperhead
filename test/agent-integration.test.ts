@@ -46,6 +46,18 @@ const providers: { model: string; key: string | undefined }[] = [
         ? (process.env[process.env.COPPERHEAD_API_KEY_ENV ?? 'OPENAI_API_KEY'] ?? 'local-endpoint-no-key')
         : undefined,
   },
+  // Claude via Google Cloud Vertex AI (ADC, no model API key). Runs only on
+  // explicit opt-in AND a resolvable GCP project, so the default suite stays
+  // offline and free; the ADC credential itself can't be verified here — a
+  // missing/expired one fails inside the run, which is the point of the gate.
+  {
+    model: process.env.COPPERHEAD_TEST_VERTEX_MODEL ?? 'vertex',
+    key:
+      process.env.COPPERHEAD_TEST_VERTEX === '1' &&
+      (process.env.COPPERHEAD_VERTEX_PROJECT || process.env.ANTHROPIC_VERTEX_PROJECT_ID)
+        ? 'adc-google-credentials'
+        : undefined,
+  },
 ];
 
 function claudeCodeSdkInstalled(): boolean {

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { loadConfig, resolveCompatSettings } from '../config.js';
+import { loadConfig, resolveCompatSettings, resolveVertexSettings, type VertexSettings } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
 import { exportSvg, runErc } from '../kicad/cli.js';
 import { listSymbols } from '../kicad/sexp.js';
@@ -475,10 +475,12 @@ async function diagnose(input: {
   maxAttempts: number;
   /** Compatible-endpoint settings, so a `compat` run can diagnose itself. */
   compat?: CompatSettings | undefined;
+  /** Vertex settings, so a `vertex` run can diagnose itself. */
+  vertex?: VertexSettings | undefined;
 }): Promise<StageDiagnosis> {
   let provider: Provider | undefined;
   try {
-    provider = await makeProvider(input.model, false, input.compat);
+    provider = await makeProvider(input.model, false, input.compat, input.vertex);
     const p = provider;
     const excerpt = await transcriptExcerpt(input.transcriptDir);
     return await withTimeout(
@@ -932,6 +934,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         model: opts.model,
         timeoutMs: config.turnTimeoutMs,
         compat: resolveCompatSettings(config),
+        vertex: resolveVertexSettings(config),
         stageName: stage.name,
         stageGoal: basePrompt,
         failure,

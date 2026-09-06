@@ -88,6 +88,43 @@ describe('secret redaction (AC-4.1)', () => {
     expect(out).toBe('[REDACTED] [REDACTED]');
   });
 
+  it('redacts Google OAuth access tokens (ya29., the Vertex wire credential)', () => {
+    // Synthetic, correctly-shaped, never valid.
+    const out = redactSecrets('token: ya29.a0AfB_byC-0123456789abcdefghijklmnop.qrstuv-wxyz');
+    expect(out).toBe('token: [REDACTED]');
+    expect(out).not.toContain('ya29.a0');
+  });
+
+  it('redacts PEM private-key blocks (e.g. a GCP service-account private_key)', () => {
+    // Synthetic key material spanning lines, as it would appear quoted in a log.
+    const pem = '-----BEGIN PRIVATE KEY-----\nMIIEvFAKEKEYMATERIAL\nMORELINES==\n-----END PRIVATE KEY-----';
+    const out = redactSecrets(`before ${pem} after`);
+    expect(out).toBe('before [REDACTED] after');
+    expect(out).not.toContain('FAKEKEYMATERIAL');
+    // The RSA-labelled variant too.
+    const rsa = '-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----';
+    expect(redactSecrets(rsa)).toBe('[REDACTED]');
+  });
+
+  it('redacts a truncated PEM block whose footer never arrives', () => {
+    // Output cut mid-key, or a stream that ended between header and footer:
+    // the full-block pattern cannot match, so the header-anchored fallback
+    // bounds the damage to the base64 body lines that follow.
+    const body = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwFAKEKEYMATERIAL';
+    const out = redactSecrets(`error:\n-----BEGIN PRIVATE KEY-----\n${body}\n${body}\nnot key material`);
+    expect(out).not.toContain('FAKEKEYMATERIAL');
+    expect(out).not.toContain('BEGIN PRIVATE KEY');
+    expect(out).toContain('error:'); // text before the block is kept
+    expect(out).toContain('not key material'); // and the first non-body line
+  });
+
+  it('the truncated-PEM fallback does not eat an ordinary hash on its own line', () => {
+    // The fallback is anchored on a PEM header, so a bare 40-char SHA-1 (or
+    // any long base64-ish line) with no header above it is untouched.
+    const sha = '356a192b7913b04c54574d18c28d46e6395428ab';
+    expect(redactSecrets(`commit\n${sha}\ndone`)).toContain(sha);
+  });
+
   it('redacts a Google key with a prefix other than AIzaSy — regression', () => {
     // AIzaSy is the common fifth/sixth pair but not the only one Google
     // issues; the pattern must match on AIza alone.
