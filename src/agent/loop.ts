@@ -615,7 +615,17 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       const { outcome, summary } = ctx.finishRequest;
       const files = [...ctx.filesTouched];
       if (outcome === 'refuse') {
-        await restore(repoRoot, snap);
+        // The rollback itself can fail (git in a bad state, or — as issue #107
+        // found — the snapshot's stash object already collected by a gc that ran
+        // between snapshot() and here). Same guard as fail(): that must not become
+        // an unhandled throw that skips run-end and summary.md.
+        let restoreError: string | null = null;
+        try {
+          await restore(repoRoot, snap);
+        } catch (err) {
+          restoreError = (err as Error).message;
+          await transcript.event('restore-failed', { error: restoreError });
+        }
         await transcript.event('run-refused', { summary });
         const runStats = stats('refused');
         await transcript.event('run-end', runStats);
@@ -631,11 +641,16 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           tokensOut,
           outcome: 'aborted',
           openObligations: null,
-          detail: `REFUSED: ${summary}`,
+          detail: restoreError
+            ? `REFUSED: ${summary}\n\nROLLBACK FAILED: ${restoreError} — the working tree may be in a partial state; inspect it with git status/git diff before rerunning`
+            : `REFUSED: ${summary}`,
           env: meta,
           stats: runStats,
         });
         log(`refused: ${summary}`);
+        if (restoreError) {
+          log(`WARNING: rollback failed (${restoreError}); the working tree may be in a partial state`);
+        }
         r.finish(outcomeLine(runStats));
         return {
           outcome: 'refused',
@@ -664,7 +679,15 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         log('--- dry run: proposed diff ---');
         log(diff || '(no diff)');
         if (untracked) log(`new files:\n${untracked}`);
-        await restore(repoRoot, snap);
+        // Same guard as fail(): a rollback failure here must not become an
+        // unhandled throw that skips run-end and summary.md (issue #107).
+        let restoreError: string | null = null;
+        try {
+          await restore(repoRoot, snap);
+        } catch (err) {
+          restoreError = (err as Error).message;
+          await transcript.event('restore-failed', { error: restoreError });
+        }
         const runStats = stats('done');
         await transcript.event('run-end', runStats);
         await transcript.writeSummary({
@@ -679,11 +702,16 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           tokensOut,
           outcome: 'success',
           openObligations: null,
-          detail: 'dry run: changes reverted',
+          detail: restoreError
+            ? `dry run: ROLLBACK FAILED: ${restoreError} — the working tree may be in a partial state; inspect it with git status/git diff before rerunning`
+            : 'dry run: changes reverted',
           env: meta,
           stats: runStats,
         });
-        r.finish(outcomeLine(runStats, 'dry run: changes reverted'));
+        if (restoreError) {
+          log(`WARNING: rollback failed (${restoreError}); the working tree may be in a partial state`);
+        }
+        r.finish(outcomeLine(runStats, restoreError ? 'dry run: rollback failed' : 'dry run: changes reverted'));
         return {
           outcome: 'success',
           exitPath: 'done',
