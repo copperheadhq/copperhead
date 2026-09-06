@@ -214,6 +214,38 @@ describe('turn-budget exhaustion (AC-15.1..15.4)', () => {
       await cleanup();
     }
   }, 60_000);
+
+  it('stops dispatching calls queued after finish in the same batch', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const provider = scriptedProvider([
+        {
+          toolCalls: [
+            { name: 'propose_change', args: { id: 'batch-finish-guard', why: 'test', what_changes: '- test', tasks: '- [ ] test' } },
+            { name: 'validate_change', args: {} },
+          ],
+        },
+        {
+          toolCalls: [
+            { name: 'finish', args: { outcome: 'done', summary: 'all gates are clear' } },
+            { name: 'write_file', args: { path: 'NOTES.md', content: 'must not be written\n' } },
+          ],
+        },
+      ]);
+      const lines: string[] = [];
+      const res = await runAgentLoop({ repoRoot: repo, request: 'guard finish batching', model: 'gpt-5', provider, maxTurns: 3, log: (l) => lines.push(l) });
+
+      expect(res.outcome).toBe('success');
+      await expect(readFile(path.join(repo, 'NOTES.md'), 'utf8')).rejects.toThrow();
+      expect(lines).toContain('skipped 1 tool call(s) queued after finish');
+
+      const transcript = await readFile(path.join(res.transcriptDir, 'transcript.jsonl'), 'utf8');
+      expect(transcript).toContain('tool-calls-skipped-after-finish');
+      expect(transcript).toContain('NOTES.md');
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
 });
 
 describe('preserveFailedRun (safety-rails)', () => {

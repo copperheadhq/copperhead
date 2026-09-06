@@ -6,15 +6,18 @@ export function renderToolProtocol(tools: ToolSchema[]): string {
     '# Tool protocol',
     '',
     'You are the reasoning half of a tool-driven workflow; you cannot run anything yourself.',
-    'To take an action, reply with EXACTLY ONE JSON object and nothing else, wrapped in a',
-    '```json fenced code block:',
+    'To take an action, reply with one or more JSON objects (one object per tool call), each wrapped',
+    'in its own ```json fenced code block:',
     '',
     '```json',
     '{"tool": "<tool_name>", "args": { ... }}',
     '```',
     '',
-    'Use only the tools listed below, with `args` matching the tool\'s JSON Schema. If you have',
-    'no tool to call and only want to say something, reply with plain prose and no JSON block.',
+    'When calls are independent — several read_file or search calls, multiple record_constraint or',
+    'resolve_affected calls — emit them together in a single reply. Every tool call in one reply',
+    'executes in the same turn. Use only the tools listed below, with `args` matching the tool\'s',
+    'JSON Schema. If you have no tool to call and only want to say something, reply with plain',
+    'prose and no JSON block.',
     '',
     '## Available tools',
   ];
@@ -100,7 +103,7 @@ function detectMalformedCall(text: string, catalog: Set<string>): string | undef
       return (
         `A tool call for "${name}" looks malformed — it named the tool but did not parse as ` +
         'valid JSON (likely unbalanced braces or a missing closing brace), so no call ran. ' +
-        'Re-emit it as exactly one complete JSON object: {"tool": "...", "args": { ... }}.'
+        'Re-emit each call as a complete JSON object: {"tool": "...", "args": { ... }}.'
       );
     }
     if (!offCatalog.includes(name)) offCatalog.push(name);

@@ -108,6 +108,10 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(sys).toContain('read_file');
     expect(sys).toContain('finish');
     expect(sys).toContain('"properties"'); // the JSON Schema is included
+    // #192: protocol invites batching; must not contradict the WORKFLOW nudge
+    expect(sys).toMatch(/one or more JSON objects/i);
+    expect(sys).toMatch(/same turn/i);
+    expect(sys).not.toMatch(/EXACTLY ONE/i);
     // reasoning-only: the SDK is given no tools and built-ins are denied
     expect(opts.tools).toEqual([]);
     expect(Array.isArray(opts.disallowedTools) && (opts.disallowedTools as string[]).includes('Bash')).toBe(true);
@@ -133,7 +137,7 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(prompt).toContain('the file contents');
   });
 
-  it('parses multiple fenced tool blocks into multiple tool calls (accepts >1 even though the protocol asks for one)', async () => {
+  it('parses multiple fenced tool blocks into multiple tool calls (#192)', async () => {
     const reply = '```json\n{"tool":"read_file","args":{"path":"a"}}\n```\nthen\n```json\n{"tool":"finish","args":{"outcome":"done"}}\n```';
     const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
     const turn = await provider.chat(messages, tools);
