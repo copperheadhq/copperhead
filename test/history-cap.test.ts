@@ -5,7 +5,8 @@ import path from 'node:path';
 import { execa } from 'execa';
 import { capHistory, HISTORY_CAP_DEFAULTS, type HistoryCapOptions } from '../src/agent/history.js';
 import { toolReadFile } from '../src/agent/filetools.js';
-import { TOOLS, type RunContext } from '../src/agent/tools.js';
+import { HANDLERS } from '../src/capabilities/handlers.js';
+import type { RunContext } from '../src/agent/context.js';
 import { renderConversation, renderDelta } from '../src/agent/providers/tool-protocol.js';
 import { runAgentLoop } from '../src/agent/loop.js';
 import { CachingProvider } from '../src/agent/response-cache.js';
@@ -253,15 +254,17 @@ describe('capHistory — what it actually trims', () => {
     // handler uses only ctx.repoRoot, so a bare object stands in for RunContext.
     const dir = await mkdtemp(path.join(tmpdir(), 'history-handler-'));
     await writeFile(path.join(dir, 'f.txt'), 'a\nb\nc\nd\ne\n', 'utf8');
-    const handler = TOOLS.find((t) => t.schema.name === 'read_file')!.handler;
+    const handler = HANDLERS.find((t) => t.schema.name === 'read_file')!.handler;
     const args: Record<string, unknown> = { path: 'f.txt', start_line: '4' };
-    const out = await handler({ repoRoot: dir } as unknown as RunContext, args);
+    // read_file reports its own outcome, so unwrap the text (design D3c).
+    const textOf = (r: string | { text: string }): string => (typeof r === 'string' ? r : r.text);
+    const out = textOf(await handler({ repoRoot: dir } as unknown as RunContext, args));
     expect(out).not.toContain('a'); // a real partial read: line 1 is gone
     expect(args.start_line).toBe(4); // written back as the number the tool used
 
     // Garbage bounds are dropped, so the recorded call reads as a whole-file read.
     const args2: Record<string, unknown> = { path: 'f.txt', start_line: 'abc' };
-    const out2 = await handler({ repoRoot: dir } as unknown as RunContext, args2);
+    const out2 = textOf(await handler({ repoRoot: dir } as unknown as RunContext, args2));
     expect(out2).toContain('a'); // whole file
     expect('start_line' in args2).toBe(false); // dropped, not left as "abc"
   });

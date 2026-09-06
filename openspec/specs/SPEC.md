@@ -280,6 +280,14 @@ copperhead score schematic [--json]
 copperhead do "<change request>" [--model codex|gpt-5|claude] [--max-turns N]
     The core loop. See §4.
 
+copperhead skill list
+    Print registered skills and whether each is available. LLM-free, network-free,
+    and does not create a run transcript/directory.
+
+copperhead skill run <name> [--scope power|all] [--model …]
+    Run a skill (currently `generate-report`) via the nested sub-run. Needs a
+    model, same as `do`. Does not snapshot or commit.
+
 copperhead check          (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
@@ -346,6 +354,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |
 | `export_svg` | (sch\|pcb) → path | For viewer + before/after diffing |
 | `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic |
+| `generate_report` | (scope?: power\|all) → report | Skill: nested read-only sub-run; ERC/DRC/drift/nets. Always in the catalog. |
 
 ### 4.3 System prompt — key rules (verbatim requirements)
 
@@ -381,6 +390,7 @@ interface Provider {
 - On turn-budget exhaustion in an attended (TTY) run: print run stats (turns, files touched, open obligations, token usage) and ask whether to continue with more turns; declining, or a non-TTY run, fails as below. The extension can repeat; each is a fresh decision with fresh numbers.
 - On any unrecoverable failure: preserve the touched work as a git stash entry named `copperhead failed run <run-id>`, restore the snapshot, print the stash ref and transcript path, exit 1
 - Rate-limit (429): exponential backoff ×3, then fail over to the other **keyed** provider (`openai` ↔ `anthropic`) if a key exists; saved-login providers (`codex`, `claude-code`, `cursor`) never fail over to a keyed or alternate provider
+- Nested skill provider turns use the same bounded timeout and 429 backoff policy. A provider error inside a skill becomes a failed tool envelope, so it cannot escape the parent loop and bypass its failure/rollback path.
 - The Anthropic provider marks `cache_control` breakpoints (system prompt, last tool, last message block) so the resent conversation prefix is cached; reported input tokens include cache reads/writes
 
 ---
@@ -538,6 +548,11 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-16.10 (declared no-connect passes ERC)** An IR declaring `U1.8` no-connect emits a `(no_connect …)` marker at that pin, and ERC reports no unconnected-pin violation for it.
 - **AC-16.11 (report embeds check and score)** A successful draft's report carries the checker's findings (or a clean statement) and the score composite with its breakdown, without separate tool calls.
 - **AC-16.31 (straight-through passives)** A series RC between two aligned pins, drafted within one group, puts both passives on the shared axis with zero bends in every wire of the chain.
+- **AC-16.36 (series parts lie on the row)** A two-lead part whose run from an IC's side pin ends on a signal net is placed on that pin's row beside the IC, rotated so its near lead faces the pin and its far lead points away, one gap past the pin's stub; a horizontal-pinned two-lead part (diode, LED, fuse, switch) is oriented the same way, and may hang when its run ends on a rail or ground. Runs on rows one pitch apart do not overlap in x.
+- **AC-16.37 (local runs are wired)** For every signal net, each cluster of endpoints within one group and within wire span of one another that routes cleanly is drawn as one wired run with one label, whatever the rest of the net does; a cluster that cannot be routed whole is drawn as its largest routable subset. A net that leaves the group therefore still wires the part on its pin.
+- **AC-16.38 (nets are coloured by function)** Wires and labels of every rail net share one colour, every ground net another, and every family of signal nets sharing a prefix before the first underscore (two or more members) a colour of its own from a fixed palette in family-name order; a lone signal keeps the theme default.
+- **AC-16.39 (test points rise beside their net)** A one-pin test point whose net reaches an IC's side pin within one group hangs above that pin's row beside the IC and is wired to it.
+- **AC-16.35 (parts hang on the pin they serve)** A vertical two-lead part whose net reaches an IC's side pin within one group is placed on that pin's row beside the IC, below it when entered through its top lead and above it through its bottom lead, with a series chain continued through two-endpoint links; every hangable endpoint of the pin's net hangs, so the net draws as one wired net with one label. A hang the clearance check refuses is drawn in a column and reported by name in the draft notes.
 
 **Emission — determinism and fidelity**
 
@@ -561,6 +576,8 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-16.17 (Tier B catches detection regressions)** A change that stops a Tier B fixture's pinned finding from being reported fails CI, naming the fixture and the missing finding.
 - **AC-16.18 (Tier C catches engine regressions)** An engine change that alters a Tier C output's bytes or lowers its pinned score fails CI with the file diff or the score delta.
 - **AC-16.32 (aesthetic metrics are measured)** The breakdown reports axis-alignment ratio, spacing uniformity, straight-wire ratio, label alignment, whitespace balance, and pair symmetry as individual metrics with their weights and contributions.
+- **AC-16.33 (wiring style is measured)** The breakdown reports `pin-attachment` (share of two-pin parts with a pin wired, through endpoint and T joins, to another part's pin), `island-parts` (share of two-pin parts whose every pin ends in a label or nothing), `power-symbol-economy` (power symbols per part) and `labels-per-part` as individual metrics; a resistor wired to an IC pin scores attachment 1 and a resistor hung on two labels scores 0 with islands 1.
+- **AC-16.34 (style composite is convention-free)** The report carries a wiring-style composite computed from the AC-16.33 metrics, crossings per wire and the straight-wire ratio only; it is never capped by legibility findings, so a sheet with no group rectangles and an engine draft of the same circuit compare on one scale, and `copperhead score schematic --file <sheet>` reports it for any sheet without a repo.
 
 **Agent loop and create pipeline**
 

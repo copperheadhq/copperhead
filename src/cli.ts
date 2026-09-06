@@ -226,13 +226,19 @@ const scoreGroup = program
 scoreGroup
   .command('schematic')
   .description('legibility and layout score for the schematic')
-  .action(async () => {
+  .option('--file <path>', 'score this .kicad_sch instead of the configured schematic (any sheet, no repo needed)')
+  .action(async (opts: { file?: string }) => {
     const repo = repoOf(program.opts());
     const json = Boolean(program.opts().json);
     try {
       const { loadConfig } = await import('./config.js');
       const { scoreSchematic, formatScore } = await import('./kicad/score.js');
       const path = await import('node:path');
+      if (opts.file) {
+        const report = await scoreSchematic(path.resolve(opts.file), { docsDir: null });
+        console.log(json ? JSON.stringify(report, null, 2) : formatScore(report));
+        process.exit(0);
+      }
       const config = await loadConfig(repo);
       if (!config.schematic) {
         console.error('no schematic configured in .copperhead/config.json');
@@ -310,6 +316,55 @@ program
       }
     },
   );
+
+const skillCmd = program.command('skill').description('run a registered skill (nested tool loop; no git commit)');
+
+skillCmd
+  .command('list')
+  .description('list registered skills (LLM-free, network-free)')
+  .action(async () => {
+    const repo = repoOf(program.opts());
+    try {
+      const { listSkills } = await import('./commands/skill.js');
+      const skills = await listSkills(repo);
+      if (program.opts().json) console.log(JSON.stringify(skills, null, 2));
+      else {
+        for (const s of skills) {
+          console.log(`${s.available ? '·' : '×'} ${s.name.replaceAll('_', '-')}  ${s.description.split('\n')[0]}`);
+        }
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+skillCmd
+  .command('run')
+  .description('run a skill by name (generate-report)')
+  .argument('<name>', 'skill name (kebab or underscore)')
+  .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id>')
+  .option('--scope <scope>', 'generate-report scope: power | all', 'all')
+  .action(async (name: string, opts: { model?: string; scope?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { runSkill, providerForSkillRun, formatSkillEnvelope } = await import('./commands/skill.js');
+      const { provider } = await providerForSkillRun(repo, opts.model);
+      const result = await runSkill({
+        repoRoot: repo,
+        name,
+        args: { scope: opts.scope === 'power' ? 'power' : 'all' },
+        provider,
+      });
+      console.log(formatSkillEnvelope(result, json));
+      process.exit(result.ok ? 0 : 1);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
 
 program
   .command('sync')

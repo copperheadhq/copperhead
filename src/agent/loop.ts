@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { Msg, Provider, Turn } from './types.js';
 import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
+import { flatten } from './envelope.js';
 import { CachingProvider } from './response-cache.js';
 import { capHistory } from './history.js';
 import { withTimeout, TurnTimeoutError } from './recovery.js';
@@ -644,13 +645,26 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     nudges = 0;
 
     for (const call of res.toolCalls) {
-      const { text: result, ok } = await dispatchToolResult(ctx, call.name, call.args);
-      await transcript.event('tool', { name: call.name, args: call.args, result, ...(ok ? {} : { failed: true }) });
-      r.toolResult(call.name, result.split('\n')[0] ?? '');
+      const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
+      const result = flatten(envelope);
+      await transcript.event('tool', {
+        name: call.name,
+        args: call.args,
+        result,
+        envelope,
+        ...(envelope.ok ? {} : { failed: true }),
+      });
+      r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
       // Carry the failure status on the message rather than leaving later
       // readers to infer it from the text: a file can legitimately begin with
-      // the same words a tool error does.
-      messages.push({ role: 'tool', toolCallId: call.id, content: result, ...(ok ? {} : { failed: true }) });
+      // the same words a tool error does. History capping reads this flag so a
+      // failed read never supersedes a successful one.
+      messages.push({
+        role: 'tool',
+        toolCallId: call.id,
+        content: result,
+        ...(envelope.ok ? {} : { failed: true }),
+      });
     }
 
     if (ctx.repairCycles > config.maxRepairCycles) {

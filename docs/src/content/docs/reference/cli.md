@@ -142,7 +142,10 @@ Regenerates the configured schematic deterministically from the netlist-intent I
 
 ```bash
 copperhead score schematic
+copperhead score schematic --file path/to/any.kicad_sch
 ```
+
+`--file <path>` scores any `.kicad_sch` instead of the configured schematic, without a repo. The report carries two composites: the gated one, capped by error-severity legibility findings, and the convention-free wiring-style one, which is never capped.
 
 Prints the quantitative legibility score: a 0-100 composite with the per-metric breakdown (crossings, bends, wire length, alignment, spacing uniformity, symmetry, balance, and more). Error-severity legibility findings cap the composite. Advisory by design: the exit code never depends on the score. Makes no LLM calls and no network requests.
 

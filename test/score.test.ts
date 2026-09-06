@@ -167,3 +167,113 @@ describe('score config sanitization', () => {
     }
   });
 });
+
+/** A sheet with real pins: one 3-pin IC and two-pin parts, so the wiring-style
+ * metrics have something to follow. Pins are declared in lib_symbols the way
+ * KiCad writes them; placed symbols are unrotated so a pin's sheet position is
+ * the symbol origin plus its symbol-space offset (y flipped). */
+function pinnedSch(body: string): string {
+  return `(kicad_sch (version 20231120) (uuid "5c0e0000-0000-4000-8000-000000000002") (paper "A4")
+  (title_block (title "t") (date "d") (rev "r"))
+  (lib_symbols
+    (symbol "T:IC3" (pin_names (offset 1.016)) (in_bom yes) (on_board yes)
+      (property "Reference" "U" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (property "Value" "IC3" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (symbol "IC3_1_1"
+        (rectangle (start -5.08 5.08) (end 5.08 -5.08) (stroke (width 0.254) (type default)) (fill (type background)))
+        (pin input line (at -7.62 2.54 0) (length 2.54) (name "A" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
+        (pin input line (at -7.62 -2.54 0) (length 2.54) (name "B" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27)))))
+        (pin output line (at 7.62 0 180) (length 2.54) (name "Y" (effects (font (size 1.27 1.27)))) (number "3" (effects (font (size 1.27 1.27)))))))
+    (symbol "T:R2" (pin_names (offset 0)) (in_bom yes) (on_board yes)
+      (property "Reference" "R" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (property "Value" "R2" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (symbol "R2_1_1"
+        (rectangle (start -1.016 2.54) (end 1.016 -2.54) (stroke (width 0.254) (type default)) (fill (type none)))
+        (pin passive line (at -3.81 0 0) (length 2.54) (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
+        (pin passive line (at 3.81 0 180) (length 2.54) (name "~" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27)))))))
+    (symbol "power:VCC" (power) (pin_names (offset 0)) (in_bom yes) (on_board yes)
+      (property "Reference" "#PWR" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+      (property "Value" "VCC" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (symbol "VCC_1_1"
+        (polyline (pts (xy -1.27 1.27) (xy 1.27 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))
+        (pin power_in line (at 0 0 90) (length 0) (name "VCC" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27))))))))
+  ${body}
+  (sheet_instances (path "/" (page "1")))
+)`;
+}
+const place = (lib: string, ref: string, value: string, x: number, y: number, n: number): string => `
+  (symbol (lib_id "${lib}") (at ${x} ${y} 0) (unit 1) (in_bom yes) (on_board yes) (uuid "5c0e0000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}")
+    (property "Reference" "${ref}" (at ${x} ${y - 6} 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "${value}" (at ${x} ${y + 6} 0) (effects (font (size 1.27 1.27))))
+    (instances (project "x" (path "/5c0e0000-0000-4000-8000-000000000002" (reference "${ref}") (unit 1)))))`;
+const wire = (x1: number, y1: number, x2: number, y2: number, n: number): string =>
+  `(wire (pts (xy ${x1} ${y1}) (xy ${x2} ${y2})) (stroke (width 0) (type default)) (uuid "5c0e0000-0000-4000-8000-00000000w0${String(n).padStart(2, '0')}"))`;
+
+async function scoredPinned(body: string) {
+  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-score-'));
+  const file = path.join(dir, 'x.kicad_sch');
+  await writeFile(file, pinnedSch(body), 'utf8');
+  const report = await scoreSchematic(file);
+  await rm(dir, { recursive: true, force: true });
+  return report;
+}
+
+describe('wiring-style metrics: how the parts connect', () => {
+  // U1 at (100,100): pin 1 at (92.38, 97.46), pin 2 at (92.38, 102.54), pin 3 at (107.62, 100)
+  // R1 at (80,97.46): pin 1 at (76.19, 97.46), pin 2 at (83.81, 97.46)
+  it('a resistor wired straight to an IC pin is attached; one hung on labels is an island', async () => {
+    const attached = await scoredPinned(`
+      ${place('T:IC3', 'U1', 'IC3', 100, 100, 1)}
+      ${place('T:R2', 'R1', '10k', 80, 97.46, 2)}
+      ${wire(83.81, 97.46, 92.38, 97.46, 1)}`);
+    expect(metric(attached, 'pin-attachment').raw).toBe(1);
+    expect(metric(attached, 'island-parts').raw).toBe(0);
+
+    const island = await scoredPinned(`
+      ${place('T:IC3', 'U1', 'IC3', 100, 100, 1)}
+      ${place('T:R2', 'R1', '10k', 80, 120, 2)}
+      ${wire(83.81, 120, 86.35, 120, 1)}
+      (label "NET_A" (at 86.35 120 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "5c0e0000-0000-4000-8000-00000000l001"))
+      ${wire(92.38, 97.46, 89.84, 97.46, 2)}
+      (label "NET_A" (at 89.84 97.46 0) (effects (font (size 1.27 1.27)) (justify right bottom)) (uuid "5c0e0000-0000-4000-8000-00000000l002"))`);
+    expect(metric(island, 'pin-attachment').raw).toBe(0);
+    expect(metric(island, 'island-parts').raw).toBe(1);
+    expect(metric(island, 'pin-attachment').score).toBeLessThan(metric(attached, 'pin-attachment').score);
+  });
+
+  it('follows a T junction onto a wire interior the way KiCad joins it', async () => {
+    // the resistor's pin lands on the middle of a wire that reaches the IC
+    const r = await scoredPinned(`
+      ${place('T:IC3', 'U1', 'IC3', 100, 100, 1)}
+      ${place('T:R2', 'R1', '10k', 80, 97.46, 2)}
+      ${wire(83.81, 90, 83.81, 105, 1)}
+      ${wire(83.81, 97.46, 92.38, 97.46, 2)}`);
+    expect(metric(r, 'pin-attachment').raw).toBe(1);
+  });
+
+  it('counts power symbols per part and labels per part', async () => {
+    const r = await scoredPinned(`
+      ${place('T:IC3', 'U1', 'IC3', 100, 100, 1)}
+      ${place('T:R2', 'R1', '10k', 80, 97.46, 2)}
+      ${place('power:VCC', '#PWR01', 'VCC', 76.19, 97.46, 3)}
+      ${place('power:VCC', '#PWR02', 'VCC', 92.38, 102.54, 4)}
+      ${wire(83.81, 97.46, 92.38, 97.46, 1)}`);
+    // these two live in the style composite only
+    const style = (name: string) => r.style.metrics.find((m) => m.name === name)!;
+    expect(style('power-symbol-economy').raw).toBe(1); // 2 symbols / 2 parts
+    expect(style('labels-per-part').raw).toBe(0);
+  });
+
+  it('reports a convention-free style composite that no legibility cap touches', async () => {
+    // no group box: the gated composite is capped by ungrouped-symbol errors,
+    // the style composite still reflects the fully attached wiring
+    const r = await scoredPinned(`
+      ${place('T:IC3', 'U1', 'IC3', 100, 100, 1)}
+      ${place('T:R2', 'R1', '10k', 80, 97.46, 2)}
+      ${wire(83.81, 97.46, 92.38, 97.46, 1)}`);
+    expect(r.cap).not.toBeNull();
+    expect(r.style.composite).toBeGreaterThan(r.composite);
+    expect(r.style.metrics.map((m) => m.name)).toContain('pin-attachment');
+    expect(r.style.metrics.find((m) => m.name === 'pin-attachment')!.score).toBe(1);
+  });
+});

@@ -109,3 +109,38 @@ copperhead check   # ERC plus legibility findings and score, advisory, exit code
 ```
 
 All three are LLM-free and network-free, safe for CI and pre-commit hooks.
+
+## Pin-anchored hangs
+
+A drafter puts a part on the pin it serves: the compensation network hangs off COMP, the bootstrap capacitor sits on BOOT, a pull-up rises from the pin it pulls. Before any column is packed, the engine reads each IC's side pins in order and claims the chain of vertical two-lead parts a pin's net leads into as a **hang**: entered through the part's top lead it drops below the pin's row, through its bottom lead it rises above it, and it runs on through two-endpoint links until it reaches a rail, a ground, a tapped node or a part that cannot hang. Every hangable endpoint of the pin's net hangs, each as its own chain, so a series RC and a shunt C on one pin both sit at that pin and the net stays within wire span.
+
+A hang whose rows are free of every other connected signal pin on that side stays dead straight on the stub axis (the wire from the pin continues into the chain with no bend); otherwise it takes the first shelf slot beside the IC whose rows are free, past the IC's own labels. Slots are dealt from the lowest pin upward for hangs that drop and from the highest pin downward for hangs that rise, so a chain that passes other pins' rows is always the outer one and no branch crosses a sibling. The IC's cell reserves the shelf, so the columns start past it, and the box encloses everything.
+
+Each hang goes through the same clearance check every idiom uses, with the chain's own connection points taken from the nets that run along its axis only, never the rail at its far end. A hang the check refuses is drawn in a column at the group's right edge and named in the draft report's notes as `hang refused: …`, so a labelled part is never a silent fallback. Crystal load capacitors are left to the crystal-flanking idiom, and decoupling capacitors stay in their bank.
+
+Measured with the wiring-style score (see the legibility page): on the reference boards the share of two-pin parts wired straight to another part rose from 0.26 to 0.48 on buck-12v-5v and from 0.53 to 0.59 on usb-atmega-node; on a 141-part amplifier board from 0.49 to 0.57, and on the five-part Tier C golden from 0.00 to 0.67. What remains unattached is horizontal-pinned parts (diodes, LEDs, fuses, two-pin connectors, switches), which need symbol rotation, and parts whose net leaves the group.
+
+## Series parts on the row, and rotation
+
+A part whose run from the IC pin ends on a signal net rather than a rail or ground is a **series element** — a 100 Ω in an I2S line, an output inductor, a bootstrap capacitor between two pins of the same IC — and lies along the pin's row, away from the IC, the way a drafter draws it. The engine turns the symbol for that: a resistor from the library is vertical and lies down at 90 or 270 degrees so its near lead faces the IC, while a diode, LED, fuse or switch is horizontal already and turns only to face the right way. The same orientation rule lets those horizontal parts hang like a resistor when their run ends on a rail or ground. Each part sits one gap past the previous connection point, and the gap is at least the width of the wired net's name, so the name stands above the wire in the space left for it. Runs on rows one pitch apart start past each other's end, because two horizontal parts cannot share an x range on neighbouring rows. A run that cannot be laid on its row is drawn in a column and reported as `inline refused: …`.
+
+## Local runs are wired
+
+The wire pass no longer decides a net whole. Its endpoints are clustered by group and wire span, and every cluster that routes cleanly is drawn as one wired run with one label, whatever the rest of the net does; a cluster that will not route whole is drawn as its largest routable subset, and only the endpoints left over keep a stub and a label. So a part hung on a pin or lying on its row is wired to it even when the net also leaves the group or carries more endpoints than one run may hold. A run's name goes at the top of its trunk, or at the left end of a horizontal run, wherever it clears every body.
+
+## Conventions the sheet follows
+
+The target the engine draws toward, collected from practitioner guides, a hand-drawn reference board and the KiStack schematic skill's checklist, re-expressed here. Where a rule is the engine's, it is enforced by construction and gated; where it is the intent's, the stage prompt asks for it.
+
+| Convention | Whose | How |
+| --- | --- | --- |
+| Signals flow left to right; the IC leads its group; connectors on the left | engine | IC-first layering, connector column |
+| A part sits on the pin it serves: shunts hang, series parts lie on the row, test points rise beside their net | engine | pin-anchored hangs, inline runs, test-point hangs |
+| Wire what is local, label what is not; one label per wired run | engine | cluster-first routing |
+| Rails and grounds are symbols, rails up and grounds down, one per bank of caps | engine | power pass, bank trunks |
+| Decoupling in banks with shared symbols; a PWR_FLAG at each undriven rail's first endpoint | engine | bank idiom, flag synthesis |
+| Every part carries a reference and a value that collide with nothing; all text horizontal | engine | field slot ladder, text gates |
+| Related nets coloured together: rails, grounds, and every family of signals sharing a prefix; lone signals in the theme default | engine | wire and label colour |
+| Subsystems as captioned boxes that enclose their own text; page sized to content; boxes compact | engine | group rects, enclosure, compaction |
+| Bus and interface nets share a prefix; differential pairs end in +/- or P/N; values carry units | intent | stage prompt |
+| Notes, datasheet references and design intent on the sheet | not yet | needs a notes field in the intent |

@@ -107,15 +107,18 @@ describe('drafting engine: the reference IR end to end', () => {
       expect(res.report.noConnects).toBe(5);
       expect(text).toContain('(no_connect');
 
-      // DIV falls back to per-stub labels: every collision-free trunk for it
-      // contacts a foreign connection point (the median crosses R2's body, the
-      // right-of-everything branch runs through R2's GND stub end, the
-      // left-of-everything branch through R1's SIG_IN stub end). The old wired
-      // routing shipped exactly that contact — the pinned golden had DIV
-      // shorted to GND at R2.2's stub end (I22, #204) — so labelled is the
-      // correct drawing here, not a regression.
+      // DIV is the divider's tap, on U1.3. With R1 and R2 hung on that pin
+      // (#220 phase 3) the net is local enough to wire, and the trunk clears
+      // every foreign connection point — the merged-net guard below is what
+      // says so, not the label count. Before pin attachment every trunk for
+      // DIV contacted a foreign stub end and the net fell back to three
+      // labels; a wired DIV that shorted to GND at R2.2's stub end was the
+      // I22 (#204) defect, so the guard stays the load-bearing check.
       expect(res.report.netClasses.find((n) => n.name === 'DIV')?.class).toBe('signal');
-      expect(text.match(/\(label "DIV"/g) ?? []).toHaveLength(3);
+      expect(res.report.mergedNets).toEqual([]);
+      // wired (one label naming the net) or labelled at each of its three
+      // stubs; either is a legal drawing, a short is not
+      expect([1, 3]).toContain((text.match(/\(label "DIV"/g) ?? []).length);
     } finally {
       await cleanup();
     }
