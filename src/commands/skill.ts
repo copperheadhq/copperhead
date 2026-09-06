@@ -64,6 +64,42 @@ export function formatSkillEnvelope(result: ToolResult, json: boolean): string {
   return result.ok ? body : `error: ${body}`;
 }
 
+/**
+ * One skill run plus the provider's lifecycle. A saved-login provider owns a
+ * `mkdtemp` working directory (and, on some backends, an in-flight subprocess);
+ * `runAgentLoop` closes it in a `finally` because leaving it behind orphans the
+ * process and fills the disk (I8). `skill run` has no agent loop to inherit that
+ * from, so the close lives here — around the throw path too, since an unknown or
+ * unavailable skill must not leak the provider it already built. Returns the text
+ * to print and the exit code, so the CLI's only job is `console.log` + `exit`.
+ */
+export async function runSkillCli(opts: {
+  repoRoot: string;
+  name: string;
+  args?: Record<string, unknown>;
+  provider: Provider;
+  json: boolean;
+  warn?: (line: string) => void;
+}): Promise<{ text: string; code: number }> {
+  try {
+    const result = await runSkill({
+      repoRoot: opts.repoRoot,
+      name: opts.name,
+      ...(opts.args ? { args: opts.args } : {}),
+      provider: opts.provider,
+    });
+    return { text: formatSkillEnvelope(result, opts.json), code: result.ok ? 0 : 1 };
+  } finally {
+    try {
+      await opts.provider.close?.();
+    } catch (err) {
+      (opts.warn ?? ((l: string) => console.error(l)))(
+        `warning: ${opts.provider.name} provider cleanup failed (${(err as Error).message})`,
+      );
+    }
+  }
+}
+
 async function minimalCtx(repoRoot: string, initializeTranscript = true): Promise<RunContext> {
   const transcript = new Transcript(repoRoot);
   if (initializeTranscript) await transcript.init();

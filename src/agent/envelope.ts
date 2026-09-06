@@ -113,10 +113,6 @@ export function textResult(text: string, viewHint: ViewHint): ToolResult {
   return okResult(text, viewHint);
 }
 
-export function isRetryableToolKind(kind: ToolErrorKind): boolean {
-  return kind === 'exception';
-}
-
 export function unavailable(name: string, editsUnlocked: boolean, reason?: string): ToolResult {
   const suffix = reason
     ? ` (${reason})`

@@ -47,6 +47,10 @@ Every tool and skill invocation SHALL return a `ToolResult` of the form `{ ok, s
 - **WHEN** an unsuccessful domain-result envelope has `detail` but no typed invocation `error`
 - **THEN** flattening includes both its summary and detail
 
+#### Scenario: Unverifiable is not failure
+- **WHEN** a diagnostic's findings are all "could not check" rather than divergences, as `verify_symbols` reports on a machine where the referenced libraries are not installed
+- **THEN** the envelope has `ok: true`, because the tool found zero issues to reconcile, and the renderer does not show a failure glyph for it
+
 ### Requirement: Predicate gating
 Each catalog entry SHALL declare `gate: (ctx) => boolean`. An entry whose gate returns false SHALL be absent from `registry.list(ctx)` and SHALL NOT appear in the tool list sent to the provider. A boolean `requiresUnlock` field SHALL NOT exist on the catalog type.
 

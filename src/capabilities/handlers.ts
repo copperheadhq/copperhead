@@ -403,9 +403,13 @@ export const HANDLERS: HandlerDef[] = [
         return { ok: true, text: `verify_symbols: ${checked} symbol(s) match the installed KiCad library. No divergences.` };
       }
       const lines = findings.map((f) => `  - [${f.kind}] ${f.detail}`);
+      // 'no-library' is the *unverifiable* bucket (counted in `skipped`), not a
+      // divergence: a machine without the library installed has nothing to
+      // reconcile. Failing on it would report a red for "0 issue(s)" — the
+      // mirror of the false-green glyph this outcome plumbing exists to fix.
       const mismatches = findings.filter((f) => f.kind !== 'no-library').length;
       return {
-        ok: false,
+        ok: mismatches === 0,
         text: `verify_symbols: ${checked} verified, ${skipped} unverifiable (library not installed), ${mismatches} issue(s) to reconcile:\n${lines.join('\n')}`,
       };
     },
