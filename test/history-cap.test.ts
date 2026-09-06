@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { writeFile, mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -9,6 +9,7 @@ import { TOOLS, type RunContext } from '../src/agent/tools.js';
 import { renderConversation, renderDelta } from '../src/agent/providers/tool-protocol.js';
 import { runAgentLoop } from '../src/agent/loop.js';
 import { CachingProvider } from '../src/agent/response-cache.js';
+import { Transcript } from '../src/agent/transcript.js';
 import { loadConfig, DEFAULTS } from '../src/config.js';
 import { runInit } from '../src/memory/scaffold.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -819,6 +820,79 @@ describe('capHistory in the agent loop', () => {
     expect(hit.usage).toEqual({ inputTokens: 0, outputTokens: 0 }); // replay costs nothing
     expect(hit.text).toBe('hello');
   });
+
+  it('a failing transcript write does not mask the provider error it fires beside', async () => {
+    // The history-capped event is written from a `finally`, so on the path where
+    // provider.chat has already rejected, an unguarded rejection there would
+    // propagate IN PLACE of the provider's error: withRetry would see something
+    // it cannot classify as a rate limit and the run would die instead of
+    // retrying. Stubbing the transcript is how this gets reached deterministically
+    // (the transcript is constructed inside runAgentLoop and is not injectable,
+    // and nothing else in the suite ever makes a transcript write fail).
+    const { repo, cleanup } = await tempFixtureRepo();
+    const realEvent = Transcript.prototype.event;
+    try {
+      await runInit({ repoRoot: repo, installHooks: false });
+      await writeFile(path.join(repo, 'big.txt'), 'a big file\n'.repeat(2000), 'utf8');
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'fixture'], { cwd: repo });
+
+      // Only the capping event fails; every other event still records, so the
+      // run is otherwise ordinary.
+      const spy = vi
+        .spyOn(Transcript.prototype, 'event')
+        .mockImplementation(async function (this: Transcript, type: string, data: unknown) {
+          if (type === 'history-capped') throw new Error('EACCES: transcript is unwritable');
+          return realEvent.call(this, type, data);
+        });
+
+      let turn = 0;
+      let thrown = false;
+      const provider: Provider = {
+        name: 'scripted-429',
+        async chat(): Promise<Turn> {
+          turn++;
+          const usage = { inputTokens: 100, outputTokens: 10 };
+          if (turn <= 2) {
+            return {
+              text: null,
+              toolCalls: [{ id: `read-${turn}`, name: 'read_file', args: { path: 'big.txt' } }],
+              usage,
+            };
+          }
+          // Turn 3 is the first turn capping fires on, so the failing event and
+          // the 429 land together: exactly the collision being guarded.
+          if (!thrown) {
+            thrown = true;
+            throw Object.assign(new Error('rate limited'), { status: 429 });
+          }
+          return {
+            text: null,
+            toolCalls: [{ id: 'fin', name: 'finish', args: { outcome: 'done', summary: 'done' } }],
+            usage,
+          };
+        },
+      };
+
+      const res = await runAgentLoop({
+        repoRoot: repo,
+        request: 'read it twice, then get rate limited while the transcript is unwritable',
+        model: 'gpt-5',
+        provider,
+        maxTurns: 20,
+        log: () => {},
+        meta: { command: 'do', modelSource: 'flag', version: '0.0.0-test', kicadCliVersion: '0.0.0' },
+      });
+
+      // The 429 was retried and the run finished. Without the guard the
+      // transcript's EACCES replaces it and the run fails instead.
+      expect(res.outcome).toBe('success');
+      expect(spy).toHaveBeenCalledWith('history-capped', expect.anything());
+    } finally {
+      vi.restoreAllMocks();
+      await cleanup();
+    }
+  }, 30000);
 
   it('counts the saving once per attempt, so a retried turn is not under-reported', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
