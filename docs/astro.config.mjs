@@ -32,6 +32,7 @@ export default defineConfig({
             '- Commands: `copperhead init` (scaffold docs/ from a schematic, idempotent), `copperhead do "<change>"` (propose, edit, verify, propagate, commit), `copperhead check` (ERC + DRC + doc drift + spec validation, no LLM calls, CI-safe, alias: `verify`), `copperhead sync` (verify whole design state, resolve drift), `copperhead create --brief brief.md` (product brief to full output package).',
             '- Two invariants: nothing starts without a validated change proposal (the edit tools are structurally unavailable until one exists), and nothing is "done" until ERC/DRC passes (failed verification rolls back to a git snapshot).',
             '- It is not an autorouter, not a new editor (KiCad remains the editor), and not the engineer of record (a human signs off).',
+            '- copperhead cloud (app.copperhead.sh) is the optional hosted console: sign in with GitHub or email, connect a repository through the copperhead GitHub App, and run `copperhead check` hosted with a live streamed transcript. It stores identity, tenancy, and run metadata only, never KiCad files or model keys; the CLI needs no account.',
             `- Source: ${REPO}`,
           ].join('\n'),
           optionalLinks: [
@@ -103,6 +104,16 @@ export default defineConfig({
             { label: 'Schematic legibility rules', link: '/reference/schematic-legibility/' },
             { label: 'How schematics are drafted', link: '/reference/schematic-drafting/' },
             { label: 'The schematic intent file', link: '/reference/schematic-intent/' },
+          ],
+        },
+        {
+          label: 'Cloud console',
+          items: [
+            { label: 'Overview', link: '/cloud/overview/' },
+            { label: 'Sign in and organizations', link: '/cloud/sign-in-and-orgs/' },
+            { label: 'Connect a repository', link: '/cloud/connect-a-repository/' },
+            { label: 'Hosted check runs', link: '/cloud/hosted-checks/' },
+            { label: 'Troubleshooting', link: '/cloud/troubleshooting/' },
           ],
         },
         {

@@ -42,6 +42,11 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
     passes. The agent reads its own errors back and repairs, or rolls back to
     the git snapshot.
   </Card>
+  <Card title="Hosted, when you want it" icon="rocket">
+    The optional cloud console at app.copperhead.sh runs `copperhead check`
+    on a connected repository and streams the transcript to your browser.
+    It stores run metadata, never your KiCad files or model keys.
+  </Card>
   <Card title="Docs as memory" icon="open-book">
     Design docs are the agent's memory and its output. Decisions land in an
     append-only DECISIONS.md, and every run writes a human-readable summary
