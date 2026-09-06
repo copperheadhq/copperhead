@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from '../kicad/sexp.js';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
+import { resolveInRepo } from '../util/paths.js';
 
 export class InitError extends Error {}
 
@@ -172,7 +173,13 @@ export interface InitOptions {
 
 export async function runInit(opts: InitOptions): Promise<InitResult> {
   const { repoRoot } = opts;
-  const searchRoot = path.resolve(repoRoot, opts.searchPath ?? '.');
+  // AC-4.2: the search root comes from an untrusted caller — a CLI flag, and
+  // now an MCP tool input chosen by a host agent. Bare path.resolve lets an
+  // absolute or `../` value win outright, which would scaffold this repo's docs
+  // from a foreign project and durably write an out-of-repo config.schematic
+  // that every later check/do would then operate on. Contain it like every
+  // other file path in the codebase.
+  const searchRoot = resolveInRepo(repoRoot, opts.searchPath ?? '.');
   const { sch, pcb } = await findKicadFiles(searchRoot);
   if (!sch) {
     throw new InitError(

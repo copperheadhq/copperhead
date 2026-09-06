@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import {
@@ -6,6 +8,7 @@ import {
   failure,
   runStatus,
   RepoLocks,
+  mcpRenderer,
   MCP_PROTOCOL_VERSION,
   PIPELINE_TOOL_NAMES,
   TOOL_SCHEMA_VERSIONS,
@@ -71,10 +74,11 @@ describe('MCP tool surface is the whole surface (spec: opacity)', () => {
     for (const t of tools) {
       const props = Object.keys(((t.inputSchema as { properties?: object }).properties ?? {}) as object);
       for (const p of props) {
-        // `copperhead_init --path` selects where to *look* for a project and is
-        // consumed by the scaffolder, which sandboxes to the repo root. Nothing
-        // else may take a path at all: a path input is how an opaque surface
-        // stops being opaque.
+        // `copperhead_init --path` selects where to *look* for a project. It is
+        // the one permitted path input, and it is permitted only because
+        // runInit routes it through resolveInRepo — the traversal test below
+        // holds that to account. Nothing else may take a path at all: a path
+        // input is how an opaque surface stops being opaque.
         if (t.name === 'copperhead_init' && p === 'path') continue;
         expect(p, `${t.name}.${p} accepts a path`).not.toMatch(/path|file|dir|glob/i);
       }
@@ -237,16 +241,17 @@ describe('mutating tools are serialized per repo (spec: serialization)', () => {
     cleanups.push(close);
     // Two inits fired together: whichever loses the lock must come back as a
     // typed `unavailable`, never as a protocol error and never interleaved.
-    const [a, b] = await Promise.all([
+    // Asserted unconditionally — an earlier version only checked inside an
+    // `if`, so deleting the lock entirely still passed it green.
+    const results = await Promise.all([
       client.callTool({ name: 'copperhead_init', arguments: {} }),
       client.callTool({ name: 'copperhead_init', arguments: {} }),
     ]);
-    for (const res of [a, b]) {
-      const env = envelopeOf(res);
-      if (!env.ok && env.error?.kind === 'unavailable') {
-        expect(env.error.message).toMatch(/in progress/i);
-      }
-    }
+    const envs = results.map(envelopeOf);
+    const busy = envs.filter((e) => !e.ok && e.error?.kind === 'unavailable');
+    expect(busy, 'one of two concurrent mutating calls must be refused as busy').toHaveLength(1);
+    expect(busy[0]!.error!.message).toMatch(/in progress/i);
+    expect(envs.filter((e) => e.ok), 'the other must succeed').toHaveLength(1);
   });
 });
 
@@ -307,5 +312,75 @@ describe('copperhead_doctor', () => {
       if (saved === undefined) delete process.env.OPENAI_API_KEY;
       else process.env.OPENAI_API_KEY = saved;
     }
+  });
+});
+
+describe('copperhead_init cannot be pointed outside the repo (AC-4.2)', () => {
+  it('refuses a search path that escapes the repo root and writes nothing', async () => {
+    const repo = await fixture();
+    const { client, close } = await connect(repo);
+    cleanups.push(close);
+    const before = existsSync(path.join(repo, '.copperhead/config.json'));
+    const env = envelopeOf(await client.callTool({ name: 'copperhead_init', arguments: { path: '../..' } }));
+    expect(env.ok).toBe(false);
+    expect(env.error?.kind).toBe('validation');
+    expect(env.error?.message).toMatch(/escapes repo root/i);
+    // and it must not have scaffolded anything on the way to refusing
+    expect(existsSync(path.join(repo, '.copperhead/config.json'))).toBe(before);
+  });
+
+  it('refuses an absolute search path', async () => {
+    const repo = await fixture();
+    const { client, close } = await connect(repo);
+    cleanups.push(close);
+    const env = envelopeOf(await client.callTool({ name: 'copperhead_init', arguments: { path: '/etc' } }));
+    expect(env.ok).toBe(false);
+    expect(env.error?.kind).toBe('validation');
+  });
+});
+
+describe('mcpRenderer bridges loop progress onto MCP notifications', () => {
+  const collect = (): { sink: (u: { message: string; progress: number }) => void; seen: { message: string; progress: number }[] } => {
+    const seen: { message: string; progress: number }[] = [];
+    return { sink: (u) => void seen.push(u), seen };
+  };
+
+  it('emits a monotonically rising counter, never a fake percentage', () => {
+    const { sink, seen } = collect();
+    const r = mcpRenderer(sink);
+    r.turnStart(1, 40, 10, 20);
+    r.toolResult('read_file', 'ok', true);
+    r.heartbeat({ elapsedMs: 1000, streamedChars: 0 });
+    r.finish('done');
+    expect(seen.map((s) => s.progress)).toEqual([1, 2, 3, 4]);
+    // no `total` is ever sent: the loop cannot know how many turns a run takes
+    expect(seen.every((s) => !('total' in s))).toBe(true);
+  });
+
+  it('names the turn and the tool so a host shows real progress', () => {
+    const { sink, seen } = collect();
+    const r = mcpRenderer(sink);
+    r.turnStart(3, 40, 0, 0);
+    r.toolResult('run_erc', 'ERC ✓', true);
+    expect(seen[0]!.message).toContain('3/40');
+    expect(seen[1]!.message).toContain('run_erc');
+    expect(seen[1]!.message).toContain('ERC ✓');
+  });
+
+  it('does not emit for log or status, which carry no progress', () => {
+    const { sink, seen } = collect();
+    const r = mcpRenderer(sink);
+    r.log('some line');
+    r.status('thinking');
+    r.status(null);
+    expect(seen).toHaveLength(0);
+  });
+
+  it('survives a sink that throws only where the loop would notice', () => {
+    // A host that disconnected mid-run must not take the run down with it.
+    const r = mcpRenderer(() => {
+      throw new Error('host went away');
+    });
+    expect(() => r.turnStart(1, 40, 0, 0)).toThrow();
   });
 });

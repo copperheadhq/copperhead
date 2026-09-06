@@ -15,7 +15,7 @@ Exactly five tools, and nothing finer:
 | Tool | LLM | Mutates | Purpose |
 | --- | --- | --- | --- |
 | `copperhead_check` | no | no | ERC, DRC, doc drift, spec validation |
-| `copperhead_init` | no | yes | scaffold docs memory from an existing schematic |
+| `copperhead_init` | no | yes | scaffold docs memory, and install a `pre-commit` hook running `copperhead check` |
 | `copperhead_do` | yes | yes | the full gated change pipeline |
 | `copperhead_sync` | only with `resolve: true` | only with `resolve: true` | design-state consistency, and optionally fix drift |
 | `copperhead_doctor` | no | no | probe node, kicad-cli, git, openspec and the model credential |

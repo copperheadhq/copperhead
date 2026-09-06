@@ -11,6 +11,7 @@ The entry points already exist and return structured results (`runCheck`, `syncV
 
 - [x] 2.1 Add `@modelcontextprotocol/sdk`; implement `src/mcp/server.ts` with stdio transport and the five tool registrations with versioned JSON schemas
 - [x] 2.1a Build every tool result through the shared `ToolResult` envelope and `seal()` so redaction is inherited, not reimplemented; map failures onto the shared `ToolErrorKind` values
+- [x] 2.2b Contain `copperhead_init`'s `path` input with `resolveInRepo` (AC-4.2), with regression tests for `../` and absolute paths
 - [x] 2.2a Implement `copperhead_doctor`: no `kicad-cli` preflight (it reports a missing one as a failed check), keyless, read-only (design D10)
 - [x] 2.2 Implement `copperhead_check` (no inputs; `fab`/`strict` deliberately absent until `check` accepts them) and `copperhead_init` dispatch
 - [x] 2.3 Implement `copperhead_do`: AUTO marker, optional `dry_run`, progress notifications during the run, summary result (`committed`/`rolled_back`/`refused`, commit hash, files touched, verification, transcript path)
@@ -19,13 +20,15 @@ The entry points already exist and return structured results (`runCheck`, `syncV
 - [x] 2.6 Implement per-repo serialization of mutating tools with typed busy error; concurrent check allowed
 - [x] 2.7 Declare the unstable `copperhead-mcp/0.x` protocol version, announce experimental status on stderr at startup, and state instability in the server metadata
 - [x] 2.8 Wire `copperhead mcp [--repo]` into the CLI with the experimental marker in its description and the bad-path error
-- [x] 2.9 Assert stdout discipline: no code path on the server reaches `console.log`; all human output goes to stderr
+- [x] 2.9 Assert stdout discipline for the keyless tools: a real stdio handshake plus `check`/`doctor` calls prove stdout carries only JSON-RPC. The `do` / `sync --resolve` paths are argued safe by construction (they pass `renderer`, which short-circuits the loop's only `console.log`) but are not covered by a test
 
 ## 3. Tests
 
-- [x] 3.1 Protocol tests over stdio with golden request/response fixtures (tool list, each tool, progress notifications), pinned protocol version
+- [x] 3.1 Protocol test over real stdio: handshake, tool list, and a `check` and `doctor` round trip against the pinned protocol version
+- [ ] 3.1a Golden request/response fixtures, and a progress-notification test over stdio — `mcpRenderer` is unit-tested, but nothing asserts a notification actually reaches a host
 - [x] 3.2 Parity test: `copperhead_check` result equals `check --json` on the same repo state
-- [x] 3.3 Rollback-as-result test; keyless degradation tests; serialization/busy test
+- [x] 3.3 Keyless degradation tests; serialization/busy test (asserted unconditionally, so deleting the lock fails it)
+- [ ] 3.3a Rollback-as-result test: nothing yet asserts the delta spec's scenario that the working tree is byte-identical to the pre-run state after `rolled_back`. Needs a provider seam on `createMcpServer` to drive `copperhead_do` without a live model
 - [x] 3.4 Surface audit test (required, not follow-up): enumerate registered tools and assert none accepts a filesystem path, drives a single loop step, or mutates files outside the gated pipeline
 - [x] 3.4a Assert the five pipeline tool names resolve to nothing in the agent capability catalog, so the pipeline can never be invoked from inside the loop it runs (design D9)
 - [x] 3.4b Assert a result carrying a fake API key in its text comes back redacted, proving the envelope path is actually used

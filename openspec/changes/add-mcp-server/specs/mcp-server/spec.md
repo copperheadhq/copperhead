@@ -15,7 +15,7 @@
 
 #### Scenario: Adding a tool cannot silently widen the surface
 - **WHEN** a tool is registered whose input schema accepts a filesystem path or which drives a single loop step
-- **THEN** the surface-audit test fails
+- **THEN** the surface-audit test fails, unless the path is the `copperhead_init` search path, which is permitted only because it is contained (below)
 
 ### Requirement: Results use the shared envelope and the pipeline stays out of the agent catalog
 Every tool result SHALL be constructed through the shared `ToolResult` envelope so redaction happens at construction, and every error SHALL carry one of the shared `ToolErrorKind` values. The five pipeline tools SHALL NOT be registered in the agent capability catalog.
@@ -49,6 +49,17 @@ The server SHALL declare an unstable protocol version with a `0.` major, SHALL a
 #### Scenario: Check makes no model or network call
 - **WHEN** `copperhead_check` runs with no API key present and no network available
 - **THEN** the check completes and returns its report
+
+### Requirement: Host-supplied paths are contained to the repo root
+`copperhead_init` is the only tool that accepts a filesystem path, and that path SHALL be resolved through the repo-root containment helper before use. A path that resolves outside the repo root SHALL be refused with a typed `validation` error, and no scaffolding SHALL be written.
+
+#### Scenario: A relative path that escapes the repo is refused
+- **WHEN** `copperhead_init` is called with a `path` of `../..`
+- **THEN** the result is a `validation` error naming the escape, and the repo's configuration is unchanged
+
+#### Scenario: An absolute path is refused
+- **WHEN** `copperhead_init` is called with an absolute `path`
+- **THEN** the result is a `validation` error and nothing is written
 
 ### Requirement: copperhead_do tool
 `copperhead_do` SHALL accept a change-request string (and optional `dry_run` boolean), run the full gated loop non-interactively (AUTO marker), emit MCP progress notifications while the run proceeds, and return a run summary containing at minimum: status (`committed`, `rolled_back`, or `refused`), commit hash when committed, files touched, verification results, and the transcript path. Intermediate loop steps SHALL NOT be exposed as tool interactions.

@@ -22,7 +22,6 @@ import { DEFAULT_BOARDS, DEFAULT_SPARES } from './kicad/bom-export.js';
 import { runAgentLoop, type BudgetExhaustedStats } from './agent/loop.js';
 import { makeRenderer } from './agent/render.js';
 import { kicadCliVersion } from './kicad/cli.js';
-import { startMcpServer } from './mcp/server.js';
 import { loadEnvFile } from './util/env.js';
 import { budgetExtraTurns, budgetPromptText, parseMaxTurns, repoOf } from './util/cli-args.js';
 
@@ -412,6 +411,11 @@ program
   .action(async (opts: { repo?: string }) => {
     const repo = repoOf(opts.repo ? { repo: opts.repo } : program.opts());
     try {
+      // Imported lazily, like `skill`: the MCP SDK and zod are a ~150ms load
+      // that every other command — including the pre-commit `check` — would
+      // otherwise pay, and a resolution failure here would take down the whole
+      // CLI rather than just this command.
+      const { startMcpServer } = await import('./mcp/server.js');
       // Never returns until the host closes stdio. Nothing is printed to
       // stdout here or anywhere downstream: it carries JSON-RPC alone.
       await startMcpServer({ repoRoot: repo });

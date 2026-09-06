@@ -29,7 +29,7 @@ diff is exactly the change this pipeline exists to catch.
 | Know whether the project is currently sound | `copperhead_check` |
 | Find docs/constraints that disagree with the board | `copperhead_sync` |
 | Fix that drift too | `copperhead_sync` with `resolve: true` |
-| Set up docs memory on a project that has none | `copperhead_init` |
+| Set up docs memory on a project that has none | `copperhead_init` (also installs a `pre-commit` hook running `copperhead check` — say so before calling it) |
 | Work out why a tool said something was unavailable | `copperhead_doctor` |
 
 ## How to read the results

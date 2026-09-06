@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { mkdtemp, writeFile, chmod } from 'node:fs/promises';
+import { mkdtemp, writeFile, chmod, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { MCP_PROTOCOL_VERSION, PIPELINE_TOOL_NAMES } from '../src/mcp/server.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -57,6 +57,7 @@ describe('copperhead mcp over real stdio', () => {
     const shim = path.join(shimDir, 'kicad-cli');
     await writeFile(shim, '#!/bin/sh\necho "kicad-cli: simulated failure" >&2\nexit 1\n', 'utf8');
     await chmod(shim, 0o755);
+    cleanups.push(() => rm(shimDir, { recursive: true, force: true }));
 
     const transport = new StdioClientTransport({
       command: 'npx',

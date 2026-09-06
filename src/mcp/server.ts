@@ -14,7 +14,10 @@
  * Two rails are enforced here because they are properties of the transport
  * rather than of the pipeline: stdout carries only the JSON-RPC stream (every
  * human-readable byte goes to stderr, or the protocol corrupts), and mutating
- * calls are serialized per repo so two hosts cannot interleave runs.
+ * calls are serialized per repo *within this server process*. That lock is
+ * in-memory, so it does not interlock two separately spawned servers or a
+ * concurrent CLI run — those are held apart by the loop's own dirty-tree
+ * preflight, not by this.
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -26,6 +29,7 @@ import { loadConfig, resolveModel, type ModelSource } from '../config.js';
 import { runCheck } from '../commands/check.js';
 import { syncVerify, syncResolve, formatSyncReport } from '../commands/sync.js';
 import { runInit, InitError } from '../memory/scaffold.js';
+import { SandboxError } from '../util/paths.js';
 import { runDoctor } from '../commands/doctor.js';
 import { runAgentLoop, type RunResult } from '../agent/loop.js';
 import { kicadCliVersion } from '../kicad/cli.js';
@@ -198,8 +202,6 @@ export function runStatus(res: RunResult, dryRun: boolean): 'committed' | 'rolle
 
 export interface ServerOptions {
   repoRoot: string;
-  /** Test seam: observe progress without a live MCP transport. */
-  onProgress?: ProgressSink;
 }
 
 /**
@@ -297,8 +299,9 @@ export function createMcpServer(opts: ServerOptions): McpServer {
     {
       title: 'Scaffold design docs from the schematic',
       description:
-        'Generate the docs/ memory scaffold from an existing schematic. Idempotent, and refuses rather than ' +
-        'overwriting docs a human has hand-edited.',
+        'Generate the docs/ memory scaffold from an existing schematic. Also installs a git pre-commit hook ' +
+        'that runs copperhead check before each commit. Idempotent, and refuses rather than overwriting docs ' +
+        'a human has hand-edited.',
       inputSchema: {
         path: z.string().optional().describe('where to look for KiCad files, relative to the repo root'),
       },
@@ -331,7 +334,11 @@ export function createMcpServer(opts: ServerOptions): McpServer {
       } catch (err) {
         // A missing schematic is the user's situation, not a crash: report it
         // as a validation failure so the host can ask for a path.
-        const kind: ToolErrorKind = err instanceof InitError ? 'validation' : 'exception';
+        // A missing schematic and a path that escapes the repo are both the
+        // caller's situation, not a crash: report them as validation failures
+        // so the host can correct the input rather than retrying blindly.
+        const kind: ToolErrorKind =
+          err instanceof InitError || err instanceof SandboxError ? 'validation' : 'exception';
         return toMcp(failure(kind, (err as Error).message));
       } finally {
         locks.release(repoRoot);
@@ -362,19 +369,17 @@ export function createMcpServer(opts: ServerOptions): McpServer {
         return toMcp(failure('unavailable', 'another copperhead run is in progress for this repo; retry shortly'));
       }
       const progressToken = extra?._meta?.progressToken;
-      const sink: ProgressSink =
-        opts.onProgress ??
-        ((update): void => {
-          if (progressToken === undefined) return;
-          void extra
-            ?.sendNotification({
-              method: 'notifications/progress',
-              params: { progressToken, progress: update.progress, message: update.message },
-            })
-            .catch(() => {
-              // A host that stopped listening must not fail the run.
-            });
-        });
+      const sink: ProgressSink = (update): void => {
+        if (progressToken === undefined) return;
+        void extra
+          ?.sendNotification({
+            method: 'notifications/progress',
+            params: { progressToken, progress: update.progress, message: update.message },
+          })
+          .catch(() => {
+            // A host that stopped listening must not fail the run.
+          });
+      };
       try {
         const res = await runAgentLoop({
           repoRoot,
@@ -467,22 +472,39 @@ export function createMcpServer(opts: ServerOptions): McpServer {
       if (!locks.tryAcquire(repoRoot)) {
         return toMcp(failure('unavailable', 'another copperhead run is in progress for this repo; retry shortly'));
       }
+      // The report above was computed before the lock was held, so another run
+      // may have rewritten the tree in between. Re-verify now that nothing else
+      // can move, rather than asking the loop to fix drift that is already gone.
+      const fresh = await syncVerify(repoRoot);
+      if (fresh.violations.length || !fresh.resolvable.length) {
+        locks.release(repoRoot);
+        return toMcp(
+          seal({
+            ok: !fresh.violations.length,
+            summary: fresh.violations.length
+              ? `${fresh.violations.length} requirement violation(s) found; these are never auto-resolved.`
+              : 'design state is consistent; nothing to resolve',
+            viewHint: 'diagnostic',
+            data: fresh,
+          }),
+        );
+      }
       const progressToken = extra?._meta?.progressToken;
-      const sink: ProgressSink =
-        opts.onProgress ??
-        ((update): void => {
-          if (progressToken === undefined) return;
-          void extra
-            ?.sendNotification({
-              method: 'notifications/progress',
-              params: { progressToken, progress: update.progress, message: update.message },
-            })
-            .catch(() => {});
-        });
+      const sink: ProgressSink = (update): void => {
+        if (progressToken === undefined) return;
+        void extra
+          ?.sendNotification({
+            method: 'notifications/progress',
+            params: { progressToken, progress: update.progress, message: update.message },
+          })
+          .catch(() => {
+            // A host that stopped listening must not fail the run.
+          });
+      };
       try {
         const res = await syncResolve(
           repoRoot,
-          report,
+          fresh,
           resolved.model,
           (s) => {
             note(s);
@@ -504,7 +526,7 @@ export function createMcpServer(opts: ServerOptions): McpServer {
             viewHint: 'mutation',
             data: {
               resolved: res.ok,
-              report,
+              report: fresh,
               commit: res.run.commit,
               filesTouched: res.run.filesTouched,
               transcriptDir: res.run.transcriptDir,
