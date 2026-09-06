@@ -49,7 +49,7 @@
 	--ch-on-accent: #1b1b1c;
 	--ch-accent-hover: #d48a48;
 
-	/* Type scale (GitBook-ish: h1 36px, h2 24px, h3 20px) */
+	/* Type scale (GitBook-ish: h1 34px, h2 24px, h3 20px) */
 	--sl-text-h1: 2.125rem;
 	--sl-text-h2: 1.5rem;
 	--sl-text-h3: 1.25rem;
@@ -256,8 +256,8 @@ starlight-toc a[aria-current='true'] {
 	color: var(--sl-color-text-accent);
 	background-color: var(--ch-pill-bg);
 }
-/* List only the headings, not the page title itself. */
-starlight-toc li:has(> a[href='#_top']) {
+/* List only the headings, not the page title itself (both TOC renderers). */
+:is(starlight-toc, mobile-starlight-toc) li:has(> a[href='#_top']) {
 	display: none;
 }
 
@@ -295,7 +295,7 @@ mobile-starlight-toc .toggle {
 	margin-top: 2rem;
 }
 
-.sl-markdown-content :is(p, li, td, dd, blockquote) > a:not(:where(.not-content *)) {
+.sl-markdown-content :is(p, li, td, dd, blockquote) a:not(:where(.not-content *)) {
 	color: var(--sl-color-text-accent);
 	text-decoration: underline;
 	text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
@@ -303,7 +303,7 @@ mobile-starlight-toc .toggle {
 	text-underline-offset: 0.2em;
 	transition: text-decoration-color 0.12s;
 }
-.sl-markdown-content :is(p, li, td, dd, blockquote) > a:hover:not(:where(.not-content *)) {
+.sl-markdown-content :is(p, li, td, dd, blockquote) a:hover:not(:where(.not-content *)) {
 	color: var(--sl-color-text-accent);
 	text-decoration-color: currentColor;
 }
@@ -371,23 +371,16 @@ mobile-starlight-toc .toggle {
 	outline-offset: -1px;
 }
 
-/* ---- Footer: pagination cards, then meta ------------------------------ */
+/* ---- Footer: pagination cards, then meta ------------------------------
+ * The order comes from the Footer.astro override, not CSS `order`, so that
+ * keyboard focus order follows what is on screen (WCAG 2.4.3).
+ * ---------------------------------------------------------------------- */
 
-footer.sl-flex {
-	gap: 1.25rem;
-}
-footer .meta {
-	order: 2;
-	margin-top: 0;
-	font-size: var(--sl-text-sm);
-	color: var(--sl-color-gray-3);
-}
 footer .meta a:hover {
 	color: var(--sl-color-white);
 }
 
 .pagination-links {
-	order: 1;
 	gap: 0.875rem;
 	margin-top: 3rem;
 }
@@ -438,4 +431,44 @@ footer .meta a:hover {
 .card {
 	border-color: var(--sl-color-gray-5);
 	border-radius: 0.75rem;
+}
+
+/* ---- Print -------------------------------------------------------------
+ * Starlight's print.css forces a light palette, but it is unlayered too, so
+ * it ties with this file's :root on specificity and loses on document order
+ * (it is linked first). Without this block a dark-mode reader prints light
+ * text on a near-black page. Listing [data-theme='dark'] as well keeps this
+ * ahead of the light-mode block below it.
+ * ---------------------------------------------------------------------- */
+
+@media print {
+	:root,
+	:root[data-theme='dark'] {
+		--sl-color-white: #1a1b1e;
+		--sl-color-gray-1: #2b2d32;
+		--sl-color-gray-2: #545962;
+		--sl-color-gray-3: #6d747f;
+		--sl-color-gray-4: #c2c8d2;
+		--sl-color-gray-5: #e3e7ed;
+		--sl-color-gray-6: #eff2f6;
+		--sl-color-gray-7: #f7f8fa;
+		--sl-color-black: #ffffff;
+
+		--sl-color-accent-low: #f8e9db;
+		--sl-color-accent: #a35d1f;
+		--sl-color-accent-high: #5d3411;
+
+		--sl-color-text: var(--sl-color-gray-1);
+		--sl-color-text-accent: #9a5619;
+		--sl-color-text-invert: #ffffff;
+		--sl-color-bg: var(--sl-color-black);
+		--sl-color-bg-nav: var(--sl-color-black);
+		--sl-color-bg-sidebar: var(--sl-color-black);
+		--sl-color-bg-inline-code: var(--sl-color-gray-6);
+
+		--ch-hover-bg: transparent;
+		--ch-pill-bg: transparent;
+		--ch-panel-ring: transparent;
+		--ch-on-accent: #ffffff;
+	}
 }

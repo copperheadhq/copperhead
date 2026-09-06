@@ -1,0 +1,37 @@
+name: Docs build
+
+# The deploy workflow only runs on push to main, so without this a docs change
+# reaches docs.copperhead.sh with its build unverified: a broken import goes
+# green on every PR check and fails afterwards, on main. This job builds the
+# site exactly as the deploy does, and publishes nothing.
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs-pr.yml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # lastUpdated timestamps come from git history
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+        working-directory: docs
+      - run: npm run build
+        working-directory: docs

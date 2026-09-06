@@ -28,6 +28,7 @@ export default defineConfig({
         Sidebar: './src/components/Sidebar.astro',
         PageTitle: './src/components/PageTitle.astro',
         ThemeSelect: './src/components/ThemeSelect.astro',
+        Footer: './src/components/Footer.astro',
       },
       customCss: [
         '@fontsource-variable/inter',
@@ -136,7 +137,7 @@ export default defineConfig({
             {
               label: 'Technical spec',
               link: `${REPO}/blob/main/openspec/specs/SPEC.md`,
-              attrs: { target: '_blank', 'data-icon': 'external' },
+              attrs: { target: '_blank', rel: 'noopener', 'data-icon': 'external' },
             },
           ],
         },
