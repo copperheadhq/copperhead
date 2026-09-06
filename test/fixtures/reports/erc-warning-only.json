@@ -1,0 +1,35 @@
+{
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-07-18T15:27:39",
+    "ignored_checks": [],
+    "included_severities": [
+        "error",
+        "warning"
+    ],
+    "kicad_version": "10.0.4",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/0a0a0a0a-0000-4000-8000-000000000001",
+            "violations": [
+                {
+                    "description": "Symbol library link is missing or invalid",
+                    "items": [
+                        {
+                            "description": "Symbol U1 (lib_id vendor:PART)",
+                            "pos": {
+                                "x": 1.27,
+                                "y": 0.9652
+                            },
+                            "uuid": "0e0e0e0e-0000-4000-8000-000000000007"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                }
+            ]
+        }
+    ],
+    "source": "open-key.kicad_sch"
+}
