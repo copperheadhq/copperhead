@@ -2,9 +2,11 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 /**
- * Minimal READ-ONLY s-expression tooling for .kicad_sch files. This module
- * never serializes: edits to KiCad files happen as anchored text replaces on
- * the original source (SPEC §1.3 / design D4).
+ * Minimal READ-ONLY s-expression tooling for KiCad s-expression files
+ * (.kicad_sch / .kicad_pcb). The footprint enumerator assumes the KiCad 8
+ * board format, where board-side reference designators are stored as
+ * `property` nodes. This module never serializes: edits to KiCad files happen
+ * as anchored text replaces on the original source (SPEC §1.3 / design D4).
  */
 
 export type SexpNode = string | SexpNode[];
@@ -110,6 +112,13 @@ interface ParsedSheet {
   filePath: string;
   sheetName: string;
   root: SexpNode[];
+}
+
+export interface BoardFootprint {
+  ref: string;
+  footprint: string;
+  at: { x: number; y: number; rot: number };
+  side: 'front' | 'back' | 'unknown';
 }
 
 async function loadSheets(rootSch: string): Promise<ParsedSheet[]> {
@@ -283,6 +292,37 @@ export async function listSymbols(rootSch: string): Promise<SchematicSymbol[]> {
     }
   }
   return out.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
+}
+
+/** Reads a KiCad PCB file and returns each placed footprint's reference, footprint name, and placement information. */
+export async function listFootprints(boardPath: string): Promise<BoardFootprint[]> {
+  const text = await readFile(boardPath, 'utf8');
+  const root = parseSexp(text)[0];
+  if (root === undefined || !isList(root)) {
+    throw new Error(`not a KiCad s-expression file: ${boardPath}`);
+  }
+  const footprints: BoardFootprint[] = [];
+
+  for (const footprintNode of children(root, 'footprint')) {
+    const footprintId = atomAt(footprintNode, 1) ?? '';
+    const ref = property(footprintNode, 'Reference') ?? '?';
+    const at = child(footprintNode, 'at');
+    const layer = atomAt(child(footprintNode, 'layer'), 1);
+    let side: BoardFootprint['side'] = 'unknown';
+    if (layer === 'F.Cu') side = 'front';
+    if (layer === 'B.Cu') side = 'back';
+    footprints.push({
+      ref,
+      footprint: footprintId,
+      at: {
+        x: parseFloat(atomAt(at, 1) ?? '0'),
+        y: parseFloat(atomAt(at, 2) ?? '0'),
+        rot: parseFloat(atomAt(at, 3) ?? '0'),
+      },
+      side,
+    });
+  }
+  return footprints.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
 }
 
 /** All net names visible via labels and power symbols, across all sheets. */
