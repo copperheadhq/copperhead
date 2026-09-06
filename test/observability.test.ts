@@ -356,22 +356,38 @@ describe('--json routes progress to stderr (AC-2.4/8.9)', () => {
 describe('interactive chrome theme (AC-8.8/8.9)', () => {
   it('plain helpers emit zero SGR when color is off', () => {
     setColorEnabled(false);
-    expect(toolLine('run_erc', 'clean')).toBe('  ✓ run_erc  clean');
-    expect(toolLine('edit_file', 'replaced 1 region')).toBe('  ▸ edit_file  replaced 1 region');
+    expect(toolLine('run_erc', 'clean', true)).toBe('  ✓ run_erc  clean');
+    expect(toolLine('edit_file', 'replaced 1 region', false)).toBe('  ▸ edit_file  replaced 1 region');
     expect(stageLine('spec-seed', 'running')).toBe('stage spec-seed: running');
-    expect(toolLine('run_erc', 'clean')).not.toContain('\x1b');
+    expect(toolLine('run_erc', 'clean', true)).not.toContain('\x1b');
   });
 
   it('interactive tool lines pick ✓ for clean results when color is on', () => {
     setColorEnabled(true);
     try {
-      const line = toolLine('run_erc', 'ERC clean');
+      const line = toolLine('run_erc', 'ERC clean', true);
       expect(line).toContain('run_erc');
       expect(line).toContain('✓');
       expect(line).toContain('\x1b');
     } finally {
       setColorEnabled(false);
     }
+  });
+
+  it('viewHint styles the tool name: mutation reads differently from query (issue #246 Phase 0)', () => {
+    setColorEnabled(true);
+    try {
+      const mutation = toolLine('edit_file', 'replaced 1 region', true, 'mutation');
+      const query = toolLine('edit_file', 'replaced 1 region', true, 'query');
+      expect(mutation).not.toBe(query);
+      expect(mutation).toContain('edit_file');
+    } finally {
+      setColorEnabled(false);
+    }
+    // plain mode: hint changes nothing, the string contract stays byte-stable
+    expect(toolLine('edit_file', 'replaced 1 region', true, 'mutation')).toBe(
+      toolLine('edit_file', 'replaced 1 region', true, 'query'),
+    );
   });
 
   it('makeRenderer(--plain) disables color so later stage lines stay zero-ANSI', () => {

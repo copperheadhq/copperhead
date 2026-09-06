@@ -280,6 +280,14 @@ copperhead score schematic [--json]
 copperhead do "<change request>" [--model codex|gpt-5|claude] [--max-turns N]
     The core loop. See §4.
 
+copperhead skill list
+    Print registered skills and whether each is available. LLM-free, network-free,
+    and does not create a run transcript/directory.
+
+copperhead skill run <name> [--scope power|all] [--model …]
+    Run a skill (currently `generate-report`) via the nested sub-run. Needs a
+    model, same as `do`. Does not snapshot or commit.
+
 copperhead check          (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
@@ -346,6 +354,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |
 | `export_svg` | (sch\|pcb) → path | For viewer + before/after diffing |
 | `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic |
+| `generate_report` | (scope?: power\|all) → report | Skill: nested read-only sub-run; ERC/DRC/drift/nets. Always in the catalog. |
 
 ### 4.3 System prompt — key rules (verbatim requirements)
 
@@ -381,6 +390,7 @@ interface Provider {
 - On turn-budget exhaustion in an attended (TTY) run: print run stats (turns, files touched, open obligations, token usage) and ask whether to continue with more turns; declining, or a non-TTY run, fails as below. The extension can repeat; each is a fresh decision with fresh numbers.
 - On any unrecoverable failure: preserve the touched work as a git stash entry named `copperhead failed run <run-id>`, restore the snapshot, print the stash ref and transcript path, exit 1
 - Rate-limit (429): exponential backoff ×3, then fail over to the other **keyed** provider (`openai` ↔ `anthropic`) if a key exists; saved-login providers (`codex`, `claude-code`, `cursor`) never fail over to a keyed or alternate provider
+- Nested skill provider turns use the same bounded timeout and 429 backoff policy. A provider error inside a skill becomes a failed tool envelope, so it cannot escape the parent loop and bypass its failure/rollback path.
 - The Anthropic provider marks `cache_control` breakpoints (system prompt, last tool, last message block) so the resent conversation prefix is cached; reported input tokens include cache reads/writes
 
 ---
