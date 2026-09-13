@@ -23,11 +23,22 @@ export interface LegibilityUserConfig {
   };
 }
 
+export interface ResearchConfig {
+  enabled?: boolean;
+  provider?: 'jlcsearch' | 'nexar';
+  searchProvider?: 'none' | 'brave';
+  allowHosts?: string[];
+  stalenessDays?: number;
+  maxPdfMB?: number;
+}
+
 export interface CopperheadConfig {
   schematic: string | null;
   board: string | null;
   /** Schematic legibility checker thresholds and severity overrides. */
   legibility?: LegibilityUserConfig;
+  /** Optional, explicitly enabled part-research network surface. */
+  research?: ResearchConfig;
   docs: string;
   model: string | null;
   maxTurns: number;
@@ -130,6 +141,24 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
+    ...(raw.research && typeof raw.research === 'object'
+      ? {
+          research: {
+            ...(raw.research.enabled === true ? { enabled: true } : {}),
+            ...(raw.research.provider === 'jlcsearch' || raw.research.provider === 'nexar' ? { provider: raw.research.provider } : {}),
+            ...(raw.research.searchProvider === 'none' || raw.research.searchProvider === 'brave' ? { searchProvider: raw.research.searchProvider } : {}),
+            ...(Array.isArray(raw.research.allowHosts)
+              ? { allowHosts: raw.research.allowHosts.filter((h): h is string => typeof h === 'string' && !!h.trim()) }
+              : {}),
+            ...(typeof raw.research.stalenessDays === 'number' && raw.research.stalenessDays >= 0
+              ? { stalenessDays: raw.research.stalenessDays }
+              : {}),
+            ...(typeof raw.research.maxPdfMB === 'number' && raw.research.maxPdfMB > 0
+              ? { maxPdfMB: raw.research.maxPdfMB }
+              : {}),
+          },
+        }
+      : {}),
   };
 }
 

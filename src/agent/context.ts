@@ -30,6 +30,10 @@ export interface RunContext {
   lastScore: number | null;
   /** Last `check_drift` output; used by `generate_report` completion. */
   lastDrift?: string | null;
+  /** Research audit counters, kept optional so existing scripted contexts remain valid. */
+  networkRequests?: number;
+  datasheetsCached?: number;
+  sourcingSnapshotsWritten?: number;
   repairCycles: number;
   finishRequest: FinishRequest | null;
 }

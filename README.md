@@ -117,6 +117,8 @@ copperhead init [--path hardware/]   # scaffold docs/ from an existing schematic
 copperhead do "<change request>"     # the core loop: propose, edit, verify, propagate, commit
 copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
+copperhead audit parts.md            # live, model-free supplier audit (research opt-in)
+copperhead check --strict-sourcing   # offline sourceability gate (optional)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
@@ -128,6 +130,54 @@ copperhead mcp                       # EXPERIMENTAL: serve the gated pipeline to
 Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, `skill run`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
 
 `copperhead create` still uses its own hardcoded stages; those are not yet skills.
+
+### Optional part research
+
+Part research is disabled unless `.copperhead/config.json` contains
+`"research": { "enabled": true }`. The default `jlcsearch` provider is
+credential-free; it uses the public JLC/LCSC search service for part metadata,
+stock, prices, and datasheet URLs when supplied. `search_parts` and `fetch_datasheet` are
+added to the agent catalog through the same structural gating path as every
+other capability. Network requests use the configured host allowlist and are
+recorded in the run transcript. `web_search` remains optional and requires a
+Brave API key; Nexar remains available as an explicitly configured provider.
+
+Nexar supplies a client ID and client secret, not a permanent API key.
+Copperhead exchanges them for a short-lived OAuth token when
+`research.provider` is set to `nexar`. Create an app with the supply scope in
+the Nexar portal, then copy its credentials from the Authorization tab.
+
+Datasheets are cached under `.copperhead/datasheets/` with an index, SHA-256
+hash, and extracted per-page text. `copperhead check` reads sourcing snapshots
+and citations offline; `--strict-sourcing` turns stale, missing, or zero-stock
+warnings into failures. A `VERIFIED(datasheet)` BOM marker means only that the
+evidence is attached and mechanically checkable—it is not engineering sign-off.
+
+### Live parts audit
+
+`copperhead audit <file>` is the deterministic, live companion to the
+offline `check` command. It needs `research.enabled: true`, but no model or
+JLCSearch credential. The input is a repository-relative Markdown table with
+an `MPN` column and optional `Refdes` and `Required qty` columns:
+
+```md
+| Refdes | MPN | Required qty |
+|---|---|---:|
+| R1 | 0603WAF1001T5E | 100 |
+```
+
+```bash
+copperhead audit docs/prototype-parts.md
+copperhead audit docs/prototype-parts.md --output docs/prototype-parts.audit.md
+```
+
+It queries the configured supplier, requires an exact returned MPN, and reports
+stock, lifecycle, pricing, and datasheet availability under clear `Available
+now`, `Not available`, and `Needs review` headings. Zero/insufficient stock,
+EOL lifecycle, or a missing exact MPN makes the command fail. Unknown lifecycle
+or a missing datasheet URL is a warning. It never changes `BOM.md` or
+`constraints.json`; `--output` is the only non-transcript write. Every network
+request is allowlisted and recorded in the ignored run transcript.
 
 `--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), and `codex` / `codex:<id>` (Codex CLI, saved login). Routing is by prefix; `claude-code` is matched before the `claude` prefix. `compat:<id>` targets any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, or a local Ollama) via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV` - worked examples for each in [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
 

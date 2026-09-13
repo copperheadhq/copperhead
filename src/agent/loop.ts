@@ -83,6 +83,16 @@ export interface RunResult {
   cacheHits: number;
 }
 
+function researchSummary(ctx: RunContext): { requests: number; datasheetsCached: number; snapshotsWritten: number } | undefined {
+  return ctx.networkRequests === undefined
+    ? undefined
+    : {
+        requests: ctx.networkRequests,
+        datasheetsCached: ctx.datasheetsCached ?? 0,
+        snapshotsWritten: ctx.sourcingSnapshotsWritten ?? 0,
+      };
+}
+
 export async function makeProvider(
   model: string,
   sessionResume = false,
@@ -264,6 +274,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     lastLegibility: null,
     lastScore: null,
     lastDrc: null,
+    ...(config.research?.enabled ? { networkRequests: 0, datasheetsCached: 0, sourcingSnapshotsWritten: 0 } : {}),
     repairCycles: 0,
     finishRequest: null,
   };
@@ -410,6 +421,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       detail: restoreError ? `${reason}\n\nROLLBACK FAILED: ${restoreError} — the working tree may be in a partial state; inspect it with git status/git diff before rerunning` : reason,
       env: meta,
       stats: runStats,
+      ...(researchSummary(ctx) ? { research: researchSummary(ctx) } : {}),
     });
     log(`run failed: ${reason}`);
     if (restoreError) {
@@ -634,6 +646,9 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           detail: `REFUSED: ${summary}`,
           env: meta,
           stats: runStats,
+          ...(ctx.networkRequests !== undefined
+            ? { research: { requests: ctx.networkRequests, datasheetsCached: ctx.datasheetsCached ?? 0, snapshotsWritten: ctx.sourcingSnapshotsWritten ?? 0 } }
+            : {}),
         });
         log(`refused: ${summary}`);
         r.finish(outcomeLine(runStats));
@@ -682,6 +697,9 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           detail: 'dry run: changes reverted',
           env: meta,
           stats: runStats,
+          ...(ctx.networkRequests !== undefined
+            ? { research: { requests: ctx.networkRequests, datasheetsCached: ctx.datasheetsCached ?? 0, snapshotsWritten: ctx.sourcingSnapshotsWritten ?? 0 } }
+            : {}),
         });
         r.finish(outcomeLine(runStats, 'dry run: changes reverted'));
         return {
@@ -762,6 +780,9 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         openObligations: null,
         env: meta,
         stats: runStats,
+        ...(ctx.networkRequests !== undefined
+          ? { research: { requests: ctx.networkRequests, datasheetsCached: ctx.datasheetsCached ?? 0, snapshotsWritten: ctx.sourcingSnapshotsWritten ?? 0 } }
+          : {}),
       });
       log(`committed ${commit.slice(0, 10)} (${files.length} file(s))`);
       r.finish(outcomeLine(runStats, `committed ${commit.slice(0, 10)}`));

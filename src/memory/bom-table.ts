@@ -182,6 +182,28 @@ export interface TableRow {
   }
 
   /**
+   * Markdown tables with their named header retained. Unlike
+   * `parseCanonicalTables`, this accepts arbitrary header names so a
+   * deterministic consumer can define a small, explicit input format without
+   * pretending that every table is a BOM or pinout table.
+   */
+  export function parseNamedMarkdownTables(md: string): Array<{ header: TableRow; rows: TableRow[] }> {
+    const tables: Array<{ header: TableRow; rows: TableRow[] }> = [];
+    for (const g of scanTableGroups(md)) {
+      const sep = g.findIndex((l) => l.separator);
+      // A header-less pipe block is not a stable interface. Requiring the GFM
+      // delimiter row also keeps prose containing pipes out of audit inputs.
+      if (sep <= 0) continue;
+      const header = g[sep - 1]!;
+      tables.push({
+        header: { cells: header.cells },
+        rows: g.slice(sep + 1).filter((l) => !l.separator).map((l) => ({ cells: l.cells })),
+      });
+    }
+    return tables;
+  }
+
+  /**
    * PINOUT.md pin assignments, resolved by column *name* and tolerant of the
    * optional Name/Notes columns (see parseCanonicalTables). Only the canonical
    * table that carries both a Pin and a Net header is read; a supporting table
@@ -323,6 +345,7 @@ export interface TableRow {
         const mpn = row.cells[mpnI];
         const flags: string[] = [];
         if (mpn === 'UNVERIFIED') flags.push('UNVERIFIED');
+        if (row.cells.some((c) => /VERIFIED\(datasheet\)/i.test(c))) flags.push('VERIFIED(datasheet)');
         else if (!mpn) flags.push('MISSING_MPN');
         out.push({
           refdes,

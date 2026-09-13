@@ -26,5 +26,13 @@ const PATTERNS: RegExp[] = [
 export function redactSecrets(text: string): string {
   let out = text;
   for (const re of PATTERNS) out = out.replace(re, '[REDACTED]');
+  // Provider credentials do not share a prefix. Redact configured secret
+  // values by environment-variable convention before they reach an audit
+  // transcript or summary. Short values are intentionally skipped to avoid
+  // destroying ordinary prose and numeric configuration values.
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!value || value.length < 8 || !/_(KEY|SECRET|TOKEN)$/.test(name)) continue;
+    out = out.split(value).join('[REDACTED]');
+  }
   return out;
 }

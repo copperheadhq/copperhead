@@ -9,6 +9,7 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { checkSourceability, type SourceabilityReport } from '../memory/sourceability.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -21,6 +22,7 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  sourceability?: SourceabilityReport & { ok: boolean };
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -37,7 +39,7 @@ export interface CheckResult {
   };
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+export async function runCheck(repoRoot: string, log: (s: string) => void, strictSourcing = false): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
@@ -109,8 +111,9 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   }
 
   let constraintViolations: ConstraintViolation[] = [];
+  let sourceability: (SourceabilityReport & { ok: boolean }) | undefined;
+  const registry = await loadConstraints(repoRoot);
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    const registry = await loadConstraints(repoRoot);
     const pins = await pinNets(path.join(repoRoot, config.schematic));
     constraintViolations = checkForbiddenPins(registry, pins);
     if (Object.keys(registry).length) {
@@ -121,13 +124,19 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
       );
     }
   }
+  if (config.research?.enabled === true || Object.keys(registry).some((key) => key.startsWith('sourcing.'))) {
+    const report = await checkSourceability(repoRoot, config.docs, config.research, strictSourcing);
+    sourceability = { ...report, ok: report.findings.every((finding) => finding.severity !== 'error') };
+    for (const finding of report.findings) log(`sourceability ${finding.severity}: ${finding.detail}`);
+  }
 
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (sourceability?.ok ?? true);
 
   return {
     ok,
@@ -136,6 +145,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    ...(sourceability ? { sourceability } : {}),
     legibility,
   };
 }

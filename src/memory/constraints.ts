@@ -12,6 +12,12 @@ export interface Constraint {
   max?: number;
   forbidden?: string[];
   value?: string | number;
+  mpn?: string;
+  lifecycle?: string;
+  stockTotal?: number;
+  price1k?: number;
+  retrieved?: string;
+  evidence?: string[];
   source: string;
   affects: string[];
   /**
