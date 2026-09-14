@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CircuitPattern",
+  "description": "Static circuit block template describing reusable schematic components and net connectivity.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique human-readable identifier for the circuit pattern."
+    },
+    "description": {
+      "type": "string",
+      "description": "Summary of the circuit topology, electrical characteristics, and typical application."
+    },
+    "parts": {
+      "type": "array",
+      "description": "Components comprising the circuit pattern block.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "description": "Reference designator or relative template designator."
+          },
+          "libId": {
+            "type": "string",
+            "description": "Canonical KiCad symbol library identifier (e.g. Device:R, Regulator_Linear:AMS1117-3.3)."
+          },
+          "value": {
+            "type": "string",
+            "description": "Component value or part number."
+          },
+          "footprint": {
+            "type": "string",
+            "description": "Optional KiCad footprint library identifier."
+          },
+          "group": {
+            "type": "string",
+            "description": "Subsystem group name."
+          }
+        },
+        "required": ["ref", "libId", "value", "group"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "nets": {
+      "type": "array",
+      "description": "Nets connecting components within the pattern and external interface points.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Net name."
+          },
+          "pins": {
+            "type": "array",
+            "description": "List of connected component pin endpoints in REF.PIN format.",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]+\\.[A-Za-z0-9_\\-/+]+$"
+            },
+            "minItems": 2
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["power", "ground", "signal"],
+            "description": "Optional net electrical class."
+          }
+        },
+        "required": ["name", "pins"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "required": ["name", "description", "parts", "nets"],
+  "additionalProperties": false
+}

@@ -59,7 +59,8 @@
     "docs:preview": "npm --prefix docs run preview",
     "refboards": "bash scripts/draft-reference-boards.sh",
     "scoresheets": "tsx scripts/score-sheets.ts",
-    "realdesigns": "tsx scripts/draft-real-designs.ts"
+    "realdesigns": "tsx scripts/draft-real-designs.ts",
+    "validate:patterns": "tsx scripts/validate-patterns.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.113.0",
