@@ -266,7 +266,12 @@ export const STAGES: Stage[] = [
       return dirHasFiles(path.join(root, 'outputs'), ['.gbr', '.gtl', '.gbl', '.gbs', '.gbo', '.gbp', '.gbd', '.gto', '.gts', '.gml']);
     },
     prompt: () =>
-      'Stage 6: outputs package. Export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, SVG renders (export_svg), and an ordering BOM.csv generated from BOM.md (refdes, MPN, qty). Every export must succeed.',
+      // `export_outputs` is what actually produces the gerbers, drill, DXF and
+      // STEP this stage asks for; `export_svg` only renders. Naming just the
+      // renderer left the stage asking for a fab package while pointing at the
+      // one tool that cannot make one. `export_outputs` is an edit tool, so it
+      // stays hidden until a proposal validates — hence the explicit order.
+      'Stage 6: outputs package. Export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, SVG renders, and an ordering BOM.csv generated from BOM.md (refdes, MPN, qty). Propose and validate a change first, then call export_outputs for the fabrication package (gerbers+drill, DXF, STEP) and export_svg for the renders. Every export must succeed.',
   },
   {
     name: 'firmware',
