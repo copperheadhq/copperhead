@@ -14,7 +14,7 @@
   <img src="https://raw.githubusercontent.com/copperheadhq/copperhead/main/assets/copperhead.gif" alt="copperhead agent shell demo" width="720">
 </p>
 
-> **Status: early.** Phase 1 is implemented and the CLI runs. The [technical specification](openspec/specs/SPEC.md) is the source of truth; expect the surface to move before 1.0.
+> **Status: early (v0.8.1).** Phase 1 is implemented and the CLI runs. The [technical specification](openspec/specs/SPEC.md) is the source of truth; expect the surface to move before 1.0.
 
 Full documentation lives at [docs.copperhead.sh](https://docs.copperhead.sh).
 
@@ -234,11 +234,24 @@ More briefs, including medium and hard tiers, live in [examples/](examples/).
 
 ## Maturity
 
-Honest read of where the current release stands, so you can calibrate before pointing this at a board you care about:
+<!-- maturity:begin -->
+Honest read of where v0.8.1 stands, so you can calibrate before pointing this at a board you care about:
 
 - **Solid.** `init` and `check`/`verify` are deterministic, LLM-free, and covered by the offline test suite against a real KiCad fixture: scaffolding, ERC/DRC, the s-expression reader, drift detection, and fab export all run green in CI.
-- **Implemented, not yet proven.** The agent loop (`do`, `sync --resolve`, `create`) is complete and structurally gated, but its acceptance tests need a live model and have not been observed passing end to end. Expect rough edges.
+- **Implemented, not yet proven.** The agent loop (`do`, `sync --resolve`, `create`) is complete and structurally gated.
+- **Acceptance Matrix (nightly runs):**
+
+  | Acceptance Criteria | OpenAI | Anthropic | Codex |
+  | --- | --- | --- | --- |
+  | AC-3.1 (Net Rename) | pass | pending | pending |
+  | AC-3.2 (RTC Pin Move) | pending | pending | pending |
+  | AC-3.3 (Add RGB LED) | pending | pending | pending |
+  | AC-3.4 (Budget Refusal) | pass | pending | pending |
+  | AC-3.5 (Repair Loop) | pass | pending | pending |
+  | AC-3.6 (Rollback) | pass | pending | pending |
+
 - **Always.** Every mutation runs inside a git snapshot and rolls back if verification fails, so the worst case is a no-op commit, not a mangled schematic. Work on a branch anyway.
+<!-- maturity:end -->
 
 ## Open source
 

@@ -2,9 +2,9 @@
 
 ## 1. Immediate housekeeping (Phase 0)
 
-- [ ] 1.1 Fix the README version line to match `package.json` (0.3.0)
-- [ ] 1.2 Implement `scripts/check-readme-consistency.ts`: version claim vs `package.json`, maturity block vs regeneration from `status.json`; wire into the offline CI workflow
-- [ ] 1.3 Add `<!-- maturity:begin/end -->` markers and the initial generated maturity section; seed `status.json` from the current known state (AC-3.1/3.4/3.5/3.6 pass on OpenAI, others pending)
+- [x] 1.1 Fix the README version line to match `package.json` (0.5.0)
+- [x] 1.2 Implement `scripts/check-readme-consistency.ts`: version claim vs `package.json`, maturity block vs regeneration from `status.json`; wire into the offline CI workflow
+- [x] 1.3 Add `<!-- maturity:begin/end -->` markers and the initial generated maturity section; seed `status.json` from the current known state (AC-3.1/3.4/3.5/3.6 pass on OpenAI, others pending)
 
 ## 2. Nightly live workflow
 

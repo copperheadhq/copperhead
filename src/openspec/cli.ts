@@ -13,6 +13,7 @@ export interface OpenSpecResult {
   output: string;
 }
 
+
 async function openspec(repo: string, args: string[]): Promise<OpenSpecResult> {
   try {
     const { stdout, stderr } = await execa('openspec', args, { cwd: repo });
