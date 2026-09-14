@@ -257,6 +257,7 @@ export class ClaudeCodeProvider implements Provider {
     return {
       text: parsed.text,
       toolCalls: parsed.toolCalls,
+      withheld: parsed.withheld,
       usage: { inputTokens, outputTokens },
       nudge: parsed.nudge,
     };

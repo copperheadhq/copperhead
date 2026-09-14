@@ -1,4 +1,4 @@
-import type { Msg, ToolCall, ToolSchema } from '../types.js';
+import type { Msg, ToolCall, ToolSchema, WithheldCall } from '../types.js';
 
 export function renderToolProtocol(tools: ToolSchema[]): string {
   if (!tools.length) return '';
@@ -73,6 +73,7 @@ export function renderConversation(messages: Msg[]): string {
 export interface ParsedToolTurn {
   text: string | null;
   toolCalls: ToolCall[];
+  withheld: WithheldCall[];
   nudge?: string;
 }
 
@@ -137,8 +138,9 @@ export function parseToolCalls(
   nextId: () => string,
   catalog: Set<string>,
 ): ParsedToolTurn {
-  if (!text) return { text: null, toolCalls: [] };
+  if (!text) return { text: null, toolCalls: [], withheld: [] };
   const toolCalls: ToolCall[] = [];
+  const withheld: WithheldCall[] = [];
   const matched: Array<[number, number]> = [];
 
   // Extract tool calls by scanning for complete JSON objects, NOT by matching
@@ -158,10 +160,14 @@ export function parseToolCalls(
       searchFrom = braceAt + 1;
       continue;
     }
-    const call = toToolCall(text.slice(span.start, span.end), nextId, catalog);
-    if (call) {
-      toolCalls.push(call);
-      matched.push([span.start, span.end]);
+    const result = classifyToolCall(text.slice(span.start, span.end), nextId, catalog);
+    if (result) {
+      if (result.kind === 'accepted') {
+        toolCalls.push(result.call);
+        matched.push([span.start, span.end]);
+      } else {
+        withheld.push({ name: result.name, args: result.args, reason: 'not in this turn\'s tool catalog' });
+      }
     }
     searchFrom = span.end;
   }
@@ -173,10 +179,10 @@ export function parseToolCalls(
     // with no `tool` key). Silently dropping it gives the model no signal, so it
     // misreads "no result" as "this tool is broken" and can bake that false
     // conclusion into a committed summary (#I10). Surface a nudge instead.
-    return { text: text.trim() ? text : null, toolCalls, nudge: detectMalformedCall(text, catalog) };
+    return { text: text.trim() ? text : null, toolCalls, withheld, nudge: detectMalformedCall(text, catalog) };
   }
 
-  // Prose is whatever survives once the tool-call objects (and any now-empty
+  // Prose is whatever survives once the accepted tool-call objects (and any now-empty
   // ```json fences around them) are removed.
   let prose = '';
   let cursor = 0;
@@ -186,7 +192,7 @@ export function parseToolCalls(
   }
   prose += text.slice(cursor);
   prose = prose.replace(/```(?:json)?\s*```/gi, '').replace(/```(?:json)?\s*$/gi, '').trim();
-  return { text: prose.length ? prose : null, toolCalls };
+  return { text: prose.length ? prose : null, toolCalls, withheld };
 }
 
 /**
@@ -215,7 +221,22 @@ function scanJsonObject(text: string, from: number): { start: number; end: numbe
   return null;
 }
 
-function toToolCall(raw: string | undefined, nextId: () => string, catalog: Set<string>): ToolCall | null {
+type ClassifyResult =
+  | { kind: 'accepted'; call: ToolCall }
+  | { kind: 'withheld'; name: string; args: Record<string, unknown> };
+
+/**
+ * Classify a JSON blob as an accepted tool call, a withheld (off-catalog) call,
+ * or nothing recognizable (null). The distinction between "withheld" and null is
+ * load-bearing (#296): a withheld call names a real tool that the structural
+ * lock kept out of the catalog, so the loop must tell the model explicitly;
+ * null means the JSON was not a tool call at all (prose, metadata, etc.).
+ */
+function classifyToolCall(
+  raw: string | undefined,
+  nextId: () => string,
+  catalog: Set<string>,
+): ClassifyResult | null {
   if (!raw) return null;
   let obj: unknown;
   try {
@@ -226,9 +247,9 @@ function toToolCall(raw: string | undefined, nextId: () => string, catalog: Set<
   if (!obj || typeof obj !== 'object') return null;
   const rec = obj as Record<string, unknown>;
   if (typeof rec.tool !== 'string') return null;
+  const args = rec.args && typeof rec.args === 'object' ? (rec.args as Record<string, unknown>) : {};
   // Only accept names the turn actually advertised. An empty catalog means the
   // turn offered no tools, so nothing parses as a call.
-  if (!catalog.has(rec.tool)) return null;
-  const args = rec.args && typeof rec.args === 'object' ? (rec.args as Record<string, unknown>) : {};
-  return { id: nextId(), name: rec.tool, args };
+  if (!catalog.has(rec.tool)) return { kind: 'withheld', name: rec.tool, args };
+  return { kind: 'accepted', call: { id: nextId(), name: rec.tool, args } };
 }

@@ -17,9 +17,16 @@ export type Msg =
   | { role: 'assistant'; content: string | null; toolCalls?: ToolCall[] }
   | { role: 'tool'; toolCallId: string; content: string };
 
+export interface WithheldCall {
+  name: string;
+  args: Record<string, unknown>;
+  reason: string;
+}
+
 export interface Turn {
   text: string | null;
   toolCalls: ToolCall[];
+  withheld?: WithheldCall[];
   usage: { inputTokens: number; outputTokens: number };
   /**
    * A one-line steer for a turn that produced NO tool call but clearly *intended*

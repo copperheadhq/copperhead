@@ -109,3 +109,12 @@ The no-tool-call nudge counter SHALL reset whenever the model calls tools again,
 
 - **WHEN** empty completions occur non-consecutively across an otherwise productive run
 - **THEN** the run is not failed for stalling; only three tool-less turns in a row are
+
+### Requirement: Withheld tool calls and finish refusal
+
+When a reply contains tool calls not present in the current turn's tool catalog, those calls SHALL be recorded as withheld, and any `finish` call in the same reply SHALL be refused with feedback indicating the unexecuted calls.
+
+#### Scenario: Finish refused when reply contains withheld calls
+
+- **WHEN** a model emits a batched reply containing both a withheld tool call and a `finish` call
+- **THEN** `finish` is not dispatched, a tool result indicates the withheld call did not run, and the run does not commit

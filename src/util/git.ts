@@ -10,13 +10,11 @@ import { PreflightError } from './preflight.js';
  * git-backed local-history directory (`.history/`, complete with its own nested
  * `.git`) into the project the first time kicad-cli touches it. Left untracked,
  * that nested repo has an unborn HEAD, so a plain `git add -A` in the parent
- * aborts with `error: '.history/' does not have a commit checked out` (exit
- * 128) — which fails the commit at the end of every KiCad-touching stage
- * (schematic, layout, outputs). Ignoring it is both correct (local history is
- * never a project artifact) and the fix for that abort. Kept as a list so other
- * KiCad transients can join it if they surface.
+ * aborts with `error: '.history/' does not have a commit checked out` (exit 128).
+ * Run transcripts (`.copperhead/runs/`) and secrets (`.env`) are also excluded
+ * to keep runs and credentials out of the committed repository.
  */
-const GIT_ADD_EXCLUDES = ['.history/'];
+const GIT_ADD_EXCLUDES = ['.history/', '.copperhead/runs/', '.env'];
 
 /**
  * Ensure the repo's root .gitignore lists each entry, appending only the
