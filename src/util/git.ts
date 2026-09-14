@@ -336,6 +336,94 @@ export async function preserveFailedRun(repo: string, runId: string): Promise<st
   }
 }
 
+/** Where a stage's work-in-progress checkpoints live, one ref per stage. */
+export function wipRef(stage: string): string {
+  return `refs/copperhead/wip/${stage}`;
+}
+
+/**
+ * Capture the current working state as a commit object, without touching any
+ * ref, the index, or the working tree (issue #208).
+ *
+ * A failed stage attempt rolls the tree back, and the accepted work it had
+ * produced survives only as a stash of *tracked* files: anything the agent left
+ * untracked is destroyed outright, and a retry restarts from zero. This commits
+ * everything the repo would commit — tracked changes and untracked files alike
+ * — so the work stays diffable and recoverable after the rollback, once a
+ * caller points a ref at the returned sha (see recordWipRef()).
+ *
+ * `.gitignore` is deliberately left untouched: a checkpoint must never mutate
+ * the caller's worktree. GIT_ADD_EXCLUDES is instead stripped from the
+ * temporary index directly after the add, so an excluded path is still
+ * excluded without an edit that would otherwise land in the checkpoint commit
+ * itself, or spuriously trigger one when it was the only dirty path.
+ *
+ * Uses a temporary index so the caller's staged state is never disturbed, which
+ * matters because this runs mid-pipeline rather than between commands.
+ *
+ * Split out from checkpoint() so a caller that is about to roll back a dirty
+ * tree (runAgentLoop's fail/refused paths) can capture it *before* the
+ * rollback runs. checkpoint() alone runs too late for that: a caller that
+ * only regains control after the rollback — as the create pipeline does —
+ * captures the clean, already-restored tree instead of the failed attempt.
+ *
+ * Returns the checkpoint commit, or null when there is nothing to record.
+ */
+export async function checkpointTree(repo: string, message: string): Promise<string | null> {
+  let tmpDir: string | null = null;
+  try {
+    if (!(await isDirty(repo))) return null;
+    tmpDir = await mkdtemp(path.join(tmpdir(), 'copperhead-wip-'));
+    const tmpIndex = path.join(tmpDir, 'index');
+    const env = { ...process.env, GIT_INDEX_FILE: tmpIndex };
+    // Seed the temporary index from HEAD so the checkpoint is a normal commit
+    // against it rather than an orphan holding only the changed paths.
+    await execa('git', ['read-tree', 'HEAD'], { cwd: repo, env });
+    await execa('git', ['add', '-A'], { cwd: repo, env });
+    await execa('git', ['rm', '-r', '--cached', '--ignore-unmatch', ...GIT_ADD_EXCLUDES], { cwd: repo, env });
+    const { stdout: tree } = await execa('git', ['write-tree'], { cwd: repo, env });
+    const head = await headCommit(repo);
+    // isDirty() saw real changes, but every one of them may have been under
+    // GIT_ADD_EXCLUDES and just got stripped back out above — a tree
+    // identical to HEAD's means there is nothing left worth capturing, not
+    // that a checkpoint should still be recorded.
+    const { stdout: headTree } = await execa('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repo, env });
+    if (tree.trim() === headTree.trim()) return null;
+    const { stdout: commit } = await execa('git', ['commit-tree', tree.trim(), '-p', head, '-m', message], {
+      cwd: repo,
+    });
+    return commit.trim();
+  } catch {
+    // A checkpoint is a safety net, never a gate: failing to take one must not
+    // fail the stage that was about to be rolled back anyway.
+    return null;
+  } finally {
+    if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/** Point a stage's WIP ref at an already-captured checkpoint commit (see checkpointTree()). */
+export async function recordWipRef(repo: string, stage: string, commit: string): Promise<void> {
+  await git(repo, ['update-ref', wipRef(stage), commit]);
+}
+
+/**
+ * Checkpoint the current working state to a stage's WIP ref in one step:
+ * checkpointTree() followed by recordWipRef(). The branch is untouched, so
+ * the verification-gated-out invariant holds verbatim: the only commits on it
+ * remain the stage-complete ones, and nothing uncertified can be mistaken for
+ * approved output. The checkpoint is reachable only by its own ref.
+ *
+ * Callers that need to capture a tree before a rollback destroys it — as
+ * opposed to checkpointing whatever the tree happens to be at call time —
+ * should use checkpointTree() and recordWipRef() directly instead.
+ */
+export async function checkpoint(repo: string, stage: string, message: string): Promise<string | null> {
+  const commit = await checkpointTree(repo, message);
+  if (commit) await recordWipRef(repo, stage, commit);
+  return commit;
+}
+
 /** Current branch name, or "HEAD" when detached. Read-only metadata probe. */
 export async function branchName(repo: string): Promise<string> {
   return git(repo, ['rev-parse', '--abbrev-ref', 'HEAD']);
