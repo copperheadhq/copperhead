@@ -195,6 +195,83 @@ describe('exit paths and run-end addenda (task 4.6)', () => {
       await cleanup();
     }
   });
+
+  it('a failed rollback on the refuse path still writes run-end and summary.md (issue #107)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const lines: string[] = [];
+      // Same shape as fail()'s case above, but the refuse branch used to call
+      // restore() unguarded: an unhandled throw there escaped runAgentLoop
+      // entirely and skipped run-end and summary.md, which the issue reported
+      // for a snapshot's stash object collected by a gc that ran mid-session —
+      // deleting .git reproduces the same "restore() throws" shape without
+      // depending on gc timing.
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async () => {
+          await rm(path.join(repo, '.git'), { recursive: true, force: true });
+          return { text: null, toolCalls: [{ id: 'fin', name: 'finish', args: { outcome: 'refuse', summary: 'violates budget' } }], usage: { inputTokens: 500, outputTokens: 100 } };
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, lines, { maxTurns: 2 }));
+      expect(res.outcome).toBe('refused');
+      expect(res.exitPath).toBe('refused');
+
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.some((e) => e.type === 'restore-failed')).toBe(true);
+      expect(events.some((e) => e.type === 'run-end')).toBe(true);
+
+      const summary = await readFile(path.join(res.transcriptDir, 'summary.md'), 'utf8');
+      expect(summary).toContain('ROLLBACK FAILED');
+      expect(lines.join('\n')).toContain('rollback failed');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a failed rollback on the dry-run path still writes run-end and summary.md (issue #107)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      // The dry-run branch runs `git diff`/`git ls-files` before restore(), so
+      // deleting .git (as the two tests above do) breaks those first instead of
+      // exercising the guard around restore() itself. This instead reproduces
+      // the issue's actual mechanism: snapshot() at run start records an
+      // unreferenced `git stash create` object (never `stash store`d, so
+      // nothing points at it), and a gc that runs before restore() collects it,
+      // exactly as issue #107's repro showed. Only the stash object goes
+      // missing — plain reads like diff/ls-files are unaffected — so this
+      // fails restore()'s `git stash apply` specifically, at the same point a
+      // real concurrent gc would. Must dirty a *tracked* file: `git stash
+      // create` only captures tracked changes, so an untracked-only dirty tree
+      // never produces a stash object to collect in the first place.
+      await writeFile(
+        path.join(repo, 'hardware', 'open-key.kicad_pro'),
+        (await readFile(path.join(repo, 'hardware', 'open-key.kicad_pro'), 'utf8')) + '\n',
+        'utf8',
+      );
+      const lines: string[] = [];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async () => {
+          await execa('git', ['gc', '--prune=now'], { cwd: repo });
+          return { text: null, toolCalls: [{ id: 'fin', name: 'finish', args: { outcome: 'done', summary: 'all good' } }], usage: { inputTokens: 500, outputTokens: 100 } };
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, lines, { maxTurns: 2, allowDirty: true, dryRun: true }));
+      expect(res.outcome).toBe('success');
+      expect(res.exitPath).toBe('done');
+
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.some((e) => e.type === 'restore-failed')).toBe(true);
+      expect(events.some((e) => e.type === 'run-end')).toBe(true);
+
+      const summary = await readFile(path.join(res.transcriptDir, 'summary.md'), 'utf8');
+      expect(summary).toContain('ROLLBACK FAILED');
+      expect(lines.join('\n')).toContain('rollback failed');
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe('redaction of metadata surfaces (task 6.1)', () => {
