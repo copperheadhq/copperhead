@@ -1,4 +1,4 @@
-import { loadConfig, resolveModel } from '../config.js';
+import { loadConfig, resolveCompatSettings, resolveModel } from '../config.js';
 import { flatten, type ToolResult } from '../agent/envelope.js';
 import { makeProvider } from '../agent/loop.js';
 import { dispatchToolResult, registry, type RunContext } from '../agent/tools.js';
@@ -47,7 +47,7 @@ export async function providerForSkillRun(repoRoot: string, modelFlag?: string):
   const config = await loadConfig(repoRoot);
   try {
     const { model } = resolveModel(modelFlag, config);
-    return { provider: await makeProvider(model), model };
+    return { provider: await makeProvider(model, false, resolveCompatSettings(config)), model };
   } catch (err) {
     const msg = (err as Error).message;
     throw new SkillCliError(

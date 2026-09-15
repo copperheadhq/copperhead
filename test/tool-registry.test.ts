@@ -679,6 +679,42 @@ describe('skill CLI', () => {
     }
   });
 
+  it('resolves compat baseURL/apiKeyEnv from repo config, same as a direct provider call (#301)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const saved = {
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      GROQ_API_KEY: process.env.GROQ_API_KEY,
+      COPPERHEAD_BASE_URL: process.env.COPPERHEAD_BASE_URL,
+      COPPERHEAD_API_KEY_ENV: process.env.COPPERHEAD_API_KEY_ENV,
+    };
+    try {
+      await runInit({ repoRoot: repo });
+      await writeFile(
+        path.join(repo, '.copperhead', 'config.json'),
+        JSON.stringify({ baseURL: 'https://api.groq.com/openai/v1', apiKeyEnv: 'GROQ_API_KEY' }),
+        'utf8',
+      );
+      delete process.env.OPENAI_API_KEY;
+      delete process.env.COPPERHEAD_BASE_URL;
+      delete process.env.COPPERHEAD_API_KEY_ENV;
+      process.env.GROQ_API_KEY = 'test-key';
+      // Before the fix, providerForSkillRun called makeProvider(model) with no
+      // compat settings, so the config's baseURL never reached the provider
+      // factory and this threw "compat:llama3-70b-8192 requires an endpoint"
+      // even though the repo config configures one, exactly as reported.
+      const { provider } = await providerForSkillRun(repo, 'compat:llama3-70b-8192');
+      expect(provider.name).toBe('openai-compat');
+    } finally {
+      if (saved.OPENAI_API_KEY !== undefined) process.env.OPENAI_API_KEY = saved.OPENAI_API_KEY;
+      else delete process.env.OPENAI_API_KEY;
+      if (saved.GROQ_API_KEY !== undefined) process.env.GROQ_API_KEY = saved.GROQ_API_KEY;
+      else delete process.env.GROQ_API_KEY;
+      if (saved.COPPERHEAD_BASE_URL !== undefined) process.env.COPPERHEAD_BASE_URL = saved.COPPERHEAD_BASE_URL;
+      if (saved.COPPERHEAD_API_KEY_ENV !== undefined) process.env.COPPERHEAD_API_KEY_ENV = saved.COPPERHEAD_API_KEY_ENV;
+      await cleanup();
+    }
+  });
+
   it('copperhead --help lists skill', async () => {
     const res = await execa(process.execPath, ['--import', 'tsx', 'src/cli.ts', '--help'], {
       cwd: ROOT,
