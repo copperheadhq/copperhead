@@ -28,6 +28,10 @@ The `copperhead` CLI SHALL provide the commands `create --brief <file>`, `init [
 - **WHEN** `check` runs on a schematic with an unconnected pin
 - **THEN** it exits non-zero and prints the violation with its sheet and location
 
+#### Scenario: Configured schematic absent (AC-2.6)
+- **WHEN** `check` runs on a repo whose configured `schematic` names a file that is not on disk
+- **THEN** it exits non-zero and names the configured path in every skip reason it prints, rather than exiting 0 with a generic "no schematic configured" message
+
 ### Requirement: JSON output mode
 With `--json`, commands SHALL emit machine-readable results with stable keys.
 
