@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, chmod } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -27,7 +27,7 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
 vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: '' }) }));
 vi.mock('../src/commands/check.js', () => ({ runCheck: async () => ({ ok: true }) }));
 
-import { runCreate } from '../src/commands/create.js';
+import { runCreate, STAGES } from '../src/commands/create.js';
 
 /** A successful mocked run result (one attempt worth of stats). */
 function ok(): RunResult {
@@ -95,6 +95,35 @@ async function seedRepo(repo: string): Promise<string> {
 }
 
 describe('create pipeline resilience (review F3)', () => {
+  it('stops before reporting a resumed stage complete when its commit fails', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    // These doubles isolate orchestration; they do not validate KiCad output.
+    const probes = STAGES.map((stage) => vi.spyOn(stage, 'isComplete').mockResolvedValue(true));
+    try {
+      const briefPath = await seedRepo(repo);
+      await execa('git', ['add', 'brief.md'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'brief'], { cwd: repo });
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(path.join(repo, 'docs', 'SPEC.md'), '# pending work\n');
+      const hook = path.join(repo, '.git', 'hooks', 'pre-commit');
+      await writeFile(hook, '#!/bin/sh\nexit 1\n');
+      await chmod(hook, 0o755);
+      const before = (await execa('git', ['rev-parse', 'HEAD'], { cwd: repo })).stdout;
+      const lines: string[] = [];
+
+      const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+
+      expect(lines.join('\n')).toContain('could not commit resumed work');
+      expect(result).toEqual({ ok: false, completed: [] });
+      expect((await execa('git', ['rev-parse', 'HEAD'], { cwd: repo })).stdout).toBe(before);
+      expect(await readFile(path.join(repo, 'docs', 'SPEC.md'), 'utf8')).toBe('# pending work\n');
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+    } finally {
+      probes.forEach((probe) => probe.mockRestore());
+      await cleanup();
+    }
+  });
+
   it('a retry verdict drives a successful second attempt, prepends the guidance, and accumulates cost across attempts', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -221,10 +250,13 @@ describe('create pipeline resilience (review F3)', () => {
       mockRunAgentLoop.mockImplementation(async () => ok());
 
       const lines: string[] = [];
-      await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+      const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
 
       const out = lines.join('\n');
       expect(out).toContain('leaving it uncommitted');
+      expect(result).toEqual({ ok: false, completed: [] });
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+      expect(await readFile(path.join(repo, 'my-notes.txt'), 'utf8')).toBe('do not touch\n');
       const { stdout } = await execa('git', ['log', '--oneline'], { cwd: repo });
       expect(stdout).not.toMatch(/resume — commit completed stage/);
     } finally {
@@ -317,6 +349,9 @@ describe('create pipeline resilience (review F3)', () => {
 
     try {
       const briefPath = await seedRepo(repo);
+      // Resume must not proceed with unrelated, uncommitted user input.
+      await execa('git', ['add', 'brief.md'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'brief'], { cwd: repo });
 
       // Use a non-default docs directory.
       await writeFile(

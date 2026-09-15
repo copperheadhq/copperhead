@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import { STAGES } from '../src/commands/create.js';
 
@@ -36,6 +36,36 @@ async function withTmpDir(fn: (root: string) => Promise<void>): Promise<void> {
 }
 
 const DOCS = 'docs';
+
+describe.each([
+  ['outputs', 'board.gbr'],
+  ['firmware', 'pins.h'],
+])('%s artifact presence', (stage, filename) => {
+  it('does not complete from a zero-byte artifact', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, stage));
+      await writeFile(path.join(root, stage, filename), '');
+      expect(await stageNamed(stage)(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('does not complete from a dangling artifact symlink', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, stage));
+      await symlink('missing-artifact', path.join(root, stage, filename));
+      expect(await stageNamed(stage)(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('continues past an empty artifact to a nonempty nested artifact', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, stage, 'nested'), { recursive: true });
+      await writeFile(path.join(root, stage, filename), '');
+      await writeFile(path.join(root, stage, 'nested', filename), 'nonempty artifact\n');
+      expect(await stageNamed(stage)(root, DOCS)).toBe(true);
+    });
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Stage 1: spec-seed

@@ -37,6 +37,27 @@ function fakeTty(): { input: PassThrough; output: PassThrough; lines: string[] }
   return { input, output, lines };
 }
 
+function waitForOutput(output: PassThrough, needle: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let seen = '';
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`timed out waiting for REPL output: ${needle}`));
+    }, 5_000);
+    const onData = (chunk: string | Buffer): void => {
+      seen += String(chunk);
+      if (!seen.includes(needle)) return;
+      cleanup();
+      resolve();
+    };
+    const cleanup = (): void => {
+      clearTimeout(timeout);
+      output.off('data', onData);
+    };
+    output.on('data', onData);
+  });
+}
+
 function baseOpts(extra: Partial<Parameters<typeof runRepl>[0]> = {}) {
   const { input, output, lines } = fakeTty();
   return {
@@ -471,9 +492,11 @@ describe('session log file', () => {
   it('mirrors session lines to .copperhead/runs/repl-*.log with keys redacted', async () => {
     setColorEnabled(false);
     const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-repl-log-'));
+    const { input, output } = fakeTty();
+    let done: ReturnType<typeof runRepl> | undefined;
     try {
-      const { input, output } = fakeTty();
-      const done = runRepl({
+      const firstPrompt = waitForOutput(output, 'Try "add reverse-polarity protection on VIN"');
+      done = runRepl({
         repoRoot: repo,
         model: 'gpt-5',
         modelSource: 'flag',
@@ -487,9 +510,10 @@ describe('session log file', () => {
           return { outcome: 'success' as const };
         }),
       });
-      await new Promise((r) => setTimeout(r, 30));
+      await firstPrompt;
+      const nextPrompt = waitForOutput(output, 'Try "rename net KEY_DAH to KEY_DASH"');
       input.write('do the thing\n');
-      await new Promise((r) => setTimeout(r, 30));
+      await nextPrompt;
       input.write('/quit\n');
       await done;
 
@@ -504,6 +528,8 @@ describe('session log file', () => {
       expect(text).not.toContain('sk-SECRET_KEY_123');
       expect(text).not.toContain('\x1b[');
     } finally {
+      input.end();
+      await done?.catch(() => undefined);
       await rm(repo, { recursive: true, force: true });
     }
   });
@@ -521,9 +547,11 @@ describe('session log file', () => {
       `ghp_${'b'.repeat(36)}`,
       `github_pat_${'c'.repeat(22)}`,
     ];
+    const { input, output } = fakeTty();
+    let done: ReturnType<typeof runRepl> | undefined;
     try {
-      const { input, output } = fakeTty();
-      const done = runRepl({
+      const firstPrompt = waitForOutput(output, 'Try "add reverse-polarity protection on VIN"');
+      done = runRepl({
         repoRoot: repo,
         model: 'gpt-5',
         modelSource: 'flag',
@@ -537,9 +565,10 @@ describe('session log file', () => {
           return { outcome: 'success' as const };
         }),
       });
-      await new Promise((r) => setTimeout(r, 30));
+      await firstPrompt;
+      const nextPrompt = waitForOutput(output, 'Try "rename net KEY_DAH to KEY_DASH"');
       input.write('publish it\n');
-      await new Promise((r) => setTimeout(r, 30));
+      await nextPrompt;
       input.write('/quit\n');
       await done;
 
@@ -551,6 +580,8 @@ describe('session log file', () => {
       expect(text).toContain('[REDACTED]');
       expect(text).toContain('trailing'); // surrounding context survives
     } finally {
+      input.end();
+      await done?.catch(() => undefined);
       await rm(repo, { recursive: true, force: true });
     }
   });

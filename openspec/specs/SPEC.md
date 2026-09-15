@@ -175,6 +175,12 @@ brief.md
 
 Each stage is a `do`-loop run with a stage-specific prompt. State lives in the repo (docs + files), so `create` is resumable: kill it at any stage, re-run, it continues from the docs.
 
+On resume, already-complete but uncommitted stage artifacts must be protected
+before advancing. If the managed-work commit fails, or unrelated dirty files
+prevent that commit, the pipeline stops with an unsuccessful result and leaves
+the files intact for human review. That stage is not reported as completed;
+later stages must not run against unprotected work.
+
 ### First-draft layout (explicitly non-optimal, explicitly useful)
 
 The agent produces an **initial placement and routing plan** — correct, not optimal — and says so:
