@@ -10,7 +10,12 @@ import {
   completeSlash,
   SLASH_COMMANDS,
 } from '../src/commands/repl.js';
-import { demoTourText, scaffoldDemoRepo, defaultBriefPath } from '../src/commands/demo.js';
+import {
+  demoTourText,
+  scaffoldDemoRepo,
+  defaultBriefPath,
+  defaultDemoDir,
+} from '../src/commands/demo.js';
 import { pickModel, selectMenu } from '../src/util/select.js';
 import {
   keySequence,
@@ -557,6 +562,27 @@ describe('session log file', () => {
 });
 
 describe('demo scaffold', () => {
+  it('defaults to the working directory and honors COPPERHEAD_DEMO_DIR', async () => {
+    const originalCwd = process.cwd();
+    const originalOverride = process.env.COPPERHEAD_DEMO_DIR;
+    const cwd = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-cwd-'));
+    const override = path.join(tmpdir(), 'custom-copperhead-demo');
+
+    try {
+      delete process.env.COPPERHEAD_DEMO_DIR;
+      process.chdir(cwd);
+      expect(defaultDemoDir()).toBe(path.join(process.cwd(), 'demo-runs/usb-c-breakout'));
+
+      process.env.COPPERHEAD_DEMO_DIR = override;
+      expect(defaultDemoDir()).toBe(override);
+    } finally {
+      process.chdir(originalCwd);
+      if (originalOverride === undefined) delete process.env.COPPERHEAD_DEMO_DIR;
+      else process.env.COPPERHEAD_DEMO_DIR = originalOverride;
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('creates a git repo with config ready for create', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
     try {

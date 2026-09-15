@@ -18,7 +18,6 @@ import { runCreate } from './create.js';
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DEFAULT_BRIEF = path.join(PKG_ROOT, 'examples/simple/usb-c-breakout.md');
-const DEFAULT_DEMO_DIR = path.join(PKG_ROOT, 'demo-runs/usb-c-breakout');
 
 export interface DemoOptions {
   model: string;
@@ -45,7 +44,9 @@ export function defaultBriefPath(): string {
 }
 
 export function defaultDemoDir(): string {
-  return process.env.COPPERHEAD_DEMO_DIR ?? DEFAULT_DEMO_DIR;
+  return (
+    process.env.COPPERHEAD_DEMO_DIR ?? path.resolve(process.cwd(), 'demo-runs/usb-c-breakout')
+  );
 }
 
 /** Marker identifying a directory scaffolded by `copperhead demo`. */
