@@ -113,6 +113,17 @@ export function configPath(repoRoot: string): string {
   return path.join(repoRoot, CONFIG_DIR, 'config.json');
 }
 
+/**
+ * Repo-relative path of a design doc under the configured docs directory,
+ * always in POSIX form. Used wherever a path is put in front of the model
+ * (stage prompts, system prompt headings): the completion contracts resolve
+ * doc paths through `config.docs`, so anything the agent is told must resolve
+ * the same way or it writes a valid document where nothing looks for it.
+ */
+export function docPath(docsDir: string, name: string): string {
+  return path.posix.join(docsDir.replace(/\\/g, '/'), name);
+}
+
 export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
   const p = configPath(repoRoot);
   if (!existsSync(p)) {

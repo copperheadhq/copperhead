@@ -2,7 +2,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { loadConfig, resolveCompatSettings } from '../config.js';
+import { loadConfig, resolveCompatSettings, docPath } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
 import { exportSvg, runErc } from '../kicad/cli.js';
 import { listSymbols } from '../kicad/sexp.js';
@@ -36,7 +36,9 @@ interface Stage {
   name: string;
   /** true when repo state shows the stage is already done (resume support). */
   isComplete: (repoRoot: string, docs: string) => Promise<boolean> | boolean;
-  prompt: (brief: string) => string;
+  /** The stage instruction. `docs` is `config.docs`: every design-doc path
+   *  named to the agent resolves through it, exactly like the contract above. */
+  prompt: (brief: string, docs: string) => string;
 }
 
 const docExists = (repoRoot: string, rel: string) => existsSync(path.join(repoRoot, rel));
@@ -135,8 +137,8 @@ export const STAGES: Stage[] = [
         .filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
       return realLines.length > 0;
     },
-    prompt: (brief) =>
-      `Stage 1 of the create pipeline: seed the requirements. From the product brief below, write docs/SPEC.md (what the device is, top-level constraints and budgets). Every budget you state must also be recorded with record_constraint. Anything the brief does not state: propose a sensible default and flag it ASSUMED. If an openspec/ workspace exists, also seed openspec/specs/ with per-capability requirements using Given/When/Then scenarios.\n\nBrief:\n${brief}`,
+    prompt: (brief, docs) =>
+      `Stage 1 of the create pipeline: seed the requirements. From the product brief below, write ${docPath(docs, 'SPEC.md')} (what the device is, top-level constraints and budgets). Every budget you state must also be recorded with record_constraint. Anything the brief does not state: propose a sensible default and flag it ASSUMED. If an openspec/ workspace exists, also seed openspec/specs/ with per-capability requirements using Given/When/Then scenarios.\n\nBrief:\n${brief}`,
   },
   {
     name: 'architecture',
@@ -160,8 +162,8 @@ export const STAGES: Stage[] = [
       });
       return contentLines.length > 0;
     },
-    prompt: () =>
-      'Stage 2: architecture. Write docs/SUBSYSTEMS.md: the block diagram in prose, one section per subsystem (power, MCU, connectivity, UI, ...), with the reasoning and key values for each. Respect every budget in SPEC.md.',
+    prompt: (_brief, docs) =>
+      `Stage 2: architecture. Write ${docPath(docs, 'SUBSYSTEMS.md')}: the block diagram in prose, one section per subsystem (power, MCU, connectivity, UI, ...), with the reasoning and key values for each. Respect every budget in ${docPath(docs, 'SPEC.md')}.`,
   },
   {
     name: 'part-selection',
@@ -184,8 +186,8 @@ export const STAGES: Stage[] = [
         return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
       });
     },
-    prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. Run check_drift before finishing.',
+    prompt: (_brief, docs) =>
+      `Stage 3: part selection. Write ${docPath(docs, 'BOM.md')} with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part's Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. Run check_drift before finishing.`,
   },
   {
     name: 'schematic',
@@ -238,8 +240,8 @@ export const STAGES: Stage[] = [
       }
       return true;
     },
-    prompt: () =>
-      'Stage 4: schematic. An empty KiCad project has already been scaffolded and wired into .copperhead/config.json. You author INTENT, never geometry: write the netlist-intent IR and call draft_schematic — the deterministic engine computes every coordinate, wire, label, power symbol, and group box, and the sheet it draws satisfies the drafting standard by construction (captioned group boxes per SUBSYSTEMS.md subsystem, left-to-right flow, rails up and grounds down, net labels between groups, filled title block). The IR (schematic.intent.json) is JSON: {"version": 1, "parts": [{"ref", "libId", "value", "footprint", "group"}], "nets": [{"name", "pins": ["REF.PIN", …], "kind"?}], "noConnect": ["REF.PIN", …], "hints"?: {"groupOrder"?, "paper"?, "date"?}}. Build it from BOM.md (same refdes and values — validation cross-checks and refuses mismatches) and SUBSYSTEMS.md (every non-power part names one subsystem heading as its group). Use exact canonical KiCad lib_ids (e.g. Device:R) and REAL pin numbers from the library: the pin dossier below (when present) already lists every BOM part\'s installed symbol and its real pins — work from it and from symbol_pins rather than reading .kicad_sym files, and validation lists a part\'s actual pins when you name one that does not exist. Name nets as a reader expects: a bus or interface shares a prefix (I2S_BCLK, I2S_DIN, I2S_LRCLK; SPI_…; BTN_…) so the drawing colours the family together, differential pairs end in +/- or P/N, and part values carry their unit (F, H, R). Declare every deliberately unused pin in noConnect; power rails are recognized from pin types automatically (override with "kind" only when the inference is wrong — the draft report lists every net\'s resolved class). Pass the full IR as intent_json to draft_schematic; the report embeds the legibility findings and the score for the fresh sheet. To repair ANY finding (ERC, legibility, validation), fix the IR and call draft_schematic again — edit_file is refused on the drafted sheet. Text-collision findings scale with TEXT LENGTH: a net label, part value, or SUBSYSTEMS heading that is shorter draws a smaller box, so renaming a colliding net (and updating PINOUT.md) or tightening a long heading is a real repair lever; paper size and declaration order are not (placement is grid-derived). When the draft is clean run run_erc and check_drift, update PINOUT.md to match the IR\'s pin assignments, and finish.',
+    prompt: (_brief, docs) =>
+      `Stage 4: schematic. An empty KiCad project has already been scaffolded and wired into .copperhead/config.json. You author INTENT, never geometry: write the netlist-intent IR and call draft_schematic — the deterministic engine computes every coordinate, wire, label, power symbol, and group box, and the sheet it draws satisfies the drafting standard by construction (captioned group boxes per ${docPath(docs, 'SUBSYSTEMS.md')} subsystem, left-to-right flow, rails up and grounds down, net labels between groups, filled title block). The IR (schematic.intent.json) is JSON: {"version": 1, "parts": [{"ref", "libId", "value", "footprint", "group"}], "nets": [{"name", "pins": ["REF.PIN", …], "kind"?}], "noConnect": ["REF.PIN", …], "hints"?: {"groupOrder"?, "paper"?, "date"?}}. Build it from ${docPath(docs, 'BOM.md')} (same refdes and values — validation cross-checks and refuses mismatches) and ${docPath(docs, 'SUBSYSTEMS.md')} (every non-power part names one subsystem heading as its group). Use exact canonical KiCad lib_ids (e.g. Device:R) and REAL pin numbers from the library: the pin dossier below (when present) already lists every BOM part's installed symbol and its real pins — work from it and from symbol_pins rather than reading .kicad_sym files, and validation lists a part's actual pins when you name one that does not exist. Name nets as a reader expects: a bus or interface shares a prefix (I2S_BCLK, I2S_DIN, I2S_LRCLK; SPI_…; BTN_…) so the drawing colours the family together, differential pairs end in +/- or P/N, and part values carry their unit (F, H, R). Declare every deliberately unused pin in noConnect; power rails are recognized from pin types automatically (override with "kind" only when the inference is wrong — the draft report lists every net's resolved class). Pass the full IR as intent_json to draft_schematic; the report embeds the legibility findings and the score for the fresh sheet. To repair ANY finding (ERC, legibility, validation), fix the IR and call draft_schematic again — edit_file is refused on the drafted sheet. Text-collision findings scale with TEXT LENGTH: a net label, part value, or SUBSYSTEMS heading that is shorter draws a smaller box, so renaming a colliding net (and updating ${docPath(docs, 'PINOUT.md')}) or tightening a long heading is a real repair lever; paper size and declaration order are not (placement is grid-derived). When the draft is clean run run_erc and check_drift, update ${docPath(docs, 'PINOUT.md')} to match the IR's pin assignments, and finish.`,
   },
   {
     name: 'layout-draft',
@@ -255,8 +257,8 @@ export const STAGES: Stage[] = [
       if (!(await readFile(p, 'utf8')).includes('(footprint')) return false;
       return docHasContent(root, path.join(docs, 'LAYOUT.md'), '## Draft quality');
     },
-    prompt: () =>
-      'Stage 5: first-draft layout. Rule-driven placement written as real coordinates: connectors on edges, decoupling at IC pins, ESD at connectors, keepouts honored. Route power and short critical nets; leave the rest as ratsnest. Every routed net must pass run_drc. Then write the "## Draft quality" section in LAYOUT.md: exactly what is fine and what a human or specialist tool should redo. Non-optimal is acceptable; unlabeled non-optimal is not.',
+    prompt: (_brief, docs) =>
+      `Stage 5: first-draft layout. Rule-driven placement written as real coordinates: connectors on edges, decoupling at IC pins, ESD at connectors, keepouts honored. Route power and short critical nets; leave the rest as ratsnest. Every routed net must pass run_drc. Then write the "## Draft quality" section in ${docPath(docs, 'LAYOUT.md')}: exactly what is fine and what a human or specialist tool should redo. Non-optimal is acceptable; unlabeled non-optimal is not.`,
   },
   {
     name: 'outputs',
@@ -265,8 +267,8 @@ export const STAGES: Stage[] = [
       // as complete. Require at least one Gerber file (any .gbr variant).
       return dirHasFiles(path.join(root, 'outputs'), ['.gbr', '.gtl', '.gbl', '.gbs', '.gbo', '.gbp', '.gbd', '.gto', '.gts', '.gml']);
     },
-    prompt: () =>
-      'Stage 6: outputs package. Export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, SVG renders (export_svg), and an ordering BOM.csv generated from BOM.md (refdes, MPN, qty). Every export must succeed.',
+    prompt: (_brief, docs) =>
+      `Stage 6: outputs package. Export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, SVG renders (export_svg), and an ordering BOM.csv generated from ${docPath(docs, 'BOM.md')} (refdes, MPN, qty). Every export must succeed.`,
   },
   {
     name: 'firmware',
@@ -274,8 +276,8 @@ export const STAGES: Stage[] = [
       // An empty firmware/ dir must not count. Require at least one source file.
       return dirHasFiles(path.join(root, 'firmware'), ['.c', '.h', '.cpp', '.hpp', '.py', '.rs', '.ino', '.s']);
     },
-    prompt: () =>
-      'Stage 7: firmware scaffold. Generate firmware/ for the chosen MCU HAL: pins.h generated from PINOUT.md (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md.',
+    prompt: (_brief, docs) =>
+      `Stage 7: firmware scaffold. Generate firmware/ for the chosen MCU HAL: pins.h generated from ${docPath(docs, 'PINOUT.md')} (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in ${docPath(docs, 'DEVPLAN.md')}.`,
   },
   {
     name: 'devplan',
@@ -291,8 +293,8 @@ export const STAGES: Stage[] = [
       );
       return contentLines.length > 0;
     },
-    prompt: () =>
-      'Stage 8: DEVPLAN.md. Write docs/DEVPLAN.md: bring-up steps in order, test points and what to meter first, risk list, and the prototype order plan.',
+    prompt: (_brief, docs) =>
+      `Stage 8: the development plan. Write ${docPath(docs, 'DEVPLAN.md')}: bring-up steps in order, test points and what to meter first, risk list, and the prototype order plan.`,
   },
 ];
 
@@ -818,7 +820,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // stops and reports for a human — the loop keeps going by itself for the
     // recoverable cases without silently spinning on the dead-end ones.
     const stageTurns = config.stageMaxTurns?.[stage.name];
-    const basePrompt = stage.prompt(brief);
+    const basePrompt = stage.prompt(brief, config.docs);
     let guidance = '';
     let stageDone = false;
     let stageTranscriptDir = '';

@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { docPath } from '../config.js';
 import type { CopperheadConfig } from '../config.js';
 import type { ConstraintRegistry } from '../memory/constraints.js';
 
@@ -49,7 +50,10 @@ export async function buildSystemPrompt(
     const files = (await readdir(docsDir)).filter((f) => f.endsWith('.md')).sort();
     for (const f of files) {
       const text = await readFile(path.join(docsDir, f), 'utf8');
-      parts.push('', `## docs/${f}`, '', text);
+      // The heading is the only place the agent learns where a doc lives, so it
+      // carries the CONFIGURED directory: with `docs: "documentation/"` a literal
+      // `## docs/SPEC.md` names a path that does not exist and invites a write there.
+      parts.push('', `## ${docPath(config.docs, f)}`, '', text);
     }
   }
 
