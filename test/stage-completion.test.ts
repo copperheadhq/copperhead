@@ -37,6 +37,17 @@ async function withTmpDir(fn: (root: string) => Promise<void>): Promise<void> {
 
 const DOCS = 'docs';
 
+async function seedLayoutStage(root: string, docs: string): Promise<void> {
+  await mkdir(path.join(root, '.copperhead'), { recursive: true });
+  await mkdir(path.join(root, path.dirname(docs), 'hardware'), { recursive: true });
+  await writeFile(
+    path.join(root, '.copperhead', 'config.json'),
+    JSON.stringify({ board: 'hardware/board.kicad_pcb', docs }),
+    'utf8',
+  );
+  await writeFile(path.join(root, 'hardware', 'board.kicad_pcb'), '(kicad_pcb\n  (footprint "test")\n)\n', 'utf8');
+}
+
 // ---------------------------------------------------------------------------
 // Stage 1: spec-seed
 // ---------------------------------------------------------------------------
@@ -273,6 +284,41 @@ describe('part-selection isComplete', () => {
         'utf8',
       );
       expect(await stageNamed('part-selection')(root, DOCS)).toBe(true);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stage 5: layout-draft
+// ---------------------------------------------------------------------------
+describe('layout-draft isComplete', () => {
+  it('requires the default docs/LAYOUT.md path and names it in the prompt', async () => {
+    await withTmpDir(async (root) => {
+      await seedLayoutStage(root, 'docs');
+      await writeFile(path.join(root, 'LAYOUT.md'), '# Layout\n\n## Draft quality\n\nDone\n', 'utf8');
+
+      const stage = STAGES.find((candidate) => candidate.name === 'layout-draft')!;
+      expect(await stage.isComplete(root, DOCS)).toBe(false);
+      await mkdir(path.join(root, 'docs'), { recursive: true });
+      await writeFile(path.join(root, 'docs', 'LAYOUT.md'), '# Layout\n\n## Draft quality\n\nDone\n', 'utf8');
+      expect(await stage.isComplete(root, DOCS)).toBe(true);
+      expect(stage.prompt('', 'docs/LAYOUT.md')).toContain('docs/LAYOUT.md');
+      expect(stage.prompt('', 'docs/LAYOUT.md')).toContain('do not create LAYOUT.md at the repository root');
+    });
+  });
+
+  it('uses a custom configured docs directory for completion and prompt guidance', async () => {
+    await withTmpDir(async (root) => {
+      const docs = 'hardware/docs';
+      await seedLayoutStage(root, docs);
+      const stage = STAGES.find((candidate) => candidate.name === 'layout-draft')!;
+      await mkdir(path.join(root, 'docs'), { recursive: true });
+      await writeFile(path.join(root, 'docs', 'LAYOUT.md'), '# Layout\n\n## Draft quality\n\nWrong location\n', 'utf8');
+      expect(await stage.isComplete(root, docs)).toBe(false);
+      await mkdir(path.join(root, docs), { recursive: true });
+      await writeFile(path.join(root, docs, 'LAYOUT.md'), '# Layout\n\n## Draft quality\n\nDone\n', 'utf8');
+      expect(await stage.isComplete(root, docs)).toBe(true);
+      expect(stage.prompt('', `${docs}/LAYOUT.md`)).toContain(`${docs}/LAYOUT.md`);
     });
   });
 });
