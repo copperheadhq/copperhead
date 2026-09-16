@@ -610,7 +610,17 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         role: 'user',
         // A near-miss malformed tool call (#I10) gets a specific steer to re-emit
         // it; an ordinary tool-less turn gets the generic continue prompt.
-        content: res.nudge ?? 'Continue using tools, or call finish({outcome, summary}) to end the run.',
+        // A tool-less turn ran nothing, and while edits are locked that is easy to
+        // misread as "the writes went through": the model sees no error, because
+        // the edit tools are absent by design rather than refusing (invariant 1).
+        // Issue #306 measured six such turns in stage 1 before the model checked
+        // the filesystem and found none of its eight documents on disk. The nudge
+        // is the only feedback that turn gets, so it says what did not happen.
+        content:
+          res.nudge ??
+          (ctx.editsUnlocked
+            ? 'Continue using tools, or call finish({outcome, summary}) to end the run.'
+            : 'No tool call was parsed in that reply, so nothing ran and no file was written. The edit tools (edit_file, write_file) are still locked: call propose_change, then validate_change, before describing any write. Continue using tools, or call finish({outcome, summary}) to end the run.'),
       });
       continue;
     }
