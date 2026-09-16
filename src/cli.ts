@@ -6,6 +6,7 @@ import { loadConfig, resolveModel, type ModelSource } from './config.js';
 import { pickModel } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
+import { runElectricalDiff, formatElectricalDiff } from './commands/diff.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
 import { runCreate } from './commands/create.js';
@@ -178,6 +179,24 @@ program
   .alias('verify')
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
   .action(checkAction);
+
+program
+  .command('diff')
+  .description('summarize electrical changes since a Git revision; read-only, offline')
+  .option('--base <revision>', 'Git revision to compare against', 'HEAD~1')
+  .action(async (opts: { base: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const diff = await runElectricalDiff(repo, opts.base);
+      if (json) console.log(JSON.stringify(diff, null, 2));
+      else console.log(formatElectricalDiff(diff));
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
 
 // `draft` and `score` are command groups taking the artifact as a noun
 // (`draft schematic` today, `draft pcb` when layout drafting exists), so the
