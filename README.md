@@ -119,6 +119,7 @@ copperhead do "<change request>"     # the core loop: propose, edit, verify, pro
 copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
+copperhead check --spice             # opt-in linear-regulator DC operating-point check via local ngspice
 copperhead diff [--base <revision>]   # component, connection, and net changes since a Git revision
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift

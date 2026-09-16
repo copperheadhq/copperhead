@@ -288,8 +288,15 @@ copperhead skill run <name> [--scope power|all] [--model …]
     Run a skill (currently `generate-report`) via the nested sub-run. Needs a
     model, same as `do`. Does not snapshot or commit.
 
-copperhead check          (alias: copperhead verify)
+copperhead check [--spice] (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
+    --spice additionally checks declared three-terminal linear-regulator DC
+    operating points using a local ngspice subprocess and a local model file.
+    Each eligible regulator needs a numeric output-voltage constraint with
+    value/min/max and affects entries for its refdes and output net, plus an
+    op Simulation block in SUBSYSTEMS.md declaring its input source voltage.
+    Missing or unusable models, non-convergence, and missing ngspice are
+    failures; a regulator without a voltage constraint is reported not checked.
     No LLM calls. Usable as CI step / pre-commit hook.
 
 copperhead diff [--base <revision>] [--json]
@@ -470,7 +477,7 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 ## 8. Phase 3 — Integrations (post-hackathon roadmap; document, don't build)
 
 - **CI**: GitHub Action running `copperhead check` (ERC + DRC + drift) with a badge — hardware repos get a green check like software
-- **Simulation checkers**: ngspice (analog sanity), openEMS (EMC) as additional verify tools — architecture is checker-agnostic
+- **Simulation checkers**: `check --spice` now covers one narrow case: linear-regulator DC operating points with a declared source, constraint, and local model. General ngspice analysis and openEMS (EMC) remain planned.
 - **KiCad plugin**: chat panel inside KiCad via the IPC API — the full-Cursor endgame
 - **Part data**: live availability/pricing (Octopart/JLC), so "sourceable" becomes a checked constraint
 - **Format expansion**: Altium file support; the agent core is format-agnostic, only tools change

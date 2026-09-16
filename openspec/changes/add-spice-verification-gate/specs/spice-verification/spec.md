@@ -1,5 +1,19 @@
 # spice-verification — Delta Spec
 
+## Issue #308 implemented subset
+
+The first implementation is explicitly requested with `check --spice`. It
+selects three-terminal `Regulator_Linear` symbols from the read-only schematic
+reader and finds output targets using the existing constraint registry's
+numeric `value`, `min`, `max`, and `affects` fields. An `op` Simulation block
+declares the input voltage. A local three-pin subcircuit must be attached
+through KiCad's `Sim.Library`, `Sim.Name`, and `Sim.Pins` symbol fields. The
+subprocess receives a bounded, regulator-specific DC deck and the check
+reports measured output against inclusive bounds. No target means `not_checked`;
+missing inputs, missing/unusable models, non-convergence, timeout, and a missing
+ngspice executable fail the explicit check. The remaining requirements below
+describe the unimplemented full gate and are not claimed by this slice.
+
 ## ADDED Requirements
 
 ### Requirement: Simulation opt-in via SUBSYSTEMS.md

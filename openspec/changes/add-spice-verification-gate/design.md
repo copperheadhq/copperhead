@@ -2,6 +2,15 @@
 
 ## Context
 
+Issue #308 lands a deliberately smaller first slice of this design: explicit
+`check --spice` for three-terminal `Regulator_Linear` DC operating points only.
+It reads the existing constraint registry's numeric `value`/`min`/`max` and
+`affects` fields, the existing `## Simulation` parser's `op` input source,
+and KiCad's `Sim.Library`/`Sim.Name`/`Sim.Pins` fields. The read-only schematic
+reader supplies pin-to-net connectivity; it emits only the regulator, source,
+and direct resistive output load. Full sheet/net scoping, other analyses, loop
+repair, and model management below remain future work.
+
 The verify step is deliberately checker-agnostic: ERC and DRC are subprocess runs whose JSON output is normalized into one violation shape that the repair loop consumes. SPEC.md §8 lists ngspice as the first planned simulation checker. KiCad ships SPICE netlist export (`kicad-cli sch export netlist --format spice`), and most KiCad symbol libraries carry simulation models for passives and common actives; MCU-class parts do not simulate, which is why the gate must be scoped, not whole-schematic.
 
 ## Goals / Non-Goals
