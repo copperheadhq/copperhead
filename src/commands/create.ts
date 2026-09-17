@@ -36,7 +36,7 @@ interface Stage {
   name: string;
   /** true when repo state shows the stage is already done (resume support). */
   isComplete: (repoRoot: string, docs: string) => Promise<boolean> | boolean;
-  prompt: (brief: string) => string;
+  prompt: (brief: string, layoutPath?: string) => string;
 }
 
 const docExists = (repoRoot: string, rel: string) => existsSync(path.join(repoRoot, rel));
@@ -253,10 +253,10 @@ export const STAGES: Stage[] = [
       const p = path.join(root, config.board);
       if (!existsSync(p)) return false;
       if (!(await readFile(p, 'utf8')).includes('(footprint')) return false;
-      return docHasContent(root, path.join(docs, 'LAYOUT.md'), '## Draft quality');
+      return docHasContent(root, path.join(config.docs, 'LAYOUT.md'), '## Draft quality');
     },
-    prompt: () =>
-      'Stage 5: first-draft layout. Rule-driven placement written as real coordinates: connectors on edges, decoupling at IC pins, ESD at connectors, keepouts honored. Route power and short critical nets; leave the rest as ratsnest. Every routed net must pass run_drc. Then write the "## Draft quality" section in LAYOUT.md: exactly what is fine and what a human or specialist tool should redo. Non-optimal is acceptable; unlabeled non-optimal is not.',
+    prompt: (_brief, layoutPath) =>
+      `Stage 5: first-draft layout. Rule-driven placement written as real coordinates: connectors on edges, decoupling at IC pins, ESD at connectors, keepouts honored. Route power and short critical nets; leave the rest as ratsnest. Every routed net must pass run_drc. Then write the "## Draft quality" section in ${layoutPath}. Use this exact repo-relative path for both reading and writing; do not create LAYOUT.md at the repository root. State exactly what is fine and what a human or specialist tool should redo. Non-optimal is acceptable; unlabeled non-optimal is not.`,
   },
   {
     name: 'outputs',
@@ -818,7 +818,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // stops and reports for a human — the loop keeps going by itself for the
     // recoverable cases without silently spinning on the dead-end ones.
     const stageTurns = config.stageMaxTurns?.[stage.name];
-    const basePrompt = stage.prompt(brief);
+    const basePrompt = stage.prompt(brief, path.join(config.docs, 'LAYOUT.md'));
     let guidance = '';
     let stageDone = false;
     let stageTranscriptDir = '';
