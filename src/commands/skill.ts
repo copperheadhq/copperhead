@@ -1,4 +1,4 @@
-import { loadConfig, resolveCompatSettings, resolveModel } from '../config.js';
+import { isCompatModel, loadConfig, resolveCompatSettings, resolveModel } from '../config.js';
 import { flatten, type ToolResult } from '../agent/envelope.js';
 import { makeProvider } from '../agent/loop.js';
 import { dispatchToolResult, registry, type RunContext } from '../agent/tools.js';
@@ -45,13 +45,16 @@ export async function runSkill(opts: {
 
 export async function providerForSkillRun(repoRoot: string, modelFlag?: string): Promise<{ provider: Provider; model: string }> {
   const config = await loadConfig(repoRoot);
+  let resolved: string | undefined;
   try {
     const { model } = resolveModel(modelFlag, config);
+    resolved = model;
     return { provider: await makeProvider(model, false, resolveCompatSettings(config)), model };
   } catch (err) {
     const msg = (err as Error).message;
     throw new SkillCliError(
-      msg.includes('no model') || msg.includes('API_KEY') || msg.includes('configured')
+      (msg.includes('no model') || msg.includes('API_KEY') || msg.includes('configured')) &&
+        !(resolved && isCompatModel(resolved))
         ? `${msg} — skill run needs OPENAI_API_KEY, ANTHROPIC_API_KEY, or --model for a saved-login provider (codex, claude-code, cursor).`
         : msg,
     );

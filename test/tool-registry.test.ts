@@ -715,6 +715,43 @@ describe('skill CLI', () => {
     }
   });
 
+  it('a missing compat credential names the configured env var, not the default-provider suffix', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const saved = {
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      GROQ_API_KEY: process.env.GROQ_API_KEY,
+      COPPERHEAD_BASE_URL: process.env.COPPERHEAD_BASE_URL,
+      COPPERHEAD_API_KEY_ENV: process.env.COPPERHEAD_API_KEY_ENV,
+    };
+    try {
+      await runInit({ repoRoot: repo });
+      await writeFile(
+        path.join(repo, '.copperhead', 'config.json'),
+        JSON.stringify({ baseURL: 'https://api.groq.com/openai/v1', apiKeyEnv: 'GROQ_API_KEY' }),
+        'utf8',
+      );
+      delete process.env.OPENAI_API_KEY;
+      delete process.env.GROQ_API_KEY;
+      delete process.env.COPPERHEAD_BASE_URL;
+      delete process.env.COPPERHEAD_API_KEY_ENV;
+      // Before this fix the catch block's default-provider suffix fired for
+      // any message containing "API_KEY", so this case named OPENAI_API_KEY
+      // and ANTHROPIC_API_KEY, neither of which is the configured remedy.
+      const err = await providerForSkillRun(repo, 'compat:llama3-70b-8192').catch((e: Error) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toMatch(/GROQ_API_KEY/);
+      expect((err as Error).message).not.toMatch(/OPENAI_API_KEY/);
+    } finally {
+      if (saved.OPENAI_API_KEY !== undefined) process.env.OPENAI_API_KEY = saved.OPENAI_API_KEY;
+      else delete process.env.OPENAI_API_KEY;
+      if (saved.GROQ_API_KEY !== undefined) process.env.GROQ_API_KEY = saved.GROQ_API_KEY;
+      else delete process.env.GROQ_API_KEY;
+      if (saved.COPPERHEAD_BASE_URL !== undefined) process.env.COPPERHEAD_BASE_URL = saved.COPPERHEAD_BASE_URL;
+      if (saved.COPPERHEAD_API_KEY_ENV !== undefined) process.env.COPPERHEAD_API_KEY_ENV = saved.COPPERHEAD_API_KEY_ENV;
+      await cleanup();
+    }
+  });
+
   it('copperhead --help lists skill', async () => {
     const res = await execa(process.execPath, ['--import', 'tsx', 'src/cli.ts', '--help'], {
       cwd: ROOT,
