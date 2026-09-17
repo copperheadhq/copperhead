@@ -33,6 +33,22 @@ async function writeMockExecutable(binPath: string, output = '9.0.1'): Promise<s
   }
 }
 
+function setHermeticWinFallbackRoots(roots: readonly string[]): void {
+  // Keep default candidate generation under test without admitting real macOS bundles.
+  const candidates = defaultFallbackBinaries(roots).filter((candidate) =>
+    roots.some((root) => {
+      const relative = path.relative(root, candidate);
+      return (
+        relative !== '' &&
+        relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative)
+      );
+    }),
+  );
+  setKicadFallbackBinaries(candidates);
+}
+
 describe('kicad-cli binary resolution', () => {
   const saved = process.env.COPPERHEAD_KICAD_CLI;
   let dir: string;
@@ -183,7 +199,7 @@ describe('kicad-cli binary resolution', () => {
     const binBase = path.join(winRoot, '10.0', 'bin', 'kicad-cli');
     const bin = await writeMockExecutable(binBase, '10.0.5');
 
-    setKicadFallbackWinRoots([winRoot]);
+    setHermeticWinFallbackRoots([winRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
     try {
@@ -212,7 +228,7 @@ describe('kicad-cli binary resolution', () => {
     await writeMockExecutable(binBase9, '9.0.0');
     await writeMockExecutable(binBase10, '10.0.5');
 
-    setKicadFallbackWinRoots([winRoot]);
+    setHermeticWinFallbackRoots([winRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir; // empty dir: PATH has no kicad-cli
     try {
@@ -228,7 +244,7 @@ describe('kicad-cli binary resolution', () => {
     const binBase = path.join(winRoot, 'bin', 'kicad-cli');
     const bin = await writeMockExecutable(binBase, '8.0.0');
 
-    setKicadFallbackWinRoots([winRoot]);
+    setHermeticWinFallbackRoots([winRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
     try {
@@ -279,7 +295,7 @@ describe('kicad-cli binary resolution', () => {
     const binBase = path.join(winRoot, '7.0', 'bin', 'kicad-cli');
     await writeMockExecutable(binBase, '7.0.11');
 
-    setKicadFallbackWinRoots([winRoot]);
+    setHermeticWinFallbackRoots([winRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir; // empty dir: PATH has no kicad-cli
     try {
@@ -314,7 +330,7 @@ describe('kicad-cli binary resolution', () => {
     // Pass both roots: fakeRoot (unlistable) first, then realRoot.
     // The fakeRoot unversioned probe will miss (nothing at fakeRoot/bin/),
     // but realRoot unversioned probe must succeed.
-    setKicadFallbackWinRoots([fakeRoot, realRoot]);
+    setHermeticWinFallbackRoots([fakeRoot, realRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
     try {

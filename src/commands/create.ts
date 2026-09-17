@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, readdir, lstat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { loadConfig, resolveCompatSettings } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
@@ -86,7 +86,7 @@ sha256: ${briefMeta.sha256}
 }
 
 /**
- * Returns true when a directory exists and contains at least one file
+ * Returns true when a directory exists and contains at least one nonempty regular file
  * matching the optional glob-style extension list (case-insensitive).
  * No extension list = any file.
  */
@@ -96,8 +96,15 @@ async function dirHasFiles(dirPath: string, exts?: string[]): Promise<boolean> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (entry.isDirectory()) {
         if (await walk(path.join(dir, entry.name))) return true;
-      } else if (!exts || exts.some((e) => entry.name.toLowerCase().endsWith(e))) {
-        return true;
+      } else if (entry.isFile() && (!exts || exts.some((e) => entry.name.toLowerCase().endsWith(e)))) {
+        // An interrupted export can leave a zero-byte file; a name alone is
+        // not evidence that this stage produced an artifact.
+        try {
+          const artifact = await lstat(path.join(dir, entry.name));
+          if (artifact.isFile() && artifact.size > 0) return true;
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+        }
       }
     }
     return false;
@@ -301,6 +308,8 @@ export interface CreateOptions {
   briefPath: string;
   model: string;
   interactive?: boolean;
+  /** Test seam: provide a deterministic provider for each stage attempt. */
+  providerFactory?: (stage: string, attempt: number) => Provider;
   /** Forwarded to each stage's run (attended continue-on-exhaustion prompt). */
   onBudgetExhausted?: (stats: BudgetExhaustedStats) => Promise<number>;
   log: (s: string) => void;
@@ -386,9 +395,10 @@ function isManagedPath(f: string, config: CopperheadConfig): boolean {
  * Strictly gated: only when every dirty path is copperhead-managed, so a user's
  * unrelated working changes are never swept into a copperhead commit; if any
  * foreign path is dirty, leave the whole thing for the human and say so.
+ * Return false when work could not be protected; later stages must not run.
  */
-async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig, stageName: string): Promise<void> {
-  if (!(await isDirty(opts.repoRoot))) return;
+async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig, stageName: string): Promise<boolean> {
+  if (!(await isDirty(opts.repoRoot))) return true;
   const dirty = await changedFiles(opts.repoRoot, 'HEAD');
   const foreign = dirty.filter((f) => !isManagedPath(f, config));
   if (foreign.length) {
@@ -400,7 +410,7 @@ async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig,
         'warn',
       ),
     );
-    return;
+    return false;
   }
   try {
     const sha = await commitAll(opts.repoRoot, `copperhead: resume — commit completed stage ${stageName}`);
@@ -411,8 +421,10 @@ async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig,
         'ok',
       ),
     );
+    return true;
   } catch (e) {
     opts.log(stageLine(stageName, `could not commit resumed work (${(e as Error).message})`, 'err'));
+    return false;
   }
 }
 
@@ -796,7 +808,12 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     }
     if (await stage.isComplete(opts.repoRoot, config.docs)) {
       opts.log(stageLine(stage.name, 'already complete (resuming past it)', 'ok'));
-      await commitResumedStage(opts, config, stage.name);
+      if (!(await commitResumedStage(opts, config, stage.name))) {
+        logResumePoint(opts, stage, i);
+        printCostTable(opts, stageCosts);
+        await writeRunReport(opts, stageCosts);
+        return { ok: false, completed };
+      }
       completed.push(stage.name);
       if (stage.name === 'spec-seed') {
         try {
@@ -880,6 +897,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           : `${basePrompt}${dossierBlock}`,
         interactive: opts.interactive ?? false,
         allowDirty: true, // stages build on each other's uncommitted state within the pipeline
+        ...(opts.providerFactory ? { provider: opts.providerFactory(stage.name, attempt) } : {}),
         ...(stageTurns !== undefined ? { maxTurns: stageTurns } : {}),
         ...(opts.onBudgetExhausted ? { onBudgetExhausted: opts.onBudgetExhausted } : {}),
         log: opts.log,

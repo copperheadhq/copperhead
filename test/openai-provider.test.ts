@@ -1,6 +1,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, it, expect, afterEach } from 'vitest';
+import { APIUserAbortError } from 'openai';
 import { OpenAIProvider, serializeToolCall, parseToolCall } from '../src/agent/providers/openai.js';
 import type { Msg, ToolSchema } from '../src/agent/types.js';
 
@@ -60,6 +61,20 @@ function completion(message: Record<string, unknown>) {
     choices: [{ index: 0, message, finish_reason: 'stop' }],
     usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 },
   };
+}
+
+async function withinOneSecond<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), 1000);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 describe('OpenAIProvider — wire contract', () => {
@@ -157,6 +172,63 @@ describe('OpenAIProvider — wire contract', () => {
       const turn = await p.chat([{ role: 'user', content: 'hi' }], []);
       expect(turn).toEqual({ text: null, toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } });
     });
+  });
+
+  it('close aborts concurrent pending SDK requests and a subsequent retry can succeed', async () => {
+    let requestCount = 0;
+    let pendingStartedCount = 0;
+    let pendingClosedCount = 0;
+    let markPendingStarted!: () => void;
+    let markPendingClosed!: () => void;
+    const pendingStarted = new Promise<void>((resolve) => (markPendingStarted = resolve));
+    const pendingClosed = new Promise<void>((resolve) => (markPendingClosed = resolve));
+    const server = http.createServer((req, res) => {
+      req.resume();
+      requestCount++;
+      if (requestCount <= 2) {
+        if (++pendingStartedCount === 2) markPendingStarted();
+        res.once('close', () => {
+          if (++pendingClosedCount === 2) markPendingClosed();
+        });
+        return; // Hold both SDK requests open until provider.close() aborts them.
+      }
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(completion({ role: 'assistant', content: 'retry-ok' })));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as AddressInfo;
+    process.env.OPENAI_BASE_URL = `http://127.0.0.1:${port}/v1`;
+    const provider = new OpenAIProvider('gpt-5', undefined, { OPENAI_API_KEY: 'sk-test' });
+
+    try {
+      const pending = [
+        provider.chat([{ role: 'user', content: 'first' }], tools),
+        provider.chat([{ role: 'user', content: 'second' }], tools),
+      ];
+      await withinOneSecond(pendingStarted, 'the SDK requests never reached the stub server');
+      await provider.close();
+
+      const cancellations = await withinOneSecond(
+        Promise.allSettled(pending),
+        'provider.close() did not settle the pending SDK requests',
+      );
+      expect(cancellations).toHaveLength(2);
+      for (const cancellation of cancellations) {
+        expect(cancellation.status).toBe('rejected');
+        if (cancellation.status === 'rejected') {
+          expect(cancellation.reason).toBeInstanceOf(APIUserAbortError);
+        }
+      }
+      await withinOneSecond(pendingClosed, 'the stub server did not observe both aborted connections closing');
+
+      const retry = await provider.chat([{ role: 'user', content: 'retry' }], tools);
+      expect(retry.text).toBe('retry-ok');
+      expect(requestCount).toBe(3);
+    } finally {
+      await provider.close();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });
 

@@ -89,6 +89,7 @@
 - [x] 9.6 Stage 7: firmware scaffold + pins.h generated from PINOUT.md; vendor toolchain build gate with explicit "not compiled here" fallback in DEVPLAN.md
 - [x] 9.7 Stage 8: DEVPLAN.md (bring-up steps, test points, risk list, prototype order plan)
 - [ ] 9.8 Interactive mode: spec-approval and pre-export gates re-enabled with --interactive; resumability test (kill after BOM stage, re-run continues)
+- [x] 9.9 Stop resume when managed-work commit fails or unrelated dirty files prevent it; deterministic orchestration tests preserve files and reject a false-success result (not live KiCad acceptance)
 
 ## 10. `sync` command (full-state verify and resolve)
 
