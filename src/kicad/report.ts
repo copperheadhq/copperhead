@@ -63,11 +63,24 @@ export function normalizeReport(raw: unknown, source: 'erc' | 'drc'): CheckRepor
   for (const v of r.violations ?? []) violations.push(normViolation(v));
   for (const v of r.unconnected_items ?? []) violations.push(normViolation(v));
   for (const v of r.schematic_parity ?? []) violations.push(normViolation(v));
-  return { ok: violations.length === 0, source, violations };
+  // `ok` gates the agent loop's repair-cycle counter and its finish() check
+  // (agent/tools.ts), so it has to mean "nothing left that the agent could
+  // fix" rather than "zero violations of any kind": a real board in a bare
+  // checkout carries permanent library-resolution warnings (missing vendor
+  // symbol/footprint libraries) that no edit can resolve. Counting those as
+  // blocking would burn every repair cycle on unfixable warnings before the
+  // agent ever gets to touch the actual request, and finish() would refuse
+  // forever. Warning-severity violations still appear in `violations` (the
+  // agent can see and act on them) — only the pass/fail gate ignores them.
+  return { ok: violations.every((v) => v.severity !== 'error'), source, violations };
 }
 
 export function formatViolations(report: CheckReport): string {
-  if (report.ok) return `${report.source.toUpperCase()}: clean`;
+  // Deliberately violations.length, not report.ok: ok is the error-severity
+  // pass/fail gate (see normalizeReport), but "clean" here is a display
+  // question — a warning-only report is ok yet still has something to show,
+  // and hiding it behind "clean" is exactly the bug this comment prevents.
+  if (report.violations.length === 0) return `${report.source.toUpperCase()}: clean`;
   const lines = [`${report.source.toUpperCase()}: ${report.violations.length} violation(s)`];
   for (const v of report.violations) {
     const where = v.sheet ? ` [sheet ${v.sheet}]` : '';

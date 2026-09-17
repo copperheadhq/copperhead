@@ -44,14 +44,17 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
 
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
     erc = await runErc(path.join(repoRoot, config.schematic));
-    log(erc.ok ? 'ERC ✓' : formatViolations(erc));
+    // violations.length, not erc.ok: ok is the error-severity pass/fail gate,
+    // but a warning-only report still has something worth printing — "ERC ✓"
+    // would otherwise silently hide it.
+    log(erc.violations.length === 0 ? 'ERC ✓' : formatViolations(erc));
   } else {
     log('ERC skipped (no schematic configured; run copperhead init)');
   }
 
   if (config.board && existsSync(path.join(repoRoot, config.board))) {
     drc = await runDrc(path.join(repoRoot, config.board));
-    log(drc.ok ? 'DRC ✓' : formatViolations(drc));
+    log(drc.violations.length === 0 ? 'DRC ✓' : formatViolations(drc));
   } else {
     log('DRC skipped (no board configured)');
   }
