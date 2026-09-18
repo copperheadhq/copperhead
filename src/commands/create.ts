@@ -322,33 +322,66 @@ async function emitJlcpcbAfterOutputs(stageName: string, opts: CreateOptions): P
 }
 
 /**
- * The generic "contract not met" line names no defect. For the schematic stage
- * the most common gap after the electrical gates go green is legibility, so
- * name the finding counts by kind — the resume then starts on the actual work
- * instead of rediscovering it.
+ * Return a specific, actionable reason why a stage's completion contract is unmet.
  */
-async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
-  const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
-  if (stageName !== 'schematic' || !config.schematic) return generic;
-  const p = path.join(root, config.schematic);
-  if (!existsSync(p)) return generic;
-  try {
-    const report = await checkLegibility(p, {
-      docsDir: path.join(root, config.docs),
-      ...(config.legibility ? { config: config.legibility } : {}),
-    });
-    if (report.counts.error > 0) {
-      const byKind = new Map<string, number>();
-      for (const f of report.findings.filter((f) => f.severity === 'error')) {
-        byKind.set(f.kind, (byKind.get(f.kind) ?? 0) + 1);
-      }
-      const counts = [...byKind].map(([k, n]) => `${k}: ${n}`).join(', ');
-      return `the schematic stage contract is not met: ${report.counts.error} error-severity legibility finding(s) remain (${counts}); resume to reconcile them`;
-    }
-  } catch {
-    // fall through: an unreadable schematic already fails earlier contract steps
+export async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
+  const docs = config.docs;
+  if (stageName === 'spec-seed') {
+    const p = path.join(root, docs, 'SPEC.md');
+    if (!existsSync(p)) return 'docs/SPEC.md does not exist';
+    return "docs/SPEC.md needs a heading containing 'Budgets' with content beneath it";
   }
-  return generic;
+  if (stageName === 'architecture') {
+    const p = path.join(root, docs, 'SUBSYSTEMS.md');
+    if (!existsSync(p)) return 'docs/SUBSYSTEMS.md does not exist';
+    return 'docs/SUBSYSTEMS.md needs at least one subsystem section heading (##) and descriptive prose beneath it';
+  }
+  if (stageName === 'part-selection') {
+    const p = path.join(root, docs, 'BOM.md');
+    if (!existsSync(p)) return 'docs/BOM.md does not exist';
+    return 'docs/BOM.md needs a table with at least one chosen part (non-UNVERIFIED MPN)';
+  }
+  if (stageName === 'schematic') {
+    if (!config.schematic) return 'no schematic configured in .copperhead/config.json';
+    const p = path.join(root, config.schematic);
+    if (!existsSync(p)) return `schematic file "${config.schematic}" does not exist`;
+    try {
+      const symbols = await listSymbols(p);
+      if (!symbols.length) return 'schematic contains no symbols';
+      const drift = await checkDrift(root, config.docs, config.schematic);
+      if (drift.length) return `schematic has drift mismatches (${drift.length} found)`;
+      const erc = await runErc(p);
+      if (!erc.ok) return `schematic has ${erc.violations.length} ERC violation(s)`;
+      const report = await checkLegibility(p, {
+        docsDir: path.join(root, config.docs),
+        ...(config.legibility ? { config: config.legibility } : {}),
+      });
+      if (report.counts.error > 0) {
+        const byKind = new Map<string, number>();
+        for (const f of report.findings.filter((f) => f.severity === 'error')) {
+          byKind.set(f.kind, (byKind.get(f.kind) ?? 0) + 1);
+        }
+        const counts = [...byKind].map(([k, n]) => `${k}: ${n}`).join(', ');
+        return `${report.counts.error} error-severity legibility finding(s) remain (${counts})`;
+      }
+    } catch {
+      // fall through: an unreadable schematic already fails earlier contract steps
+    }
+    return 'schematic stage contract is not met';
+  }
+  if (stageName === 'layout-draft') {
+    return 'docs/LAYOUT.md needs a "## Draft quality" section and the board needs at least one placed footprint';
+  }
+  if (stageName === 'outputs') {
+    return 'outputs/ needs at least one Gerber file';
+  }
+  if (stageName === 'firmware') {
+    return 'firmware/ needs at least one source file';
+  }
+  if (stageName === 'devplan') {
+    return 'docs/DEVPLAN.md needs at least one section heading (##) and content beneath it';
+  }
+  return 'stage completion contract is not met: no usable artifact was produced';
 }
 
 /** Stages whose output is a KiCad file worth rendering to an image (5.4). */
@@ -884,6 +917,11 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         ...(opts.onBudgetExhausted ? { onBudgetExhausted: opts.onBudgetExhausted } : {}),
         log: opts.log,
         ...(opts.renderer ? { renderer: opts.renderer } : {}),
+        finishGuard: async () => {
+          if (await stage.isComplete(opts.repoRoot, config.docs)) return null;
+          const gap = await contractGapDetail(stage.name, opts.repoRoot, config);
+          return `stage completion contract for "${stage.name}" is not yet satisfied: ${gap}`;
+        },
         meta: {
           ...opts.meta,
           command: 'create',

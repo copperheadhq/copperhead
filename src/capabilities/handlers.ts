@@ -719,6 +719,7 @@ export const HANDLERS: HandlerDef[] = [
       const date = new Date().toISOString().slice(0, 10);
       const entry = `- ${date} [run ${ctx.runId}] ${decision} | why: ${rationale}${affects ? ` | affects: ${affects}` : ''}`;
       const p = path.join(ctx.repoRoot, ctx.config.docs, 'DECISIONS.md');
+      await mkdir(path.dirname(p), { recursive: true });
       await appendFile(p, entry + '\n', 'utf8');
       ctx.decisions.push(`${decision} | why: ${rationale}`);
       ctx.filesTouched.add(path.join(ctx.config.docs, 'DECISIONS.md'));

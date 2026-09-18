@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { Msg, Provider, Turn } from './types.js';
 import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
@@ -67,6 +67,11 @@ export interface RunOptions {
   renderer?: ProgressRenderer;
   /** Caller-known run identity for the metadata block (design D2). */
   meta?: RunMetaInput;
+  /**
+   * Optional predicate called before commit on finish({outcome: 'done'}).
+   * Returns a rejection reason string to block finish and continue the loop, or null to proceed.
+   */
+  finishGuard?: () => Promise<string | null>;
 }
 
 export interface RunResult {
@@ -200,6 +205,7 @@ async function appendChangelog(
     }
   }
   lines.splice(insertAt, 0, ...block.split('\n').slice(1), '');
+  await mkdir(path.dirname(p), { recursive: true });
   await writeFile(p, lines.join('\n'), 'utf8');
 }
 
@@ -436,6 +442,17 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       cacheHits: cacheHits(),
     };
   };
+  const FILE_MODIFYING_TOOLS = new Set([
+    'write_file',
+    'edit_file',
+    'draft_schematic',
+    'record_decision',
+    'record_constraint',
+    'resolve_affected',
+  ]);
+  let fileMutations = 0;
+  let lastGuardMutationCount = -1;
+  let consecutiveGuardRejections = 0;
 
   let budget = maxTurns;
   for (let turn = 0; ; turn++) {
@@ -601,6 +618,12 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     messages.push({ role: 'assistant', content: res.text, toolCalls: res.toolCalls });
 
     if (!res.toolCalls.length) {
+      if (res.withheld?.length) {
+        for (const w of res.withheld) {
+          await transcript.event('tool-withheld', { name: w.name, args: w.args, reason: w.reason });
+          r.toolResult(w.name, `withheld (${w.reason})`, false);
+        }
+      }
       // Only *consecutive* tool-less turns are a stall. Providers emit the
       // occasional empty completion mid-run (observed live: three empties
       // spread across 31 productive turns); a cumulative counter turns those
@@ -617,11 +640,43 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     nudges = 0;
 
     for (const call of res.toolCalls) {
+      if (res.withheld?.length && call.name === 'finish') {
+        const withheldNames = res.withheld.map((w) => `"${w.name}"`).join(', ');
+        const finishMsg = `finish not run: ${withheldNames} in this reply did not run (${res.withheld[0]?.reason ?? 'withheld'}). Complete or retry them before calling finish.`;
+        r.toolResult('finish', finishMsg, false);
+        await transcript.event('tool', {
+          name: 'finish',
+          args: call.args,
+          result: finishMsg,
+          envelope: { ok: false, summary: finishMsg, data: { error: finishMsg } },
+        });
+        messages.push({ role: 'tool', toolCallId: call.id, content: finishMsg });
+        continue;
+      }
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
+      if (envelope.ok && FILE_MODIFYING_TOOLS.has(call.name)) {
+        fileMutations++;
+      }
       const result = flatten(envelope);
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
       r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
+    }
+
+    if (res.withheld?.length) {
+      const names = res.withheld.map((w) => `"${w.name}"`).join(', ');
+      for (const w of res.withheld) {
+        await transcript.event('tool-withheld', { name: w.name, args: w.args, reason: w.reason });
+        r.toolResult(w.name, `withheld (${w.reason})`, false);
+      }
+      const text =
+        `No call ran for ${names}: ${res.withheld.length > 1 ? 'these tools were' : 'this tool was'} withheld because ` +
+        `it was not in this turn's tool catalog. If the tool was unlocked by an earlier call in this same reply (e.g. validate_change), ` +
+        `call it again next turn.`;
+      messages.push({
+        role: 'user',
+        content: text,
+      });
     }
 
     if (ctx.repairCycles > config.maxRepairCycles) {
@@ -639,6 +694,32 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
 
     if (ctx.finishRequest) {
       const { outcome, summary } = ctx.finishRequest;
+      if (outcome === 'done' && opts.finishGuard) {
+        let guardReason: string | null = null;
+        try {
+          guardReason = await opts.finishGuard();
+        } catch (err) {
+          return fail(`finish guard error: ${(err as Error).message}`, 'finish-guard-error');
+        }
+        if (guardReason) {
+          log(`finish rejected: ${guardReason}`);
+          ctx.finishRequest = null;
+          if (fileMutations !== lastGuardMutationCount) {
+            lastGuardMutationCount = fileMutations;
+            consecutiveGuardRejections = 1;
+          } else {
+            consecutiveGuardRejections++;
+          }
+          if (consecutiveGuardRejections >= 3) {
+            return fail(guardReason, 'stalled');
+          }
+          messages.push({
+            role: 'user',
+            content: `Cannot finish yet: ${guardReason}`,
+          });
+          continue;
+        }
+      }
       const files = [...ctx.filesTouched];
       if (outcome === 'refuse') {
         await restore(repoRoot, snap);
