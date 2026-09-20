@@ -175,6 +175,17 @@ describe('parseDiagnosis', () => {
     expect(parseDiagnosis(null).verdict).toBe('abort');
     expect(parseDiagnosis('{"reason":"x"}').verdict).toBe('abort');
   });
+
+  it('scans past brace-noise before the real verdict object', () => {
+    // small models often echo the schema or emit brace-y prose first;
+    // stopping at the first unparseable {...} turned that slip into abort
+    const d = parseDiagnosis(
+      'Not json: {"stage":"x"} — and a truncated one {"verdict":" — then the real call: {"verdict":"retry","reason":"fixable dup","guidance":"remove the duplicate row"}',
+    );
+    expect(d.verdict).toBe('retry');
+    expect(d.reason).toBe('fixable dup');
+    expect(d.guidance).toBe('remove the duplicate row');
+  });
 });
 
 describe('diagnoseStageFailure', () => {

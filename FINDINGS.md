@@ -65,12 +65,18 @@ run, **P2** meaningful quality problem, **P3** polish.
   change.
 - **Suggested:** give `propose_change` an optional `spec_deltas:
   [{capability, spec}]` argument that writes
-  `openspec/changes/<id>/specs/<cap>/spec.md` alongside the proposal, and tell
-  the model the gate exists (workflow step in the system prompt).
-- **Status:** **fixed in this PR** — handler writes delta files, capability
-  names are kebab-case validated, workflow prompt names the requirement.
-  Tests: `test/gating-sync.test.ts` (delta written, bad capability name
-  rejected).
+  `openspec/changes/<id>/specs/<cap>/spec.md` alongside the proposal, plus a
+  `skip_specs` flag for genuinely spec-less changes (openspec's own error
+  message advertises `skip_specs` in `.openspec.yaml`, which the model tried
+  to reach but could not write while edits were locked), and tell the model
+  the gate exists (workflow step in the system prompt). A bare proposal on an
+  initialized workspace now warns in-band that validation will fail.
+- **Status:** **fixed in this PR** — `spec_deltas` writes delta files,
+  `skip_specs` writes a valid `schema: spec-driven` metadata marker,
+  capability names are kebab-case validated. The live run confirmed the
+  mechanism: the model proposed with `skip_specs: true` and `validate_change`
+  passed on the next call. Tests: `test/gating-sync.test.ts` (delta written,
+  marker written, warning emitted, bad capability name rejected).
 
 ### 2. DEFECT · P1 — `openspec init --no-interactive` rejected by openspec ≥1.13; failure silently dropped
 
@@ -129,7 +135,50 @@ run, **P2** meaningful quality problem, **P3** polish.
   call discharges a whole backlog.
 - **Status:** noted; not part of this PR.
 
-### 6. DEFECT · P3 — tmp-sweep tests run the sweeper against a synthetic future clock, deleting unrelated `copperhead-*` dirs
+### 6. DEFECT · P1 — stage-3 prompt contradicts the stage contract on UNVERIFIED MPNs
+
+- **Where:** `src/commands/create.ts` `STAGES` — the `part-selection` prompt vs
+  its own `isComplete`.
+- **Symptom:** the prompt said "Every MPN you introduce is flagged UNVERIFIED",
+  but `isComplete` requires at least one row whose MPN is **not** UNVERIFIED.
+  A literal-following model writes an all-UNVERIFIED BOM, the contract can
+  never hold, and the stage ends in refusal (observed: two attempts,
+  `exhausted 2 auto-retry(ies). Stopping for a human.`).
+- **Suggested:** align the text with the gate — allow concrete MPNs where the
+  model can assert one, state explicitly that at least one row must carry a
+  concrete MPN, and note that `run_erc`/`check_drift` "no schematic
+  configured" results are expected pre-schematic, never refusal grounds.
+- **Status:** **fixed in this PR** (prompt text). The deeper policy question —
+  *can* a model ever write a verified MPN without datasheet access — is worth
+  a follow-up; see finding 8.
+
+### 7. DEFECT · P1 — anchored `edit_file` misses give no nearest-line hint; small models deadlock and refuse
+
+- **Where:** `src/agent/filetools.ts` `toolEditFile` miss path.
+- **Symptom:** repeated `anchor not found in docs/BOM.md` failures — the model
+  could not reproduce its own earlier table text exactly, `write_file` refuses
+  overwrites, and the stage died in refusal asking a human for guidance.
+- **Suggested:** include the closest matching line(s) (with line numbers) in
+  the miss error so the failure becomes a self-correcting re-read.
+- **Status:** **fixed in this PR** — char-bigram Jaccard nearest-line hint
+  (catches paraphrase drift and single-char typos alike). Test: `safety.test.ts`
+  asserts the hint appears on a near-miss.
+
+### 8. NOTE · P2 — part-selection asks the model to *verify* MPNs it cannot verify
+
+- **Where:** `src/commands/create.ts` stage-3 contract vs the "datasheet-
+  verifiable justification" requirement.
+- **Symptom:** offline/local models have no datasheet reach; UNVERIFIED is
+  honest for any MPN they emit. The gate requiring ≥1 concrete MPN trades
+  honesty for completability — a model that takes the flagging instruction
+  literally (or doubts its memory) can never finish.
+- **Suggested:** either accept "well-known jellybean MPN asserted from memory,
+  flagged for human check" as satisfying the gate (status quo — prompt now
+  says so), or wire a part-research/datasheet tool before requiring verified
+  MPNs (the `add-part-research-tools` change exists for exactly this).
+- **Status:** noted; prompt-side mitigation shipped.
+
+### 9. DEFECT · P3 — tmp-sweep tests run the sweeper against a synthetic future clock, deleting unrelated `copperhead-*` dirs
 
 - **Where:** `test/tmp-sweep.test.ts` calling `sweepStaleTempDirs(now)` with an
   injected `now` ~100 min ahead of real time; `src/util/tmp.ts`.
@@ -143,7 +192,7 @@ run, **P2** meaningful quality problem, **P3** polish.
 - **Status:** worked around — the replay harness deliberately uses
   `ch-e2e-*` names that do not match `TEMP_PREFIX`.
 
-### 7. NOTE · P3 — `npm run lint` does not exist (issue asks for it)
+### 10. NOTE · P3 — `npm run lint` does not exist (issue asks for it)
 
 - **Where:** `package.json` scripts — only `lint:md` (markdownlint) is wired;
   there is no ESLint/oxlint script.
@@ -153,3 +202,22 @@ run, **P2** meaningful quality problem, **P3** polish.
 - **Suggested:** add a `lint` script (even `lint:md` aliased) so the documented
   gate exists.
 - **Status:** noted — recurrence of the issue raised in #189.
+
+### 11. DEFECT · P1 — recovery diagnosis aborts on the first unparseable `{...}` candidate
+
+- **Where:** `src/agent/recovery.ts` `parseDiagnosis`.
+- **Symptom:** the diagnosis prompt demands a bare JSON object, but small
+  models echo the schema or emit brace-y prose first. `parseDiagnosis` brace-
+  balanced only the _first_ `{`; if that candidate failed `JSON.parse` (or
+  lacked a `verdict`), the function gave up and returned `abort` — so a
+  fixable stage failure turned into "recovery supervisor recommends stopping
+  for a human" on a formatting slip. Observed live: stage-3 refusal diagnosed
+  as `abort — diagnosis was not valid JSON` even though the transcript showed
+  a self-correcting trajectory (duplicate BOM row, one bad symbol).
+- **Suggested:** scan every balanced top-level `{...}` candidate and take the
+  first that parses _and_ carries a `verdict`; keep the abort fallback only
+  when nothing parses.
+- **Status:** **fixed in this PR** — candidate loop implemented; the same
+  failure mode then produced `diagnosis → retry` with usable guidance on the
+  very next run. Test: `recovery.test.ts` scans past brace-noise to the real
+  verdict object.

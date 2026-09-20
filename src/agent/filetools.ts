@@ -51,7 +51,10 @@ export async function toolEditFile(
   const text = await readFile(abs, 'utf8');
   const first = text.indexOf(oldString);
   if (first === -1) {
-    throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+    const hint = closestAnchorLines(text, oldString);
+    throw new Error(
+      `edit_file: anchor not found in ${p}${hint}; re-read the file and use an exact excerpt`,
+    );
   }
   const count = text.split(oldString).length - 1;
   if (replaceAll) {
@@ -65,6 +68,41 @@ export async function toolEditFile(
   }
   await writeFile(abs, text.slice(0, first) + newString + text.slice(first + oldString.length), 'utf8');
   return `edited ${p}`;
+}
+
+/**
+ * Closest file line(s) to a missed anchor, by word-set Jaccard similarity.
+ * Anchored edits deadlock models that misremember their own earlier writes
+ * (observed live: part-selection refused after repeated BOM.md anchor misses,
+ * because the error gave it nothing to correct against). A nearest-line hint
+ * turns the failure into a self-correcting re-read.
+ */
+function closestAnchorLines(text: string, anchor: string): string {
+  // char-bigram Jaccard catches both paraphrase drift and single-char typos
+  // in anchors (a one-word anchor with a typo shares zero *word* grams).
+  const bigrams = (s: string) => {
+    const t = s.toLowerCase().replace(/\s+/g, ' ').trim();
+    const out = new Set<string>();
+    for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+    return out;
+  };
+  const want = bigrams(anchor.split('\n')[0] ?? '');
+  if (!want.size) return '';
+  const scored = text
+    .split('\n')
+    .map((line, i) => {
+      const have = bigrams(line);
+      let inter = 0;
+      for (const g of want) if (have.has(g)) inter++;
+      const union = want.size + have.size - inter;
+      return { i, line, score: union ? inter / union : 0 };
+    })
+    .filter((s) => s.score > 0.3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+  if (!scored.length) return '';
+  const hints = scored.map((s) => `${s.i + 1}: ${s.line.trim().slice(0, 140)}`).join('\n  ');
+  return ` — closest line(s):\n  ${hints}`;
 }
 
 export interface SearchMatch {

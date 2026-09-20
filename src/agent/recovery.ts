@@ -130,8 +130,11 @@ export interface StageDiagnosis {
  * as "abort" so an ambiguous diagnosis never loops the pipeline forever. */
 export function parseDiagnosis(text: string | null): StageDiagnosis {
   if (!text) return { verdict: 'abort', reason: 'no diagnosis produced' };
-  const start = text.indexOf('{');
-  if (start >= 0) {
+  // Try every balanced top-level {...} candidate, not just the first: small
+  // models routinely emit braces inside prose (an example schema, a stray
+  // code fragment) before the actual verdict object, and stopping at the
+  // first unparseable one turns a formatting slip into a spurious abort.
+  for (let start = text.indexOf('{'); start >= 0; start = text.indexOf('{', start + 1)) {
     let depth = 0;
     let inStr = false;
     let esc = false;
@@ -148,6 +151,7 @@ export function parseDiagnosis(text: string | null): StageDiagnosis {
       else if (ch === '}' && --depth === 0) {
         try {
           const o = JSON.parse(text.slice(start, i + 1)) as Partial<StageDiagnosis>;
+          if (typeof o.verdict !== 'string') break; // balanced but not a diagnosis — keep scanning
           const verdict = o.verdict === 'retry' ? 'retry' : 'abort';
           return {
             verdict,
@@ -157,7 +161,7 @@ export function parseDiagnosis(text: string | null): StageDiagnosis {
               : {}),
           };
         } catch {
-          break;
+          break; // not valid JSON — advance to the next '{' candidate
         }
       }
     }

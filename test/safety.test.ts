@@ -172,6 +172,9 @@ describe('file tools', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     await writeFile(path.join(dir, 'f.txt'), 'aaa\nbbb\naaa\n');
     await expect(toolEditFile(dir, 'f.txt', 'zzz', 'x')).rejects.toThrow(/not found/);
+    // a near-miss anchor must name the closest matching line(s) so the model
+    // can self-correct without burning a re-read turn
+    await expect(toolEditFile(dir, 'f.txt', 'aaab', 'x')).rejects.toThrow(/closest line/);
     await expect(toolEditFile(dir, 'f.txt', 'aaa', 'x')).rejects.toThrow(/matched 2 times/);
     await toolEditFile(dir, 'f.txt', 'bbb', 'ccc');
     expect(await readFile(path.join(dir, 'f.txt'), 'utf8')).toBe('aaa\nccc\naaa\n');
