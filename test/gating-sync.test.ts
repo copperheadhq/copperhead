@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { writeFile, readFile } from 'node:fs/promises';
+import { writeFile, readFile, mkdir } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
 import { availableTools, dispatchTool, dispatchToolResult, registry, type RunContext } from '../src/agent/tools.js';
@@ -109,6 +109,41 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
         spec_deltas: [{ capability: '../escape', spec: 'x' }],
       });
       expect(bad).toContain('kebab-case');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('propose_change with skip_specs writes the .openspec.yaml marker; without either it warns', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      // Simulate an initialized openspec workspace so a bare proposal must
+      // warn that validation would fail for the missing deltas.
+      await mkdir(path.join(repo, 'openspec'), { recursive: true });
+      await writeFile(path.join(repo, 'openspec', 'config.yaml'), 'schema: spec-driven\n', 'utf8');
+      const warned = await dispatchTool(ctx, 'propose_change', {
+        id: 'no-deltas',
+        why: 'x',
+        what_changes: 'x',
+        tasks: 'x',
+      });
+      expect(warned).toContain('WARNING');
+      const skipped = await dispatchTool(ctx, 'propose_change', {
+        id: 'docs-only',
+        why: 'x',
+        what_changes: 'x',
+        tasks: 'x',
+        skip_specs: true,
+      });
+      expect(skipped).toContain('skip_specs');
+      const marker = await readFile(
+        path.join(repo, 'openspec', 'changes', 'docs-only', '.openspec.yaml'),
+        'utf8',
+      );
+      expect(marker).toContain('skip_specs: true');
+      expect(marker).toContain('schema: spec-driven');
     } finally {
       await cleanup();
     }

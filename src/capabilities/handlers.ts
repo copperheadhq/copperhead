@@ -103,7 +103,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'propose_change',
       description:
-        'Write the OpenSpec change proposal for this run (the plan step). Must be called and validated before edit tools unlock. On a repo with an initialized openspec/ workspace, validation requires at least one capability delta — pass spec_deltas.',
+        'Write the OpenSpec change proposal for this run (the plan step). Must be called and validated before edit tools unlock. On a repo with an initialized openspec/ workspace, validation requires at least one capability delta — pass spec_deltas — or the change must declare itself spec-less via skip_specs (docs/tooling/refactor changes only). You cannot create these files by hand: the file tools stay locked until validation passes, so the deltas or the skip marker must come through this call.',
       parameters: {
         type: 'object',
         properties: {
@@ -127,6 +127,11 @@ export const HANDLERS: HandlerDef[] = [
               },
               required: ['capability', 'spec'],
             },
+          },
+          skip_specs: {
+            type: 'boolean',
+            description:
+              'Set true only for changes that modify no spec-level behavior (docs, tooling, refactors). Writes the .openspec.yaml marker openspec validate honors. Ignored when spec_deltas are given.',
           },
         },
         required: ['id', 'why', 'what_changes', 'tasks'],
@@ -159,8 +164,29 @@ export const HANDLERS: HandlerDef[] = [
           written++;
         }
       }
+      const skipSpecs = !written && args.skip_specs === true;
+      if (skipSpecs) {
+        // openspec honors skip_specs only in valid change metadata; the
+        // 'spec-driven' schema name is what the CLI accepts (1.13.x).
+        await writeFile(
+          path.join(dir, '.openspec.yaml'),
+          'schema: spec-driven\nskip_specs: true\n',
+          'utf8',
+        );
+      }
       ctx.changeId = id;
-      return `proposal written to openspec/changes/${id}/${written ? ` with ${written} spec delta(s)` : ''} — now call validate_change`;
+      const detail = written
+        ? ` with ${written} spec delta(s)`
+        : skipSpecs
+          ? ' (skip_specs)'
+          : '';
+      const tail =
+        !written &&
+        !skipSpecs &&
+        existsSync(path.join(ctx.repoRoot, 'openspec', 'config.yaml'))
+          ? ' — WARNING: no spec_deltas and no skip_specs marker; validation will fail this change'
+          : ' — now call validate_change';
+      return `proposal written to openspec/changes/${id}/${detail}${tail}`;
     },
   },
   {
