@@ -1,0 +1,9 @@
+{
+  "model": "compat:gpt-oss-49k",
+  "baseURL": "http://127.0.0.1:11435/v1",
+  "turnTimeoutMs": 5400000,
+  "turnMaxMs": 10800000,
+  "heartbeatMs": 30000,
+  "maxStageRetries": 2,
+  "llmCache": true
+}
