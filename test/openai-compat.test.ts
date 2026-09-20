@@ -121,12 +121,12 @@ describe('OpenAIProvider — compatible endpoints', () => {
         seen.url = req.url;
         seen.auth = req.headers.authorization;
         seen.body = JSON.parse(raw) as Record<string, unknown>;
-        res.writeHead(200, { 'content-type': 'application/json' });
+        // compat endpoints are always streamed (see chatStream): serve SSE.
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
         res.end(
-          JSON.stringify({
-            choices: [{ message: { content: 'pong', tool_calls: [] } }],
-            usage: { prompt_tokens: 7, completion_tokens: 3 },
-          }),
+          'data: {"choices":[{"delta":{"content":"pong"}}]}\n\n' +
+            'data: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":7,"completion_tokens":3}}\n\n' +
+            'data: [DONE]\n\n',
         );
       });
     });
@@ -142,6 +142,7 @@ describe('OpenAIProvider — compatible endpoints', () => {
       expect(seen.url).toBe('/v1/chat/completions'); // baseURL honoured, path appended
       expect(seen.auth).toBe('Bearer gsk-test'); // key from GROQ_API_KEY, not OPENAI_API_KEY
       expect(seen.body?.model).toBe('qwen-3-coder'); // model id passed through
+      expect(seen.body?.stream).toBe(true); // compat requests are streamed
       expect(turn.text).toBe('pong');
       expect(turn.usage).toEqual({ inputTokens: 7, outputTokens: 3 });
     } finally {
@@ -156,8 +157,8 @@ describe('OpenAIProvider — compatible endpoints', () => {
       let raw = '';
       req.on('data', (c) => (raw += c));
       req.on('end', () => {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }], usage: {} }));
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.end('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n');
       });
     });
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -315,28 +316,31 @@ describe('config.json baseURL reaches a real do run (offline, no injected provid
         seen.auth = req.headers.authorization;
         const body = JSON.parse(raw) as { model?: unknown };
         seen.model = body.model;
-        res.writeHead(200, { 'content-type': 'application/json' });
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
         res.end(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: null,
-                  tool_calls: [
-                    {
-                      id: 'fin',
-                      type: 'function',
-                      function: {
-                        name: 'finish',
-                        arguments: JSON.stringify({ outcome: 'refuse', summary: 'nothing to do (test)' }),
+          'data: ' +
+            JSON.stringify({
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'fin',
+                        type: 'function',
+                        function: {
+                          name: 'finish',
+                          arguments: JSON.stringify({ outcome: 'refuse', summary: 'nothing to do (test)' }),
+                        },
                       },
-                    },
-                  ],
+                    ],
+                  },
                 },
-              },
-            ],
-            usage: { prompt_tokens: 11, completion_tokens: 4 },
-          }),
+              ],
+            }) +
+            '\n\ndata: ' +
+            JSON.stringify({ choices: [{ delta: {} }], usage: { prompt_tokens: 11, completion_tokens: 4 } }) +
+            '\n\ndata: [DONE]\n\n',
         );
       });
     });

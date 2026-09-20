@@ -56,7 +56,7 @@ export class OpenAIProvider implements Provider {
       ...(this.baseURL ? { baseURL: this.baseURL } : {}),
       ...(this.requestTimeoutMs !== undefined ? { timeout: this.requestTimeoutMs } : {}),
     });
-    const res = await client.chat.completions.create({
+    const params = {
       model: this.model,
       max_completion_tokens: opts.maxTokens ?? 8192,
       messages: messages.map((m) => {
@@ -68,7 +68,9 @@ export class OpenAIProvider implements Provider {
           case 'assistant':
             return {
               role: 'assistant' as const,
-              content: m.content,
+              // compat backends (Ollama chatml) 400 on a null content; an
+              // empty string means the same thing and is legal everywhere.
+              content: m.content ?? '',
               ...(m.toolCalls?.length
                 ? {
                     tool_calls: m.toolCalls.map(serializeToolCall),
@@ -87,7 +89,16 @@ export class OpenAIProvider implements Provider {
             })),
           }
         : {}),
-    });
+    };
+    if (this.baseURL) {
+      // Compat/local endpoints can spend many silent minutes inside one
+      // non-streaming request — long enough for intermediate HTTP timeouts
+      // (undici's 5-minute headersTimeout, proxies) to abort a healthy turn.
+      // Streaming returns headers immediately and every delta is progress, so
+      // slow local generation only has to keep producing tokens.
+      return this.chatStream(client, params, opts);
+    }
+    const res = await client.chat.completions.create(params);
     const choice = res.choices[0];
     // Capture any non-standard properties returned by the API (e.g. Gemini thought
     // signatures) so they can be echoed back on subsequent turns. Dropping them
@@ -100,6 +111,64 @@ export class OpenAIProvider implements Provider {
         inputTokens: res.usage?.prompt_tokens ?? 0,
         outputTokens: res.usage?.completion_tokens ?? 0,
       },
+    };
+  }
+
+  /** SSE accumulate: content deltas join into text, tool-call deltas are merged
+   * by `index` (id/name land once, arguments stream as string fragments). */
+  private async chatStream(
+    client: InstanceType<typeof import('openai').default>,
+    params: Record<string, unknown>,
+    opts: ChatOpts,
+  ): Promise<Turn> {
+    const stream = (await client.chat.completions.create({
+      ...params,
+      stream: true,
+      stream_options: { include_usage: true },
+    } as never)) as unknown as AsyncIterable<{
+      usage?: { prompt_tokens?: number | null; completion_tokens?: number | null } | null;
+      choices?: Array<{
+        delta?: { content?: string | null; tool_calls?: Array<Record<string, unknown>> } | null;
+      }>;
+    }>;
+    let text = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+    const deltas = new Map<number, { id: string; name: string; arguments: string; extra: Record<string, unknown> }>();
+    let streamedChars = 0;
+    for await (const chunk of stream) {
+      if (chunk.usage) {
+        inputTokens = chunk.usage.prompt_tokens ?? inputTokens;
+        outputTokens = chunk.usage.completion_tokens ?? outputTokens;
+      }
+      const delta = chunk.choices?.[0]?.delta;
+      if (!delta) continue;
+      if (typeof delta.content === 'string') text += delta.content;
+      for (const tc of delta.tool_calls ?? []) {
+        const idx = (tc.index as number) ?? deltas.size;
+        const acc = deltas.get(idx) ?? { id: '', name: '', arguments: '', extra: {} };
+        if (typeof tc.id === 'string') acc.id = tc.id;
+        const fn = tc.function as { name?: string; arguments?: string } | undefined;
+        if (fn?.name) acc.name += fn.name;
+        if (fn?.arguments) acc.arguments += fn.arguments;
+        for (const [k, v] of Object.entries(tc)) {
+          if (k !== 'index' && k !== 'id' && k !== 'type' && k !== 'function') acc.extra[k] = v;
+        }
+        deltas.set(idx, acc);
+      }
+      const now = text.length + [...deltas.values()].reduce((a, d) => a + d.arguments.length, 0);
+      if (now !== streamedChars) {
+        streamedChars = now;
+        opts.onStream?.(streamedChars);
+      }
+    }
+    const toolCalls: ToolCall[] = [...deltas.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, d]) => ({ id: d.id, name: d.name, args: safeParse(d.arguments), ...(Object.keys(d.extra).length ? { extra: d.extra } : {}) }));
+    return {
+      text: text || null,
+      toolCalls,
+      usage: { inputTokens, outputTokens },
     };
   }
 }
