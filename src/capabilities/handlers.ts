@@ -103,7 +103,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'propose_change',
       description:
-        'Write the OpenSpec change proposal for this run (the plan step). Must be called and validated before edit tools unlock.',
+        'Write the OpenSpec change proposal for this run (the plan step). Must be called and validated before edit tools unlock. On a repo with an initialized openspec/ workspace, validation requires at least one capability delta — pass spec_deltas.',
       parameters: {
         type: 'object',
         properties: {
@@ -111,6 +111,23 @@ export const HANDLERS: HandlerDef[] = [
           why: { type: 'string' },
           what_changes: { type: 'string', description: 'markdown bullet list of changes' },
           tasks: { type: 'string', description: 'markdown checklist of implementation steps' },
+          spec_deltas: {
+            type: 'array',
+            description:
+              'Capability deltas for the change — each writes specs/<capability>/spec.md under openspec/changes/<id>/. An initialized openspec workspace validates only changes carrying at least one delta.',
+            items: {
+              type: 'object',
+              properties: {
+                capability: { type: 'string', description: 'kebab-case capability folder name, e.g. spec-docs' },
+                spec: {
+                  type: 'string',
+                  description:
+                    'delta spec markdown: "## ADDED Requirements" (or MODIFIED/REMOVED/RENAMED), each requirement a "### Requirement:" line with at least one "#### Scenario:" block',
+                },
+              },
+              required: ['capability', 'spec'],
+            },
+          },
         },
         required: ['id', 'why', 'what_changes', 'tasks'],
       },
@@ -127,8 +144,23 @@ export const HANDLERS: HandlerDef[] = [
         'utf8',
       );
       await writeFile(path.join(dir, 'tasks.md'), `# Tasks\n\n${str(args, 'tasks')}\n`, 'utf8');
+      const deltas = args.spec_deltas;
+      let written = 0;
+      if (Array.isArray(deltas)) {
+        for (const d of deltas) {
+          const delta = d as Record<string, unknown>;
+          const capability = str(delta, 'capability');
+          if (!/^[a-z0-9][a-z0-9-]*$/.test(capability)) {
+            throw new Error(`spec_deltas capability "${capability}" must be a kebab-case folder name`);
+          }
+          const specDir = resolveInRepo(ctx.repoRoot, path.join('openspec', 'changes', id, 'specs', capability));
+          await mkdir(specDir, { recursive: true });
+          await writeFile(path.join(specDir, 'spec.md'), str(delta, 'spec'), 'utf8');
+          written++;
+        }
+      }
       ctx.changeId = id;
-      return `proposal written to openspec/changes/${id}/ — now call validate_change`;
+      return `proposal written to openspec/changes/${id}/${written ? ` with ${written} spec delta(s)` : ''} — now call validate_change`;
     },
   },
   {

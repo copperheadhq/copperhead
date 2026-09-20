@@ -32,7 +32,11 @@ export function hasOpenSpec(repo: string): boolean {
 
 export async function openspecInit(repo: string): Promise<OpenSpecResult> {
   if (hasOpenSpec(repo)) return { ok: true, output: 'openspec/ already present' };
-  return openspec(repo, ['init', '--no-interactive']);
+  const res = await openspec(repo, ['init', '--no-interactive']);
+  if (res.ok) return res;
+  // Newer openspec CLIs removed `--no-interactive`; the non-interactive
+  // equivalent there is `init --tools none`.
+  return openspec(repo, ['init', '--tools', 'none']);
 }
 
 export function openspecValidate(repo: string, changeId?: string): Promise<OpenSpecResult> {

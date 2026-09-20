@@ -77,6 +77,43 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
     }
   });
 
+  it('propose_change with spec_deltas writes specs/<cap>/spec.md and rejects bad capability names', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      const out = await dispatchTool(ctx, 'propose_change', {
+        id: 'seed-spec',
+        why: 'spec stage',
+        what_changes: '- add SPEC.md',
+        tasks: '- [ ] write spec',
+        spec_deltas: [
+          {
+            capability: 'spec-docs',
+            spec: '## ADDED Requirements\n### Requirement: budget docs\nThe doc SHALL carry budgets.\n\n#### Scenario: present\n- Given a brief\n- When stage 1 runs\n- Then budgets exist\n',
+          },
+        ],
+      });
+      expect(out).toContain('spec delta');
+      const written = await readFile(
+        path.join(repo, 'openspec', 'changes', 'seed-spec', 'specs', 'spec-docs', 'spec.md'),
+        'utf8',
+      );
+      expect(written).toContain('## ADDED Requirements');
+      expect(written).toContain('#### Scenario:');
+      const bad = await dispatchTool(ctx, 'propose_change', {
+        id: 'seed-spec',
+        why: 'x',
+        what_changes: 'x',
+        tasks: 'x',
+        spec_deltas: [{ capability: '../escape', spec: 'x' }],
+      });
+      expect(bad).toContain('kebab-case');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('finish blocks on open obligations and unverified ERC', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

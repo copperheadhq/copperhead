@@ -773,7 +773,13 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
   // across a long run and fill the disk (4.1, I8). Best-effort; keeps the newest.
   const pruned = await pruneHistoryDir(opts.repoRoot);
   if (pruned) opts.log(dim(`startup: pruned ${pruned} old .history/ entrie(s) to cap local-history growth`));
-  await openspecInit(opts.repoRoot);
+  const specInit = await openspecInit(opts.repoRoot);
+  // A failed init is not fatal — the stage-1 prompt tolerates a missing
+  // workspace — but it must not be silent: a broken flag or missing CLI used
+  // to vanish here, leaving the spec-driven flow half-armed with no evidence.
+  if (!specInit.ok) {
+    opts.log(dim(`startup: openspec init failed (${specInit.output.split('\n')[0]}); continuing without it`));
+  }
   // Stamp the repo create-produced before any stage runs: the marker scopes the
   // legibility finish gate and the fab release gate, and it must hold on
   // resumed runs whose project predates the marker (bootstrapKicadProject
