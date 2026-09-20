@@ -97,12 +97,13 @@ export async function bomSymbolDossier(
     // UNVERIFIED flag word is not part of it. The Value is kept as a fallback
     // query, searched only when the MPN finds nothing — a bogus MPN over a
     // resolvable Value must not read as NO INSTALLED SYMBOL.
-    const byQuery = new Map<string, { refs: string[]; fallback?: string }>();
+    const byQuery = new Map<string, { refs: string[]; fallback?: string; footprint?: string }>();
     const unsearchable: string[] = [];
     for (const row of parseBomTable(bomMd)) {
       if (PASSIVE_REFDES.test(row.refdes)) continue;
       const mpn = (row.mpn ?? '').replace(/^UNVERIFIED[:\s]*/i, '').trim();
       const value = (row.value ?? '').trim();
+      const footprint = (row.footprint ?? '').trim();
       const query = mpn || value;
       if (query.length < 3) {
         // Disclosed, not dropped: a crystal named "8M" was never searched, and
@@ -113,6 +114,11 @@ export async function bomSymbolDossier(
       const entry = byQuery.get(query) ?? { refs: [] };
       entry.refs.push(row.refdes);
       if (mpn && value.length >= 3 && value !== mpn) entry.fallback = value;
+      // The Footprint column often carries a symbol-shaped id ("Switch:SW_Push",
+      // "Diode:D_SMA") — the stage-3 prompt has the model write the intended
+      // symbol there, so it is a real lookup source; a true footprint lib_id
+      // simply resolves to nothing and falls through.
+      if (footprint && footprint !== mpn && footprint !== value) entry.footprint = footprint;
       byQuery.set(query, entry);
     }
     if (!byQuery.size && !unsearchable.length) return '';
@@ -130,7 +136,7 @@ export async function bomSymbolDossier(
     // floor of ~60 chars, so a later part fitting where this one did not is
     // rare enough not to pay a full scan hoping for it.)
     let bodyFull = false;
-    for (const [query, { refs, fallback }] of byQuery) {
+    for (const [query, { refs, fallback, footprint }] of byQuery) {
       const who = `${refs.join(', ')} (${query})`;
       if (bodyFull) {
         overflow.push(who);
@@ -143,6 +149,28 @@ export async function bomSymbolDossier(
         if (!hits.length && fallback) {
           hits = await searchInstalledSymbols(fallback, dirs, searchCap);
           if (hits.length) matchedBy = ` (matched by Value "${fallback}")`;
+        }
+        if (!hits.length && footprint) {
+          // Footprint-column fallback: try the full "Lib:Sym" id, then the
+          // symbol-name half, then the library-name half — a BOM that writes
+          // "Battery:CR2032" still lands on Device:Battery_Cell via "Battery".
+          if (footprint.includes(':')) {
+            const r = await resolveLibrarySymbol(footprint, dirs);
+            if (r.status === 'ok') {
+              hits = [footprint];
+              matchedBy = ` (matched by Footprint "${footprint}")`;
+            }
+          }
+          if (!hits.length) {
+            // search the symbol-name half first ("SW_Push"), then the library
+            // half ("Battery" → Device:Battery_Cell)
+            for (const half of footprint.includes(':') ? footprint.split(':', 2).reverse() : [footprint]) {
+              if (!hits.length && half.trim().length >= 3) {
+                hits = await searchInstalledSymbols(half.trim(), dirs, searchCap);
+                if (hits.length) matchedBy = ` (matched by Footprint "${footprint}")`;
+              }
+            }
+          }
         }
         const top = hits[0];
         if (!top) {

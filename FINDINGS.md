@@ -221,3 +221,35 @@ run, **P2** meaningful quality problem, **P3** polish.
   failure mode then produced `diagnosis → retry` with usable guidance on the
   very next run. Test: `recovery.test.ts` scans past brace-noise to the real
   verdict object.
+
+### 12. DEFECT · P1 — pin dossier never queries the Footprint column, emitting false "NO INSTALLED SYMBOL" lines
+
+- **Where:** `src/kicad/dossier.ts` `bomSymbolDossier`.
+- **Symptom:** the stage-4 dossier resolves each BOM row by MPN, then Value.
+  Models routinely write the intended _symbol_ into the Footprint column
+  (`Switch:SW_Push`, `Diode:D_SMA`, `Battery:CR2032`) — the dossier never
+  reads it, so three of seven non-passive rows rendered as "NO INSTALLED
+  SYMBOL matches" inside a block explicitly labeled machine-verified. The
+  model then refused with "no libraries contain the parts" — a false premise
+  the dossier itself had asserted. (All three resolve: `Device:Battery_Cell`,
+  `Switch:SW_Push`, `Device:D_Small`.)
+- **Suggested:** add Footprint as a third candidate: resolve the full
+  `Lib:Sym` id, then search the name half, then the library half — disclosed
+  as `(matched by Footprint "…")`.
+- **Status:** **fixed in this PR** — all three columns now queried;
+  `dossier.test.ts` covers the lib_id and name-half paths.
+
+### 13. DEFECT · P2 — OpenAI-compat provider inherits the SDK's 10-minute request timeout; slow local models die mid-turn
+
+- **Where:** `src/agent/providers/openai.ts` — `new OpenAI(...)` with no
+  `timeout`.
+- **Symptom:** a compat endpoint serving a 20B model on CPU produces
+  multi-thousand-token turns in >10 min; the SDK's default timeout aborts the
+  request as `provider error: Request timed out.` — observed killing the
+  stage-4 IR-drafting turn twice (14–15 min of zero output, then abort).
+  The turn watchdog (`turnTimeoutMs`) is the intended bound; the HTTP client
+  preempted it.
+- **Suggested:** a `requestTimeoutMs` provider option defaulting to 60 min
+  when `baseURL` is set (compat/local), leaving paid OpenAI on the SDK
+  default.
+- **Status:** **fixed in this PR**.

@@ -7,12 +7,19 @@ export interface OpenAIProviderOptions {
   baseURL?: string | undefined;
   /** Name of the env var holding the key. Never the key itself. */
   apiKeyEnv?: string | undefined;
+  /** Per-request HTTP timeout in ms. Compat endpoints (local inference) can
+   * legitimately take longer than the OpenAI SDK's 10-minute default on a
+   * single turn — a large generation on a CPU-served model is measured in tens
+   * of minutes — so baseURL runs default to 60 minutes; the agent loop's turn
+   * watchdog remains the real upper bound either way. */
+  requestTimeoutMs?: number | undefined;
 }
 
 export class OpenAIProvider implements Provider {
   readonly name: string;
   private readonly apiKey: string | undefined;
   private readonly baseURL: string | undefined;
+  private readonly requestTimeoutMs: number | undefined;
 
   constructor(
     private readonly model = 'gpt-5',
@@ -31,6 +38,7 @@ export class OpenAIProvider implements Provider {
     // user deliberately pointed elsewhere to someone else's paid API.
     this.name = this.baseURL ? 'openai-compat' : 'openai';
     this.apiKey = env[keyEnv];
+    this.requestTimeoutMs = opts.requestTimeoutMs ?? (this.baseURL ? 60 * 60_000 : undefined);
     // A loopback endpoint (Ollama) serves the same API with no credential, and
     // it is the one backend that is both free and fully local — requiring a
     // dummy key there would be a papercut on the most useful config (D4).
@@ -46,6 +54,7 @@ export class OpenAIProvider implements Provider {
       // wants a non-empty string, so send a placeholder it will never check.
       apiKey: this.apiKey ?? 'no-key-required',
       ...(this.baseURL ? { baseURL: this.baseURL } : {}),
+      ...(this.requestTimeoutMs !== undefined ? { timeout: this.requestTimeoutMs } : {}),
     });
     const res = await client.chat.completions.create({
       model: this.model,
