@@ -253,3 +253,34 @@ run, **P2** meaningful quality problem, **P3** polish.
   when `baseURL` is set (compat/local), leaving paid OpenAI on the SDK
   default.
 - **Status:** **fixed in this PR**.
+
+### 14. DEFECT · P1 — dossier silently omits passive refdes and never lists installed libraries; model concludes "libraries missing" and refuses
+
+- **Where:** `src/kicad/dossier.ts` `bomSymbolDossier` (`PASSIVE_REFDES`
+  skip) — observed in run `2026-09-20T10-26-44-424Z`.
+- **Symptom:** R/C/L rows are dropped from the machine-verified block by
+  design, but nothing says so; the model then pattern-copies BOM Footprint
+  values (`Capacitor:C_0805_2012Metric`, `Resistor:R_0805_2012Metric`) into
+  IR `libId`s, probes them with `symbol_pins`, gets only failures, and
+  refuses with "required resistor and capacitor libraries are missing" —
+  the same false-absence confabulation class as #12, one level up. It also
+  has no way to enumerate which symbol libraries exist (`search` is
+  repo-sandboxed; `search_symbols` needs a query term).
+- **Suggested:** keep the passive filter but disclose it: a PASSIVE trailer
+  naming the skipped refdes plus the canonical `Device:R`/`Device:C`/
+  `Device:L` conventions (verified against the install before being
+  claimed), and a final line listing the installed library names — the only
+  legal lib_id namespaces.
+- **Status:** **fixed in this PR** — passive disclosure + library inventory
+  lines added; both still honor the `maxChars` cap.
+
+### 15. DEFECT · P2 — assistant turns with `content: null` are rejected by Ollama's chatml backend ("400 invalid message content type: <nil>")
+
+- **Where:** `src/agent/providers/openai.ts` request builder — assistant
+  history messages serialized with `content: null`.
+- **Symptom:** a reasoning-only turn (no visible text, no tool calls) is
+  recorded with `content: null`; the next request is rejected by Ollama
+  400s, ending the run as `provider-error` after ~3 turns of real work.
+- **Suggested:** emit `content: ""` instead of `null` — equivalent
+  semantics, accepted by strict chatml backends.
+- **Status:** **fixed in this PR** (same commit as #13).

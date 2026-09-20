@@ -19,6 +19,13 @@ const DEVICE_LIB = `(kicad_symbol_lib (version 20251024) (generator test)
     )
   )
   (symbol "R_Small" (extends "R"))
+  (symbol "C" (pin_numbers hide) (pin_names (offset 0))
+    (symbol "C_0_1" (rectangle (start -1.016 -2.54) (end 1.016 2.54)))
+    (symbol "C_1_1"
+      (pin passive line (at 0 3.81 270) (length 1.27) (name "~") (number "1"))
+      (pin passive line (at 0 -3.81 90) (length 1.27) (name "~") (number "2"))
+    )
+  )
 )`;
 
 const LOGIC_LIB = `(kicad_symbol_lib (version 20251024) (generator test)
@@ -178,6 +185,14 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(d).not.toMatch(/^- C3[ ,(]/m);
       expect(d).not.toContain('(10k)');
       expect(d).not.toContain('(100n)');
+    });
+
+    it('discloses omitted passives by convention and lists installed libraries', async () => {
+      const d = await bomSymbolDossier(BOM, [libDir]);
+      expect(d).toMatch(/PASSIVE refdes not looked up[^]*R1[^]*C3/);
+      expect(d).toContain('R* → Device:R');
+      expect(d).toContain('C* → Device:C');
+      expect(d).toMatch(/Installed symbol libraries[^]*Device[^]*Logic/);
     });
 
     it('discloses size-cap overflow within the cap, never silently', async () => {

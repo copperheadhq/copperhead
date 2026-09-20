@@ -27,8 +27,18 @@ import {
 } from './symlib.js';
 
 /** R/C/L refdes (with optional multi-part suffix like R12A) draw from their
- * canonical `Device:*` symbols; a two-pin table per resistor is noise. */
+ * canonical `Device:*` symbols; a two-pin table per resistor is noise. The
+ * refdes are still collected and disclosed so the omission reads as a
+ * deliberate convention, never as a silent gap in the verified block. */
 const PASSIVE_REFDES = /^[RCL]\d+[A-Za-z]?$/i;
+
+/** Refdes prefix -> canonical KiCad symbol for the standard passives. Only
+ * entries that actually resolve in the install are disclosed to the model. */
+const PASSIVE_CONVENTION: Record<string, string> = {
+  R: 'Device:R',
+  C: 'Device:C',
+  L: 'Device:L',
+};
 
 /** `1=PE2/bidirectional 2(passive) …` — name omitted when the library leaves
  * the pin unnamed (`~` or empty), since `1=~/passive` reads as line noise. */
@@ -91,7 +101,8 @@ export async function bomSymbolDossier(
     // No readable library at all must yield no dossier, not a page of
     // NO-INSTALLED-SYMBOL lines: a false absence claim in a machine-verified
     // block is the exact failure mode this file exists to prevent (I15).
-    if (!(await listInstalledLibraries(dirs)).size) return '';
+    const libraries = await listInstalledLibraries(dirs);
+    if (!libraries.size) return '';
     // Group refdes by primary query so a part used five times renders once.
     // The MPN is the stronger name when present; the stage-3 scaffold's
     // UNVERIFIED flag word is not part of it. The Value is kept as a fallback
@@ -99,8 +110,12 @@ export async function bomSymbolDossier(
     // resolvable Value must not read as NO INSTALLED SYMBOL.
     const byQuery = new Map<string, { refs: string[]; fallback?: string; footprint?: string }>();
     const unsearchable: string[] = [];
+    const passiveRefs: string[] = [];
     for (const row of parseBomTable(bomMd)) {
-      if (PASSIVE_REFDES.test(row.refdes)) continue;
+      if (PASSIVE_REFDES.test(row.refdes)) {
+        passiveRefs.push(row.refdes);
+        continue;
+      }
       const mpn = (row.mpn ?? '').replace(/^UNVERIFIED[:\s]*/i, '').trim();
       const value = (row.value ?? '').trim();
       const footprint = (row.footprint ?? '').trim();
@@ -199,7 +214,8 @@ export async function bomSymbolDossier(
       spent += line.length;
       lines.push(line);
     }
-    if (!lines.length && !overflow.length && !errored.length && !unsearchable.length) return '';
+    if (!lines.length && !overflow.length && !errored.length && !unsearchable.length && !passiveRefs.length)
+      return '';
     // Distinct disclosures: a probe error is not a size decision, an
     // unsearchable name is neither, and labeling any of them "size cap" would
     // misreport why coverage is missing. Each trailer shares the reserved
@@ -226,6 +242,24 @@ export async function bomSymbolDossier(
         ' — call symbol_pins for each; nothing above says whether these resolve.',
       ]);
     }
+    if (passiveRefs.length) {
+      // Passive rows are skipped above by convention, but the model still
+      // needs their symbol ids: without a pointer here it pattern-matches
+      // footprint strings as lib_ids and concludes libraries are missing.
+      const prefixes = new Set(passiveRefs.map((r) => r[0]!.toUpperCase()));
+      const resolved: string[] = [];
+      for (const p of prefixes) {
+        const cand = PASSIVE_CONVENTION[p];
+        if (cand && (await resolveLibrarySymbol(cand, dirs)).status === 'ok') {
+          resolved.push(`${p}* → ${cand}`);
+        }
+      }
+      trailers.push([
+        '- PASSIVE refdes not looked up (conventional symbols): ',
+        passiveRefs,
+        ` — use ${resolved.length ? resolved.join(', ') : 'the canonical Device:* symbol for each prefix'} (verify with symbol_pins). A Footprint-column value is never a lib_id: it names a footprint, not a symbol.`,
+      ]);
+    }
     // Allocate from what is actually left of maxChars (body lines plus the
     // newlines join() will add), splitting the remainder across the trailers
     // still to render — a fixed per-trailer share of the reserve could exceed
@@ -237,6 +271,21 @@ export async function bomSymbolDossier(
       const rendered = boundedList(prefix, names, suffix, budget);
       lines.push(rendered);
       used += rendered.length + 1;
+    }
+    // Library inventory last: the ONLY valid lib_id namespaces, so a missing
+    // "Capacitor:"/"Resistor:" library reads as absent rather than leaving
+    // the model to probe footprint-shaped names one by one. Skipped entirely
+    // when the cap is already spent — a truncated fragment would mislead.
+    const libBudget = maxChars - used;
+    if (libBudget >= 60) {
+      lines.push(
+        boundedList(
+          '- Installed symbol libraries (a lib_id must start with one of these): ',
+          [...libraries.keys()].sort(),
+          '.',
+          libBudget,
+        ),
+      );
     }
     return lines.join('\n');
   } catch {

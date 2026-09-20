@@ -114,9 +114,34 @@ export class OpenAIProvider implements Provider {
     };
   }
 
+  /** Mid-stream socket drops ("terminated", ECONNRESET, ...) surface inside
+   * the iteration, past the SDK's create()-level retry — re-issue the request
+   * instead. The request is idempotent and compat backends prefix-cache the
+   * prompt, so a retry only re-pays generation. API errors (4xx bodies with
+   * reasons) are deterministic and are never retried. */
+  private async chatStream(
+    client: InstanceType<typeof import('openai').default>,
+    params: Record<string, unknown>,
+    opts: ChatOpts,
+  ): Promise<Turn> {
+    let lastErr: unknown;
+    for (let issue = 0; ; issue++) {
+      try {
+        return await this.consumeStream(client, params, opts);
+      } catch (err) {
+        lastErr = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        const transient = /terminated|fetch failed|ECONNRESET|ETIMEDOUT|EPIPE|socket|premature|other side closed|stream error/i.test(
+          msg,
+        );
+        if (!transient || issue >= 2) throw err;
+      }
+    }
+  }
+
   /** SSE accumulate: content deltas join into text, tool-call deltas are merged
    * by `index` (id/name land once, arguments stream as string fragments). */
-  private async chatStream(
+  private async consumeStream(
     client: InstanceType<typeof import('openai').default>,
     params: Record<string, unknown>,
     opts: ChatOpts,

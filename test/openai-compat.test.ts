@@ -150,6 +150,38 @@ describe('OpenAIProvider — compatible endpoints', () => {
     }
   });
 
+  // A socket that dies mid-stream is invisible to the SDK's create()-level
+  // retry (the request already resolved): the provider must re-issue the
+  // request itself or a single dropped connection fails the whole stage.
+  it('re-issues the request when the SSE stream dies mid-body', async () => {
+    let requests = 0;
+    const server = createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        requests++;
+        if (requests === 1) {
+          res.writeHead(200, { 'content-type': 'text/event-stream' });
+          res.write('data: {"choices":[{"delta":{"content":"par"}}]}\n\n');
+          res.socket?.destroy(); // kill the body mid-stream
+          return;
+        }
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.end('data: {"choices":[{"delta":{"content":"recovered"}}]}\n\ndata: [DONE]\n\n');
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const p = new OpenAIProvider('llama3', { baseURL: `http://127.0.0.1:${port}/v1`, apiKeyEnv: 'UNUSED' }, {});
+      const turn = await p.chat([{ role: 'user', content: 'hi' }], []);
+      expect(requests).toBe(2);
+      expect(turn.text).toBe('recovered');
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
   it('a keyless loopback endpoint still sends a request the server accepts (Ollama shape)', async () => {
     let hit = false;
     const server = createServer((req, res) => {
