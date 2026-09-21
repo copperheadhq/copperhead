@@ -535,4 +535,30 @@ describe('empty-completion tolerance (agent loop)', () => {
       await cleanup();
     }
   }, 60_000);
+
+  it('a bare {"outcome":…} text turn is treated as the finish call it is', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, installHooks: false });
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'docs'], { cwd: repo });
+      // Observed live: gpt-oss wrote the refusal as raw JSON text instead of
+      // calling finish, and the run recorded a stall instead of a refusal.
+      const provider = scriptedProvider([
+        { text: '{"outcome":"refuse","summary":"missing power pins for U2"}' },
+      ]);
+      const res = await runAgentLoop({
+        repoRoot: repo,
+        request: 'noop',
+        model: 'gpt-5',
+        provider,
+        maxTurns: 10,
+        log: () => {},
+      });
+      expect(res.outcome).toBe('refused');
+      expect(res.summary).toContain('missing power pins');
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
 });
