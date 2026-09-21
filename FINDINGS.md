@@ -363,3 +363,38 @@ run, **P2** meaningful quality problem, **P3** polish.
   remains the real bound, and the chatStream re-issue covers genuine
   drops. `undici` added as a direct dependency.
 - **Status:** **fixed in this PR** (`openai.ts` fetchOptions dispatcher).
+
+### 21. DEFECT · P1 — the `write_file` overwrite refusal doesn't name the route the stage contract intends; the model deadlocks and refuses at the finish line
+
+- **Where:** `src/agent/filetools.ts` `toolWriteFile` overwrite refusal;
+  `src/capabilities/handlers.ts` `run_erc` zero-symbols warning.
+- **Symptom:** run 2026-09-21T10-08, stage 4 attempt 2, turns 7-14
+  (13:05-13:13 UTC): the intent file already existed (preserved from a
+  prior attempt), so `write_file` refused with "use edit_file". The model
+  then typoed a path (`.c copperhead/...` — a literal space) into
+  `edit_file`, got a raw `ENOENT`, read the intent back twice, ran ERC —
+  which reported **clean on an empty sheet** with only a generic "capture
+  the parts" warning — and refused: _"We need to create the schematic
+  intent with proper parts and nets before running ERC."_ The IR it was
+  holding was complete (15 parts, 12 nets, full noConnect list) and the
+  intended revision path (`draft_schematic` `intent_json`) was never
+  tried. Wall: 3h04m spent to reach a refusal one tool call from done.
+- **Suggested:** the refusal/warning text should name the intended tool —
+  intent-file overwrites now point at `draft_schematic`'s `intent_json`,
+  and the empty-sheet ERC warning names `draft_schematic` instead of
+  "capture parts" when an intent may already exist.
+- **Status:** **fixed in this PR** (`filetools.ts` refusal suffix,
+  `handlers.ts` warning text).
+
+### 22. DEFECT · P2 — a whitespace path typo surfaces as raw `ENOENT` with no hint at the actual mistake
+
+- **Where:** `src/agent/filetools.ts` — `readFile` errors propagate
+  unwrapped from `toolReadFile`/`toolEditFile`.
+- **Symptom:** same attempt, turn ~9: `edit_file` on
+  `.c copperhead/schematic.intent.json` (space after `.c`) →
+  `ENOENT: no such file or directory, open '/tmp/ch-e2e-repo/.c copperhead/s…'`.
+  Nothing in the error pointed at the typo; the model abandoned file edits
+  entirely and went straight to refusal.
+- **Suggested:** wrap ENOENT with `no such file: <path>` and flag paths
+  containing whitespace (repo-relative paths almost never have spaces).
+- **Status:** **fixed in this PR** (`filetools.ts` `readRepoFile`).
