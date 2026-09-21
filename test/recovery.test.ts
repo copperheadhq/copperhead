@@ -252,6 +252,32 @@ describe('diagnoseStageFailure', () => {
     }
     expect(called).toBe(0);
   });
+
+  it('retries a refusal that names a fix to an agent-authored artifact', async () => {
+    // Observed live: a stage-4 refusal listing missing U2 power nets was
+    // diagnosed "human intervention needed to update the IR" — but the IR is
+    // the agent's own artifact. Retry with the refusal as the guidance.
+    let called = 0;
+    const provider: Provider = {
+      name: 'fake',
+      async chat() {
+        called++;
+        return turn('{"verdict":"abort","reason":"confabulated"}');
+      },
+    };
+    const d = await diagnoseStageFailure(provider, {
+      stageName: 'schematic',
+      stageGoal: 'g',
+      failure:
+        'the run ended as "refused" (refused): ERC violations remain; the intent requires explicit VDD/VSS nets for each U2 unit',
+      excerpt: '',
+      attempt: 2,
+      maxAttempts: 9,
+    });
+    expect(d.verdict).toBe('retry');
+    expect(d.guidance).toContain('VDD/VSS');
+    expect(called).toBe(0);
+  });
 });
 
 describe('CachingProvider', () => {

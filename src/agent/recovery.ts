@@ -321,6 +321,27 @@ export async function diagnoseStageFailure(
         'The previous attempt ended on a dropped provider connection, not on anything the agent did. Re-run the same plan; re-issue whatever tool call was mid-flight when it dropped.',
     };
   }
+  // A refusal whose stated fix is editing an artifact the agent itself
+  // authors (the intent JSON, spec deltas, the BOM) is not a human blocker —
+  // the next attempt applies exactly that change. Observed live: a stage-4
+  // refusal listing missing U2 power nets was diagnosed "cannot be
+  // auto-resolved; human intervention needed to update the IR" — but the IR
+  // is the agent's own artifact, rewritten via draft_schematic's intent_json
+  // arg. The refusal's own summary is already the best guidance; skipping
+  // the LLM here also removes a second confabulation surface.
+  if (
+    /refus/i.test(input.failure) &&
+    /\b(intent|IR|spec delta|BOM\.md|openspec\/changes|\.intent\.json)\b/i.test(input.failure)
+  ) {
+    return {
+      verdict: 'retry',
+      reason: `refusal names a fix to an agent-authored artifact (${input.failure.slice(0, 140)})`,
+      guidance:
+        'The refusal describes a change to an artifact you author yourself — apply exactly the change it names. ' +
+        'To revise the schematic intent, call draft_schematic with the corrected JSON as intent_json (it rewrites .copperhead/schematic.intent.json itself; write_file refuses to overwrite it). ' +
+        `Refusal detail: ${input.failure}`,
+    };
+  }
   const system =
     'You are the recovery supervisor for an automated KiCad PCB-design pipeline. ' +
     'A stage just failed or ended without meeting its completion contract. Judge whether ' +
