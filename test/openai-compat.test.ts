@@ -182,6 +182,37 @@ describe('OpenAIProvider — compatible endpoints', () => {
     }
   });
 
+  // llama.cpp returns a bare 500 when its tool-call parser chokes on the
+  // model's own malformed output — stochastic, so the identical request
+  // samples clean on a retry.
+  it('re-issues the request after a transient 500 (tool-call parse flake)', async () => {
+    let requests = 0;
+    const server = createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        requests++;
+        if (requests === 1) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: { message: "error parsing tool call: raw='{\"}'", type: 'server_error' } }));
+          return;
+        }
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.end('data: {"choices":[{"delta":{"content":"recovered"}}]}\n\ndata: [DONE]\n\n');
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const { port } = server.address() as AddressInfo;
+    try {
+      const p = new OpenAIProvider('llama3', { baseURL: `http://127.0.0.1:${port}/v1`, apiKeyEnv: 'UNUSED' }, {});
+      const turn = await p.chat([{ role: 'user', content: 'hi' }], []);
+      expect(turn.text).toBe('recovered');
+      expect(requests).toBeGreaterThanOrEqual(2);
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
   it('a keyless loopback endpoint still sends a request the server accepts (Ollama shape)', async () => {
     let hit = false;
     const server = createServer((req, res) => {
