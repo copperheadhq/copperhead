@@ -829,20 +829,29 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
  */
 function finishFromText(text: string): Record<string, unknown> | null {
   const trimmed = text.trim();
-  if (!trimmed.startsWith('{')) return null;
-  const span = firstJsonObject(trimmed);
-  if (span === null || trimmed.slice(span.length).trim() !== '') return null;
-  try {
-    const obj = JSON.parse(span) as Record<string, unknown>;
-    if (
-      (obj.outcome === 'done' || obj.outcome === 'refuse') &&
-      typeof obj.summary === 'string' &&
-      obj.summary !== ''
-    ) {
-      return { outcome: obj.outcome, summary: obj.summary };
+  if (trimmed.startsWith('{')) {
+    const span = firstJsonObject(trimmed);
+    if (span !== null && trimmed.slice(span.length).trim() === '') {
+      try {
+        const obj = JSON.parse(span) as Record<string, unknown>;
+        if (
+          (obj.outcome === 'done' || obj.outcome === 'refuse') &&
+          typeof obj.summary === 'string' &&
+          obj.summary !== ''
+        ) {
+          return { outcome: obj.outcome, summary: obj.summary };
+        }
+      } catch {
+        /* not a finish payload */
+      }
     }
-  } catch {
-    /* not a finish payload */
   }
-  return null;
+  // Markdown variant observed live: "**Outcome:** refuse / **Summary:** …"
+  // (the colon sits inside the bold markers: `**Outcome:**` = `**`+`Outcome:`+`**`).
+  const om = /^(?:\*\*|#+\s*)?outcome\s*:\s*(?:\*\*)?\s*`?(done|refuse)\b/im.exec(trimmed);
+  if (!om) return null;
+  const sm = /^(?:\*\*|#+\s*)?summary\s*:\s*(?:\*\*)?\s*([\s\S]+)$/im.exec(trimmed);
+  const summary = sm?.[1]?.trim();
+  if (!summary) return null;
+  return { outcome: om[1]!.toLowerCase(), summary };
 }

@@ -561,4 +561,32 @@ describe('empty-completion tolerance (agent loop)', () => {
       await cleanup();
     }
   }, 60_000);
+
+  it('a markdown "**Outcome:** refuse / **Summary:** …" text turn also finishes the run', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, installHooks: false });
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'docs'], { cwd: repo });
+      // Observed live: gpt-oss refused in a markdown envelope, which read as
+      // a stall, not a refusal.
+      const provider = scriptedProvider([
+        {
+          text: 'The schematic file is engine-drafted and cannot be edited.\n\n**Outcome:** refuse\n**Summary:** the engine-drafted sheet must be regenerated from the intent before ERC can pass',
+        },
+      ]);
+      const res = await runAgentLoop({
+        repoRoot: repo,
+        request: 'noop',
+        model: 'gpt-5',
+        provider,
+        maxTurns: 10,
+        log: () => {},
+      });
+      expect(res.outcome).toBe('refused');
+      expect(res.summary).toContain('engine-drafted sheet must be regenerated');
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
 });

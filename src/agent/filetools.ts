@@ -29,10 +29,9 @@ export async function toolWriteFile(repoRoot: string, p: string, content: string
   }
   if (existsSync(abs)) {
     throw new Error(
-      `write_file refuses to overwrite existing file ${p}; use edit_file` +
-        (p.endsWith('.intent.json')
-          ? ' — or pass the new IR to draft_schematic as intent_json (it writes this file itself)'
-          : ''),
+      p.endsWith('.intent.json')
+        ? `write_file refuses to overwrite existing file ${p}; pass the new IR to draft_schematic as intent_json (it writes this file itself) — edit_file anchors rarely match a minified single-line JSON`
+        : `write_file refuses to overwrite existing file ${p}; use edit_file`,
     );
   }
   await mkdir(path.dirname(abs), { recursive: true });
@@ -76,9 +75,19 @@ export async function toolEditFile(
   const text = await readRepoFile(abs, p);
   const first = text.indexOf(oldString);
   if (first === -1) {
+    // A minified one-line JSON document makes every anchor a substring of the
+    // same giant line: exact-match edits are structurally fragile here, and
+    // observed live a model burned repeated turns re-trying them. Name the
+    // supported revision path instead of leaving the next move ambiguous.
+    const minifiedJson = text.split('\n').length <= 2 && p.endsWith('.json');
+    const steer = p.endsWith('.intent.json')
+      ? '; pass the revised IR to draft_schematic as intent_json instead'
+      : minifiedJson
+        ? '; the file is a single minified line — prefer the tool that regenerates it over anchored edits'
+        : '';
     const hint = closestAnchorLines(text, oldString);
     throw new Error(
-      `edit_file: anchor not found in ${p}${hint}; re-read the file and use an exact excerpt`,
+      `edit_file: anchor not found in ${p}${hint}${steer}; re-read the file and use an exact excerpt`,
     );
   }
   const count = text.split(oldString).length - 1;
