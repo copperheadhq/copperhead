@@ -175,6 +175,17 @@ describe('parseDiagnosis', () => {
     expect(parseDiagnosis(null).verdict).toBe('abort');
     expect(parseDiagnosis('{"reason":"x"}').verdict).toBe('abort');
   });
+
+  it('scans past brace-noise before the real verdict object', () => {
+    // small models often echo the schema or emit brace-y prose first;
+    // stopping at the first unparseable {...} turned that slip into abort
+    const d = parseDiagnosis(
+      'Not json: {"stage":"x"} — and a truncated one {"verdict":" — then the real call: {"verdict":"retry","reason":"fixable dup","guidance":"remove the duplicate row"}',
+    );
+    expect(d.verdict).toBe('retry');
+    expect(d.reason).toBe('fixable dup');
+    expect(d.guidance).toBe('remove the duplicate row');
+  });
 });
 
 describe('diagnoseStageFailure', () => {
@@ -210,6 +221,62 @@ describe('diagnoseStageFailure', () => {
       stageName: 's', stageGoal: 'g', failure: 'f', excerpt: '', attempt: 1, maxAttempts: 2,
     });
     expect(d.verdict).toBe('abort');
+  });
+
+  it('retries a transport-level provider error without a diagnosis call', async () => {
+    // Observed live: "provider error: terminated" was diagnosed as missing
+    // symbol libraries (confabulation) → spurious abort. A dropped connection
+    // carries no information about the work, so never ask the model.
+    let called = 0;
+    const provider: Provider = {
+      name: 'fake',
+      async chat() {
+        called++;
+        return turn('{"verdict":"abort","reason":"confabulated"}');
+      },
+    };
+    for (const failure of [
+      'the run ended as "failure" (provider-error): provider error: terminated',
+      'the run ended as "failure" (provider-error): provider error: Request timed out.',
+    ]) {
+      const d = await diagnoseStageFailure(provider, {
+        stageName: 'schematic',
+        stageGoal: 'g',
+        failure,
+        excerpt: '[assistant] …',
+        attempt: 1,
+        maxAttempts: 9,
+      });
+      expect(d.verdict).toBe('retry');
+      expect(d.guidance).toBeTruthy();
+    }
+    expect(called).toBe(0);
+  });
+
+  it('retries a refusal that names a fix to an agent-authored artifact', async () => {
+    // Observed live: a stage-4 refusal listing missing U2 power nets was
+    // diagnosed "human intervention needed to update the IR" — but the IR is
+    // the agent's own artifact. Retry with the refusal as the guidance.
+    let called = 0;
+    const provider: Provider = {
+      name: 'fake',
+      async chat() {
+        called++;
+        return turn('{"verdict":"abort","reason":"confabulated"}');
+      },
+    };
+    const d = await diagnoseStageFailure(provider, {
+      stageName: 'schematic',
+      stageGoal: 'g',
+      failure:
+        'the run ended as "refused" (refused): ERC violations remain; the intent requires explicit VDD/VSS nets for each U2 unit',
+      excerpt: '',
+      attempt: 2,
+      maxAttempts: 9,
+    });
+    expect(d.verdict).toBe('retry');
+    expect(d.guidance).toContain('VDD/VSS');
+    expect(called).toBe(0);
   });
 });
 

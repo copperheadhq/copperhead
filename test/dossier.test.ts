@@ -19,6 +19,13 @@ const DEVICE_LIB = `(kicad_symbol_lib (version 20251024) (generator test)
     )
   )
   (symbol "R_Small" (extends "R"))
+  (symbol "C" (pin_numbers hide) (pin_names (offset 0))
+    (symbol "C_0_1" (rectangle (start -1.016 -2.54) (end 1.016 2.54)))
+    (symbol "C_1_1"
+      (pin passive line (at 0 3.81 270) (length 1.27) (name "~") (number "1"))
+      (pin passive line (at 0 -3.81 90) (length 1.27) (name "~") (number "2"))
+    )
+  )
 )`;
 
 const LOGIC_LIB = `(kicad_symbol_lib (version 20251024) (generator test)
@@ -69,6 +76,8 @@ const BOM = `| Refdes | Value | Footprint | MPN | Rationale |
 | U4 | SN74LVC1G17 | Package_TO_SOT_SMD:X | BOGUSMPN9999 | bogus MPN over a resolvable Value |
 | U5 | mcu | Package_QFP:X | STM32F103C8T6 | family variant of the stock symbol |
 | SW2 | R_Small | Button:X | | value fallback row |
+| SW3 | mystery | Device:R_Small | | footprint lib_id row |
+| D2 | mystery-diode | NoLib:R_Small | NOPE-404 | footprint name-half row |
 | Y1 | 8M | Crystal:X | | name too short to search |
 | R1 | 10k | Resistor_SMD:X | UNVERIFIED | passive, omitted |
 | C3 | 100n | Capacitor_SMD:X | UNVERIFIED | passive, omitted |
@@ -138,6 +147,15 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(d).not.toMatch(/U4 .*NO INSTALLED SYMBOL/);
     });
 
+    it('resolves symbol-shaped Footprint cells when MPN and Value both miss', async () => {
+      const d = await bomSymbolDossier(BOM, [libDir]);
+      // "Device:R_Small" resolves as a literal lib_id; "NoLib:R_Small" falls
+      // through to its symbol-name half. Both beat a false NO INSTALLED SYMBOL.
+      expect(d).toContain('SW3 (mystery): Device:R_Small (matched by Footprint "Device:R_Small")');
+      expect(d).toContain('D2 (NOPE-404): Device:R_Small (matched by Footprint "NoLib:R_Small")');
+      expect(d).not.toMatch(/(SW3|D2) .*NO INSTALLED SYMBOL/);
+    });
+
     it('resolves a family-variant MPN instead of declaring it absent', async () => {
       // Finding 1 (#202 review): search lacked the edit-distance tier the
       // cross-library resolver had, so STM32F103C8T6 vs the installed
@@ -167,6 +185,14 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(d).not.toMatch(/^- C3[ ,(]/m);
       expect(d).not.toContain('(10k)');
       expect(d).not.toContain('(100n)');
+    });
+
+    it('discloses omitted passives by convention and lists installed libraries', async () => {
+      const d = await bomSymbolDossier(BOM, [libDir]);
+      expect(d).toMatch(/PASSIVE refdes not looked up[^]*R1[^]*C3/);
+      expect(d).toContain('R* → Device:R');
+      expect(d).toContain('C* → Device:C');
+      expect(d).toMatch(/Installed symbol libraries[^]*Device[^]*Logic/);
     });
 
     it('discloses size-cap overflow within the cap, never silently', async () => {

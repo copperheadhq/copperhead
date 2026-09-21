@@ -16,7 +16,7 @@ import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
-import { corruptionError, markTouched, str } from './helpers.js';
+import { corruptionError, firstJsonObject, markTouched, str } from './helpers.js';
 
 export interface HandlerOutcome {
   ok: boolean;
@@ -103,7 +103,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'propose_change',
       description:
-        'Write the OpenSpec change proposal for this run (the plan step). Must be called and validated before edit tools unlock.',
+        'Write the OpenSpec change proposal for this run (the plan step). Must be called and validated before edit tools unlock. On a repo with an initialized openspec/ workspace, validation requires at least one capability delta — pass spec_deltas — or the change must declare itself spec-less via skip_specs (docs/tooling/refactor changes only). You cannot create these files by hand: the file tools stay locked until validation passes, so the deltas or the skip marker must come through this call.',
       parameters: {
         type: 'object',
         properties: {
@@ -111,6 +111,28 @@ export const HANDLERS: HandlerDef[] = [
           why: { type: 'string' },
           what_changes: { type: 'string', description: 'markdown bullet list of changes' },
           tasks: { type: 'string', description: 'markdown checklist of implementation steps' },
+          spec_deltas: {
+            type: 'array',
+            description:
+              'Capability deltas for the change — each writes specs/<capability>/spec.md under openspec/changes/<id>/. An initialized openspec workspace validates only changes carrying at least one delta.',
+            items: {
+              type: 'object',
+              properties: {
+                capability: { type: 'string', description: 'kebab-case capability folder name, e.g. spec-docs' },
+                spec: {
+                  type: 'string',
+                  description:
+                    'delta spec markdown: "## ADDED Requirements" (or MODIFIED/REMOVED/RENAMED), each requirement a "### Requirement:" line with at least one "#### Scenario:" block',
+                },
+              },
+              required: ['capability', 'spec'],
+            },
+          },
+          skip_specs: {
+            type: 'boolean',
+            description:
+              'Set true only for changes that modify no spec-level behavior (docs, tooling, refactors). Writes the .openspec.yaml marker openspec validate honors. Ignored when spec_deltas are given.',
+          },
         },
         required: ['id', 'why', 'what_changes', 'tasks'],
       },
@@ -127,8 +149,44 @@ export const HANDLERS: HandlerDef[] = [
         'utf8',
       );
       await writeFile(path.join(dir, 'tasks.md'), `# Tasks\n\n${str(args, 'tasks')}\n`, 'utf8');
+      const deltas = args.spec_deltas;
+      let written = 0;
+      if (Array.isArray(deltas)) {
+        for (const d of deltas) {
+          const delta = d as Record<string, unknown>;
+          const capability = str(delta, 'capability');
+          if (!/^[a-z0-9][a-z0-9-]*$/.test(capability)) {
+            throw new Error(`spec_deltas capability "${capability}" must be a kebab-case folder name`);
+          }
+          const specDir = resolveInRepo(ctx.repoRoot, path.join('openspec', 'changes', id, 'specs', capability));
+          await mkdir(specDir, { recursive: true });
+          await writeFile(path.join(specDir, 'spec.md'), str(delta, 'spec'), 'utf8');
+          written++;
+        }
+      }
+      const skipSpecs = !written && args.skip_specs === true;
+      if (skipSpecs) {
+        // openspec honors skip_specs only in valid change metadata; the
+        // 'spec-driven' schema name is what the CLI accepts (1.13.x).
+        await writeFile(
+          path.join(dir, '.openspec.yaml'),
+          'schema: spec-driven\nskip_specs: true\n',
+          'utf8',
+        );
+      }
       ctx.changeId = id;
-      return `proposal written to openspec/changes/${id}/ — now call validate_change`;
+      const detail = written
+        ? ` with ${written} spec delta(s)`
+        : skipSpecs
+          ? ' (skip_specs)'
+          : '';
+      const tail =
+        !written &&
+        !skipSpecs &&
+        existsSync(path.join(ctx.repoRoot, 'openspec', 'config.yaml'))
+          ? ' — WARNING: no spec_deltas and no skip_specs marker; validation will fail this change'
+          : ' — now call validate_change';
+      return `proposal written to openspec/changes/${id}/${detail}${tail}`;
     },
   },
   {
@@ -277,7 +335,7 @@ export const HANDLERS: HandlerDef[] = [
       if (report.ok && !(await listSymbols(schPath)).length) {
         return {
           ok: true,
-          text: `${out}\nwarning: ERC is clean but the schematic has ZERO symbols — an empty sheet always passes ERC, so this is NOT a verified design. Capture the parts from BOM.md (and re-run run_erc) before calling finish.`,
+          text: `${out}\nwarning: ERC is clean but the schematic has ZERO symbols — an empty sheet always passes ERC, so this is NOT a verified design. If an intent exists, call draft_schematic to place the parts (then re-run run_erc); otherwise capture the parts from BOM.md before calling finish.`,
         };
       }
       return { ok: report.ok, text: out };
@@ -392,7 +450,7 @@ export const HANDLERS: HandlerDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          intent_json: { type: 'string', description: 'full IR document as JSON text (optional: omit to re-draft the current IR)' },
+          intent_json: { type: 'string', description: 'full IR document — JSON text or a parsed object (optional: omit to re-draft the current IR)' },
         },
         required: [],
       },
@@ -401,15 +459,33 @@ export const HANDLERS: HandlerDef[] = [
     handler: async (ctx, args) => {
       if (!ctx.config.schematic) return 'no schematic configured; set one in .copperhead/config.json first';
       const intentRel = defaultIntentPath(ctx.config.schematic);
+      // intent_json arrives as either JSON text or an already-parsed object —
+      // compat backends hand tool args back however the model emitted them,
+      // and a silent string-only check turned a real IR into a no-op that
+      // re-drafted the stale file (observed: identical finding counts across
+      // successive "revisions").
+      let doc: string | null = null;
       if (typeof args.intent_json === 'string' && args.intent_json.trim()) {
-        const corrupt = corruptionError({ intent_json: args.intent_json });
+        doc = args.intent_json;
+      } else if (args.intent_json !== undefined && args.intent_json !== null) {
+        doc = JSON.stringify(args.intent_json);
+      }
+      if (doc !== null) {
+        const corrupt = corruptionError({ intent_json: doc });
         if (corrupt) return corrupt;
         try {
-          JSON.parse(args.intent_json);
+          JSON.parse(doc);
         } catch (e) {
-          return `intent_json is not valid JSON (${(e as Error).message}); nothing written`;
+          const salvaged = firstJsonObject(doc);
+          try {
+            if (!salvaged) throw e;
+            JSON.parse(salvaged);
+          } catch {
+            return `intent_json is not valid JSON (${(e as Error).message}); nothing written`;
+          }
+          doc = salvaged;
         }
-        await writeFile(resolveInRepo(ctx.repoRoot, intentRel), args.intent_json, 'utf8');
+        await writeFile(resolveInRepo(ctx.repoRoot, intentRel), doc, 'utf8');
         ctx.filesTouched.add(intentRel);
       }
       const res = await draftSchematic({

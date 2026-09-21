@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { writeFile, readFile } from 'node:fs/promises';
+import { writeFile, readFile, mkdir } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
 import { availableTools, dispatchTool, dispatchToolResult, registry, type RunContext } from '../src/agent/tools.js';
@@ -72,6 +72,78 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
       expect(ctx.editsUnlocked).toBe(true);
       expect(names()).toContain('edit_file');
       expect(names()).toContain('write_file');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('propose_change with spec_deltas writes specs/<cap>/spec.md and rejects bad capability names', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      const out = await dispatchTool(ctx, 'propose_change', {
+        id: 'seed-spec',
+        why: 'spec stage',
+        what_changes: '- add SPEC.md',
+        tasks: '- [ ] write spec',
+        spec_deltas: [
+          {
+            capability: 'spec-docs',
+            spec: '## ADDED Requirements\n### Requirement: budget docs\nThe doc SHALL carry budgets.\n\n#### Scenario: present\n- Given a brief\n- When stage 1 runs\n- Then budgets exist\n',
+          },
+        ],
+      });
+      expect(out).toContain('spec delta');
+      const written = await readFile(
+        path.join(repo, 'openspec', 'changes', 'seed-spec', 'specs', 'spec-docs', 'spec.md'),
+        'utf8',
+      );
+      expect(written).toContain('## ADDED Requirements');
+      expect(written).toContain('#### Scenario:');
+      const bad = await dispatchTool(ctx, 'propose_change', {
+        id: 'seed-spec',
+        why: 'x',
+        what_changes: 'x',
+        tasks: 'x',
+        spec_deltas: [{ capability: '../escape', spec: 'x' }],
+      });
+      expect(bad).toContain('kebab-case');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('propose_change with skip_specs writes the .openspec.yaml marker; without either it warns', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      // Simulate an initialized openspec workspace so a bare proposal must
+      // warn that validation would fail for the missing deltas.
+      await mkdir(path.join(repo, 'openspec'), { recursive: true });
+      await writeFile(path.join(repo, 'openspec', 'config.yaml'), 'schema: spec-driven\n', 'utf8');
+      const warned = await dispatchTool(ctx, 'propose_change', {
+        id: 'no-deltas',
+        why: 'x',
+        what_changes: 'x',
+        tasks: 'x',
+      });
+      expect(warned).toContain('WARNING');
+      const skipped = await dispatchTool(ctx, 'propose_change', {
+        id: 'docs-only',
+        why: 'x',
+        what_changes: 'x',
+        tasks: 'x',
+        skip_specs: true,
+      });
+      expect(skipped).toContain('skip_specs');
+      const marker = await readFile(
+        path.join(repo, 'openspec', 'changes', 'docs-only', '.openspec.yaml'),
+        'utf8',
+      );
+      expect(marker).toContain('skip_specs: true');
+      expect(marker).toContain('schema: spec-driven');
     } finally {
       await cleanup();
     }

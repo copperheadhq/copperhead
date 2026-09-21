@@ -10,7 +10,7 @@ export async function toolReadFile(
   endLine?: number,
 ): Promise<string> {
   const abs = resolveInRepo(repoRoot, p);
-  const text = await readFile(abs, 'utf8');
+  const text = await readRepoFile(abs, p);
   if (startLine === undefined) return text;
   const lines = text.split('\n');
   const from = Math.max(1, startLine);
@@ -28,11 +28,35 @@ export async function toolWriteFile(repoRoot: string, p: string, content: string
     throw new Error(`write_file refuses KiCad files (${p}); use edit_file with anchors instead`);
   }
   if (existsSync(abs)) {
-    throw new Error(`write_file refuses to overwrite existing file ${p}; use edit_file`);
+    throw new Error(
+      p.endsWith('.intent.json')
+        ? `write_file refuses to overwrite existing file ${p}; pass the new IR to draft_schematic as intent_json (it writes this file itself) — edit_file anchors rarely match a minified single-line JSON`
+        : `write_file refuses to overwrite existing file ${p}; use edit_file`,
+    );
   }
   await mkdir(path.dirname(abs), { recursive: true });
   await writeFile(abs, content, 'utf8');
   return `wrote ${p}`;
+}
+
+/**
+ * Re-throw ENOENT with a model-actionable message: observed live, a model
+ * typoed a repo path containing a stray space and deadlocked on the raw
+ * `ENOENT: no such file or directory, open '...'` — nothing in it pointed at
+ * the actual mistake.
+ */
+async function readRepoFile(abs: string, p: string): Promise<string> {
+  try {
+    return await readFile(abs, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(
+        `no such file: ${p}` +
+          (/\s/.test(p) ? ' (the path contains whitespace — likely a typo)' : ''),
+      );
+    }
+    throw err;
+  }
 }
 
 /**
@@ -48,10 +72,23 @@ export async function toolEditFile(
   replaceAll = false,
 ): Promise<string> {
   const abs = resolveInRepo(repoRoot, p);
-  const text = await readFile(abs, 'utf8');
+  const text = await readRepoFile(abs, p);
   const first = text.indexOf(oldString);
   if (first === -1) {
-    throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+    // A minified one-line JSON document makes every anchor a substring of the
+    // same giant line: exact-match edits are structurally fragile here, and
+    // observed live a model burned repeated turns re-trying them. Name the
+    // supported revision path instead of leaving the next move ambiguous.
+    const minifiedJson = text.split('\n').length <= 2 && p.endsWith('.json');
+    const steer = p.endsWith('.intent.json')
+      ? '; pass the revised IR to draft_schematic as intent_json instead'
+      : minifiedJson
+        ? '; the file is a single minified line — prefer the tool that regenerates it over anchored edits'
+        : '';
+    const hint = closestAnchorLines(text, oldString);
+    throw new Error(
+      `edit_file: anchor not found in ${p}${hint}${steer}; re-read the file and use an exact excerpt`,
+    );
   }
   const count = text.split(oldString).length - 1;
   if (replaceAll) {
@@ -65,6 +102,41 @@ export async function toolEditFile(
   }
   await writeFile(abs, text.slice(0, first) + newString + text.slice(first + oldString.length), 'utf8');
   return `edited ${p}`;
+}
+
+/**
+ * Closest file line(s) to a missed anchor, by word-set Jaccard similarity.
+ * Anchored edits deadlock models that misremember their own earlier writes
+ * (observed live: part-selection refused after repeated BOM.md anchor misses,
+ * because the error gave it nothing to correct against). A nearest-line hint
+ * turns the failure into a self-correcting re-read.
+ */
+function closestAnchorLines(text: string, anchor: string): string {
+  // char-bigram Jaccard catches both paraphrase drift and single-char typos
+  // in anchors (a one-word anchor with a typo shares zero *word* grams).
+  const bigrams = (s: string) => {
+    const t = s.toLowerCase().replace(/\s+/g, ' ').trim();
+    const out = new Set<string>();
+    for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+    return out;
+  };
+  const want = bigrams(anchor.split('\n')[0] ?? '');
+  if (!want.size) return '';
+  const scored = text
+    .split('\n')
+    .map((line, i) => {
+      const have = bigrams(line);
+      let inter = 0;
+      for (const g of want) if (have.has(g)) inter++;
+      const union = want.size + have.size - inter;
+      return { i, line, score: union ? inter / union : 0 };
+    })
+    .filter((s) => s.score > 0.3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+  if (!scored.length) return '';
+  const hints = scored.map((s) => `${s.i + 1}: ${s.line.trim().slice(0, 140)}`).join('\n  ');
+  return ` — closest line(s):\n  ${hints}`;
 }
 
 export interface SearchMatch {

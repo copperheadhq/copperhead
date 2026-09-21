@@ -26,6 +26,7 @@ import { ObligationsLedger } from './ledger.js';
 import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun } from '../util/git.js';
 import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
 import { openspecArchive } from '../openspec/cli.js';
+import { firstJsonObject } from '../capabilities/helpers.js';
 import { existsSync } from 'node:fs';
 import { OpenAIProvider } from './providers/openai.js';
 import { AnthropicProvider } from './providers/anthropic.js';
@@ -583,6 +584,16 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       r.status(null);
     }
     turnsUsed = turn + 1;
+    // Reasoning models occasionally emit the finish payload as a bare text
+    // message instead of a tool call (observed live: stage 4 wrote
+    // {"outcome":"refuse","summary":"…"} as plain text, then stalled). Route it
+    // through the normal dispatch so the refusal/finish gates still apply.
+    if (!res.toolCalls.length && res.text) {
+      const finishArgs = finishFromText(res.text);
+      if (finishArgs) {
+        res.toolCalls.push({ id: `text-finish-${turn + 1}`, name: 'finish', args: finishArgs });
+      }
+    }
     // A productive turn resets the timeout budget: maxTurnTimeouts is meant to
     // catch a turn that is genuinely, repeatedly stuck — not to cap the total
     // number of slow-but-recoverable turns across a whole stage. Without this a
@@ -809,4 +820,38 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     `turn budget exhausted (${budget} turns, ${filesAfter.length} files touched but unverified)`,
     'turn-budget-exhausted',
   );
+}
+
+/**
+ * A tool-less assistant message that *is* a finish payload — the whole
+ * trimmed text must be one JSON object carrying outcome+summary, so prose
+ * that merely mentions finish never misfires.
+ */
+function finishFromText(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{')) {
+    const span = firstJsonObject(trimmed);
+    if (span !== null && trimmed.slice(span.length).trim() === '') {
+      try {
+        const obj = JSON.parse(span) as Record<string, unknown>;
+        if (
+          (obj.outcome === 'done' || obj.outcome === 'refuse') &&
+          typeof obj.summary === 'string' &&
+          obj.summary !== ''
+        ) {
+          return { outcome: obj.outcome, summary: obj.summary };
+        }
+      } catch {
+        /* not a finish payload */
+      }
+    }
+  }
+  // Markdown variant observed live: "**Outcome:** refuse / **Summary:** …"
+  // (the colon sits inside the bold markers: `**Outcome:**` = `**`+`Outcome:`+`**`).
+  const om = /^(?:\*\*|#+\s*)?outcome\s*:\s*(?:\*\*)?\s*`?(done|refuse)\b/im.exec(trimmed);
+  if (!om) return null;
+  const sm = /^(?:\*\*|#+\s*)?summary\s*:\s*(?:\*\*)?\s*([\s\S]+)$/im.exec(trimmed);
+  const summary = sm?.[1]?.trim();
+  if (!summary) return null;
+  return { outcome: om[1]!.toLowerCase(), summary };
 }

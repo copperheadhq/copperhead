@@ -130,8 +130,11 @@ export interface StageDiagnosis {
  * as "abort" so an ambiguous diagnosis never loops the pipeline forever. */
 export function parseDiagnosis(text: string | null): StageDiagnosis {
   if (!text) return { verdict: 'abort', reason: 'no diagnosis produced' };
-  const start = text.indexOf('{');
-  if (start >= 0) {
+  // Try every balanced top-level {...} candidate, not just the first: small
+  // models routinely emit braces inside prose (an example schema, a stray
+  // code fragment) before the actual verdict object, and stopping at the
+  // first unparseable one turns a formatting slip into a spurious abort.
+  for (let start = text.indexOf('{'); start >= 0; start = text.indexOf('{', start + 1)) {
     let depth = 0;
     let inStr = false;
     let esc = false;
@@ -148,6 +151,7 @@ export function parseDiagnosis(text: string | null): StageDiagnosis {
       else if (ch === '}' && --depth === 0) {
         try {
           const o = JSON.parse(text.slice(start, i + 1)) as Partial<StageDiagnosis>;
+          if (typeof o.verdict !== 'string') break; // balanced but not a diagnosis — keep scanning
           const verdict = o.verdict === 'retry' ? 'retry' : 'abort';
           return {
             verdict,
@@ -157,7 +161,7 @@ export function parseDiagnosis(text: string | null): StageDiagnosis {
               : {}),
           };
         } catch {
-          break;
+          break; // not valid JSON — advance to the next '{' candidate
         }
       }
     }
@@ -299,6 +303,45 @@ export async function diagnoseStageFailure(
     symbolFacts?: string;
   },
 ): Promise<StageDiagnosis> {
+  // A transport-level provider error (socket dropped mid-stream, request
+  // timeout) says nothing about the work — asking the model to diagnose it
+  // invites a confabulated "abort" that reads content into a dropped
+  // connection (observed live: a "provider error: terminated" was diagnosed
+  // as missing symbol libraries that in fact resolved). Retry directly; the
+  // retry budget still bounds a permanently broken endpoint.
+  if (
+    /provider error:.*(terminated|fetch failed|ECONNRESET|ETIMEDOUT|EPIPE|socket|premature|timed? ?out|stream error)/i.test(
+      input.failure,
+    )
+  ) {
+    return {
+      verdict: 'retry',
+      reason: `transport-level provider error (${input.failure.slice(0, 140)}); the connection dropped, not the work`,
+      guidance:
+        'The previous attempt ended on a dropped provider connection, not on anything the agent did. Re-run the same plan; re-issue whatever tool call was mid-flight when it dropped.',
+    };
+  }
+  // A refusal whose stated fix is editing an artifact the agent itself
+  // authors (the intent JSON, spec deltas, the BOM) is not a human blocker —
+  // the next attempt applies exactly that change. Observed live: a stage-4
+  // refusal listing missing U2 power nets was diagnosed "cannot be
+  // auto-resolved; human intervention needed to update the IR" — but the IR
+  // is the agent's own artifact, rewritten via draft_schematic's intent_json
+  // arg. The refusal's own summary is already the best guidance; skipping
+  // the LLM here also removes a second confabulation surface.
+  if (
+    /refus/i.test(input.failure) &&
+    /\b(intent|IR|spec delta|BOM\.md|openspec\/changes|\.intent\.json)\b/i.test(input.failure)
+  ) {
+    return {
+      verdict: 'retry',
+      reason: `refusal names a fix to an agent-authored artifact (${input.failure.slice(0, 140)})`,
+      guidance:
+        'The refusal describes a change to an artifact you author yourself — apply exactly the change it names. ' +
+        'To revise the schematic intent, call draft_schematic with the corrected JSON as intent_json (it rewrites .copperhead/schematic.intent.json itself; write_file refuses to overwrite it). ' +
+        `Refusal detail: ${input.failure}`,
+    };
+  }
   const system =
     'You are the recovery supervisor for an automated KiCad PCB-design pipeline. ' +
     'A stage just failed or ended without meeting its completion contract. Judge whether ' +

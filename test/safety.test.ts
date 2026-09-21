@@ -6,7 +6,7 @@ import path from 'node:path';
 import { resolveInRepo, SandboxError, isKicadFile } from '../src/util/paths.js';
 import { redactSecrets } from '../src/util/redact.js';
 import { withRetry } from '../src/util/retry.js';
-import { toolWriteFile, toolEditFile, toolSearch } from '../src/agent/filetools.js';
+import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../src/agent/filetools.js';
 import { Transcript } from '../src/agent/transcript.js';
 import { isDirty, hasCommits, snapshot, restore } from '../src/util/git.js';
 import { PreflightError } from '../src/util/preflight.js';
@@ -168,10 +168,32 @@ describe('file tools', () => {
     await expect(toolWriteFile(dir, 'a.md', 'again')).rejects.toThrow(/overwrite/);
   });
 
+  it('write_file overwrite refusal points intent files at draft_schematic', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    await toolWriteFile(dir, '.copperhead/schematic.intent.json', '{}');
+    await expect(
+      toolWriteFile(dir, '.copperhead/schematic.intent.json', '{}'),
+    ).rejects.toThrow(/draft_schematic.*intent_json/);
+    await expect(toolWriteFile(dir, 'x.md', 'a').then(() =>
+      toolWriteFile(dir, 'x.md', 'b'),
+    )).rejects.toThrow(/edit_file(?!.*draft_schematic)/s);
+  });
+
+  it('read_file/edit_file ENOENT names the file and flags whitespace typos', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    await expect(toolReadFile(dir, 'missing.md')).rejects.toThrow(/no such file: missing\.md/);
+    await expect(toolEditFile(dir, 'docs/ BAD.md', 'a', 'b')).rejects.toThrow(
+      /whitespace — likely a typo/,
+    );
+  });
+
   it('edit_file requires a unique anchor with actionable errors', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     await writeFile(path.join(dir, 'f.txt'), 'aaa\nbbb\naaa\n');
     await expect(toolEditFile(dir, 'f.txt', 'zzz', 'x')).rejects.toThrow(/not found/);
+    // a near-miss anchor must name the closest matching line(s) so the model
+    // can self-correct without burning a re-read turn
+    await expect(toolEditFile(dir, 'f.txt', 'aaab', 'x')).rejects.toThrow(/closest line/);
     await expect(toolEditFile(dir, 'f.txt', 'aaa', 'x')).rejects.toThrow(/matched 2 times/);
     await toolEditFile(dir, 'f.txt', 'bbb', 'ccc');
     expect(await readFile(path.join(dir, 'f.txt'), 'utf8')).toBe('aaa\nccc\naaa\n');
