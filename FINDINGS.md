@@ -438,7 +438,7 @@ run, **P2** meaningful quality problem, **P3** polish.
   the leading dot) — a legal new file, silently accepted, while the
   canonical intent at `.copperhead/` went unread. The model then edited the
   typoed copy; the run's real intent never changed.
-- **Symptom:** the sandbox is path-correct but not path-*aware*: nothing
+- **Symptom:** the sandbox is path-correct but not path-_aware_: nothing
   warns that `copperhead/x` is one edit away from `.copperhead/x`.
 - **Suggested:** low priority — a Levenshtein-or-prefix check against
   existing top-level dirs ("did you mean `.copperhead/`?") would catch the
