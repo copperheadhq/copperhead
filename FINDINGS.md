@@ -398,3 +398,48 @@ run, **P2** meaningful quality problem, **P3** polish.
 - **Suggested:** wrap ENOENT with `no such file: <path>` and flag paths
   containing whitespace (repo-relative paths almost never have spaces).
 - **Status:** **fixed in this PR** (`filetools.ts` `readRepoFile`).
+
+### 23. DEFECT · P1 — the recovery supervisor over-escalates refusals whose fix is editing an agent-authored artifact
+
+- **Where:** `src/agent/recovery.ts` `diagnoseStageFailure`.
+- **Symptom:** run 2026-09-21T14-39, stage 4 attempt 2: the agent refused
+  with a self-described fix ("the intent requires explicit VDD/VSS nets for
+  each U2 unit") and the supervisor diagnosed **abort** — "cannot be
+  auto-resolved; human intervention needed to update the IR". But the IR
+  (`schematic.intent.json`) is written by `draft_schematic`'s `intent_json`
+  arg — the agent's own artifact, not a human input. Same failure shape as
+  #19: the supervisor ratifies the agent's misconception instead of
+  correcting it.
+- **Suggested:** a refusal that names a fix to an agent-authored artifact
+  (intent JSON, spec deltas, BOM) short-circuits to `retry` with the
+  refusal's own summary as guidance — no LLM call, no confabulation
+  surface. Retry budget still bounds loops.
+- **Status:** **fixed in this PR** (`recovery.ts` second short-circuit).
+
+### 24. DEFECT · P2 — the model emits its `finish` call as text; the loop records a stall instead of the refusal
+
+- **Where:** `src/agent/loop.ts` tool-less-turn handling.
+- **Symptom:** twice observed: the model ended with a bare
+  `{"outcome":"refuse","summary":"…"}` text message (run 2026-09-21T13-21)
+  and with a markdown envelope `**Outcome:** refuse / **Summary:** …`
+  (run 2026-09-21T14-39, turn 31). Neither is a tool call, so the run
+  counted a "stalled" failure and the supervisor lost the refusal reason —
+  the difference between generic "stopped calling tools" guidance and the
+  actual fix the model described.
+- **Suggested:** recognize a finish payload in a tool-less text turn — a
+  bare `{"outcome","summary"}` object or an `Outcome:`/`Summary:` envelope —
+  and dispatch it through the real `finish` handler so gating still applies.
+- **Status:** **fixed in this PR** (`loop.ts` `finishFromText`; two tests).
+
+### 25. NOTE · P3 — `write_file` happily creates near-miss paths; a typoed `copperhead/` (no dot) littered the repo
+
+- **Where:** `src/agent/filetools.ts` `toolWriteFile`; run
+  2026-09-21T18-09 turn 6 wrote `copperhead/schematic.intent.json` (missing
+  the leading dot) — a legal new file, silently accepted, while the
+  canonical intent at `.copperhead/` went unread. The model then edited the
+  typoed copy; the run's real intent never changed.
+- **Symptom:** the sandbox is path-correct but not path-*aware*: nothing
+  warns that `copperhead/x` is one edit away from `.copperhead/x`.
+- **Suggested:** low priority — a Levenshtein-or-prefix check against
+  existing top-level dirs ("did you mean `.copperhead/`?") would catch the
+  class. Not fixed in this PR.
