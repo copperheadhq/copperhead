@@ -450,7 +450,7 @@ export const HANDLERS: HandlerDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          intent_json: { type: 'string', description: 'full IR document as JSON text (optional: omit to re-draft the current IR)' },
+          intent_json: { type: 'string', description: 'full IR document — JSON text or a parsed object (optional: omit to re-draft the current IR)' },
         },
         required: [],
       },
@@ -459,11 +459,20 @@ export const HANDLERS: HandlerDef[] = [
     handler: async (ctx, args) => {
       if (!ctx.config.schematic) return 'no schematic configured; set one in .copperhead/config.json first';
       const intentRel = defaultIntentPath(ctx.config.schematic);
+      // intent_json arrives as either JSON text or an already-parsed object —
+      // compat backends hand tool args back however the model emitted them,
+      // and a silent string-only check turned a real IR into a no-op that
+      // re-drafted the stale file (observed: identical finding counts across
+      // successive "revisions").
+      let doc: string | null = null;
       if (typeof args.intent_json === 'string' && args.intent_json.trim()) {
-        const intentDoc = args.intent_json;
-        const corrupt = corruptionError({ intent_json: intentDoc });
+        doc = args.intent_json;
+      } else if (args.intent_json !== undefined && args.intent_json !== null) {
+        doc = JSON.stringify(args.intent_json);
+      }
+      if (doc !== null) {
+        const corrupt = corruptionError({ intent_json: doc });
         if (corrupt) return corrupt;
-        let doc = intentDoc;
         try {
           JSON.parse(doc);
         } catch (e) {

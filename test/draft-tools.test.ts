@@ -235,6 +235,26 @@ describe('draft_schematic input guards', () => {
     }
   }, 60000);
 
+  it('accepts intent_json delivered as an already-parsed object', async () => {
+    // Compat backends can hand the arg back as a parsed object rather than
+    // JSON text; a string-only check silently ignored it and re-drafted the
+    // stale file, which surfaced as identical finding counts on every retry.
+    const { repo, cleanup } = await draftedRepo();
+    try {
+      const before = await readFile(path.join(repo, 'schematic.intent.json'), 'utf8');
+      const doc = { version: 1, parts: [], nets: [], noConnect: [] };
+      const ctx = await makeCtx(repo);
+      const out = await dispatchTool(ctx, 'draft_schematic', { intent_json: doc });
+      expect(out).not.toContain('is not valid JSON');
+      expect(await readFile(path.join(repo, 'schematic.intent.json'), 'utf8')).toBe(
+        JSON.stringify(doc),
+      );
+      expect(before).not.toBe(JSON.stringify(doc));
+    } finally {
+      await cleanup();
+    }
+  }, 60000);
+
   it('salvages a valid IR when the model appends junk after the JSON object', async () => {
     const { repo, cleanup } = await draftedRepo();
     try {

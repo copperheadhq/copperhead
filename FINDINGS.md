@@ -313,3 +313,35 @@ run, **P2** meaningful quality problem, **P3** polish.
   provider stream path (bounded re-issues).
 - **Status:** **fixed in this PR** — `chatStream` retries transport drops
   and 5xx up to 2 re-issues.
+
+### 18. DEFECT · P1 — `intent_json` delivered as a parsed object is silently ignored; the draft re-runs the stale IR
+
+- **Where:** `src/capabilities/handlers.ts` `draft_schematic` handler.
+- **Symptom:** compat backends can hand the arg back as an already-parsed
+  object rather than JSON text. The handler's `typeof intent_json ===
+  'string'` guard then skips the write entirely — no error, no hint — and
+  drafts whatever stale `schematic.intent.json` is on disk. Live evidence:
+  the model sent a complete, correct IR as an object at turns 12 and 13 of
+  run 2026-09-21T02-24, and the tool reported the same "25 finding(s)" both
+  times because it never saw the new document.
+- **Suggested:** accept both shapes — stringify non-string intent_json, then
+  run the same validation/salvage path. (Schema text updated to match.)
+- **Status:** **fixed in this PR** (`handlers.ts` + `draft-tools.test.ts`
+  'accepts intent_json delivered as an already-parsed object').
+
+### 19. DEFECT · P2 — the recovery supervisor confabulates content errors onto transport failures
+
+- **Where:** `src/agent/recovery.ts` `diagnoseStageFailure`.
+- **Symptom:** run 2026-09-21T01-38 ended on `provider error: terminated`
+  (mid-stream socket drop). The diagnosis call's excerpt showed IR pin
+  juggling, so the model "explained" the transport failure as missing
+  symbol libraries ("Diode:D_SMA, Capacitator:C_0805_2012Metric… cannot be
+  resolved") and aborted — even though every one of those lib_ids resolved
+  on the machine and the attempt had reached 2 findings.
+- **Suggested:** transport errors carry no information about the work;
+  retry them deterministically (bounded by the retry budget) instead of
+  asking the model to narrate them.
+- **Status:** **fixed in this PR** — `diagnoseStageFailure` short-circuits
+  `provider error: …` transport patterns to `retry` before calling the
+  model (`recovery.test.ts` 'retries a transport-level provider error
+  without a diagnosis call').
