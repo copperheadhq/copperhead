@@ -25,6 +25,35 @@ export function corruptionError(fields: Record<string, unknown>): string | null 
   return `rejected: the ${bad.join(', ')} value contains U+FFFD (�), the replacement character that signals a UTF-8 decoding error — a special character (e.g. Ω, µ, ±, °) was likely mangled in transit. Re-send this exact call with the intended character written correctly, or spell it in ASCII (e.g. "ohm", "uF", "+/-", "deg").`;
 }
 
+// Local models sometimes emit a complete JSON document followed by extra
+// prose or a second object ("non-whitespace after JSON"). When the strict
+// parse fails, the first balanced {...} span is still the document the model
+// meant; return it (or null when no balanced object exists) so callers can
+// retry the parse on just that span instead of failing the call outright.
+export function firstJsonObject(text: string): string | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 export function markTouched(ctx: RunContext, rel: string): void {
   ctx.filesTouched.add(rel);
   if (isKicadFile(rel)) {

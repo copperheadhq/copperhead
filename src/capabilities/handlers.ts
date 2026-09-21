@@ -16,7 +16,7 @@ import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
-import { corruptionError, markTouched, str } from './helpers.js';
+import { corruptionError, firstJsonObject, markTouched, str } from './helpers.js';
 
 export interface HandlerOutcome {
   ok: boolean;
@@ -460,14 +460,23 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.schematic) return 'no schematic configured; set one in .copperhead/config.json first';
       const intentRel = defaultIntentPath(ctx.config.schematic);
       if (typeof args.intent_json === 'string' && args.intent_json.trim()) {
-        const corrupt = corruptionError({ intent_json: args.intent_json });
+        const intentDoc = args.intent_json;
+        const corrupt = corruptionError({ intent_json: intentDoc });
         if (corrupt) return corrupt;
+        let doc = intentDoc;
         try {
-          JSON.parse(args.intent_json);
+          JSON.parse(doc);
         } catch (e) {
-          return `intent_json is not valid JSON (${(e as Error).message}); nothing written`;
+          const salvaged = firstJsonObject(doc);
+          try {
+            if (!salvaged) throw e;
+            JSON.parse(salvaged);
+          } catch {
+            return `intent_json is not valid JSON (${(e as Error).message}); nothing written`;
+          }
+          doc = salvaged;
         }
-        await writeFile(resolveInRepo(ctx.repoRoot, intentRel), args.intent_json, 'utf8');
+        await writeFile(resolveInRepo(ctx.repoRoot, intentRel), doc, 'utf8');
         ctx.filesTouched.add(intentRel);
       }
       const res = await draftSchematic({

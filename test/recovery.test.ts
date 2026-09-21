@@ -222,6 +222,36 @@ describe('diagnoseStageFailure', () => {
     });
     expect(d.verdict).toBe('abort');
   });
+
+  it('retries a transport-level provider error without a diagnosis call', async () => {
+    // Observed live: "provider error: terminated" was diagnosed as missing
+    // symbol libraries (confabulation) → spurious abort. A dropped connection
+    // carries no information about the work, so never ask the model.
+    let called = 0;
+    const provider: Provider = {
+      name: 'fake',
+      async chat() {
+        called++;
+        return turn('{"verdict":"abort","reason":"confabulated"}');
+      },
+    };
+    for (const failure of [
+      'the run ended as "failure" (provider-error): provider error: terminated',
+      'the run ended as "failure" (provider-error): provider error: Request timed out.',
+    ]) {
+      const d = await diagnoseStageFailure(provider, {
+        stageName: 'schematic',
+        stageGoal: 'g',
+        failure,
+        excerpt: '[assistant] …',
+        attempt: 1,
+        maxAttempts: 9,
+      });
+      expect(d.verdict).toBe('retry');
+      expect(d.guidance).toBeTruthy();
+    }
+    expect(called).toBe(0);
+  });
 });
 
 describe('CachingProvider', () => {

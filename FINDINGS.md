@@ -284,3 +284,32 @@ run, **P2** meaningful quality problem, **P3** polish.
 - **Suggested:** emit `content: ""` instead of `null` — equivalent
   semantics, accepted by strict chatml backends.
 - **Status:** **fixed in this PR** (same commit as #13).
+
+### 16. DEFECT · P2 — model deadlocks when a file needs a full rewrite: `write_file` refuses overwrites and minified-JSON anchors keep missing
+
+- **Where:** `src/agent/filetools.ts` `toolWriteFile` refusal + stage-4 prompt.
+- **Symptom:** the schematic IR lands as a single minified JSON line. On a
+  reconcile pass the model wants to rewrite it wholesale, but write_file
+  refuses existing files and edit_file's exact-match anchors keep missing
+  (3–4 failures observed). Dead-end → `finish` with refuse:
+  "We need to rewrite the complete intent.json" (run 2026-09-20T17-16).
+- **Suggested:** the escape hatch already exists — `draft_schematic`'s
+  `intent_json` arg writes the canonical file itself — but nothing tells the
+  model to re-pass the corrected JSON instead of editing. Added one sentence
+  to the stage-4 prompt saying exactly that.
+- **Status:** **fixed in this PR** (prompt guidance); a
+  write-after-read-allows-overwrite variant is the deeper alternative.
+
+### 17. DEFECT · P3 — llama.cpp 500s on the model's own malformed tool calls, killing the whole stage
+
+- **Where:** `src/agent/providers/openai.ts` compat path; observed twice
+  (`error parsing tool call: raw='The intent_json string truncated…'` and
+  `raw='{"}'`).
+- **Symptom:** gpt-oss occasionally leaks prose or truncated JSON into the
+  tool-call section; llama.cpp's parser then 500s the request, surfacing as
+  `provider error: 500` → run failure. Sampling is stochastic — the same
+  request usually produces a clean call on re-issue.
+- **Suggested:** treat 5xx on compat endpoints as transient inside the
+  provider stream path (bounded re-issues).
+- **Status:** **fixed in this PR** — `chatStream` retries transport drops
+  and 5xx up to 2 re-issues.

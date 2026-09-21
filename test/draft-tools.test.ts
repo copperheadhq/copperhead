@@ -234,6 +234,23 @@ describe('draft_schematic input guards', () => {
       await cleanup();
     }
   }, 60000);
+
+  it('salvages a valid IR when the model appends junk after the JSON object', async () => {
+    const { repo, cleanup } = await draftedRepo();
+    try {
+      const before = await readFile(path.join(repo, 'schematic.intent.json'), 'utf8');
+      const doc = JSON.stringify({ version: 1, parts: [], nets: [], noConnect: [] });
+      const ctx = await makeCtx(repo);
+      const out = await dispatchTool(ctx, 'draft_schematic', {
+        intent_json: `${doc}\nHere is the revised intent…`,
+      });
+      expect(out).not.toContain('is not valid JSON');
+      expect(await readFile(path.join(repo, 'schematic.intent.json'), 'utf8')).toBe(doc);
+      expect(before).not.toBe(doc);
+    } finally {
+      await cleanup();
+    }
+  }, 60000);
 });
 
 describe('check_legibility without a schematic', () => {

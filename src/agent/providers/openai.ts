@@ -131,9 +131,15 @@ export class OpenAIProvider implements Provider {
       } catch (err) {
         lastErr = err;
         const msg = err instanceof Error ? err.message : String(err);
-        const transient = /terminated|fetch failed|ECONNRESET|ETIMEDOUT|EPIPE|socket|premature|other side closed|stream error/i.test(
-          msg,
-        );
+        const status = (err as { status?: number }).status;
+        // 5xx on a compat backend is usually the server failing to parse the
+        // MODEL's own tool-call output ("error parsing tool call") — stochastic
+        // generation, so the identical request samples clean on retry.
+        const transient =
+          (typeof status === 'number' && status >= 500) ||
+          /terminated|fetch failed|ECONNRESET|ETIMEDOUT|EPIPE|socket|premature|other side closed|stream error|timed? ?out/i.test(
+            msg,
+          );
         if (!transient || issue >= 2) throw err;
       }
     }

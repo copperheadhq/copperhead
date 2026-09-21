@@ -303,6 +303,24 @@ export async function diagnoseStageFailure(
     symbolFacts?: string;
   },
 ): Promise<StageDiagnosis> {
+  // A transport-level provider error (socket dropped mid-stream, request
+  // timeout) says nothing about the work — asking the model to diagnose it
+  // invites a confabulated "abort" that reads content into a dropped
+  // connection (observed live: a "provider error: terminated" was diagnosed
+  // as missing symbol libraries that in fact resolved). Retry directly; the
+  // retry budget still bounds a permanently broken endpoint.
+  if (
+    /provider error:.*(terminated|fetch failed|ECONNRESET|ETIMEDOUT|EPIPE|socket|premature|timed? ?out|stream error)/i.test(
+      input.failure,
+    )
+  ) {
+    return {
+      verdict: 'retry',
+      reason: `transport-level provider error (${input.failure.slice(0, 140)}); the connection dropped, not the work`,
+      guidance:
+        'The previous attempt ended on a dropped provider connection, not on anything the agent did. Re-run the same plan; re-issue whatever tool call was mid-flight when it dropped.',
+    };
+  }
   const system =
     'You are the recovery supervisor for an automated KiCad PCB-design pipeline. ' +
     'A stage just failed or ended without meeting its completion contract. Judge whether ' +
