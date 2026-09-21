@@ -10,7 +10,7 @@ export async function toolReadFile(
   endLine?: number,
 ): Promise<string> {
   const abs = resolveInRepo(repoRoot, p);
-  const text = await readFile(abs, 'utf8');
+  const text = await readRepoFile(abs, p);
   if (startLine === undefined) return text;
   const lines = text.split('\n');
   const from = Math.max(1, startLine);
@@ -28,11 +28,36 @@ export async function toolWriteFile(repoRoot: string, p: string, content: string
     throw new Error(`write_file refuses KiCad files (${p}); use edit_file with anchors instead`);
   }
   if (existsSync(abs)) {
-    throw new Error(`write_file refuses to overwrite existing file ${p}; use edit_file`);
+    throw new Error(
+      `write_file refuses to overwrite existing file ${p}; use edit_file` +
+        (p.endsWith('.intent.json')
+          ? ' — or pass the new IR to draft_schematic as intent_json (it writes this file itself)'
+          : ''),
+    );
   }
   await mkdir(path.dirname(abs), { recursive: true });
   await writeFile(abs, content, 'utf8');
   return `wrote ${p}`;
+}
+
+/**
+ * Re-throw ENOENT with a model-actionable message: observed live, a model
+ * typoed a repo path containing a stray space and deadlocked on the raw
+ * `ENOENT: no such file or directory, open '...'` — nothing in it pointed at
+ * the actual mistake.
+ */
+async function readRepoFile(abs: string, p: string): Promise<string> {
+  try {
+    return await readFile(abs, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(
+        `no such file: ${p}` +
+          (/\s/.test(p) ? ' (the path contains whitespace — likely a typo)' : ''),
+      );
+    }
+    throw err;
+  }
 }
 
 /**
@@ -48,7 +73,7 @@ export async function toolEditFile(
   replaceAll = false,
 ): Promise<string> {
   const abs = resolveInRepo(repoRoot, p);
-  const text = await readFile(abs, 'utf8');
+  const text = await readRepoFile(abs, p);
   const first = text.indexOf(oldString);
   if (first === -1) {
     const hint = closestAnchorLines(text, oldString);

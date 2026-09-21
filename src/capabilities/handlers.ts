@@ -335,7 +335,7 @@ export const HANDLERS: HandlerDef[] = [
       if (report.ok && !(await listSymbols(schPath)).length) {
         return {
           ok: true,
-          text: `${out}\nwarning: ERC is clean but the schematic has ZERO symbols — an empty sheet always passes ERC, so this is NOT a verified design. Capture the parts from BOM.md (and re-run run_erc) before calling finish.`,
+          text: `${out}\nwarning: ERC is clean but the schematic has ZERO symbols — an empty sheet always passes ERC, so this is NOT a verified design. If an intent exists, call draft_schematic to place the parts (then re-run run_erc); otherwise capture the parts from BOM.md before calling finish.`,
         };
       }
       return { ok: report.ok, text: out };

@@ -1,5 +1,9 @@
 import { DEFAULT_API_KEY_ENV, isLocalEndpoint } from '../../config.js';
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn, ToolCall } from '../types.js';
+// The undici *runtime* package ships its own Agent types, but the dispatcher
+// slot on fetch's RequestInit is typed by undici-types (bundled with
+// @types/node); they are structurally compatible but nominally distinct.
+import type { Dispatcher } from 'undici-types';
 
 /** Pointing the provider at an OpenAI-compatible endpoint (design D1). */
 export interface OpenAIProviderOptions {
@@ -67,7 +71,7 @@ export class OpenAIProvider implements Provider {
               dispatcher: new (await import('undici')).Agent({
                 bodyTimeout: 0,
                 headersTimeout: 0,
-              }),
+              }) as unknown as Dispatcher,
             },
           }
         : {}),
