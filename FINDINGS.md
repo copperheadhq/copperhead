@@ -26,17 +26,19 @@ commit history produced by the run, and the recorded `llm-cache` shipped as
 
 | # | Stage | Result | Notes |
 |---|-------|--------|-------|
-| 1 | spec-seed | … | |
-| 2 | architecture | … | |
-| 3 | part-selection | … | |
-| 4 | schematic | … | |
-| 5 | layout-draft | … | |
-| 6 | outputs | … | |
-| 7 | firmware | … | |
-| 8 | devplan | … | |
+| 1 | spec-seed | ✅ ~7m | 13 turns; two earlier attempts failed on the openspec-init defect (#5) before the fix landed |
+| 2 | architecture | ✅ ~9.6m | 6 turns |
+| 3 | part-selection | ✅ ~16.8m | 38 turns after ~5 earlier aborted/failed attempts |
+| 4 | schematic | ⏳ in progress | the long pole: 20+ recorded attempts across runs; draft reached ERC-clean once (run 2026-09-21T07-22, "ERC: clean" x2) with 1 residual legibility error; surfaced defects #14–#19; best recorded path converged 24 → 17 → 1 finding |
+| 5 | layout-draft | pending | |
+| 6 | outputs | pending | |
+| 7 | firmware | pending | |
+| 8 | devplan | pending | |
 
-_Live status is updated at push time; the replay fixture's `manifest.json`
-carries the authoritative recorded outcome._
+_Times are wall-clock on an Ollama-served gpt-oss-49k (≈4–10 tok/s generation
+on this box); turn counts and per-stage tokens live in each run's
+`.copperhead/runs/<ts>/summary.md` + `transcript.jsonl`. The replay fixture's
+`manifest.json` carries the authoritative recorded outcome._
 
 ## Legend
 
@@ -149,7 +151,7 @@ run, **P2** meaningful quality problem, **P3** polish.
   concrete MPN, and note that `run_erc`/`check_drift` "no schematic
   configured" results are expected pre-schematic, never refusal grounds.
 - **Status:** **fixed in this PR** (prompt text). The deeper policy question —
-  *can* a model ever write a verified MPN without datasheet access — is worth
+  _can_ a model ever write a verified MPN without datasheet access — is worth
   a follow-up; see finding 8.
 
 ### 7. DEFECT · P1 — anchored `edit_file` misses give no nearest-line hint; small models deadlock and refuse
@@ -164,7 +166,7 @@ run, **P2** meaningful quality problem, **P3** polish.
   (catches paraphrase drift and single-char typos alike). Test: `safety.test.ts`
   asserts the hint appears on a near-miss.
 
-### 8. NOTE · P2 — part-selection asks the model to *verify* MPNs it cannot verify
+### 8. NOTE · P2 — part-selection asks the model to _verify_ MPNs it cannot verify
 
 - **Where:** `src/commands/create.ts` stage-3 contract vs the "datasheet-
   verifiable justification" requirement.
@@ -345,3 +347,19 @@ run, **P2** meaningful quality problem, **P3** polish.
   `provider error: …` transport patterns to `retry` before calling the
   model (`recovery.test.ts` 'retries a transport-level provider error
   without a diagnosis call').
+
+### 20. DEFECT · P1 — undici `bodyTimeout` kills long streamed compat turns that are producing reasoning but no wire bytes
+
+- **Where:** `src/agent/providers/openai.ts` compat client construction.
+- **Symptom:** llama.cpp streams deltas for visible content only; during a
+  long reasoning phase the SSE body goes silent for minutes while the
+  server keeps generating (observed: 4.2k chars streamed frozen ~60s+,
+  server `n_gen` still climbing at 4 t/s). Undici's default 300s
+  bodyTimeout then aborts the request → "provider error: Request timed
+  out." → the whole stage attempt dies (runs 2026-09-20T22-03 and
+  2026-09-21T01-38, both mid-schematic at ~45min wall).
+- **Suggested:** pass a dispatcher with `bodyTimeout: 0` (and
+  `headersTimeout: 0`) on compat clients — the SDK-level `timeout` option
+  remains the real bound, and the chatStream re-issue covers genuine
+  drops. `undici` added as a direct dependency.
+- **Status:** **fixed in this PR** (`openai.ts` fetchOptions dispatcher).

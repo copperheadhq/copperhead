@@ -67,6 +67,7 @@
     "commander": "^12.1.0",
     "execa": "^9.5.2",
     "openai": "^6.49.0",
+    "undici": "^7.29.1",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {

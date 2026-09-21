@@ -55,6 +55,22 @@ export class OpenAIProvider implements Provider {
       apiKey: this.apiKey ?? 'no-key-required',
       ...(this.baseURL ? { baseURL: this.baseURL } : {}),
       ...(this.requestTimeoutMs !== undefined ? { timeout: this.requestTimeoutMs } : {}),
+      // Compat/local servers can spend long stretches inside one streamed
+      // response producing reasoning tokens the wire never sees. Undici's
+      // default bodyTimeout (300s of silence) aborts those healthy requests
+      // — observed live as "Request timed out" mid-turn — so give compat
+      // requests a dispatcher with no socket-level body deadline; the SDK's
+      // `timeout` option above is still the real bound.
+      ...(this.baseURL
+        ? {
+            fetchOptions: {
+              dispatcher: new (await import('undici')).Agent({
+                bodyTimeout: 0,
+                headersTimeout: 0,
+              }),
+            },
+          }
+        : {}),
     });
     const params = {
       model: this.model,
