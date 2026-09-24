@@ -24,6 +24,7 @@ import { symbolSearchDirs } from '../kicad/symlib.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
+import { resolvePatternsInBomText } from '../kicad/patterns/expandToBom.js';
 
 /**
  * Mode A (`copperhead create`, SPEC §2.5): staged pipeline, each stage a
@@ -168,24 +169,31 @@ export const STAGES: Stage[] = [
     isComplete: async (root, docs) => {
       // init scaffolds BOM.md with a table pre-filled with UNVERIFIED MPNs
       // extracted from the schematic. Require at least one row whose MPN
-      // column is NOT the UNVERIFIED placeholder — i.e. a real part was chosen.
+      // column is NOT the UNVERIFIED placeholder — i.e. a real part was chosen,
+      // or at least one pattern was referenced and expanded.
       const p = path.join(root, docs, 'BOM.md');
       if (!existsSync(p)) return false;
       const text = await readFile(p, 'utf8');
-      // Find table rows (lines starting with |) that are not the header or separator
-      const rows = text.split('\n').filter(
-        (l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
+      const { text: resolvedText, resolved } = resolvePatternsInBomText(text);
+      if (resolved.length > 0) {
+        await writeFile(p, resolvedText, 'utf8');
+      }
+      const effectiveText = resolved.length > 0 ? resolvedText : text;
+      // Find table rows (lines starting with |) that are not the header, separator, or pattern header
+      const rows = effectiveText.split('\n').filter(
+        (l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes') && !l.toLowerCase().includes('source:'),
       );
       if (!rows.length) return false;
-      // At least one row must have a non-UNVERIFIED MPN (4th column)
+      // At least one row must have a non-UNVERIFIED MPN (4th column) or be sourced from a pattern
       return rows.some((row) => {
         const cols = row.split('|').map((c) => c.trim());
         const mpn = cols[4] ?? ''; // 0=empty, 1=Refdes, 2=Value, 3=Footprint, 4=MPN
-        return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
+        const rationale = cols[5] ?? '';
+        return (mpn && !mpn.toUpperCase().startsWith('UNVERIFIED')) || rationale.includes('from pattern:');
       });
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. Run check_drift before finishing.',
+      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. You may reference proven circuit patterns from the pattern library (voltage-regulator-ams1117, usb-c-power-input, crystal-oscillator) by writing "use pattern: <pattern-name>" instead of enumerating common sub-circuits by hand. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. Run check_drift before finishing.',
   },
   {
     name: 'schematic',
@@ -915,6 +923,26 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
             ? await contractGapDetail(stage.name, opts.repoRoot, config)
             : null;
       if (!failure) {
+        if (stage.name === 'part-selection') {
+          const bomPath = path.join(opts.repoRoot, config.docs, 'BOM.md');
+          if (existsSync(bomPath)) {
+            const bomContent = await readFile(bomPath, 'utf8');
+            const { text: resolvedText, resolved } = resolvePatternsInBomText(bomContent, {
+              onResolved: (patternName, count) => {
+                opts.log(
+                  stageLine(
+                    'part-selection',
+                    `Resolved pattern "${patternName}" -> ${count} parts added to BOM.md`,
+                    'ok',
+                  ),
+                );
+              },
+            });
+            if (resolved.length > 0) {
+              await writeFile(bomPath, resolvedText, 'utf8');
+            }
+          }
+        }
         stageDone = true;
         break;
       }
