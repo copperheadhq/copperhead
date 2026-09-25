@@ -310,8 +310,24 @@ export function isProbeableKicadFile(p: string): boolean {
   return /\.kicad_(sch|pcb)$/.test(p);
 }
 
-export async function kicadLoadError(filePath: string): Promise<string | null> {
-  if (!isProbeableKicadFile(filePath)) return null;
+/** Result of a KiCad loadability probe, classified so callers can tell "this
+ * KiCad cannot parse the file's format" (a compatibility problem) from any
+ * other failure (missing file, kicad-cli crash, unexpected message). */
+export type KicadLoadProbe =
+  | { status: 'loads' }
+  | { status: 'unloadable'; detail: string }
+  | { status: 'unexpected'; detail: string };
+
+/**
+ * kicad-cli's canonical "the file is present but I cannot parse it" lines —
+ * the signature of a format/version incompatibility. KiCad does NOT
+ * distinguish this from a genuinely malformed file, so callers must rule out
+ * malformation themselves (the reference-board test does, via byte-identity).
+ */
+const LOAD_FAILURE_RE = /Failed to load (schematic|board)/;
+
+export async function probeKicadLoad(filePath: string): Promise<KicadLoadProbe> {
+  if (!isProbeableKicadFile(filePath)) return { status: 'loads' };
   const isSch = filePath.endsWith('.kicad_sch');
   const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-validate-'));
   const args = isSch
@@ -319,11 +335,17 @@ export async function kicadLoadError(filePath: string): Promise<string | null> {
     : ['pcb', 'export', 'pos', '--output', path.join(dir, 'probe.pos'), filePath];
   try {
     const res = await runKicad(args, { reject: false });
-    if (res.exitCode === 0) return null;
-    return [res.stderr, res.stdout].filter(Boolean).join('\n').trim() || `kicad-cli exited ${res.exitCode}`;
+    if (res.exitCode === 0) return { status: 'loads' };
+    const detail = [res.stderr, res.stdout].filter(Boolean).join('\n').trim() || `kicad-cli exited ${res.exitCode}`;
+    return LOAD_FAILURE_RE.test(detail) ? { status: 'unloadable', detail } : { status: 'unexpected', detail };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+export async function kicadLoadError(filePath: string): Promise<string | null> {
+  const probe = await probeKicadLoad(filePath);
+  return probe.status === 'loads' ? null : probe.detail;
 }
 
 export function runDrc(pcbPath: string): Promise<CheckReport> {

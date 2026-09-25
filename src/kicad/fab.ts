@@ -3,6 +3,8 @@
  * Documentation presence is pure over file contents: LLM-free, network-free.
  */
 
+import type { CheckReport, ViolationItem } from './report.js';
+
 /** Violation shape shared by the fab JSON report (`claim` / `actual` / optional location). */
 export interface FabViolation {
   claim: string;
@@ -133,4 +135,32 @@ export function checkDocumentationPresence(input: DocumentationPresenceInput): F
     status: violations.length === 0 ? 'pass' : 'fail',
     violations,
   };
+}
+
+/** Extract a net name from an unrouted-item description (`Net "KEY_DAH"` → `KEY_DAH`). */
+function netNameOf(item: ViolationItem): string {
+  const m = /"([^"]+)"/.exec(item.description);
+  return m ? m[1]! : item.description;
+}
+
+/**
+ * Routing-completeness check (task 1.1): a board is release-ready only when its
+ * DRC report has zero unconnected items (no ratsnest). Reuses the DRC run the
+ * caller already performed — it never invokes kicad-cli itself. A repo with no
+ * board (`drc` null) has nothing unrouted, so it passes vacuously.
+ */
+export function checkRoutingCompleteness(drc: CheckReport | null): FabCheckResult {
+  if (!drc) return { status: 'pass', violations: [] };
+  const violations: FabViolation[] = [];
+  for (const v of drc.unrouted) {
+    for (const item of v.items) {
+      const location = item.x !== undefined && item.y !== undefined ? `(${item.x}, ${item.y})` : undefined;
+      violations.push({
+        claim: 'fully-routed',
+        actual: netNameOf(item),
+        ...(location ? { location } : {}),
+      });
+    }
+  }
+  return { status: violations.length === 0 ? 'pass' : 'fail', violations };
 }

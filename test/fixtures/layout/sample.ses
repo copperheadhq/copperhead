@@ -1,0 +1,12 @@
+(session
+  (routes
+    (route "KEY_DAH"
+      (wire (path 1000 500 1500 500) (width 10))
+      (wire (path 1500 500 1500 900) (width 10))
+      (via 1500 900 (diam 60) (drill 30))
+    )
+    (route "GND"
+      (wire (path 0 0 500 0) (width 20))
+    )
+  )
+)

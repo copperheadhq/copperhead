@@ -2,7 +2,7 @@
 
 ## 1. Gate module
 
-- [ ] 1.1 Implement `src/kicad/fab.ts`: routing-completeness check over the normalized DRC report (unconnected items → named nets with locations)
+- [x] 1.1 Implement `src/kicad/fab.ts`: routing-completeness check over the normalized DRC report (unconnected items → named nets with locations) — delivered via issue #252
 - [ ] 1.2 Implement BOM-readiness check: parse BOM.md rows, flag missing MPN/footprint as failures, `UNVERIFIED` rows as warnings
 - [ ] 1.3 Implement schematic-to-PCB match: refdes + footprint join via `list_symbols` and a board-side footprint enumerator added to `src/kicad/sexp.ts` (read-only)
 - [ ] 1.4 Implement output-freshness check: read the export hash record from `.copperhead/config.json`, recompute SHA-256 of `.kicad_pcb`, compare; distinct messages for missing outputs, missing record, and stale hash
@@ -15,9 +15,9 @@
 
 ## 3. CLI wiring
 
-- [ ] 3.1 Add `--fab` and `--strict` flags to `check`/`verify`; run the gate after base checks; aggregate exit code (warnings non-fatal unless `--strict`)
-- [ ] 3.2 Extend `--json` output with the `fab` object (`routing`, `bom`, `schPcbMatch`, `outputs`, `docs`, each `{status, violations}`)
-- [ ] 3.3 Human-readable output: per-check ✓/⚠/✗ lines with claim/actual/location, matching the drift-report voice
+- [x] 3.1 Add `--fab` and `--strict` flags to `check`/`verify`; run the gate after base checks; aggregate exit code (warnings non-fatal unless `--strict`) — delivered via issue #252 (routing + docs; `bom`/`schPcbMatch`/`outputs` are not reported until 1.2–1.4 land)
+- [x] 3.2 Extend `--json` output with the `fab` object — delivered via issue #252 (only `routing` and `docs` are emitted; the remaining keys join once 1.2–1.4 land, so the gate never fakes a pass)
+- [x] 3.3 Human-readable output: per-check ✓/⚠/✗ lines with claim/actual/location, matching the drift-report voice — delivered via issue #252
 
 ## 4. Fixtures and tests
 
