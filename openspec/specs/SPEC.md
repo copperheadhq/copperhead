@@ -220,6 +220,7 @@ An `affects` item that targets an artifact that does not exist yet (schematic, b
 ### Change workflow (OpenSpec propose → apply → archive)
 
 - `copperhead do "<request>"` first generates `openspec/changes/<id>/` (proposal.md, spec deltas, tasks.md), then implements against it; the ERC/DRC-clean commit archives the change. Every hardware change gets a paper trail: *why → what spec changed → what files changed → verification result*
+- The locked `propose_change` tool accepts `spec_deltas`, each containing a single kebab-case capability name and its delta markdown. It writes only the proposal, tasks and `specs/<capability>/spec.md` beneath that change. Initialized OpenSpec workspaces require a nonempty delta list; the real validator decides whether the requirements and scenarios are valid. Change ids and capabilities cannot be paths, duplicate capabilities are rejected, and planning destinations cannot traverse symlinks. Revising or revalidating a proposal first revokes its edit permission; only successful validation and any required human approval unlock edits again.
 - `copperhead create` seeds `openspec/specs/` from the brief as stage one — requirements with scenarios ("Given the device sleeps, when idle 1 year, then battery ≥ 20%") become the testable source that SPEC.md budgets derive from
 - In `--interactive` mode, the human approves the proposal; in autonomous mode it's written and auto-approved with an `AUTO` marker — reviewable after the fact, never lost
 - `openspec validate` runs inside `copperhead check`

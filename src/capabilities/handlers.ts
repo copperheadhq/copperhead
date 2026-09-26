@@ -12,6 +12,7 @@ import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resol
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { writeChangeProposal } from '../openspec/proposal.js';
 import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
@@ -103,7 +104,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'propose_change',
       description:
-        'Write the OpenSpec change proposal for this run (the plan step). Must be called and validated before edit tools unlock.',
+        'Write the OpenSpec proposal, tasks, and named capability deltas for this run. Include spec_deltas in initialized OpenSpec workspaces. Must be validated before edit tools unlock; revising a proposal locks edits again.',
       parameters: {
         type: 'object',
         properties: {
@@ -111,22 +112,28 @@ export const HANDLERS: HandlerDef[] = [
           why: { type: 'string' },
           what_changes: { type: 'string', description: 'markdown bullet list of changes' },
           tasks: { type: 'string', description: 'markdown checklist of implementation steps' },
+          spec_deltas: {
+            type: 'array',
+            description: 'Required for initialized OpenSpec workspaces. Creates or replaces each named capability delta; other capability files stay intact.',
+            items: {
+              type: 'object',
+              properties: {
+                capability: { type: 'string', description: 'single kebab-case capability name, not a path' },
+                content: { type: 'string', description: 'OpenSpec delta markdown, e.g. ## ADDED Requirements, ### Requirement with SHALL/MUST, and #### Scenario with WHEN/THEN' },
+              },
+              required: ['capability', 'content'],
+            },
+          },
         },
         required: ['id', 'why', 'what_changes', 'tasks'],
       },
     },
     requiresUnlock: false,
     handler: async (ctx, args) => {
-      const id = str(args, 'id');
-      const dir = resolveInRepo(ctx.repoRoot, path.join('openspec', 'changes', id));
-      await mkdir(dir, { recursive: true });
-      const auto = ctx.interactive ? '' : '\n> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)\n';
-      await writeFile(
-        path.join(dir, 'proposal.md'),
-        `# Proposal: ${id}\n${auto}\n## Why\n\n${str(args, 'why')}\n\n## What Changes\n\n${str(args, 'what_changes')}\n`,
-        'utf8',
-      );
-      await writeFile(path.join(dir, 'tasks.md'), `# Tasks\n\n${str(args, 'tasks')}\n`, 'utf8');
+      ctx.editsUnlocked = false;
+      ctx.proposalValidated = false;
+      ctx.changeId = null;
+      const id = await writeChangeProposal(ctx.repoRoot, args, ctx.interactive);
       ctx.changeId = id;
       return `proposal written to openspec/changes/${id}/ — now call validate_change`;
     },
@@ -139,6 +146,8 @@ export const HANDLERS: HandlerDef[] = [
     },
     requiresUnlock: false,
     handler: async (ctx) => {
+      ctx.editsUnlocked = false;
+      ctx.proposalValidated = false;
       if (!ctx.changeId) return 'no proposal yet: call propose_change first';
       let ok: boolean;
       let detail: string;
@@ -154,11 +163,11 @@ export const HANDLERS: HandlerDef[] = [
         detail = ok ? 'structural validation passed (no openspec workspace)' : 'proposal files missing';
       }
       if (!ok) return `validation FAILED:\n${detail}`;
-      ctx.proposalValidated = true;
       if (ctx.interactive) {
         const approved = await ctx.confirm(`Proposal ${ctx.changeId} validated. Unlock edit tools and proceed?`);
         if (!approved) return 'proposal validated but human declined; edits remain locked';
       }
+      ctx.proposalValidated = true;
       ctx.editsUnlocked = true;
       await ctx.transcript.event('edit-tools-unlocked', { changeId: ctx.changeId });
       return `validation passed; edit tools are now unlocked`;
