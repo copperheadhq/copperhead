@@ -264,10 +264,14 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.schematic)
         return 'no schematic configured; ERC does not apply yet — skip it until a schematic exists and is set in .copperhead/config.json';
       const schPath = path.join(ctx.repoRoot, ctx.config.schematic);
-      const report = await runErc(schPath);
-      ctx.lastErc = report;
-      if (report.ok) ctx.ledger.clear('erc');
-      else ctx.repairCycles++;
+     const report = await runErc(schPath);
+ctx.lastErc = report;
+if (report.ok) {
+  ctx.ledger.clear('erc');
+  ctx.repairCycles = 0;          // ← add this
+} else {
+  ctx.repairCycles++;
+}
       const out = formatViolations(report);
       // A zero-symbol schematic passes ERC with 0 violations — a false green
       // (3.2) that lets a premature finish look verified (an empty sheet also
@@ -488,15 +492,19 @@ export const HANDLERS: HandlerDef[] = [
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: false,
-    handler: async (ctx) => {
-      if (!ctx.config.board)
-        return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
-      const report = await runDrc(path.join(ctx.repoRoot, ctx.config.board));
-      ctx.lastDrc = report;
-      if (report.ok) ctx.ledger.clear('drc');
-      else ctx.repairCycles++;
-      return { ok: report.ok, text: formatViolations(report) };
-    },
+   handler: async (ctx) => {
+  if (!ctx.config.board)
+    return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
+  const report = await runDrc(path.join(ctx.repoRoot, ctx.config.board));
+  ctx.lastDrc = report;
+  if (report.ok) {
+    ctx.ledger.clear('drc');
+    ctx.repairCycles = 0;          // ← ADD THIS LINE
+  } else {
+    ctx.repairCycles++;
+  }
+  return { ok: report.ok, text: formatViolations(report) };
+},
   },
   {
     schema: {
