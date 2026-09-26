@@ -13,6 +13,10 @@
 - **WHEN** the brief omits a needed decision (e.g. battery chemistry)
 - **THEN** SPEC.md proposes a default flagged `ASSUMED` for review
 
+#### Scenario: OpenSpec initialization fails
+- **WHEN** `create` needs a new OpenSpec workspace and its noninteractive `init --tools none` invocation fails
+- **THEN** it reports the subprocess diagnostic and returns not-ok with no completed stages before stamping the create origin or invoking any model; existing design files and configuration remain intact
+
 ### Requirement: Run-to-completion guarantee
 Once started, `create` SHALL always finish with the complete output package: gates are quality checks the agent must satisfy, never stops that wait for a human, unless `--interactive` re-enables the spec-approval and pre-export gates.
 

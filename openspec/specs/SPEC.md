@@ -230,11 +230,13 @@ OpenSpec is never user-triggered; copperhead drives it as subprocess tools (same
 
 | When | copperhead runs | Effect |
 |---|---|---|
-| `init` / `create` start | `openspec init` (once) | Scaffolds `openspec/`; agent seeds `specs/` from the brief |
+| `create` start | `openspec init --tools none` (once) | Scaffolds `openspec/` noninteractively without configuring AI tools; agent seeds `specs/` from the brief |
 | `do` — plan step | agent writes `openspec/changes/<id>/`, then `openspec validate --change <id>` | **Edit tools stay locked until the proposal validates.** The plan step *is* the proposal |
 | `do` — after ERC/DRC pass + commit | `openspec archive <id>` | Deltas merge into `specs/`; change record closed by the same code path that committed |
 | `check` | `openspec validate` | Part of the standard gate set |
 | `--interactive` only | pause after proposal validation | Human y/n before edits unlock — the single manual trigger |
+
+If OpenSpec initialization fails, `create` reports the subprocess diagnostic and returns failure before marking the repo as create-produced, completing any stage or invoking a model. Existing design files and configuration are preserved. An existing `openspec/` path is left intact and skips initialization; this existence check does not validate its contents or certify a partially initialized workspace. Startup scratch and history cleanup still runs before this check.
 
 This kills the last "docs drift" failure mode: requirements (openspec) → budgets (SPEC.md) → constraints (constraints.json) → design (KiCad) form a chain where every link is checked by tooling, not memory.
 

@@ -775,7 +775,11 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
   // across a long run and fill the disk (4.1, I8). Best-effort; keeps the newest.
   const pruned = await pruneHistoryDir(opts.repoRoot);
   if (pruned) opts.log(dim(`startup: pruned ${pruned} old .history/ entrie(s) to cap local-history growth`));
-  await openspecInit(opts.repoRoot);
+  const initialized = await openspecInit(opts.repoRoot);
+  if (!initialized.ok) {
+    opts.log(`OpenSpec initialization failed:\n${initialized.output}`);
+    return { ok: false, completed: [] };
+  }
   // Stamp the repo create-produced before any stage runs: the marker scopes the
   // legibility finish gate and the fab release gate, and it must hold on
   // resumed runs whose project predates the marker (bootstrapKicadProject

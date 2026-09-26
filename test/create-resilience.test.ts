@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 // scripted recovery diagnosis, no live provider.
 const mockRunAgentLoop = vi.hoisted(() => vi.fn<(opts: RunOptions) => Promise<RunResult>>());
 const mockDiagnose = vi.hoisted(() => vi.fn());
+const mockOpenSpecInit = vi.hoisted(() => vi.fn());
 
 vi.mock('../src/agent/loop.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -24,7 +25,7 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
   diagnoseStageFailure: mockDiagnose,
   transcriptExcerpt: async () => '',
 }));
-vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: '' }) }));
+vi.mock('../src/openspec/cli.js', () => ({ openspecInit: mockOpenSpecInit }));
 vi.mock('../src/commands/check.js', () => ({ runCheck: async () => ({ ok: true }) }));
 
 import { runCreate } from '../src/commands/create.js';
@@ -77,6 +78,8 @@ beforeEach(() => {
   mockRunAgentLoop.mockReset();
   mockDiagnose.mockReset();
   mockDiagnose.mockResolvedValue({ verdict: 'abort', reason: 'default: stop' });
+  mockOpenSpecInit.mockReset();
+  mockOpenSpecInit.mockResolvedValue({ ok: true, output: '' });
   prevKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = 'sk-test-dummy';
 });
@@ -95,6 +98,38 @@ async function seedRepo(repo: string): Promise<string> {
 }
 
 describe('create pipeline resilience (review F3)', () => {
+  it('stops before any stage when OpenSpec initialization fails', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo);
+      const notesPath = path.join(repo, 'my-notes.txt');
+      await writeFile(notesPath, 'keep this pending work\n', 'utf8');
+      const configPath = path.join(repo, '.copperhead', 'config.json');
+      await writeFile(configPath, '{"docs":"docs"}\n', 'utf8');
+      const spec = '# s\n\n## Budgets\n\n- sleep_current_uA: 25\n';
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(path.join(repo, 'docs', 'SPEC.md'), spec, 'utf8');
+      const { stdout: head } = await execa('git', ['rev-parse', 'HEAD'], { cwd: repo });
+      mockOpenSpecInit.mockResolvedValue({ ok: false, output: 'permission denied while creating openspec/' });
+
+      const lines: string[] = [];
+      const res = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+
+      expect(res).toEqual({ ok: false, completed: [] });
+      expect(lines.join('\n')).toContain('OpenSpec initialization failed');
+      expect(lines.join('\n')).toContain('permission denied while creating openspec/');
+      expect(lines.join('\n')).not.toContain('already complete');
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+      expect(mockDiagnose).not.toHaveBeenCalled();
+      expect(await readFile(configPath, 'utf8')).toBe('{"docs":"docs"}\n');
+      expect(await readFile(notesPath, 'utf8')).toBe('keep this pending work\n');
+      expect(await readFile(path.join(repo, 'docs', 'SPEC.md'), 'utf8')).toBe(spec);
+      expect((await execa('git', ['rev-parse', 'HEAD'], { cwd: repo })).stdout).toBe(head);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('a retry verdict drives a successful second attempt, prepends the guidance, and accumulates cost across attempts', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
