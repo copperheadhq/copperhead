@@ -10,6 +10,18 @@ It SHALL search every `.kicad_sym` library found in the symbol search directorie
 
 When no library directory exists on the machine, and when no symbol matches, the tool SHALL say so plainly and state that the part is not capturable as named, rather than failing.
 
+Single-letter names such as `R` and `C` SHALL be accepted for exact matches only; they SHALL NOT trigger prefix, substring or edit-distance matching. A full `Lib:Name` query SHALL search its name portion across all libraries, preserving discovery when the caller guessed the nickname incorrectly. Empty names SHALL return no candidates.
+
+#### Scenario: A one-letter installed symbol is discoverable
+
+- **WHEN** `Device:R` exists and the agent searches for `R` or `Device:R`
+- **THEN** the result includes `Device:R` and does not return `R_Small` merely because it shares the first letter
+
+#### Scenario: A qualified query preserves cross-library discovery
+
+- **WHEN** the agent searches for `Device:AudioJack3` and the symbol exists in `Connector_Audio`
+- **THEN** the result includes `Connector_Audio:AudioJack3` rather than treating the guessed library as an exclusion
+
 #### Scenario: Part filed under an underivable nickname
 
 - **WHEN** the agent calls `search_symbols` with `TPS61165` and the part is installed in `Driver_LED`

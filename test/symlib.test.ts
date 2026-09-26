@@ -364,6 +364,25 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
     expect(await searchInstalledSymbols('TLP2361', [dir])).toEqual([]);
   });
 
+  it.each(['R', 'C', 'D'])('finds the single-letter symbol %s without fuzzy matches', async (name) => {
+    expect(await searchInstalledSymbols(name, [dir])).toEqual([`Device:${name}`]);
+    expect(await searchInstalledSymbols(`Device:${name}`, [dir])).toEqual([`Device:${name}`]);
+  });
+
+  it('accepts a lib_id without limiting discovery to a guessed library', async () => {
+    expect(await searchInstalledSymbols('Device:AudioJack3', [dir])).toContain('Connector_Audio:AudioJack3');
+    expect(await searchInstalledSymbols('Custom-Parts.RF:LNA_Frontend', [dir])).toEqual(['Custom-Parts.RF:LNA_Frontend']);
+  });
+
+  it('does not turn empty names or single letters into broad searches', async () => {
+    for (const query of ['', ' ', 'Device:', 'Device: ', '_-.']) {
+      expect(await searchInstalledSymbols(query, [dir])).toEqual([]);
+    }
+    expect(closestSymbolNames(['R_Small', 'RotaryEncoder_Switch', 'R_1_1'], 'R')).toEqual([]);
+    expect(closestSymbolNames(['R_Small', 'R', 'R_1_1'], 'R')).toEqual(['R']);
+    expect(await searchInstalledSymbols('X', [dir])).toEqual([]);
+  });
+
   it('finds a family-variant spelling instead of declaring it absent', async () => {
     // Before the edit-distance tier, search returned [] here while
     // findSymbolAcrossLibraries found the part, and the dossier rendered the

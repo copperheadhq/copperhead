@@ -365,6 +365,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `write_file` | (path, content) → ok | New files only (docs); refuses to overwrite .kicad_* |
 | `search` | (regex, glob?) → matches | ripgrep-style over repo |
 | `list_symbols` | (sch_path) → [{ref, value, footprint, sheet}] | From s-expression parse |
+| `search_symbols` | (query) → [lib_id] | Read-only cross-library search; accepts a symbol name or `Lib:Name`; single-letter names match exactly only |
 | `list_nets` | (sch_path) → [net names] | |
 | `run_erc` | () → {violations: [...]} | `kicad-cli sch erc --format json --exit-code-violations` |
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |
