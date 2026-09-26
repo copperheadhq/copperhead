@@ -141,4 +141,10 @@ The summary's `stageCount: 8` is a configured total, not proof of completion.
 Full local transcripts and cached turns from the failed attempt are retained;
 a successful-run evidence package will be added only when that run exists.
 
+A later [native documentation correction](u2-correction.md) repaired the U2
+footprint mapping using manufacturer evidence. The separate `do` run exited 0,
+preserved the original failed sandbox and retained all 18 existing constraints.
+It created no hardware and adds no completed `create` stage; the power and
+full-pipeline requirements above remain pending.
+
 Implementation and testing used Codex assistance.
