@@ -310,27 +310,27 @@ describe('outputs isComplete', () => {
     });
   });
 
-  it('returns true when outputs/ contains at least one Gerber file (.gbr)', async () => {
+  it('returns false when outputs/ contains only a Gerber file (.gbr)', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 
-  it('returns true when outputs/ contains a .gtl (top copper) Gerber', async () => {
+  it('returns false when outputs/ contains only a .gtl (top copper) Gerber', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'board.gtl'), 'G04*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 
-  it('returns true when Gerber file is located in a nested subdirectory inside outputs/', async () => {
+  it('returns false when only a Gerber file is located in a nested subdirectory inside outputs/', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs', 'gerbers'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'gerbers', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 });

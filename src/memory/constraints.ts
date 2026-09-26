@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { resolveInRepo } from '../util/paths.js';
 
 /**
  * Machine-readable constraint registry (SPEC §2.6). Built simultaneously with
@@ -26,7 +27,7 @@ export interface Constraint {
 export type ConstraintRegistry = Record<string, Constraint>;
 
 export function constraintsPath(repoRoot: string): string {
-  return path.join(repoRoot, '.copperhead', 'constraints.json');
+  return resolveInRepo(repoRoot, path.join('.copperhead', 'constraints.json'));
 }
 
 export async function loadConstraints(repoRoot: string): Promise<ConstraintRegistry> {

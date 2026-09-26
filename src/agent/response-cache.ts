@@ -1,8 +1,21 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { redactSecrets } from '../util/redact.js';
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from './types.js';
+
+/** A cached tool call must replay byte-for-byte; redact it by declining to
+ * persist it, never by changing arguments the loop will later execute. */
+function containsSecrets(serialized: string): boolean {
+  if (redactSecrets(serialized) !== serialized) return true;
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!value || value.length < 8 || !/_(KEY|SECRET|TOKEN)$/.test(name)) continue;
+    // JSON escapes quotes, newlines, and backslashes inside string values.
+    if (serialized.includes(JSON.stringify(value).slice(1, -1))) return true;
+  }
+  return false;
+}
 
 /**
  * Wraps a provider so each turn's `(messages, tools) -> Turn` is written to disk
@@ -17,7 +30,8 @@ import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from './types.js';
  * Best-effort by construction: a cache miss or any I/O error falls through to the
  * live provider, and a hit reports zero token usage (the real spend was zero).
  * The key is a content hash of the full message history and the advertised tool
- * names, so any change to the conversation or available tools is a fresh call.
+ * schemas and descriptions, so a changed contract always makes a fresh call.
+ * Turns containing recognizable secrets are returned normally but never cached.
  */
 export class CachingProvider implements Provider {
   readonly name: string;
@@ -50,13 +64,10 @@ export class CachingProvider implements Provider {
       .update(
         JSON.stringify({
           model: this.modelId ?? this.name,
-          // Omitted rather than `?? null` when unset: a non-compat run's key
-          // must stay byte-identical to what it hashed before baseURL existed
-          // (F6/D2), or every pre-existing cache entry — not just compat ones —
-          // is orphaned on the first run after upgrade.
+          // Endpoint identity only applies to compatible-endpoint providers.
           ...(this.baseURL ? { baseURL: this.baseURL } : {}),
           messages,
-          tools: tools.map((t) => t.name),
+          tools: tools.map(({ name, description, parameters }) => ({ name, description, parameters })),
         }),
       )
       .digest('hex');
@@ -67,23 +78,31 @@ export class CachingProvider implements Provider {
     if (existsSync(file)) {
       try {
         const cached = JSON.parse(await readFile(file, 'utf8')) as Turn;
-        this.hits++;
-        this.log?.(`llm-cache: replayed a cached response (hit #${this.hits}, no tokens spent)`);
-        // Report zero usage: replaying a cached turn costs nothing.
-        return { ...cached, usage: { inputTokens: 0, outputTokens: 0 } };
+        if (containsSecrets(JSON.stringify(cached))) {
+          // An older writer may have persisted a secret. Discard this derived
+          // entry rather than replaying it or leaving it on disk after a read.
+          await unlink(file);
+        } else {
+          this.hits++;
+          this.log?.(`llm-cache: replayed a cached response (hit #${this.hits}, no tokens spent)`);
+          // Report zero usage: replaying a cached turn costs nothing.
+          return { ...cached, usage: { inputTokens: 0, outputTokens: 0 } };
+        }
       } catch {
         // corrupt/partial cache file — fall through and regenerate
       }
     }
     const turn = await this.inner.chat(messages, tools, opts);
     try {
+      const serialized = JSON.stringify(turn);
+      if (containsSecrets(serialized)) return turn;
       await mkdir(this.dir, { recursive: true });
       // Keep the cache out of git entirely (and out of failed-run stashes): a
       // `*` .gitignore in the cache dir hides every entry, so the cache persists
       // across runs without ever dirtying the tree.
       const ignore = path.join(this.dir, '.gitignore');
       if (!existsSync(ignore)) await writeFile(ignore, '*\n', 'utf8');
-      await writeFile(file, JSON.stringify(turn), 'utf8');
+      await writeFile(file, serialized, 'utf8');
     } catch {
       // best-effort: caching must never break a run
     }

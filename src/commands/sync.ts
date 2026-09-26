@@ -63,7 +63,7 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   }
   for (const key of Object.keys(registry)) {
     const shortKey = key.split('.').pop()!;
-    if (docsText && !docsText.includes(shortKey)) {
+    if (!docsText.includes(shortKey)) {
       resolvable.push({
         kind: 'dual-write',
         doc: 'constraints.json',
@@ -108,7 +108,7 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     if (!existsSync(path.join(docsDir, name))) {
       resolvable.push({
         kind: 'coverage',
-        doc: `${config.docs}${name}`,
+        doc: path.join(config.docs, name),
         claim: 'exists (transparency layer)',
         actual: 'missing',
         resolution: 'scaffold it (copperhead init creates it)',
@@ -183,7 +183,12 @@ export async function syncResolve(
     ...(extras?.renderer ? { renderer: extras.renderer } : {}),
     ...(extras?.meta ? { meta: extras.meta } : {}),
   });
-  // The full RunResult travels with the verdict so a non-CLI caller (the MCP
-  // server) can report the transcript path and files touched the way `do` does.
-  return { ok: res.outcome === 'success', run: res };
+  // The agent's own finish gates do not prove every sync-specific inconsistency
+  // was repaired. Re-run the deterministic audit before reporting success.
+  if (res.outcome !== 'success') return { ok: false, run: res };
+  const remaining = await syncVerify(repoRoot);
+  const ok = remaining.resolvable.length === 0 && remaining.violations.length === 0;
+  if (!ok) log(`sync resolution incomplete:\n${formatSyncReport(remaining)}`);
+  // Keep the full RunResult so the CLI/MCP caller can report the audit trail.
+  return { ok, run: res };
 }

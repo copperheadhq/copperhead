@@ -43,6 +43,9 @@ Tools are defined once as `{ name, description, jsonSchema, handler }` in `src/a
 
 ### D4 — KiCad edits: anchored text replace; parse only for reading
 
+File tools reject symlink components below the repository root, including internal aliases that hide a KiCad extension. The root itself may be a symlink. Search skips links and non-regular files; `write_file` uses exclusive creation to preserve an existing file if another caller creates it first.
+Configuration loading checks its own path before reading and applies the same containment checks to schematic, board, and docs paths, including defaults.
+
 `edit_file` is an exact-match, must-be-unique string replace (same contract as this harness's Edit tool) — satisfying "surgical edits" (AC-3.7) by construction. `src/kicad/sexp.ts` is a minimal tokenizer/walker good enough to extract symbols (ref/value/footprint/sheet) and net labels; it never serializes. This avoids the classic failure of round-tripping KiCad's format (whitespace/UUID churn producing massive diffs). Trade-off: the agent must find good anchors in large files; mitigated by giving it `search` (ripgrep via execa) and `read_file` with line ranges.
 
 ### D5 — ERC/DRC: `kicad-cli` with `--format json`, one report normalizer
@@ -51,9 +54,14 @@ Tools are defined once as `{ name, description, jsonSchema, handler }` in `src/a
 
 ### D6 — Run lifecycle: git snapshot, transcript, structured commit
 
+Rollback applies tracked changes with `--index` to preserve separate staged and unstaged versions. Untracked snapshots use NUL-delimited literal filenames and preserve symlinks including dangling targets. Paths ignored at snapshot time remain protected during cleanup even if tracked ignore rules change.
+Snapshots retain ignored path names, not their contents. Successful commits and failed-run stashes exclude those paths even when a run removes their ignore rules or stages them. Standard ignore rules preserve `.env` and the run audit trail.
+
 `do` and `repl` refuse a dirty tree unless `--allow-dirty` (whose snapshot pairs a `git stash create` object for tracked changes with a tree object for the untracked, non-ignored files the stash cannot capture, so the rollback's `git clean -fd` cannot destroy them; clean trees snapshot via the current HEAD). Every run writes a JSONL transcript to `.copperhead/runs/<timestamp>/`, with a redaction pass (`sk-[A-Za-z0-9_-]+` and generic bearer-token patterns) applied at write time, not post-hoc (AC-4.1). Success path: single `git commit` with the structured message; failure path: hard restore to snapshot, print transcript path, exit 1.
 
 ### D7 — Spec-gating: OpenSpec as subprocess, proposal-as-plan
+
+Proposal replacement and revalidation invalidate prior approval before any writes or checks. Failed validation and declined approval leave the tools locked. Kebab-case change identifiers prevent proposal writes from escaping the changes directory.
 
 The plan step of `do` *is* the OpenSpec proposal: the agent (with only read/search/openspec tools available) writes `openspec/changes/<id>/`, then the loop runs `openspec validate --change <id>`. On pass, the tool registry unlocks edit tools (D2); in `--interactive` mode a y/n prompt sits between validation and unlock. Archive runs in the same code path as the commit. OpenSpec is invoked via execa exactly like kicad-cli — no library coupling. If the target repo lacks `openspec/`, `init`/`create` run `openspec init` once.
 
@@ -66,6 +74,8 @@ The plan step of `do` *is* the OpenSpec proposal: the agent (with only read/sear
 BOM.md and PINOUT.md use fixed markdown table columns (refdes | value | footprint | MPN | rationale; pin | net | function | notes). `check_drift` parses these tables and diffs them against `list_symbols`/pin-net extraction, reporting `{ doc, claim, actual }` (AC-2.3). Free-prose docs (SPEC/SUBSYSTEMS/LAYOUT) are not drift-checked mechanically in Phase 1. `init` generates the tables from the real schematic (AC-1.2/1.3) and is idempotent via content hashes stored in `.copperhead/config.json` — hand-edits detected by hash mismatch trigger the `--force` refusal (AC-1.4).
 
 ### D10 — `create` pipeline: staged `do` runs, state in the repo
+
+The parts gate accepts a named MPN while retaining `UNVERIFIED` for human review; a bare placeholder does not count. Layout resume checks DRC, and committing resumed KiCad work requires deterministic verification. Output completion checks each required nonempty export class and reports missing classes; empty firmware files do not establish a scaffold. Sync resolution likewise re-runs its deterministic audit before reporting success, including when constraint documentation is entirely missing.
 
 Each stage (spec seed → architecture → BOM → schematic per sheet → layout draft → exports → firmware → DEVPLAN) is a `do`-loop invocation with a stage prompt and stage-specific completion gate (ERC per sheet, DRC for layout, export success, firmware build). Stage completion is inferred from the repo itself (which docs/files exist and pass their gates), making `create` resumable with no separate state file. Firmware verification = vendor toolchain build exits 0 (ESP-IDF/Arduino CLI detected per MCU choice); if no toolchain is present, the stage emits the scaffold and marks DEVPLAN.md with an explicit "not compiled here" flag rather than failing the run (run-to-completion guarantee).
 
@@ -84,6 +94,8 @@ Everything the agent remembers or decides has a human-readable surface, in three
 Alternative considered: JSON5/YAML config for inline comments — rejected because the spec fixes `.copperhead/config.json` and a sidecar README keeps tooling simple.
 
 ### D13 — Sync hooks: an obligations ledger the commit gate enforces
+
+An accepted `finish` terminates tool execution, including remaining calls in the same response. Changelog write failures take the preserve-and-rollback path. The commit path checks the complete ledger after writing the changelog, so no outstanding obligation can be downgraded to a warning.
 
 Staleness is prevented mechanically, not by prompting. The loop maintains an in-run **obligations ledger**; deterministic post-tool-call hooks (code, not LLM) append obligations, and the commit step refuses to run while any obligation is open:
 

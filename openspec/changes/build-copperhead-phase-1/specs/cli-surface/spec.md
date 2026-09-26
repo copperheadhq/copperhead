@@ -2,6 +2,13 @@
 
 ## ADDED Requirements
 
+### Requirement: REPL session logs complete before exit
+The REPL SHALL flush buffered session-log lines before returning, including non-TTY exits. Logging failures remain best-effort and SHALL NOT crash the shell.
+
+#### Scenario: Immediate log inspection
+- **WHEN** a REPL session returns and its log is read immediately
+- **THEN** all emitted session lines have completed writing, with the existing secret redaction applied
+
 ### Requirement: Command set
 The `copperhead` CLI SHALL provide the commands `create --brief <file>`, `init [--path <dir>]`, `do "<change request>"`, `check`, and `sync`, plus the global flags `--repo <path>`, `--dry-run`, and `--json`.
 
@@ -28,6 +35,11 @@ The `copperhead` CLI SHALL provide the commands `create --brief <file>`, `init [
 - **WHEN** `check` runs on a schematic with an unconnected pin
 - **THEN** it exits non-zero and prints the violation with its sheet and location
 
+#### Scenario: Configured design file is missing
+- **WHEN** `check` runs with a configured schematic or board path that does not exist
+- **THEN** the corresponding ERC or DRC result is failed, names the missing path in its error detail, and the command exits non-zero
+- **AND** an intentionally unconfigured schematic or board remains a skipped check
+
 ### Requirement: JSON output mode
 With `--json`, commands SHALL emit machine-readable results with stable keys.
 
@@ -45,6 +57,14 @@ With `--json`, commands SHALL emit machine-readable results with stable keys.
 #### Scenario: Repair dual-write gaps (AC-7.2)
 - **WHEN** a constraint exists in a doc but not in `constraints.json` (or vice versa)
 - **THEN** `sync` adds the missing side with the correct source and affects fields
+
+#### Scenario: All design docs are missing
+- **WHEN** constraints exist in the registry but none of the design docs exist
+- **THEN** `sync` reports each undocumented registry constraint as a dual-write gap
+
+#### Scenario: Resolution must satisfy a fresh audit
+- **WHEN** a sync resolve run reports success but the subsequent deterministic audit still finds inconsistencies or requirement violations
+- **THEN** `sync` reports the remaining items and exits non-zero
 
 #### Scenario: Requirement violation is flagged, not rewritten (AC-7.3)
 - **WHEN** the as-built design violates a documented requirement (e.g. leakage exceeds the sleep-current budget)

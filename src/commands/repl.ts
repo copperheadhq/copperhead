@@ -5,7 +5,8 @@
  */
 
 import path from 'node:path';
-import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, type WriteStream } from 'node:fs';
+import { finished } from 'node:stream/promises';
 import type { ProgressRenderer } from '../agent/render.js';
 import { bold, copper, dim, err, ok, warn } from '../agent/theme.js';
 import { fiducialMark } from '../agent/logo.js';
@@ -317,7 +318,7 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
   const history: string[] = [];
   const HISTORY_CAP = 5000;
   const SGR_RE = /\x1b\[[0-9;]*m/g;
-  let logFile: { write(chunk: string): unknown; end(): void } | null = null;
+  let logFile: WriteStream | null = null;
   let logFilePath: string | null = null;
   const fileLine = (l: string): void => {
     try {
@@ -326,11 +327,20 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
         mkdirSync(dir, { recursive: true });
         logFilePath = path.join(dir, `repl-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
         logFile = createWriteStream(logFilePath, { flags: 'a' });
+        // Stream failures arrive asynchronously, outside this try/catch.
+        logFile.on('error', () => {});
       }
       logFile.write(redactSecrets(l.replace(SGR_RE, '')) + '\n');
     } catch {
       // Best-effort: the shell never fails because the log file cannot.
     }
+  };
+  const closeLog = async (): Promise<void> => {
+    if (!logFile) return;
+    logFile.end();
+    // Resolve only after buffered lines are on disk, including the final
+    // session marker. Logging remains best-effort on an I/O failure.
+    await finished(logFile, { cleanup: true }).catch(() => {});
   };
   const log = (l: string): void => {
     for (const line of String(l).split('\n')) {
@@ -354,20 +364,24 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
     });
 
   if (!tty) {
-    if (!seed) {
-      log(
-        err(
-          'copperhead: interactive shell requires a TTY. Use `copperhead do "<request>"` for one-shot runs.',
-        ),
-      );
-      return { ok: false, turns: 0 };
-    }
     try {
-      const res = await runOne(seed, log, opts.renderer);
-      return { ok: res.outcome !== 'failure', turns: 1 };
-    } catch (e) {
-      log(err((e as Error).message));
-      return { ok: false, turns: 0 };
+      if (!seed) {
+        log(
+          err(
+            'copperhead: interactive shell requires a TTY. Use `copperhead do "<request>"` for one-shot runs.',
+          ),
+        );
+        return { ok: false, turns: 0 };
+      }
+      try {
+        const res = await runOne(seed, log, opts.renderer);
+        return { ok: res.outcome !== 'failure', turns: 1 };
+      } catch (e) {
+        log(err((e as Error).message));
+        return { ok: false, turns: 0 };
+      }
+    } finally {
+      await closeLog();
     }
   }
 
@@ -678,8 +692,7 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
   // the user's shell resumes.
   log(dim('  copperhead session ended'));
   if (logFilePath) log(dim(`  session log: ${shortPath(logFilePath)}`));
-  // Cast: TS narrows the closure-assigned handle to its initializer here.
-  (logFile as { end(): void } | null)?.end();
+  await closeLog();
 
   return { ok: true, turns };
 }

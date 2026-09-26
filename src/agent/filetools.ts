@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, lstat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
@@ -31,7 +31,9 @@ export async function toolWriteFile(repoRoot: string, p: string, content: string
     throw new Error(`write_file refuses to overwrite existing file ${p}; use edit_file`);
   }
   await mkdir(path.dirname(abs), { recursive: true });
-  await writeFile(abs, content, 'utf8');
+  // Exclusive creation also preserves the new-file-only contract when two
+  // writers race between the existence check and the write.
+  await writeFile(abs, content, { encoding: 'utf8', flag: 'wx' });
   return `wrote ${p}`;
 }
 
@@ -137,10 +139,18 @@ export async function toolSearch(
       if (SKIP_DIRS.has(entry)) continue;
       const abs = path.join(dir, entry);
       const rel = path.relative(repoRoot, abs);
-      const st = await stat(abs);
+      let st;
+      try {
+        st = await lstat(abs);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw err;
+      }
+      // Never follow directory cycles or links to files outside the repo.
+      // Non-regular files (for example FIFOs) must not block a search either.
       if (st.isDirectory()) {
         await walk(abs);
-      } else if (st.size < 5_000_000 && (!globRe || globRe.test(rel))) {
+      } else if (st.isFile() && st.size < 5_000_000 && (!globRe || globRe.test(rel))) {
         let text: string;
         try {
           text = await readFile(abs, 'utf8');

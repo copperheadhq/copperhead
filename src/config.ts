@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { resolveInRepo, SandboxError } from './util/paths.js';
 
 /**
  * Optional `legibility` block: checker thresholds and per-family severity
@@ -110,21 +111,21 @@ export const DEFAULTS: Omit<CopperheadConfig, 'schematic' | 'board'> = {
 };
 
 export function configPath(repoRoot: string): string {
-  return path.join(repoRoot, CONFIG_DIR, 'config.json');
+  return resolveInRepo(repoRoot, path.join(CONFIG_DIR, 'config.json'));
 }
 
 export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
   const p = configPath(repoRoot);
-  if (!existsSync(p)) {
-    return { schematic: null, board: null, ...DEFAULTS };
+  const raw = (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : {}) as Partial<CopperheadConfig>;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('.copperhead/config.json must contain a JSON object');
   }
-  const raw = JSON.parse(await readFile(p, 'utf8')) as Partial<CopperheadConfig>;
   // A zero/negative/non-integer stage budget would exhaust the stage on turn 0;
   // drop such entries rather than let a config typo stall the pipeline.
   const stageMaxTurns = Object.fromEntries(
     Object.entries(raw.stageMaxTurns ?? {}).filter(([, v]) => Number.isInteger(v) && v > 0),
   );
-  return {
+  const config: CopperheadConfig = {
     schematic: raw.schematic ?? null,
     board: raw.board ?? null,
     docs: raw.docs ?? DEFAULTS.docs,
@@ -155,6 +156,25 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
   };
+  for (const field of ['schematic', 'board', 'docs'] as const) {
+    const value = config[field];
+    if (value === null) continue;
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new Error(`.copperhead/config.json: ${field} must be a non-empty repo-relative path`);
+    }
+    if (path.isAbsolute(value)) {
+      throw new SandboxError(value, `.copperhead/config.json: ${field} must be repo-relative`);
+    }
+    try {
+      resolveInRepo(repoRoot, value);
+    } catch (err) {
+      if (err instanceof SandboxError) {
+        throw new SandboxError(value, `.copperhead/config.json: ${field}: ${err.message}`);
+      }
+      throw err;
+    }
+  }
+  return config;
 }
 
 /** Which level of the model-selection precedence chain won. */

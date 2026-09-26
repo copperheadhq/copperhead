@@ -13,6 +13,7 @@ export class OpenAIProvider implements Provider {
   readonly name: string;
   private readonly apiKey: string | undefined;
   private readonly baseURL: string | undefined;
+  private readonly inFlight = new Set<AbortController>();
 
   constructor(
     private readonly model = 'gpt-5',
@@ -40,58 +41,71 @@ export class OpenAIProvider implements Provider {
   }
 
   async chat(messages: Msg[], tools: ToolSchema[], opts: ChatOpts = {}): Promise<Turn> {
-    const { default: OpenAI } = await import('openai');
-    const client = new OpenAI({
-      // A local endpoint may legitimately have no key, but the client still
-      // wants a non-empty string, so send a placeholder it will never check.
-      apiKey: this.apiKey ?? 'no-key-required',
-      ...(this.baseURL ? { baseURL: this.baseURL } : {}),
-    });
-    const res = await client.chat.completions.create({
-      model: this.model,
-      max_completion_tokens: opts.maxTokens ?? 8192,
-      messages: messages.map((m) => {
-        switch (m.role) {
-          case 'system':
-            return { role: 'system' as const, content: m.content };
-          case 'user':
-            return { role: 'user' as const, content: m.content };
-          case 'assistant':
-            return {
-              role: 'assistant' as const,
-              content: m.content,
-              ...(m.toolCalls?.length
-                ? {
-                    tool_calls: m.toolCalls.map(serializeToolCall),
-                  }
-                : {}),
-            };
-          case 'tool':
-            return { role: 'tool' as const, tool_call_id: m.toolCallId, content: m.content };
-        }
-      }),
-      ...(tools.length
-        ? {
-            tools: tools.map((t) => ({
-              type: 'function' as const,
-              function: { name: t.name, description: t.description, parameters: t.parameters },
-            })),
+    const aborter = new AbortController();
+    this.inFlight.add(aborter);
+    try {
+      const { default: OpenAI } = await import('openai');
+      const client = new OpenAI({
+        // A local endpoint may legitimately have no key, but the client still
+        // wants a non-empty string, so send a placeholder it will never check.
+        apiKey: this.apiKey ?? 'no-key-required',
+        // Copperhead owns retry/backoff; SDK retries would multiply that budget.
+        maxRetries: 0,
+        ...(this.baseURL ? { baseURL: this.baseURL } : {}),
+      });
+      const res = await client.chat.completions.create({
+        model: this.model,
+        max_completion_tokens: opts.maxTokens ?? 8192,
+        messages: messages.map((m) => {
+          switch (m.role) {
+            case 'system':
+              return { role: 'system' as const, content: m.content };
+            case 'user':
+              return { role: 'user' as const, content: m.content };
+            case 'assistant':
+              return {
+                role: 'assistant' as const,
+                content: m.content,
+                ...(m.toolCalls?.length
+                  ? {
+                      tool_calls: m.toolCalls.map(serializeToolCall),
+                    }
+                  : {}),
+              };
+            case 'tool':
+              return { role: 'tool' as const, tool_call_id: m.toolCallId, content: m.content };
           }
-        : {}),
-    });
-    const choice = res.choices[0];
-    // Capture any non-standard properties returned by the API (e.g. Gemini thought
-    // signatures) so they can be echoed back on subsequent turns. Dropping them
-    // causes reasoning-model backends to reject the follow-up request with 400.
-    const toolCalls = ((choice?.message.tool_calls ?? []) as unknown as Record<string, unknown>[]).map(parseToolCall);
-    return {
-      text: choice?.message.content ?? null,
-      toolCalls,
-      usage: {
-        inputTokens: res.usage?.prompt_tokens ?? 0,
-        outputTokens: res.usage?.completion_tokens ?? 0,
-      },
-    };
+        }),
+        ...(tools.length
+          ? {
+              tools: tools.map((t) => ({
+                type: 'function' as const,
+                function: { name: t.name, description: t.description, parameters: t.parameters },
+              })),
+            }
+          : {}),
+      }, { signal: aborter.signal });
+      const choice = res.choices[0];
+      // Capture any non-standard properties returned by the API (e.g. Gemini thought
+      // signatures) so they can be echoed back on subsequent turns. Dropping them
+      // causes reasoning-model backends to reject the follow-up request with 400.
+      const toolCalls = ((choice?.message.tool_calls ?? []) as unknown as Record<string, unknown>[]).map(parseToolCall);
+      return {
+        text: choice?.message.content ?? null,
+        toolCalls,
+        usage: {
+          inputTokens: res.usage?.prompt_tokens ?? 0,
+          outputTokens: res.usage?.completion_tokens ?? 0,
+        },
+      };
+    } finally {
+      this.inFlight.delete(aborter);
+    }
+  }
+
+  async close(): Promise<void> {
+    for (const aborter of this.inFlight) aborter.abort();
+    this.inFlight.clear();
   }
 }
 

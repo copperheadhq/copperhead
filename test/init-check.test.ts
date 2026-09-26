@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFile, writeFile, rm, mkdtemp, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, rm, mkdtemp, mkdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -188,10 +188,16 @@ describe('fab export (create stage 6 tooling)', () => {
         path.join(repo, 'hardware', 'open-key.kicad_sch'),
         out,
       );
-      for (const artifact of ['gerbers', 'drill', 'outline.dxf', 'board.svg', 'schematic.svg']) {
+      for (const artifact of ['gerbers', 'drill', 'outline.dxf', 'board.step', 'board.svg', 'schematic.svg']) {
         expect(res.produced, artifact).toContain(artifact);
       }
       expect(existsSync(path.join(out, 'gerbers'))).toBe(true);
+      expect(res.failed).toEqual([]);
+      for (const name of ['outline.dxf', 'board.step', 'board.svg', 'renders/open-key.svg']) {
+        const artifact = await stat(path.join(out, name));
+        expect(artifact.isFile(), name).toBe(true);
+        expect(artifact.size, name).toBeGreaterThan(0);
+      }
     } finally {
       await cleanup();
     }

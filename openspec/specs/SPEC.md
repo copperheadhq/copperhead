@@ -173,7 +173,7 @@ brief.md
   → DEVPLAN.md
 ```
 
-Each stage is a `do`-loop run with a stage-specific prompt. State lives in the repo (docs + files), so `create` is resumable: kill it at any stage, re-run, it continues from the docs.
+Each stage is a `do`-loop run with a stage-specific prompt. State lives in the repo (docs + files), so `create` is resumable: kill it at any stage, re-run, it continues from the docs. Part selection requires a named MPN beyond a bare `UNVERIFIED` placeholder and retains the human-review flag. Layout completion requires passing DRC, including on resume. Before a resumed stage commits pending KiCad work, the deterministic checks must pass; failed verification leaves that work uncommitted. Output completion requires nonempty Gerber, drill, DXF, STEP, board SVG, schematic SVG, and ordering BOM files; a partial package names its missing artifact classes and cannot complete the stage. A firmware scaffold must contain nonempty source or header content; this existence check alone does not establish that it compiled.
 
 ### First-draft layout (explicitly non-optimal, explicitly useful)
 
@@ -349,7 +349,9 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 5. **Repair.** If violations: fix and re-run, up to `maxRepairCycles` (default 5). If still failing: revert to the pre-run snapshot and report failure with the violation list.
 6. **Propagate.** Agent runs `check_drift`; any doc that references a changed value/part/pin must be updated in the same run.
 7. **Rationale.** Every non-trivial decision gets a one-line "why" written into the relevant doc.
-8. **Commit.** `git commit` with a structured message (`copperhead: <request>\n\n<summary of edits + verification result>`). Requires clean working tree at start (§7 safety).
+8. **Commit.** `git commit` with a structured message (`copperhead: <request>\n\n<summary of edits + verification result>`). Requires clean working tree at start (§7 safety). An accepted `finish` ends tool execution immediately, including any remaining calls in that response. The changelog must be written and every sync obligation cleared before commit; a changelog failure preserves the failed work and restores the snapshot.
+
+Proposal approval applies to the current proposal only. Replacing a proposal or starting validation re-locks edit tools; failed validation or declined interactive approval leaves them locked and blocks successful completion. Change identifiers must be kebab-case names within `openspec/changes/`.
 
 ### 4.2 Tool schemas
 
@@ -401,8 +403,12 @@ interface Provider {
 - On turn-budget exhaustion in an attended (TTY) run: print run stats (turns, files touched, open obligations, token usage) and ask whether to continue with more turns; declining, or a non-TTY run, fails as below. The extension can repeat; each is a fresh decision with fresh numbers.
 - On any unrecoverable failure: preserve the touched work as a git stash entry named `copperhead failed run <run-id>`, restore the snapshot, print the stash ref and transcript path, exit 1
 - Rate-limit (429): exponential backoff ×3, then fail over to the other **keyed** provider (`openai` ↔ `anthropic`) if a key exists; saved-login providers (`codex`, `claude-code`, `cursor`) never fail over to a keyed or alternate provider
+- Provider requests also retry transient HTTP 408/409/5xx and SDK connection failures within the same bounded backoff policy. Aborts, watchdog failures, malformed responses, and permanent errors do not use that retry path; failover remains limited to 429 responses.
 - Provider turn watchdog: a turn that goes `turnTimeoutMs` without a response or streamed progress is treated as hung, aborted, and retried up to 3 times before failing as above. A streaming provider's progress restarts that deadline, so a long turn that keeps producing output is not killed; a provider that reports no progress gets `turnTimeoutMs` as a whole-turn deadline. `turnMaxMs` caps a turn that is producing output, however much it streams, and is never shorter than `turnTimeoutMs`: a turn that reaches it is too large rather than hung, so it fails as above without a retry. A turn that has reported no progress is judged by `turnTimeoutMs` alone.
 - Nested skill provider turns use the same bounded timeout (inactivity deadline and hard cap) and 429 backoff policy. A provider error inside a skill becomes a failed tool envelope, so it cannot escape the parent loop and bypass its failure/rollback path.
+- Watchdog cancellation aborts the in-flight API request or saved-login turn before retrying; late results cannot replace a newer session's state. The shared retry wrapper owns retries, with SDK retries disabled. Session reuse requires a continuation of the same message history; nested skill histories and the return to the parent start fresh sessions with the appropriate full context. Failed SDK turns cannot dispatch their partial tool requests.
+- Response-cache keys include the complete advertised tool contracts (names, descriptions, and schemas). Responses containing recognized secret patterns or configured secret environment values are used in memory but not persisted, and matching unsafe cached entries are discarded instead of replayed. Executable tool arguments are never redacted into different arguments for caching.
+- After cached turns, a resumed Codex thread receives the unseen assistant messages before their tool results; only its own immediately preceding response is omitted. Claude Code and Cursor session resume remain disabled when response caching is enabled.
 - The Anthropic provider marks `cache_control` breakpoints (system prompt, last tool, last message block) so the resent conversation prefix is cached; reported input tokens include cache reads/writes
 
 ---
@@ -442,8 +448,10 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 
 ## 7. Safety rails
 
-- Refuse to run `do` or `repl` on a dirty git tree (offer `--allow-dirty`, whose snapshot pairs a `git stash create` object for tracked changes with a tree object for untracked files, so the rollback restores both rather than letting `git clean` delete what the stash never captured). An untracked file that exists but cannot be read refuses the run by name: it cannot be snapshotted, and the rollback would delete it regardless, so proceeding would break exactly the promise `--allow-dirty` makes. Untracked paths that vanish before the snapshot is taken are skipped rather than refused
-- All file tools sandboxed to repo root; no network tools in Phase 1
+- Refuse to run `do` or `repl` on a dirty git tree (offer `--allow-dirty`, whose snapshot pairs a `git stash create` object for tracked changes with a tree object for untracked files, so the rollback restores both rather than letting `git clean` delete what the stash never captured). Restore the separate staged and unstaged versions, literal filenames, and untracked symlinks including dangling targets. Files ignored at snapshot time remain protected if ignore rules change during rollback. An untracked file that exists but cannot be read refuses the run by name: it cannot be snapshotted, and the rollback would delete it regardless, so proceeding would break exactly the promise `--allow-dirty` makes. Untracked paths that vanish before the snapshot is taken are skipped rather than refused
+- All file tools sandboxed to repo root; reject symlink components below that root, including aliases to files inside the repo that could hide KiCad extensions. A symlinked repo root remains supported. Validate the configuration file path before reading it and validate configured schematic, board, and docs paths (including defaults) before use. Search skips symlinks and non-regular files; new-file writes create exclusively so concurrent creation cannot overwrite a file. No network tools in Phase 1
+- Original ignored paths remain excluded from failed-run stashes and successful commits even if a run changes ignore rules. Standard ignores retain `.env` and `.copperhead/runs/`.
+- Agent metadata writes, prompt-document reads, and transcript paths use the same symlink containment checks as file tools. Unsafe `.gitignore` paths fail staging before private files can be added. Staging and rollback exclusions remain relative to the selected project even when it is nested inside a larger Git repository.
 - Every rail above applies identically to the MCP entry point (`copperhead mcp`), which is a transport adapter over the same command entry points and adds no privileges of its own. Any path a host supplies is contained to the repo root by `resolveInRepo` before use, exactly as a CLI-supplied path is
 - `.env` in `.gitignore` from first commit; keys only via env vars — never written to any file, transcript, or commit
 - Transcripts in `.copperhead/runs/` redact anything matching `sk-[A-Za-z0-9_-]+`
@@ -478,6 +486,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+- **AC-2.6** A configured schematic or board that is missing fails its ERC/DRC result and the overall check, naming the missing path. Only an unconfigured artifact is skipped.
 
 ### AC-3 · `copperhead do` — core loop
 
@@ -488,7 +497,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-3.5 (repair loop)** Given an edit that first produces an ERC violation, the transcript shows: violation parsed → targeted fix → re-run → pass, within `maxRepairCycles`.
 - **AC-3.6 (rollback)** If violations persist after `maxRepairCycles`, working tree equals the pre-run state (`git status` clean, files byte-identical), exit non-zero, transcript path printed.
 - **AC-3.7 (surgical edits)** For every run above: the `.kicad_sch` diff touches only the s-expressions relevant to the change — file not regenerated (assert: < 5% of lines changed for AC-3.1).
-- **AC-3.8 (dirty tree)** With uncommitted changes and no `--allow-dirty`: refuses to start. Holds for `repl` as well as `do`, since `repl` is the default command. With `--allow-dirty`, a rollback restores both the tracked modifications and the untracked files that were present before the run.
+- **AC-3.8 (dirty tree)** With uncommitted changes and no `--allow-dirty`: refuses to start. Holds for `repl` as well as `do`, since `repl` is the default command. With `--allow-dirty`, a rollback restores both the tracked modifications and the untracked files that were present before the run, preserving the staged/unstaged split, literal filenames, and dangling symlinks. Originally ignored files survive changes to ignore rules during rollback.
 - **AC-3.9 (dry run)** `--dry-run` prints the proposed diff and writes nothing.
 - **AC-3.10 (provider parity)** AC-3.1 passes with `--model codex`, `--model gpt-5`, `--model claude`, `--model claude-code`, `--model cursor`, and `--model compat:<id>` when each provider is configured.
 - **AC-3.11 (saved login)** With `--model claude-code`, a logged-in Claude Code (`CLAUDE_CODE_OAUTH_TOKEN` set) and **no** `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`, a `do` run completes through the normal verify/commit path; copperhead reads no credential store; and no key material appears in the transcript, summary, or tree (AC-4.1 holds). A missing optional dependency or an unauthenticated install fails through the rollback path with an actionable error, not a raw stack trace.
@@ -500,12 +509,18 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-3.17 (compat prompt-privacy signal)** `doctor` reports a non-blocking `warn` line when the compat endpoint's host is documented as training on submitted prompts, and a non-blocking `info` line naming the host when no policy is on record; neither case fails the command. A true loopback endpoint (`localhost`, `127.0.0.1`, or `::1`, but not a `.local`/LAN host) bypasses this check entirely, since nothing leaves the machine.
 - **AC-3.18 (compat never fails over to a paid key)** A rate limit against a `compat:<id>` endpoint never fails over to `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, even when one is present in the environment: the compat provider is not `'openai'` by name, so the same isolation that protects `codex`/`claude-code`/`cursor` (AC-3.11, AC-3.12) applies to it too.
 - **AC-3.19 (ambiguous auto-selection refuses)** With no `--model`, no `COPPERHEAD_MODEL`, and no `model` in config, model resolution refuses with an actionable "ambiguous" error naming every credential found when two or more of `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` are set; with exactly one, that provider is selected as before. **Breaking change**: an environment with both keys set that previously auto-selected `OPENAI_API_KEY` now fails `do`/`sync`/`create`/`demo` until a model is chosen explicitly (`repl` degrades gracefully via its interactive picker instead).
-- **AC-3.20 (compat cache is endpoint-scoped)** Re-running a cached `compat:<id>` request against a different `baseURL` calls the new endpoint rather than replaying the previous one's turns: one model id can be served by several hosts, so the id alone no longer identifies the backend. The endpoint enters the cache key only for the `compat` route, so a non-`compat` run's existing cache entries still replay unchanged.
+- **AC-3.20 (compat cache is endpoint-scoped)** Re-running a cached `compat:<id>` request against a different `baseURL` calls the new endpoint rather than replaying the previous one's turns: one model id can be served by several hosts, so the id alone no longer identifies the backend. The endpoint enters the cache key only for the `compat` route, so changing that setting alone does not invalidate non-`compat` entries. Changes to tool descriptions or schemas require new responses; legacy name-only tool entries regenerate.
+
+- **AC-3.21 (finish seals the run)** After an accepted `finish`, later calls in the same response execute nothing and cannot change the outcome. A rejected `finish` allows repair calls to continue.
+- **AC-3.22 (approval belongs to the proposal)** Replacing or revalidating a proposal removes edit tools until validation and any required interactive approval pass again; malformed change identifiers cannot write outside the change directory.
+- **AC-3.23 (changelog is a gate)** If the run cannot append its changelog, it preserves failed work, restores the snapshot, and reports failure without a success commit.
+- **AC-3.24 (provider recovery isolation)** Abandoned provider turns cannot update a later session; switching between parent and nested skill histories sends the correct complete context instead of reusing a cursor from another history.
+- **AC-3.25 (cache privacy and contract freshness)** Changes to advertised tool contracts miss the response cache. Recognized secret-bearing turns are neither persisted nor replayed; bypassing the cache preserves the live response's exact arguments.
 
 ### AC-4 · Safety
 
 - **AC-4.1** No file in the repo, transcript, or any commit ever contains a string matching `sk-[A-Za-z0-9_-]{20,}` (grep the whole tree + `.copperhead/runs/` after all tests).
-- **AC-4.2** A tool call with a path outside the repo root (e.g. `../../etc/hosts`) is rejected.
+- **AC-4.2** A tool call with a path outside the repo root (e.g. `../../etc/hosts`) or through a symlink below the root is rejected. The root itself may be a symlink. Search does not follow symlinks, and concurrent new-file writes cannot overwrite an existing file.
 - **AC-4.3** `.gitignore` includes `.env` and `.copperhead/runs/` in the very first commit of the repo.
 
 ### AC-7 · `copperhead sync` — full-state consistency

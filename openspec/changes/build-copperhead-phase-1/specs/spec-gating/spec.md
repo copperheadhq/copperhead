@@ -13,6 +13,14 @@ The agent SHALL NOT have `edit_file` or `write_file` in its tool list until an O
 - **WHEN** `openspec validate --change <id>` exits 0
 - **THEN** subsequent turns include the edit tools, and the transcript records the unlock event
 
+#### Scenario: Approval invalidated by replacement or revalidation
+- **WHEN** a validated proposal is replaced or validation starts again
+- **THEN** edit tools are removed until validation and any interactive approval pass again; failure or declined approval leaves them locked and prevents successful completion
+
+#### Scenario: Invalid change identifier
+- **WHEN** a proposal uses a path or any identifier other than a kebab-case name
+- **THEN** the tool rejects it before writing any proposal file
+
 ### Requirement: Change workflow lifecycle
 Each `do` run SHALL create `openspec/changes/<id>/` (proposal, spec deltas, tasks) as its plan step, and the same code path that makes the ERC/DRC-clean commit SHALL run `openspec archive <id>`. In autonomous mode the proposal is auto-approved with an `AUTO` marker; in `--interactive` mode a human y/n gate sits between validation and edit unlock.
 

@@ -1,9 +1,10 @@
 import { execa } from 'execa';
-import { access, constants, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, constants, cp, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PreflightError } from './preflight.js';
+import { resolveInRepo } from './paths.js';
 
 /**
  * Paths copperhead must keep out of `git add -A`. KiCad ≥9 writes a
@@ -16,7 +17,7 @@ import { PreflightError } from './preflight.js';
  * never a project artifact) and the fix for that abort. Kept as a list so other
  * KiCad transients can join it if they surface.
  */
-const GIT_ADD_EXCLUDES = ['.history/'];
+const GIT_ADD_EXCLUDES = ['.history/', '.env', '.copperhead/runs/'];
 
 /**
  * Ensure the repo's root .gitignore lists each entry, appending only the
@@ -26,8 +27,10 @@ const GIT_ADD_EXCLUDES = ['.history/'];
  * aborting the add.
  */
 export async function ensureIgnored(repo: string, entries: string[]): Promise<void> {
+  // Containment failures must abort staging: skipping an unsafe ignore file
+  // would expose nested private files that its rules should have excluded.
+  const p = resolveInRepo(repo, '.gitignore');
   try {
-    const p = path.join(repo, '.gitignore');
     const text = existsSync(p) ? await readFile(p, 'utf8') : '';
     const present = new Set(text.split('\n').map((l) => l.trim()));
     const missing = entries.filter((e) => !present.has(e));
@@ -48,11 +51,15 @@ export interface GitSnapshot {
    * them for good; see snapshotUntracked().
    */
   untracked: string | null;
+  /** Ignored paths stay on disk even when the run changes ignore rules. */
+  ignored: string[];
 }
 
 async function git(repo: string, args: string[]): Promise<string> {
   const { stdout } = await execa('git', args, { cwd: repo });
-  return stdout.trim();
+  // NUL-delimited output contains literal filenames, whose leading/trailing
+  // whitespace must not be stripped.
+  return args.includes('-z') ? stdout : stdout.trim();
 }
 
 /** Same as git(), with a scratch index so the repo's real index is untouched. */
@@ -134,7 +141,12 @@ async function readableOnly(repo: string, paths: string[]): Promise<string[]> {
   const usable: string[] = [];
   for (const p of paths) {
     try {
-      await access(path.join(repo, p), constants.R_OK);
+      const absolute = path.join(repo, p);
+      // Git stores a symlink's target text, not the target's contents. A
+      // dangling link is still user work and clean -fd would delete it.
+      if (!(await lstat(absolute)).isSymbolicLink()) {
+        await access(absolute, constants.R_OK);
+      }
       usable.push(p);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue;
@@ -235,13 +247,45 @@ export async function gitPreflight(repo: string, opts: { allowDirty?: boolean } 
  */
 export async function snapshot(repo: string): Promise<GitSnapshot> {
   const head = await git(repo, ['rev-parse', 'HEAD']);
+  // Keep only path names, never the contents (which may include credentials).
+  // --directory collapses ignored trees such as node_modules into one entry.
+  const ignored = (await git(repo, ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z']))
+    .split('\0').filter(Boolean);
   let stash: string | null = null;
   let untracked: string | null = null;
   if (await isDirty(repo)) {
     stash = (await git(repo, ['stash', 'create'])) || null;
     untracked = await snapshotUntracked(repo);
   }
-  return { head, stash, untracked };
+  return { head, stash, untracked, ignored };
+}
+
+/** Remove run-added ignored files from the index without touching their bytes. */
+async function unstageSnapshotIgnored(repo: string, snap: GitSnapshot): Promise<void> {
+  if (!snap.ignored.length) return;
+  await execa('git', ['reset', '-q', snap.head, '--pathspec-from-file=-', '--pathspec-file-nul'], {
+    cwd: repo,
+    input: snap.ignored.map((p) => `:(literal)${p}`).join('\0') + '\0',
+  });
+}
+
+/** Stage only project files, even if the run changed its ignore rules. */
+async function stageRunFiles(repo: string, snap?: GitSnapshot): Promise<void> {
+  await ensureIgnored(repo, GIT_ADD_EXCLUDES);
+  if (snap) await unstageSnapshotIgnored(repo, snap);
+  const excluded = [...GIT_ADD_EXCLUDES, ...(snap?.ignored ?? [])].map((p) => p.replace(/\/$/, ''));
+  // An excluded pathspec naming a currently ignored path makes git add
+  // fail. Enumerate tracked and non-ignored untracked paths instead, then
+  // remove the original ignored set before git can read their contents.
+  const listed = await git(repo, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']);
+  const paths = [...new Set(listed.split('\0').filter(Boolean))].filter(
+    (p) => !excluded.some((ignored) => p === ignored || p.startsWith(ignored + '/')),
+  );
+  if (!paths.length) return;
+  await execa('git', ['add', '-A', '--pathspec-from-file=-', '--pathspec-file-nul'], {
+    cwd: repo,
+    input: paths.map((p) => `:(literal)${p}`).join('\0') + '\0',
+  });
 }
 
 /**
@@ -267,10 +311,20 @@ export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
     }
 
     try {
+      // A run may have changed .gitignore and staged formerly ignored
+      // files. Unstage them before reset --hard can delete their bytes.
+      await unstageSnapshotIgnored(repo, snap);
       await git(repo, ['reset', '--hard', snap.head]);
-      await git(repo, ['clean', '-fd', '-e', '.copperhead/runs']);
+      // reset restores HEAD's ignore rules before the user's dirty rules can
+      // be reapplied. Explicit exclusions protect files ignored only by the
+      // original working tree (including an untracked nested .gitignore).
+      // Exclusion patterns anchor at Git's top level, while ls-files names
+      // above are relative to cwd (which may be a nested hardware project).
+      const { stdout: prefix } = await execa('git', ['rev-parse', '--show-prefix'], { cwd: repo });
+      const excludes = snap.ignored.flatMap((p) => ['-e', '/' + (prefix + p).replace(/[\\*?\[\] ]/g, '\\$&')]);
+      await git(repo, ['clean', '-fd', '-e', '.copperhead/runs', ...excludes]);
       if (snap.stash) {
-        await git(repo, ['stash', 'apply', snap.stash]);
+        await git(repo, ['stash', 'apply', '--index', snap.stash]);
       }
       // The clean above deleted every untracked file; put back the ones that
       // were there before the run. Never fatal: a rollback that restored the
@@ -314,24 +368,23 @@ export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
  * staged first; restore() resets the index anyway. Never throws: preservation
  * must not be able to block the rollback itself.
  */
-export async function preserveFailedRun(repo: string, runId: string): Promise<string | null> {
+export async function preserveFailedRun(repo: string, runId: string, snap?: GitSnapshot): Promise<string | null> {
   try {
     if (!(await isDirty(repo))) return null;
-    await ensureIgnored(repo, GIT_ADD_EXCLUDES);
+    await stageRunFiles(repo, snap);
     // Never leave the audit trail staged: a staged-but-not-in-HEAD path is
     // deleted by restore()'s `reset --hard`, which silently defeats its
     // `clean -e .copperhead/runs` protection (that flag only spares untracked
     // files) — the in-flight run's transcript dir vanishes mid-run. Staging
-    // then unstaging (rather than an exclude pathspec) because `git add`
-    // errors outright when a pathspec touches gitignored paths, and runs/ is
-    // gitignored in some target repos but tracked in others.
-    await git(repo, ['add', '-A']);
+    // then unstaging also covers run files that were already staged before
+    // preservation.
     await git(repo, ['reset', '-q', '--', '.copperhead/runs']);
     const sha = await git(repo, ['stash', 'create']);
     if (!sha) return null;
     await git(repo, ['stash', 'store', '-m', `copperhead failed run ${runId}`, sha]);
     return sha;
-  } catch {
+  } catch (err) {
+    console.warn(`warning: could not preserve failed-run work: ${(err as Error).message}`);
     return null;
   }
 }
@@ -351,15 +404,14 @@ export async function uncommittedCount(repo: string): Promise<number> {
   return status ? status.split('\n').length : 0;
 }
 
-export async function commitAll(repo: string, message: string): Promise<string> {
-  await ensureIgnored(repo, GIT_ADD_EXCLUDES);
-  await git(repo, ['add', '-A']);
+export async function commitAll(repo: string, message: string, snap?: GitSnapshot): Promise<string> {
+  await stageRunFiles(repo, snap);
   await git(repo, ['commit', '-m', message]);
   return git(repo, ['rev-parse', 'HEAD']);
 }
 
 export async function changedFiles(repo: string, sinceHead: string): Promise<string[]> {
-  const tracked = await git(repo, ['diff', '--name-only', sinceHead]);
-  const untracked = await git(repo, ['ls-files', '--others', '--exclude-standard']);
-  return [...new Set([...tracked.split('\n'), ...untracked.split('\n')])].filter(Boolean);
+  const tracked = await git(repo, ['diff', '--name-only', '-z', sinceHead]);
+  const untracked = await git(repo, ['ls-files', '--others', '--exclude-standard', '-z']);
+  return [...new Set([...tracked.split('\0'), ...untracked.split('\0')])].filter(Boolean);
 }

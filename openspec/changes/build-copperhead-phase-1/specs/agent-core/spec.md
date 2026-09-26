@@ -13,6 +13,34 @@ The agent core SHALL implement a tool-use loop behind a `Provider` interface (`c
 - **WHEN** a provider returns 429 three times despite exponential backoff
 - **THEN** the loop fails over to the other provider if its API key exists, otherwise fails the run
 
+#### Scenario: Cancelled provider turn
+- **WHEN** the watchdog abandons an API request or saved-login turn
+- **THEN** its request is cancelled and any late completion cannot replace a newer session's state; retries are owned by the shared wrapper, with SDK retries disabled
+
+#### Scenario: Transient provider error
+- **WHEN** a provider request fails with HTTP 408/409/5xx or an SDK connection error
+- **THEN** the shared policy retries within the same bounded backoff budget; aborts, watchdog errors and parse failures are not retried by that policy, and failover remains limited to rate limits
+
+#### Scenario: Nested skill history
+- **WHEN** a sessionful provider switches from the parent conversation to a nested skill or back again
+- **THEN** it starts a fresh session with that conversation's full context instead of reusing an unrelated message cursor
+
+#### Scenario: Failed SDK turn
+- **WHEN** the SDK reports that its turn failed after emitting partial content
+- **THEN** partial tool requests from that turn do not execute
+
+#### Scenario: Changed cached tool contract
+- **WHEN** a tool's schema or description changes while its name stays the same
+- **THEN** the provider is called again instead of replaying a turn generated for the old contract
+
+#### Scenario: Cached turns in a resumed Codex conversation
+- **WHEN** cached assistant turns are replayed between two live Codex calls
+- **THEN** the next live call receives those unseen assistant turns before their tool results, while omitting only the previous response already generated in that Codex thread
+
+#### Scenario: Secret-bearing response bypasses caching
+- **WHEN** a response contains a recognized secret pattern or a configured secret environment value
+- **THEN** the live turn is returned unchanged but is not persisted; a matching unsafe cached entry is discarded instead of replayed
+
 ### Requirement: Loop sequence
 Each `do` run SHALL follow the sequence: load memory (all `docs/*.md` + schematic file list into context) → plan → edit → verify (ERC always; DRC if the board changed) → repair → propagate (`check_drift`) → rationale → commit.
 
@@ -52,6 +80,14 @@ The loop SHALL maintain an obligations ledger fed by deterministic post-tool-cal
 #### Scenario: Stale doc blocks commit
 - **WHEN** a run edits a schematic value referenced by BOM.md but has not yet updated the doc
 - **THEN** the commit step refuses, naming the open drift obligation, until the doc is updated and `check_drift` runs clean
+
+#### Scenario: Accepted finish ends tool execution
+- **WHEN** a model response contains an accepted `finish` followed by more tool calls
+- **THEN** later calls execute nothing and cannot mutate the verified design or override a refusal
+
+#### Scenario: Changelog write failure
+- **WHEN** the required changelog cannot be written
+- **THEN** the run preserves failed work, restores its snapshot, and reports commit failure without committing; successful commits require the full ledger to be clear
 
 #### Scenario: Constraint change forces affects revisit
 - **WHEN** a constraint with `affects: ["U2", "R7-absent"]` is modified during a run

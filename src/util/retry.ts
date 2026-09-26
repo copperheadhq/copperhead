@@ -12,6 +12,35 @@ export function isRateLimit(err: unknown): boolean {
   return status === 429;
 }
 
+/**
+ * The provider loop owns the SDKs' transient-request retry policy so nested SDK
+ * retries cannot multiply a single attempt. Keep this separate from tool
+ * retries: a failed local mutation is not safe to repeat just because it looks
+ * like a connection error. Match SDK error class names without importing an SDK
+ * into this shared utility (both SDKs leave Error.name as "Error").
+ */
+export function isRetryableProviderError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const error = err as {
+    name?: string;
+    constructor?: { name?: string };
+    status?: number;
+    statusCode?: number;
+    cause?: unknown;
+  };
+  const names = [error.name, error.constructor?.name];
+  // Cancellation and the watchdog have their own control flow; parse failures
+  // are deterministic and cannot be repaired by resending the same request.
+  if (names.some((name) => ['AbortError', 'APIUserAbortError', 'TurnTimeoutError', 'SyntaxError'].includes(name ?? ''))) {
+    return false;
+  }
+  const status = error.status ?? error.statusCode;
+  if (typeof status === 'number') {
+    return status === 408 || status === 409 || status === 429 || (status >= 500 && status < 600);
+  }
+  return names.some((name) => name === 'APIConnectionError' || name === 'APIConnectionTimeoutError');
+}
+
 export interface SessionLimit {
   /** The reset moment exactly as the provider stated it (e.g. "1:40pm"), or null
    *  when the message named a limit but no parseable time. */

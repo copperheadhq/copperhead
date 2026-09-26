@@ -1,16 +1,17 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, readdir, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { loadConfig, resolveCompatSettings } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
-import { exportSvg, runErc } from '../kicad/cli.js';
+import { exportSvg, runErc, runDrc } from '../kicad/cli.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
 import { isDirty, commitAll, changedFiles } from '../util/git.js';
 import type { CompatSettings, CopperheadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
+import { parseBomTable } from '../memory/bom-table.js';
 import { runAgentLoop, makeProvider, type BudgetExhaustedStats } from '../agent/loop.js';
 import { diagnoseStageFailure, transcriptExcerpt, withTimeout, symbolAvailabilityFacts, type StageDiagnosis } from '../agent/recovery.js';
 import type { Provider } from '../agent/types.js';
@@ -86,23 +87,53 @@ sha256: ${briefMeta.sha256}
 }
 
 /**
- * Returns true when a directory exists and contains at least one file
- * matching the optional glob-style extension list (case-insensitive).
- * No extension list = any file.
+ * List nonempty regular files recursively. Empty exports left by a failed
+ * subprocess and symlinks are not evidence that a deliverable was produced.
  */
-async function dirHasFiles(dirPath: string, exts?: string[]): Promise<boolean> {
-  if (!existsSync(dirPath)) return false;
-  async function walk(dir: string): Promise<boolean> {
+async function filesWithContent(dirPath: string): Promise<string[]> {
+  if (!existsSync(dirPath)) return [];
+  const files: string[] = [];
+  async function walk(dir: string): Promise<void> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (await walk(path.join(dir, entry.name))) return true;
-      } else if (!exts || exts.some((e) => entry.name.toLowerCase().endsWith(e))) {
-        return true;
+        await walk(file);
+      } else if (entry.isFile() && (await stat(file)).size > 0) {
+        files.push(file);
       }
     }
-    return false;
   }
-  return walk(dirPath);
+  await walk(dirPath);
+  return files;
+}
+
+async function dirHasFiles(dirPath: string, exts: string[]): Promise<boolean> {
+  if (!existsSync(dirPath)) return false;
+  for (const entry of await readdir(dirPath, { withFileTypes: true })) {
+    const file = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      if (await dirHasFiles(file, exts)) return true;
+    } else if (entry.isFile() && exts.some((ext) => entry.name.toLowerCase().endsWith(ext)) && (await stat(file)).size > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function missingOutputArtifacts(repoRoot: string): Promise<string[]> {
+  const outputDir = path.join(repoRoot, 'outputs');
+  const files = await filesWithContent(outputDir);
+  const names = files.map((file) => path.relative(outputDir, file).split(path.sep).join('/').toLowerCase());
+  const required: Array<[string, (name: string) => boolean]> = [
+    ['Gerbers', (name) => /\.(gbr|gtl|gbl|gbs|gbo|gbp|gbd|gto|gts|gml)$/.test(name)],
+    ['drill (.drl)', (name) => name.endsWith('.drl')],
+    ['DXF outline', (name) => name.endsWith('.dxf')],
+    ['STEP model', (name) => /\.(step|stp)$/.test(name)],
+    ['board SVG (board.svg)', (name) => name === 'board.svg'],
+    ['schematic SVG', (name) => name.endsWith('.svg') && name !== 'board.svg'],
+    ['ordering BOM CSV', (name) => /^(?:bom|.+[-_]bom)\.csv$/.test(path.posix.basename(name))],
+  ];
+  return required.filter(([, matches]) => !names.some(matches)).map(([label]) => label);
 }
 
 export const STAGES: Stage[] = [
@@ -166,23 +197,17 @@ export const STAGES: Stage[] = [
   {
     name: 'part-selection',
     isComplete: async (root, docs) => {
-      // init scaffolds BOM.md with a table pre-filled with UNVERIFIED MPNs
-      // extracted from the schematic. Require at least one row whose MPN
-      // column is NOT the UNVERIFIED placeholder — i.e. a real part was chosen.
+      // The init scaffold contains bare UNVERIFIED placeholders. Stage 3 must
+      // name a part, but keeps its UNVERIFIED flag until human review: rejecting
+      // every flagged MPN would make the stage's own prompt impossible to meet.
       const p = path.join(root, docs, 'BOM.md');
       if (!existsSync(p)) return false;
       const text = await readFile(p, 'utf8');
-      // Find table rows (lines starting with |) that are not the header or separator
-      const rows = text.split('\n').filter(
-        (l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
+      // Share the header-aware BOM reader with drift/drafting, so a reordered
+      // table or a separate risk table cannot change the completion verdict.
+      return parseBomTable(text).some(({ mpn }) =>
+        /[A-Za-z0-9]/.test((mpn ?? '').replace(/\bUNVERIFIED\b/gi, '')),
       );
-      if (!rows.length) return false;
-      // At least one row must have a non-UNVERIFIED MPN (4th column)
-      return rows.some((row) => {
-        const cols = row.split('|').map((c) => c.trim());
-        const mpn = cols[4] ?? ''; // 0=empty, 1=Refdes, 2=Value, 3=Footprint, 4=MPN
-        return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
-      });
     },
     prompt: () =>
       'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. Run check_drift before finishing.',
@@ -253,7 +278,10 @@ export const STAGES: Stage[] = [
       const p = path.join(root, config.board);
       if (!existsSync(p)) return false;
       if (!(await readFile(p, 'utf8')).includes('(footprint')) return false;
-      return docHasContent(root, path.join(docs, 'LAYOUT.md'), '## Draft quality');
+      if (!(await docHasContent(root, path.join(docs, 'LAYOUT.md'), '## Draft quality'))) return false;
+      // A killed layout run can leave footprints and the quality heading on
+      // disk before DRC passes. Resuming must repair that board before export.
+      return (await runDrc(p)).ok;
     },
     prompt: () =>
       'Stage 5: first-draft layout. Rule-driven placement written as real coordinates: connectors on edges, decoupling at IC pins, ESD at connectors, keepouts honored. Route power and short critical nets; leave the rest as ratsnest. Every routed net must pass run_drc. Then write the "## Draft quality" section in LAYOUT.md: exactly what is fine and what a human or specialist tool should redo. Non-optimal is acceptable; unlabeled non-optimal is not.',
@@ -261,12 +289,12 @@ export const STAGES: Stage[] = [
   {
     name: 'outputs',
     isComplete: async (root) => {
-      // An empty outputs/ dir (e.g. from a failed export run) must not count
-      // as complete. Require at least one Gerber file (any .gbr variant).
-      return dirHasFiles(path.join(root, 'outputs'), ['.gbr', '.gtl', '.gbl', '.gbs', '.gbo', '.gbp', '.gbd', '.gto', '.gts', '.gml']);
+      // One successful export does not prove the whole package succeeded.
+      // Check every existing stage deliverable on a fresh run and on resume.
+      return (await missingOutputArtifacts(root)).length === 0;
     },
     prompt: () =>
-      'Stage 6: outputs package. Export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, SVG renders (export_svg), and an ordering BOM.csv generated from BOM.md (refdes, MPN, qty). Every export must succeed.',
+      'Stage 6: outputs package. Use export_fab to export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, board.svg and schematic SVG renders. Also write an ordering BOM.csv generated from BOM.md (refdes, MPN, qty). Every export must succeed and each artifact must be nonempty.',
   },
   {
     name: 'firmware',
@@ -329,6 +357,9 @@ async function emitJlcpcbAfterOutputs(stageName: string, opts: CreateOptions): P
  */
 async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
+  if (stageName === 'outputs') {
+    return `the outputs stage contract is not met: missing or empty ${(await missingOutputArtifacts(root)).join(', ')}; resume to regenerate the missing exports`;
+  }
   if (stageName !== 'schematic' || !config.schematic) return generic;
   const p = path.join(root, config.schematic);
   if (!existsSync(p)) return generic;
@@ -403,6 +434,16 @@ async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig,
     return;
   }
   try {
+    if (dirty.some((f) => /\.(kicad_sch|kicad_pcb|kicad_pro|kicad_prl)$/.test(f))) {
+      // Earlier doc stages can already be complete while later KiCad work is
+      // still broken. Never commit that work just because a doc probe passed.
+      const verification = await runCheck(opts.repoRoot, opts.log);
+      const boardChanged = dirty.some((f) => f.endsWith('.kicad_pcb'));
+      if (!verification.ok || !verification.erc?.ok || (boardChanged && !verification.drc?.ok)) {
+        opts.log(stageLine(stageName, 'leaving resumed KiCad work uncommitted because verification failed', 'warn'));
+        return;
+      }
+    }
     const sha = await commitAll(opts.repoRoot, `copperhead: resume — commit completed stage ${stageName}`);
     opts.log(
       stageLine(

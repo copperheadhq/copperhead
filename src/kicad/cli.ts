@@ -335,6 +335,11 @@ export interface FabExportResult {
   failed: { artifact: string; reason: string }[];
 }
 
+/** KiCad 8 already uses file output; the explicit mode arrived in KiCad 9. */
+async function singleFilePlotArgs(): Promise<string[]> {
+  return Number.parseInt(await kicadCliVersion(), 10) >= 9 ? ['--mode-single'] : [];
+}
+
 /**
  * Export the fabrication package (SPEC §2.5 outputs): gerbers + drill, DXF and
  * STEP outline, SVG renders. Each artifact fails independently with a reason so
@@ -342,12 +347,13 @@ export interface FabExportResult {
  */
 export async function exportFab(pcbPath: string, schPath: string | null, outDir: string): Promise<FabExportResult> {
   const result: FabExportResult = { produced: [], failed: [] };
+  const singleFile = await singleFilePlotArgs();
   const jobs: { artifact: string; args: string[] }[] = [
     { artifact: 'gerbers', args: ['pcb', 'export', 'gerbers', '--output', path.join(outDir, 'gerbers'), pcbPath] },
     { artifact: 'drill', args: ['pcb', 'export', 'drill', '--output', path.join(outDir, 'gerbers'), pcbPath] },
-    { artifact: 'outline.dxf', args: ['pcb', 'export', 'dxf', '--output', path.join(outDir, 'outline.dxf'), '--layers', 'Edge.Cuts', pcbPath] },
-    { artifact: 'board.step', args: ['pcb', 'export', 'step', '--output', path.join(outDir, 'board.step'), pcbPath] },
-    { artifact: 'board.svg', args: ['pcb', 'export', 'svg', '--output', path.join(outDir, 'board.svg'), '--layers', 'F.Cu,B.Cu,Edge.Cuts', pcbPath] },
+    { artifact: 'outline.dxf', args: ['pcb', 'export', 'dxf', ...singleFile, '--output', path.join(outDir, 'outline.dxf'), '--layers', 'Edge.Cuts', pcbPath] },
+    { artifact: 'board.step', args: ['pcb', 'export', 'step', '--force', '--output', path.join(outDir, 'board.step'), pcbPath] },
+    { artifact: 'board.svg', args: ['pcb', 'export', 'svg', ...singleFile, '--output', path.join(outDir, 'board.svg'), '--layers', 'F.Cu,B.Cu,Edge.Cuts', pcbPath] },
   ];
   if (schPath) {
     jobs.push({ artifact: 'schematic.svg', args: ['sch', 'export', 'svg', '--output', path.join(outDir, 'renders'), schPath] });
@@ -366,10 +372,11 @@ export async function exportFab(pcbPath: string, schPath: string | null, outDir:
 
 /** Export an SVG render of a schematic or board; returns the output directory. */
 export async function exportSvg(kind: 'sch' | 'pcb', filePath: string, outDir: string): Promise<string> {
+  const singleFile = kind === 'pcb' ? await singleFilePlotArgs() : [];
   const args =
     kind === 'sch'
       ? ['sch', 'export', 'svg', '--output', outDir, filePath]
-      : ['pcb', 'export', 'svg', '--output', path.join(outDir, 'board.svg'), '--layers', 'F.Cu,B.Cu,Edge.Cuts', filePath];
+      : ['pcb', 'export', 'svg', ...singleFile, '--output', path.join(outDir, 'board.svg'), '--layers', 'F.Cu,B.Cu,Edge.Cuts', filePath];
   try {
     await runKicad(args);
   } catch (err) {

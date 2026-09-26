@@ -25,7 +25,9 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
   transcriptExcerpt: async () => '',
 }));
 vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: '' }) }));
-vi.mock('../src/commands/check.js', () => ({ runCheck: async () => ({ ok: true }) }));
+vi.mock('../src/commands/check.js', () => ({
+  runCheck: async () => ({ ok: true, erc: { ok: true, violations: 0 }, drc: { ok: true, violations: 0 } }),
+}));
 
 import { runCreate } from '../src/commands/create.js';
 

@@ -2,7 +2,7 @@ import type { CatalogEntry, CatalogSkill } from '../capabilities/index.js';
 import { corruptionError } from '../capabilities/helpers.js';
 import { flatten, failResult, seal, unavailable, type ToolResult } from './envelope.js';
 import { registry } from './registry.js';
-import { withRetry, isRateLimit } from '../util/retry.js';
+import { withRetry, isRateLimit, isRetryableProviderError } from '../util/retry.js';
 import { MAX_TURN_TIMEOUTS, TurnTimeoutError, withWatchdog } from './recovery.js';
 import type { RunContext } from './context.js';
 import type { Msg, Provider, Turn } from './types.js';
@@ -86,7 +86,7 @@ export async function runSkillSubRun(opts: {
                 maxMs: ctx.config.turnMaxMs,
                 onTimeout: () => provider.close?.(),
               }),
-            { isRetryable: isRateLimit, baseMs: 250 },
+            { isRetryable: isRetryableProviderError, baseMs: 250 },
           );
           break;
         } catch (err) {

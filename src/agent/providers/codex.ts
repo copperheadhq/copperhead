@@ -58,6 +58,8 @@ export class CodexProvider implements Provider {
   private readonly client: CodexClientLike;
   private thread: CodexThreadLike | null = null;
   private messageCursor = 0;
+  private historyPrefix: string | null = null;
+  private lastAssistant: string | null = null;
   /** In-flight turn aborters, so close() (called by the turn watchdog on a hung
    * turn) kills the `codex exec` subprocess instead of orphaning it. */
   private readonly inFlight = new Set<AbortController>();
@@ -74,6 +76,11 @@ export class CodexProvider implements Provider {
   }
 
   async chat(messages: Msg[], tools: ToolSchema[], _opts: ChatOpts = {}): Promise<Turn> {
+    // A nested skill has its own conversation. Its messages (and the parent
+    // history when it returns) must never be sliced using another chat's cursor.
+    if (this.messageCursor && JSON.stringify(messages.slice(0, this.messageCursor)) !== this.historyPrefix) {
+      await this.close();
+    }
     const generation = this.generation;
     const aborter = new AbortController();
     this.inFlight.add(aborter);
@@ -97,7 +104,7 @@ export class CodexProvider implements Provider {
       const schema = turnSchema(tools);
       const toolCatalog = new Map(tools.map((tool) => [tool.name, tool]));
       const attempts: CodexTurnLike[] = [];
-      let result = await this.runThread(thread, renderTurnPrompt(messages, cursor, tools), schema, aborter.signal);
+      let result = await this.runThread(thread, renderTurnPrompt(messages, cursor, tools, this.lastAssistant), schema, aborter.signal);
       this.assertCurrent(generation);
       attempts.push(result);
 
@@ -114,8 +121,11 @@ export class CodexProvider implements Provider {
 
       // The input remains unseen until Copperhead accepts a structured turn.
       this.messageCursor = messages.length;
+      this.historyPrefix = JSON.stringify(messages);
+      const text = parsed.text.trim() || null;
+      this.lastAssistant = assistantKey({ role: 'assistant', content: text, toolCalls: parsed.toolCalls });
       return {
-        text: parsed.text.trim() || null,
+        text,
         toolCalls: parsed.toolCalls,
         usage: {
           inputTokens: attempts.reduce((sum, attempt) => sum + (attempt.usage?.input_tokens ?? 0), 0),
@@ -142,6 +152,8 @@ export class CodexProvider implements Provider {
     // thread being discarded; otherwise a retried turn runs without context.
     this.thread = null;
     this.messageCursor = 0;
+    this.historyPrefix = null;
+    this.lastAssistant = null;
     // Forget the directory before deleting it: the watchdog does not await
     // close(), so a retried turn can start while rm is still running, and it must
     // create a fresh directory rather than reuse the one being deleted.
@@ -191,7 +203,11 @@ export class CodexProvider implements Provider {
   }
 }
 
-function renderTurnPrompt(messages: Msg[], cursor: number, tools: ToolSchema[]): string {
+function assistantKey(message: Extract<Msg, { role: 'assistant' }>): string {
+  return JSON.stringify({ content: message.content, toolCalls: message.toolCalls ?? [] });
+}
+
+function renderTurnPrompt(messages: Msg[], cursor: number, tools: ToolSchema[], lastAssistant: string | null): string {
   const unseen = messages.slice(cursor);
   const sections = [
     [
@@ -209,7 +225,10 @@ function renderTurnPrompt(messages: Msg[], cursor: number, tools: ToolSchema[]):
     for (const message of unseen) sections.push(renderMessage(message));
   } else {
     const updates = unseen
-      .filter((message) => message.role !== 'assistant')
+      // Only the response this thread just produced is already in its context.
+      // Later assistant turns may have come from the response cache; include
+      // them before their tool results so Codex sees the actions they requested.
+      .filter((message, index) => !(index === 0 && message.role === 'assistant' && assistantKey(message) === lastAssistant))
       .map(renderMessage);
     if (updates.length) sections.push(`New results and instructions since your previous turn:\n${updates.join('\n\n')}`);
   }

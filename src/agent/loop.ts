@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { Msg, Provider, Turn } from './types.js';
 import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
@@ -24,7 +24,8 @@ import { plainRenderer, fmtDuration, fmtTokens, type ProgressRenderer } from './
 import { styleHeaderLines } from './theme.js';
 import { ObligationsLedger } from './ledger.js';
 import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun } from '../util/git.js';
-import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
+import { resolveInRepo } from '../util/paths.js';
+import { withRetry, isRateLimit, isRetryableProviderError, sessionLimit } from '../util/retry.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import { OpenAIProvider } from './providers/openai.js';
@@ -174,7 +175,7 @@ async function appendChangelog(
   config: CopperheadConfig,
   entry: { changeId: string | null; request: string; files: string[]; verification: string },
 ): Promise<void> {
-  const p = path.join(repoRoot, config.docs, 'CHANGELOG.md');
+  const p = resolveInRepo(repoRoot, path.join(config.docs, 'CHANGELOG.md'));
   const date = new Date().toISOString().slice(0, 10);
   const block = [
     ``,
@@ -187,7 +188,8 @@ async function appendChangelog(
   let text: string;
   try {
     text = await readFile(p, 'utf8');
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     text = '# Design changelog\n\nAppend-only, newest first. One entry per committed copperhead run.\n';
   }
   // newest first: insert right after the header block (first blank line after content start)
@@ -200,6 +202,7 @@ async function appendChangelog(
     }
   }
   lines.splice(insertAt, 0, ...block.split('\n').slice(1), '');
+  await mkdir(path.dirname(p), { recursive: true });
   await writeFile(p, lines.join('\n'), 'utf8');
 }
 
@@ -379,7 +382,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     await transcript.event('run-failed', { reason, exitPath });
     // Preserve the touched work as a stash entry before the rollback destroys
     // it, so a budget-exhaustion (or any) failure is recoverable (issue #15).
-    const preserved = await preserveFailedRun(repoRoot, ctx.runId);
+    const preserved = await preserveFailedRun(repoRoot, ctx.runId, snap);
     if (preserved) await transcript.event('work-preserved', { stash: preserved });
     // The rollback itself can fail (git in a bad state). That must not become
     // an unhandled throw that skips run-end and summary.md — the summary is
@@ -466,13 +469,6 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       await transcript.event('budget-extended', { extraTurns: extra, budget, ...exhaustStats });
       log(`turn budget extended by ${extra} (now ${budget})`);
     }
-    // Advertise EVERY tool each turn; dispatchTool enforces the edit-unlock gate
-    // live at call time. Hiding locked edit tools from the turn catalog meant a
-    // model that unlocked (validate_change) and edited in the SAME reply had its
-    // edit silently dropped in parsing — the call named a tool the turn had not
-    // advertised, so it was treated as prose, executed nothing, and returned no
-    // error. The model then "verified" against an unchanged file (an empty
-    // schematic even passes ERC) and finished believing it had succeeded.
     // Structural lock (SPEC.md §1.3 invariant 1): the edit tools stay OUT of the
     // advertised list until a proposal validates (`editsUnlocked`), so the model
     // is gated by omission, not by prompt text. `dispatchTool` re-checks the same
@@ -517,7 +513,10 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
               }),
             { idleMs: config.turnTimeoutMs, maxMs: config.turnMaxMs, onTimeout: () => provider.close?.() },
           ),
-        { onRetry: (attempt) => log(`rate limited; retry ${attempt}`) },
+        {
+          isRetryable: isRetryableProviderError,
+          onRetry: (attempt, err) => log(`${isRateLimit(err) ? 'rate limited' : 'transient provider error'}; retry ${attempt}`),
+        },
       );
     } catch (err) {
       if (err instanceof TurnTimeoutError && err.kind === 'max') {
@@ -622,6 +621,10 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
       r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
+      // An accepted finish seals this run. Later calls in the same model
+      // response must not mutate a design whose gates were already checked,
+      // or replace a refusal with success. A rejected finish keeps going.
+      if (ctx.finishRequest) break;
     }
 
     if (ctx.repairCycles > config.maxRepairCycles) {
@@ -722,14 +725,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         };
       }
 
-      // Bookkeeping must never cost the verified design its commit (2.1): the
-      // KiCad work passed its ERC/DRC gates, so a failure appending the changelog
-      // (a plain CHANGELOG.md read+write) is a warning, not a rollback. It stays
-      // before commitAll so, on the normal path, the entry lands in the run's
-      // single commit and a zero-edit "done" run still has something to commit;
-      // if it throws, the design is committed without a changelog line rather
-      // than sent through fail()'s rollback. The other bookkeeping — the openspec
-      // archive — is already post-commit and non-fatal below.
+      // The changelog is a commit gate, just like ERC/DRC and doc drift.
+      // Preserve failed work and restore the snapshot if it cannot be written.
       try {
         await appendChangelog(repoRoot, config, {
           changeId: ctx.changeId,
@@ -740,8 +737,12 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         ctx.ledger.clear('changelog');
       } catch (err) {
         const message = (err as Error).message;
-        log(`warning: changelog append failed (${message}); committing the verified design without a changelog entry`);
         await transcript.event('changelog-append-failed', { error: message });
+        return fail(`changelog append failed: ${message}`, 'commit-failed');
+      }
+
+      if (!ctx.ledger.isClear) {
+        return fail(`cannot commit with open sync obligations:\n${ctx.ledger.describe()}`, 'commit-failed');
       }
 
       const commitMsg = `copperhead: ${opts.request}\n\n${summary}\n\nVerification: ${verification}`;
@@ -750,7 +751,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       // (AC-8.6): roll back per the snapshot contract and report commit-failed.
       let commit: string;
       try {
-        commit = await commitAll(repoRoot, commitMsg);
+        commit = await commitAll(repoRoot, commitMsg, snap);
       } catch (err) {
         return fail(`commit failed: ${(err as Error).message}`, 'commit-failed');
       }
@@ -761,7 +762,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           const arch = await openspecArchive(repoRoot, ctx.changeId);
           await transcript.event('openspec-archive', { changeId: ctx.changeId, ok: arch.ok });
           if (arch.ok && (await isDirty(repoRoot))) {
-            await commitAll(repoRoot, `copperhead: archive change ${ctx.changeId}`);
+            await commitAll(repoRoot, `copperhead: archive change ${ctx.changeId}`, snap);
           }
         } catch (err) {
           const message = (err as Error).message;

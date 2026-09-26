@@ -6,7 +6,6 @@ import {
   resolveKicadCli,
   resetKicadCliCache,
   setKicadFallbackBinaries,
-  setKicadFallbackWinRoots,
   defaultFallbackBinaries,
   kicadCliVersion,
   KicadCliBadOverrideError,
@@ -33,6 +32,17 @@ async function writeMockExecutable(binPath: string, output = '9.0.1'): Promise<s
   }
 }
 
+/** Exercise real Windows candidate discovery without trying host app bundles. */
+function useFixtureWindowsRoots(roots: string[]): void {
+  // defaultFallbackBinaries always prepends macOS paths, even with explicit
+  // Windows roots. Keep the generated fixture candidates in their original
+  // order so these tests cannot select a real KiCad installation on the host.
+  const candidates = defaultFallbackBinaries(roots).filter((candidate) =>
+    roots.some((root) => candidate.startsWith(root + path.sep)),
+  );
+  setKicadFallbackBinaries(candidates);
+}
+
 describe('kicad-cli binary resolution', () => {
   const saved = process.env.COPPERHEAD_KICAD_CLI;
   let dir: string;
@@ -47,7 +57,6 @@ describe('kicad-cli binary resolution', () => {
     else process.env.COPPERHEAD_KICAD_CLI = saved;
     resetKicadCliCache();
     setKicadFallbackBinaries();
-    setKicadFallbackWinRoots();
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -183,7 +192,7 @@ describe('kicad-cli binary resolution', () => {
     const binBase = path.join(winRoot, '10.0', 'bin', 'kicad-cli');
     const bin = await writeMockExecutable(binBase, '10.0.5');
 
-    setKicadFallbackWinRoots([winRoot]);
+    useFixtureWindowsRoots([winRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
     try {
@@ -210,13 +219,14 @@ describe('kicad-cli binary resolution', () => {
     const binBase10 = path.join(winRoot, '10.0', 'bin', 'kicad-cli');
     await writeMockExecutable(binBase8, '8.0.0');
     await writeMockExecutable(binBase9, '9.0.0');
-    await writeMockExecutable(binBase10, '10.0.5');
+    const newest = await writeMockExecutable(binBase10, '10.0.5');
 
-    setKicadFallbackWinRoots([winRoot]);
+    useFixtureWindowsRoots([winRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir; // empty dir: PATH has no kicad-cli
     try {
       expect(await kicadCliVersion()).toBe('10.0.5');
+      expect(resolveKicadCli()).toBe(newest);
     } finally {
       process.env.PATH = savedPath;
     }
@@ -228,7 +238,7 @@ describe('kicad-cli binary resolution', () => {
     const binBase = path.join(winRoot, 'bin', 'kicad-cli');
     const bin = await writeMockExecutable(binBase, '8.0.0');
 
-    setKicadFallbackWinRoots([winRoot]);
+    useFixtureWindowsRoots([winRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
     try {
@@ -279,7 +289,7 @@ describe('kicad-cli binary resolution', () => {
     const binBase = path.join(winRoot, '7.0', 'bin', 'kicad-cli');
     await writeMockExecutable(binBase, '7.0.11');
 
-    setKicadFallbackWinRoots([winRoot]);
+    useFixtureWindowsRoots([winRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir; // empty dir: PATH has no kicad-cli
     try {
@@ -314,7 +324,7 @@ describe('kicad-cli binary resolution', () => {
     // Pass both roots: fakeRoot (unlistable) first, then realRoot.
     // The fakeRoot unversioned probe will miss (nothing at fakeRoot/bin/),
     // but realRoot unversioned probe must succeed.
-    setKicadFallbackWinRoots([fakeRoot, realRoot]);
+    useFixtureWindowsRoots([fakeRoot, realRoot]);
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
     try {

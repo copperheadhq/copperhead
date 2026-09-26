@@ -2,7 +2,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
-import { formatViolations, type CheckReport } from '../kicad/report.js';
+import { formatViolations } from '../kicad/report.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '../memory/constraints.js';
 import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
@@ -16,8 +16,8 @@ import { openspecValidate } from '../openspec/cli.js';
  */
 export interface CheckResult {
   ok: boolean;
-  erc: { ok: boolean; violations: number } | null;
-  drc: { ok: boolean; violations: number } | null;
+  erc: { ok: boolean; violations: number; error?: string } | null;
+  drc: { ok: boolean; violations: number; error?: string } | null;
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
@@ -39,19 +39,31 @@ export interface CheckResult {
 
 export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
-  let erc: CheckReport | null = null;
-  let drc: CheckReport | null = null;
+  let erc: CheckResult['erc'] = null;
+  let drc: CheckResult['drc'] = null;
 
-  if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    erc = await runErc(path.join(repoRoot, config.schematic));
-    log(erc.ok ? 'ERC ✓' : formatViolations(erc));
+  if (config.schematic) {
+    if (existsSync(path.join(repoRoot, config.schematic))) {
+      const report = await runErc(path.join(repoRoot, config.schematic));
+      erc = { ok: report.ok, violations: report.violations.length };
+      log(report.ok ? 'ERC ✓' : formatViolations(report));
+    } else {
+      erc = { ok: false, violations: 0, error: `configured schematic is missing: ${config.schematic}` };
+      log(`ERC failed: ${erc.error}`);
+    }
   } else {
     log('ERC skipped (no schematic configured; run copperhead init)');
   }
 
-  if (config.board && existsSync(path.join(repoRoot, config.board))) {
-    drc = await runDrc(path.join(repoRoot, config.board));
-    log(drc.ok ? 'DRC ✓' : formatViolations(drc));
+  if (config.board) {
+    if (existsSync(path.join(repoRoot, config.board))) {
+      const report = await runDrc(path.join(repoRoot, config.board));
+      drc = { ok: report.ok, violations: report.violations.length };
+      log(report.ok ? 'DRC ✓' : formatViolations(report));
+    } else {
+      drc = { ok: false, violations: 0, error: `configured board is missing: ${config.board}` };
+      log(`DRC failed: ${drc.error}`);
+    }
   } else {
     log('DRC skipped (no board configured)');
   }
@@ -131,8 +143,8 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
 
   return {
     ok,
-    erc: erc ? { ok: erc.ok, violations: erc.violations.length } : null,
-    drc: drc ? { ok: drc.ok, violations: drc.violations.length } : null,
+    erc,
+    drc,
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },

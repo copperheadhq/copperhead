@@ -55,6 +55,8 @@ export class CursorProvider implements Provider {
   private cwdPromise?: Promise<string>;
   private sessionId?: string;
   private sentCount = 0;
+  private historyPrefix: string | null = null;
+  private generation = 0;
   private readonly inFlight = new Set<AbortController>();
 
   constructor(
@@ -70,6 +72,10 @@ export class CursorProvider implements Provider {
   ) {}
 
   async chat(messages: Msg[], tools: ToolSchema[], opts: ChatOpts = {}): Promise<Turn> {
+    if (this.sessionResume && this.sentCount && JSON.stringify(messages.slice(0, this.sentCount)) !== this.historyPrefix) {
+      await this.close();
+    }
+    const generation = this.generation;
     const system = messages
       .filter((m) => m.role === 'system')
       .map((m) => m.content)
@@ -79,6 +85,7 @@ export class CursorProvider implements Provider {
     const prompt = resume ? renderDelta(messages, this.sentCount) : renderConversation(messages);
     const catalog = new Set(tools.map((t) => t.name));
     const workspace = await this.ensureWorkspace();
+    this.assertCurrent(generation);
 
     const aborter = new AbortController();
     this.inFlight.add(aborter);
@@ -95,6 +102,7 @@ export class CursorProvider implements Provider {
         signal: aborter.signal,
         env: subprocessEnv(),
       });
+      this.assertCurrent(generation);
       text = result.text;
       if (this.sessionResume && result.sessionId) this.sessionId = result.sessionId;
       inputTokens = result.usage.inputTokens;
@@ -108,7 +116,10 @@ export class CursorProvider implements Provider {
     }
 
     // Only advance the high-water mark when resume is on (same as claude-code).
-    if (this.sessionResume) this.sentCount = messages.length;
+    if (this.sessionResume) {
+      this.sentCount = messages.length;
+      this.historyPrefix = JSON.stringify(messages);
+    }
     const parsed = parseToolCalls(text, () => `cur-${++this.callSeq}`, catalog);
     return {
       text: parsed.text,
@@ -119,6 +130,10 @@ export class CursorProvider implements Provider {
   }
 
   async close(): Promise<void> {
+    this.generation++;
+    this.sessionId = undefined;
+    this.sentCount = 0;
+    this.historyPrefix = null;
     for (const aborter of this.inFlight) {
       try {
         aborter.abort();
@@ -134,6 +149,12 @@ export class CursorProvider implements Provider {
       await rm(await pending, { recursive: true, force: true });
     } catch {
       // best effort
+    }
+  }
+
+  private assertCurrent(generation: number): void {
+    if (generation !== this.generation) {
+      throw new Error('cursor: turn abandoned because the provider was closed while it ran');
     }
   }
 
@@ -266,7 +287,7 @@ function extractResultFields(
   const type = typeof obj.type === 'string' ? obj.type.toLowerCase() : '';
   if (type === 'result' || typeof obj.result === 'string') {
     if (obj.is_error === true) {
-      throw new Error(typeof obj.result === 'string' ? obj.result : 'Cursor Agent returned an error result');
+      throw new Error(`cursor: ${typeof obj.result === 'string' ? obj.result : 'Cursor Agent returned an error result'}`);
     }
     if (typeof obj.result === 'string') {
       return {

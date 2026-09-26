@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { CopperheadConfig } from '../config.js';
 import type { ConstraintRegistry } from '../memory/constraints.js';
+import { resolveInRepo } from '../util/paths.js';
 
 /** SPEC §4.3 — verbatim requirements. */
 const SYSTEM_RULES = `You are a hardware design agent working on real KiCad source files. Edit s-expressions surgically; never regenerate a whole file.
@@ -44,11 +45,11 @@ export async function buildSystemPrompt(
     parts.push(JSON.stringify(constraints, null, 2), '```');
   }
 
-  const docsDir = path.join(repoRoot, config.docs);
+  const docsDir = resolveInRepo(repoRoot, config.docs);
   if (existsSync(docsDir)) {
     const files = (await readdir(docsDir)).filter((f) => f.endsWith('.md')).sort();
     for (const f of files) {
-      const text = await readFile(path.join(docsDir, f), 'utf8');
+      const text = await readFile(resolveInRepo(repoRoot, path.join(docsDir, f)), 'utf8');
       parts.push('', `## docs/${f}`, '', text);
     }
   }

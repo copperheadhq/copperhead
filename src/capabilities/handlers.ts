@@ -118,16 +118,28 @@ export const HANDLERS: HandlerDef[] = [
     requiresUnlock: false,
     handler: async (ctx, args) => {
       const id = str(args, 'id');
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
+        return 'error: change id must be kebab-case (lowercase letters, digits, and single hyphens)';
+      }
+      const why = str(args, 'why');
+      const whatChanges = str(args, 'what_changes');
+      const tasks = str(args, 'tasks');
       const dir = resolveInRepo(ctx.repoRoot, path.join('openspec', 'changes', id));
+      // Approval belongs to the proposal being validated, never to a later
+      // replacement. Re-lock before the first write, including partial errors.
+      ctx.editsUnlocked = false;
+      ctx.proposalValidated = false;
+      ctx.changeId = id;
+      const proposalPath = resolveInRepo(ctx.repoRoot, path.join(dir, 'proposal.md'));
+      const tasksPath = resolveInRepo(ctx.repoRoot, path.join(dir, 'tasks.md'));
       await mkdir(dir, { recursive: true });
       const auto = ctx.interactive ? '' : '\n> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)\n';
       await writeFile(
-        path.join(dir, 'proposal.md'),
-        `# Proposal: ${id}\n${auto}\n## Why\n\n${str(args, 'why')}\n\n## What Changes\n\n${str(args, 'what_changes')}\n`,
+        proposalPath,
+        `# Proposal: ${id}\n${auto}\n## Why\n\n${why}\n\n## What Changes\n\n${whatChanges}\n`,
         'utf8',
       );
-      await writeFile(path.join(dir, 'tasks.md'), `# Tasks\n\n${str(args, 'tasks')}\n`, 'utf8');
-      ctx.changeId = id;
+      await writeFile(tasksPath, `# Tasks\n\n${tasks}\n`, 'utf8');
       return `proposal written to openspec/changes/${id}/ — now call validate_change`;
     },
   },
@@ -139,6 +151,8 @@ export const HANDLERS: HandlerDef[] = [
     },
     requiresUnlock: false,
     handler: async (ctx) => {
+      ctx.editsUnlocked = false;
+      ctx.proposalValidated = false;
       if (!ctx.changeId) return 'no proposal yet: call propose_change first';
       let ok: boolean;
       let detail: string;
@@ -718,7 +732,7 @@ export const HANDLERS: HandlerDef[] = [
       const affects = (args.affects as string | undefined) ?? '';
       const date = new Date().toISOString().slice(0, 10);
       const entry = `- ${date} [run ${ctx.runId}] ${decision} | why: ${rationale}${affects ? ` | affects: ${affects}` : ''}`;
-      const p = path.join(ctx.repoRoot, ctx.config.docs, 'DECISIONS.md');
+      const p = resolveInRepo(ctx.repoRoot, path.join(ctx.config.docs, 'DECISIONS.md'));
       await appendFile(p, entry + '\n', 'utf8');
       ctx.decisions.push(`${decision} | why: ${rationale}`);
       ctx.filesTouched.add(path.join(ctx.config.docs, 'DECISIONS.md'));
@@ -743,11 +757,15 @@ export const HANDLERS: HandlerDef[] = [
     handler: async (ctx, args) => {
       const outcome = str(args, 'outcome') as 'done' | 'refuse';
       const summary = str(args, 'summary');
+      if (outcome !== 'done' && outcome !== 'refuse') return 'error: outcome must be "done" or "refuse"';
       if (outcome === 'refuse') {
         ctx.finishRequest = { outcome, summary };
         return 'refusal recorded; run will end';
       }
       const problems: string[] = [];
+      if (ctx.changeId && (!ctx.proposalValidated || !ctx.editsUnlocked)) {
+        problems.push('the current proposal has not been validated and approved (run validate_change)');
+      }
       const touchedKicad = [...ctx.filesTouched].some((f) => isKicadFile(f));
       if (touchedKicad) {
         if (!ctx.lastErc?.ok) problems.push('ERC has not passed since the last schematic edit (run run_erc)');

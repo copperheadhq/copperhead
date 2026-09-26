@@ -1,8 +1,11 @@
-import { access } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { CodexProvider } from '../src/agent/providers/codex.js';
+import { CachingProvider } from '../src/agent/response-cache.js';
 import { makeProvider } from '../src/agent/loop.js';
-import type { Msg, ToolSchema } from '../src/agent/types.js';
+import type { Msg, ToolSchema, Turn } from '../src/agent/types.js';
 
 const readTool: ToolSchema = {
   name: 'read_file',
@@ -160,6 +163,60 @@ describe('CodexProvider', () => {
     expect(prompt).toContain(JSON.stringify({ kind: 'user', content: hostile }));
     expect(prompt).toContain(JSON.stringify({ kind: 'tool_result', callId: 'call-1', content: hostile }));
     expect(prompt).not.toContain('<tool_result call_id=');
+  });
+
+  it('includes a cached assistant turn before its tool result on the next live request', async () => {
+    const cacheDir = await mkdtemp(path.join(tmpdir(), 'copperhead-codex-cache-'));
+    const first: Turn = {
+      text: 'Live inspection plan',
+      toolCalls: [{ id: 'live-call', name: 'read_file', args: { path: 'docs/SPEC.md' } }],
+      usage: { inputTokens: 2, outputTokens: 1 },
+    };
+    const cached: Turn = {
+      text: 'Cached follow-up plan',
+      toolCalls: [{ id: 'cached-call', name: 'read_file', args: { path: 'docs/BOM.md' } }],
+      usage: { inputTokens: 2, outputTokens: 1 },
+    };
+    const initial: Msg[] = [{ role: 'user', content: 'inspect the design' }];
+    const second: Msg[] = [
+      ...initial,
+      { role: 'assistant', content: first.text, toolCalls: first.toolCalls },
+      { role: 'tool', toolCallId: 'live-call', content: 'spec contents' },
+    ];
+    const run = vi.fn()
+      .mockResolvedValueOnce({
+        finalResponse: JSON.stringify({ text: first.text, toolCalls: first.toolCalls.map((call) => ({
+          id: call.id, name: call.name, arguments: JSON.stringify(call.args),
+        })) }),
+        usage: null,
+      })
+      .mockResolvedValueOnce({ finalResponse: '{"text":"done","toolCalls":[]}', usage: null });
+    const startThread = vi.fn(() => ({ run }));
+    const inner = new CodexProvider({ client: { startThread } });
+    const provider = new CachingProvider(inner, cacheDir);
+    try {
+      // A completed turn from an earlier run, replayed without reaching Codex.
+      await new CachingProvider({ name: 'codex', chat: async () => cached }, cacheDir).chat(second, [readTool]);
+      await provider.chat(initial, [readTool]);
+      const replay = await provider.chat(second, [readTool]);
+      expect(provider.cacheHits).toBe(1);
+      expect(run).toHaveBeenCalledTimes(1);
+      await provider.chat([
+        ...second,
+        { role: 'assistant', content: replay.text, toolCalls: replay.toolCalls },
+        { role: 'tool', toolCallId: 'cached-call', content: 'bom contents' },
+      ], [readTool]);
+      expect(startThread).toHaveBeenCalledTimes(1);
+      const prompt = run.mock.calls[1]![0] as string;
+      expect(prompt).not.toContain('Live inspection plan');
+      expect(prompt).toContain('Cached follow-up plan');
+      expect(prompt).toContain('"path":"docs/BOM.md"');
+      expect(prompt).toContain('bom contents');
+      expect(prompt.indexOf('Cached follow-up plan')).toBeLessThan(prompt.indexOf('"callId":"cached-call"'));
+    } finally {
+      await provider.close();
+      await rm(cacheDir, { recursive: true, force: true });
+    }
   });
 
   it('retries an unavailable tool with validation feedback without duplicating input', async () => {

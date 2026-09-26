@@ -78,6 +78,9 @@ export interface QueryMessage {
   session_id?: string;
   message?: { content?: Array<{ type: string; text?: string }> };
   usage?: { input_tokens?: number; output_tokens?: number };
+  is_error?: boolean;
+  errors?: string[];
+  result?: string;
   /** On a `stream_event` message: the raw Messages-API stream event. */
   event?: { type: string; delta?: { type: string; text?: string } };
 }
@@ -120,6 +123,8 @@ export class ClaudeCodeProvider implements Provider {
    * turn sends only the delta. Unused unless `sessionResume` is on. */
   private sessionId?: string;
   private sentCount = 0;
+  private historyPrefix: string | null = null;
+  private generation = 0;
 
   constructor(
     private readonly model?: string,
@@ -141,7 +146,14 @@ export class ClaudeCodeProvider implements Provider {
   // honored: this provider streams, so it reports cumulative streamed-text length
   // as blocks arrive, which the loop turns into a liveness heartbeat (5.1).
   async chat(messages: Msg[], tools: ToolSchema[], opts: ChatOpts = {}): Promise<Turn> {
+    // Skills reuse this provider with an independent conversation. Reset the
+    // resumed session whenever the caller switches away from its saved prefix.
+    if (this.sessionResume && this.sentCount && JSON.stringify(messages.slice(0, this.sentCount)) !== this.historyPrefix) {
+      await this.close();
+    }
+    const generation = this.generation;
     const query = await this.resolveQuery();
+    this.assertCurrent(generation);
 
     const system = messages
       .filter((m) => m.role === 'system')
@@ -156,6 +168,7 @@ export class ClaudeCodeProvider implements Provider {
     const prompt = resume ? renderDelta(messages, this.sentCount) : renderConversation(messages);
     const catalog = new Set(tools.map((t) => t.name));
     const cwd = await this.ensureCwd();
+    this.assertCurrent(generation);
 
     let text: string | null = null;
     let inputTokens = 0;
@@ -202,6 +215,7 @@ export class ClaudeCodeProvider implements Provider {
           maxTurns: 1,
         },
       })) {
+        this.assertCurrent(generation);
         if (msg.type === 'stream_event') {
           // Every partial event is progress (thinking and block boundaries too),
           // and reporting it restarts the loop's inactivity watchdog; only text
@@ -230,6 +244,10 @@ export class ClaudeCodeProvider implements Provider {
             }
           }
         } else if (msg.type === 'result') {
+          if (msg.is_error || msg.subtype?.startsWith('error')) {
+            const detail = msg.errors?.join('; ') || msg.result || msg.subtype || 'unknown SDK error';
+            throw new Error(`claude-code: Agent SDK turn failed: ${detail}`);
+          }
           if (typeof msg.usage?.input_tokens === 'number') inputTokens = msg.usage.input_tokens;
           if (typeof msg.usage?.output_tokens === 'number') outputTokens = msg.usage.output_tokens;
         }
@@ -248,10 +266,15 @@ export class ClaudeCodeProvider implements Provider {
       this.inFlight.delete(aborter);
     }
 
+    this.assertCurrent(generation);
+
     // Only advance the high-water mark on a turn that completed: a thrown turn
     // (rate limit, timeout) is retried, and must re-send the same delta so no
     // message is lost from the resumed session (1.1).
-    if (this.sessionResume) this.sentCount = messages.length;
+    if (this.sessionResume) {
+      this.sentCount = messages.length;
+      this.historyPrefix = JSON.stringify(messages);
+    }
 
     const parsed = parseToolCalls(text, () => `cc-${++this.callSeq}`, catalog);
     return {
@@ -270,6 +293,10 @@ export class ClaudeCodeProvider implements Provider {
    * A leftover empty dir in the OS tmpdir is harmless; the startup sweep reclaims
    * any that a hard SIGKILL bypassed this cleanup for. */
   async close(): Promise<void> {
+    this.generation++;
+    this.sessionId = undefined;
+    this.sentCount = 0;
+    this.historyPrefix = null;
     for (const aborter of this.inFlight) {
       try {
         aborter.abort();
@@ -285,6 +312,12 @@ export class ClaudeCodeProvider implements Provider {
       await rm(await pending, { recursive: true, force: true });
     } catch {
       // best effort: a leftover empty dir in the OS tmpdir is harmless
+    }
+  }
+
+  private assertCurrent(generation: number): void {
+    if (generation !== this.generation) {
+      throw new Error('claude-code: turn abandoned because the provider was closed while it ran');
     }
   }
 

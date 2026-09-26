@@ -270,16 +270,16 @@ describe('CachingProvider', () => {
     }
   });
 
-  it('hits a pre-upgrade cache entry for a non-compat model (key shape unchanged)', async () => {
-    // Before baseURL existed in the key, a non-compat entry hashed exactly
-    // {model, messages, tools}. Writing a file under that same hash and
-    // confirming a fresh CachingProvider (no baseURL) still hits it proves the
-    // key is byte-identical post-upgrade, so existing users' caches are not
-    // stranded on the first run after upgrading.
+  it('regenerates a legacy name-only entry because its tool contract cannot be verified', async () => {
+    // A tool name alone does not tell us which schema/description produced a
+    // cached call. Old entries cannot safely stand in for the current contract.
     const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-cache-'));
     try {
+      const currentTools: ToolSchema[] = [{
+        name: 'inspect', description: 'Inspect the current design', parameters: { type: 'object' },
+      }];
       const preUpgradeKey = createHash('sha256')
-        .update(JSON.stringify({ model: 'gpt-5', messages: msgs, tools: tools.map((t) => t.name) }))
+        .update(JSON.stringify({ model: 'gpt-5', messages: msgs, tools: currentTools.map((t) => t.name) }))
         .digest('hex');
       await writeFile(
         path.join(dir, `${preUpgradeKey}.json`),
@@ -288,9 +288,9 @@ describe('CachingProvider', () => {
       );
       const inner = new CountingProvider(() => turn('fresh answer'));
       const cached = new CachingProvider(inner, dir, undefined, 'gpt-5'); // no baseURL: non-compat
-      const result = await cached.chat(msgs, tools);
-      expect(result.text).toBe('pre-upgrade cached answer');
-      expect(inner.calls).toBe(0); // served from the pre-upgrade entry, not re-called
+      const result = await cached.chat(msgs, currentTools);
+      expect(result.text).toBe('fresh answer');
+      expect(inner.calls).toBe(1);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

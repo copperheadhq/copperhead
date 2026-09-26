@@ -489,13 +489,13 @@ describe('session log file', () => {
         output,
         runRequest: vi.fn(async (_req: string, log?: (l: string) => void) => {
           log?.('leaked sk-SECRET_KEY_123 in output');
+          // EOF ends the shell after this turn. Fixed-delay /quit input can
+          // arrive before startup git checks finish and get cleared by pause().
+          input.end();
           return { outcome: 'success' as const };
         }),
       });
-      await new Promise((r) => setTimeout(r, 30));
       input.write('do the thing\n');
-      await new Promise((r) => setTimeout(r, 30));
-      input.write('/quit\n');
       await done;
 
       const runsDir = path.join(repo, '.copperhead', 'runs');
@@ -508,6 +508,7 @@ describe('session log file', () => {
       expect(text).toContain('[REDACTED]'); // AC-4.1 redaction
       expect(text).not.toContain('sk-SECRET_KEY_123');
       expect(text).not.toContain('\x1b[');
+      expect(text).toContain('copperhead session ended');
     } finally {
       await rm(repo, { recursive: true, force: true });
     }
@@ -539,13 +540,11 @@ describe('session log file', () => {
         output,
         runRequest: vi.fn(async (_req: string, log?: (l: string) => void) => {
           for (const s of secrets) log?.(`tool output: ${s} trailing`);
+          input.end();
           return { outcome: 'success' as const };
         }),
       });
-      await new Promise((r) => setTimeout(r, 30));
       input.write('publish it\n');
-      await new Promise((r) => setTimeout(r, 30));
-      input.write('/quit\n');
       await done;
 
       const runsDir = path.join(repo, '.copperhead', 'runs');
@@ -555,6 +554,7 @@ describe('session log file', () => {
       for (const s of secrets) expect(text, s).not.toContain(s);
       expect(text).toContain('[REDACTED]');
       expect(text).toContain('trailing'); // surrounding context survives
+      expect(text).toContain('copperhead session ended');
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { redactSecrets } from '../util/redact.js';
 import { renderEnvironmentSection, type RunMeta } from './runmeta.js';
 import { fmtDuration, fmtTokens } from './render.js';
+import { resolveInRepo } from '../util/paths.js';
 
 /** How a run terminated — the single most-queried triage fact (AC-8.5). */
 export type ExitPath =
@@ -72,18 +73,20 @@ export class Transcript {
   readonly dir: string;
   readonly jsonlPath: string;
 
-  constructor(repoRoot: string, stamp = new Date()) {
+  constructor(private readonly repoRoot: string, stamp = new Date()) {
     const ts = stamp.toISOString().replace(/[:.]/g, '-');
-    this.dir = path.join(repoRoot, '.copperhead', 'runs', ts);
-    this.jsonlPath = path.join(this.dir, 'transcript.jsonl');
+    this.dir = resolveInRepo(repoRoot, path.join('.copperhead', 'runs', ts));
+    this.jsonlPath = resolveInRepo(repoRoot, path.join(this.dir, 'transcript.jsonl'));
   }
 
   async init(): Promise<void> {
+    resolveInRepo(this.repoRoot, this.jsonlPath);
     await mkdir(this.dir, { recursive: true });
     await writeFile(this.jsonlPath, '', 'utf8');
   }
 
   async event(type: string, data: unknown): Promise<void> {
+    resolveInRepo(this.repoRoot, this.jsonlPath);
     const line = redactSecrets(JSON.stringify({ ts: new Date().toISOString(), type, data }));
     // The audit trail must survive anything that happens to the working tree
     // mid-run (a rollback path once deleted this directory); losing an event
@@ -126,7 +129,7 @@ export class Transcript {
       lines.push('', '## Open sync obligations (unmet at run end)', '', s.openObligations);
     }
     if (s.detail) lines.push('', '## Detail', '', s.detail);
-    const out = path.join(this.dir, 'summary.md');
+    const out = resolveInRepo(this.repoRoot, path.join(this.dir, 'summary.md'));
     await mkdir(this.dir, { recursive: true });
     await writeFile(out, redactSecrets(lines.join('\n') + '\n'), 'utf8');
     return out;
