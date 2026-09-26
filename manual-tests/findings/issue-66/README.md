@@ -82,13 +82,51 @@ reset it to manufacture a passing run.
   then replay with no constructed live provider and strict mismatch failures.
 - **Status:** not implemented. No synthetic successful fixture is claimed.
 
+## DEFECT: installed one-letter symbols are reported missing
+
+- **Priority:** P1.
+- **Where:** `searchInstalledSymbols` and `rankSymbolNames`.
+- **Symptom:** the real part-selection run returned no matches for `R`, `C`,
+  `Device:R` and `Device:C`, while `symbol_pins` resolved both devices with two
+  pins. The tool then incorrectly declared those parts uncapturable.
+- **Suggested:** allow single-character exact matches and accept a `Lib:Name`
+  query without restricting discovery to a guessed library.
+- **Status:** reproduced against the installed official KiCad 10.0.6 libraries.
+  Source repair and exact-match/tool-dispatch regressions are included; single
+  letters still do not trigger broad prefix or substring matching.
+
+## BLOCKER: schematic capture lacks design evidence
+
+- **Priority:** P1.
+- **Where:** real attempt 02, transition from part selection to schematic capture.
+- **Symptom:** the run committed `spec-seed`, `architecture` and `part-selection`,
+  then refused schematic capture. Its generated requirements make RP2040 boot
+  and pin-mux evidence, switch pin semantics, exact footprints and current bounds
+  prerequisites. The part-selection stage left those facts unverified.
+- **Suggested:** supply verified component and power-state evidence through the
+  normal design workflow before capture. Do not remove the gate, invent device
+  data or hand-edit generated artifacts to obtain an apparent success.
+- **Status:** unresolved. The process exited 1, with three actual stage commits
+  independently checked as ancestors of its final HEAD. ERC and DRC did not run.
+  [Console log](attempt-02.log) and [stage evidence](attempt-02.json) preserve the
+  failure. A symbol-search fix alone does not resolve the missing electrical
+  evidence, and rerunning unchanged inputs is not a recovery.
+
 ## Validation and remaining acceptance
 
-After the source and fixture repairs: 1,016 tests passed, 21 tests skipped
+After the source, fixture and smoke-harness repairs: 1,047 tests passed, 21 tests skipped
 (19 agent-integration, one conditional Claude Code provider and one local
 real-design corpus test). Typecheck, CLI build, Markdown lint and phase-1 OpenSpec validation
 passed. Three explicitly enabled real OpenSpec tests are included in that count.
 The package has `lint:md`; it has no `npm run lint` script.
+
+The [opt-in live smoke](../../../scripts/README-create-e2e-smoke.md) now runs a
+fresh synthetic project and verifies eight ordered stage commits, nonempty
+artifacts, and fresh ERC/DRC reports with schematic parity enabled. Its 24
+offline harness regressions pass, including process-group timeout cleanup,
+missing final stages, empty designs and malformed reports. The actual default
+invocation prints SKIPPED without starting a model; the inspector rejects
+attempt 02's real nonzero exit. These checks do not establish a successful live run.
 
 Still required for issue 66:
 
@@ -96,8 +134,8 @@ Still required for issue 66:
   `devplan`, using this medium-complexity brief.
 - Nonempty schematic/netlist/board evidence, genuine ERC/DRC reports, exported
   files and a DEVPLAN that states compiler and physical-validation limits.
-- Automated end-to-end coverage that fails on a wedge, an empty-design false
-  green and a missing final stage, with an explicit CI invocation.
+- Execute the explicit live-smoke command on the complete generated design and
+  retain a passing result; no successful complete live-smoke record exists yet.
 
 The summary's `stageCount: 8` is a configured total, not proof of completion.
 Full local transcripts and cached turns from the failed attempt are retained;

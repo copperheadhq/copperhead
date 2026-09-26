@@ -1,0 +1,37 @@
+{
+  "started_at": "2026-09-26T14:08:35.427444+00:00",
+  "finished_at": "2026-09-26T14:24:22.560971+00:00",
+  "exit_code": 1,
+  "source_head": "7e4e81a78a76ddce158364b84a2ade1a17bba962",
+  "brief_sha256": "4d6c9f17603aac3722faa3fd2b32691725ea03ea01835e40cccf09ffe11090a8",
+  "stages": [
+    {
+      "name": "spec-seed",
+      "commit": "ec2832a87fb11e0d4a102782723283eaa99e4796",
+      "exit_path": "done",
+      "ancestor_verified": true
+    },
+    {
+      "name": "architecture",
+      "commit": "90b9bdfe10ab50e63b24034974e6b0b5ca5b9e51",
+      "exit_path": "done",
+      "ancestor_verified": true
+    },
+    {
+      "name": "part-selection",
+      "commit": "8b697c0f74d28e5cb7fe405078f6c72d928ec13c",
+      "exit_path": "done",
+      "ancestor_verified": true
+    },
+    {
+      "name": "schematic",
+      "commit": null,
+      "exit_path": "refused",
+      "ancestor_verified": false
+    }
+  ],
+  "manual_generated_artifact_edits": false,
+  "full_pipeline_complete": false,
+  "erc": "not run",
+  "drc": "not run"
+}
