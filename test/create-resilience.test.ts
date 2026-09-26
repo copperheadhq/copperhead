@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -221,12 +221,82 @@ describe('create pipeline resilience (review F3)', () => {
       mockRunAgentLoop.mockImplementation(async () => ok());
 
       const lines: string[] = [];
-      await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+      const res = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
 
       const out = lines.join('\n');
       expect(out).toContain('leaving it uncommitted');
       const { stdout } = await execa('git', ['log', '--oneline'], { cwd: repo });
       expect(stdout).not.toMatch(/resume — commit completed stage/);
+      expect(res).toEqual({ ok: false, completed: [] });
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+      expect(mockDiagnose).not.toHaveBeenCalled();
+      expect(await readFile(path.join(repo, 'my-notes.txt'), 'utf8')).toBe('do not touch\n');
+      expect((await execa('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: repo })).stdout).not.toContain('my-notes.txt');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('halts before the next stage when a resumed-stage commit hook fails', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo);
+      await execa('git', ['add', 'brief.md'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'brief'], { cwd: repo });
+      const { stdout: head } = await execa('git', ['rev-parse', 'HEAD'], { cwd: repo });
+
+      const spec = '# s\n\n## Budgets\n\n- sleep_current_uA: 25\n';
+      const docs = path.join(repo, 'docs');
+      await mkdir(docs, { recursive: true });
+      await writeFile(path.join(docs, 'SPEC.md'), spec, 'utf8');
+      const hook = path.join(repo, '.git', 'hooks', 'pre-commit');
+      await writeFile(hook, '#!/bin/sh\necho resume-hook-refused >&2\nexit 1\n', 'utf8');
+      await chmod(hook, 0o755);
+      await execa('git', ['config', 'core.hooksPath', path.dirname(hook)], { cwd: repo });
+
+      // A later stage is a test double only; it must never run on this path.
+      mockRunAgentLoop.mockResolvedValue({
+        ...ok(),
+        outcome: 'failure',
+        exitPath: 'provider-error',
+        summary: 'synthetic stop; no provider invoked',
+      });
+      const lines: string[] = [];
+      const res = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+
+      expect(lines.join('\n')).toContain('resume-hook-refused');
+      expect((await execa('git', ['rev-parse', 'HEAD'], { cwd: repo })).stdout).toBe(head);
+      expect(await readFile(path.join(docs, 'SPEC.md'), 'utf8')).toBe(spec);
+      expect(res.ok).toBe(false);
+      expect(res.completed).toEqual([]);
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+      expect(mockDiagnose).not.toHaveBeenCalled();
+      expect(lines.join('\n')).toContain('stopped at stage 1/8 (spec-seed)');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('resumes an already-committed stage without requiring a new commit', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo);
+      await writeFile(path.join(repo, '.copperhead', 'config.json'), '{"origin":"create"}\n', 'utf8');
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(path.join(repo, 'docs', 'SPEC.md'), '# s\n\n## Budgets\n\n- sleep_current_uA: 25\n', 'utf8');
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'completed spec'], { cwd: repo });
+      const { stdout: head } = await execa('git', ['rev-parse', 'HEAD'], { cwd: repo });
+      mockRunAgentLoop.mockResolvedValue({ ...ok(), outcome: 'failure', exitPath: 'provider-error' });
+
+      const lines: string[] = [];
+      const res = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+
+      expect(res.completed).toEqual(['spec-seed']);
+      expect(mockRunAgentLoop).toHaveBeenCalledTimes(1);
+      expect(mockRunAgentLoop.mock.calls[0]![0].request).toContain('architecture');
+      expect((await execa('git', ['rev-parse', 'HEAD'], { cwd: repo })).stdout).toBe(head);
+      expect(lines.join('\n')).not.toContain('could not commit resumed work');
     } finally {
       await cleanup();
     }
@@ -317,6 +387,8 @@ describe('create pipeline resilience (review F3)', () => {
 
     try {
       const briefPath = await seedRepo(repo);
+      await execa('git', ['add', 'brief.md'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'brief'], { cwd: repo });
 
       // Use a non-default docs directory.
       await writeFile(

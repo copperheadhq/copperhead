@@ -175,6 +175,8 @@ brief.md
 
 Each stage is a `do`-loop run with a stage-specific prompt. State lives in the repo (docs + files), so `create` is resumable: kill it at any stage, re-run, it continues from the docs.
 
+Before skipping an already-complete stage, `create` commits any managed pending work. If that commit fails, or unrelated dirty files prevent a safe commit, it stops at that stage with a resume hint and returns failure. The stage is not added to the completed list, no later agent stage runs, and pending files remain in place. An already-committed stage in a clean tree needs no new commit.
+
 ### First-draft layout (explicitly non-optimal, explicitly useful)
 
 The agent produces an **initial placement and routing plan** — correct, not optimal — and says so:
