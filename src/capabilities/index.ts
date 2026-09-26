@@ -7,6 +7,9 @@ export type { CatalogEntry, CatalogSkill, CatalogTool } from './define.js';
 export { defineTool, defineSkill } from './define.js';
 
 const HINT: Record<string, ViewHint> = {
+  web_search: 'query',
+  search_parts: 'query',
+  fetch_datasheet: 'query',
   read_file: 'query',
   search: 'query',
   list_symbols: 'query',
@@ -39,7 +42,7 @@ function wrap(def: (typeof HANDLERS)[number]): CatalogTool {
     schema: def.schema,
     version: 1,
     viewHint,
-    gate: def.requiresUnlock ? (ctx) => ctx.editsUnlocked : () => true,
+    gate: (ctx) => (def.requiresUnlock ? ctx.editsUnlocked : true) && (def.gate?.(ctx) ?? true),
     handler: async (ctx, args) => {
       const result = await def.handler(ctx, args);
       return typeof result === 'string'

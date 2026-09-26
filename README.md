@@ -117,6 +117,8 @@ copperhead init [--path hardware/]   # scaffold docs/ from an existing schematic
 copperhead do "<change request>"     # the core loop: propose, edit, verify, propagate, commit
 copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
+copperhead parts check parts.md      # live, model-free supplier availability check (research opt-in)
+copperhead check --strict-sourcing   # offline sourceability gate (optional)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
@@ -128,6 +130,96 @@ copperhead mcp                       # EXPERIMENTAL: serve the gated pipeline to
 Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, `skill run`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
 
 `copperhead create` still uses its own hardcoded stages; those are not yet skills.
+
+### Optional part research
+
+Part research is disabled unless `.copperhead/config.json` contains
+`"research": { "enabled": true }`. The default `jlcsearch` provider is
+credential-free; it uses the public JLC/LCSC search service for part metadata,
+stock, prices, and datasheet URLs when supplied. `search_parts` and `fetch_datasheet` are
+added to the agent catalog through the same structural gating path as every
+other capability. Network requests use the configured host allowlist and are
+recorded in the run transcript. `web_search` remains optional and requires a
+Brave API key; Nexar remains available as an explicitly configured provider.
+
+Nexar supplies a client ID and client secret, not a permanent API key.
+Copperhead exchanges them for a short-lived OAuth token when
+`research.provider` is set to `nexar`. Create an app with the supply scope in
+the Nexar portal, then copy its credentials from the Authorization tab.
+
+Datasheets are cached under `.copperhead/datasheets/` with an index, SHA-256
+hash, and extracted per-page text. `copperhead check` reads sourcing snapshots
+and citations offline; `--strict-sourcing` turns stale, missing, or zero-stock
+warnings into failures. A `VERIFIED(datasheet)` BOM marker means only that the
+evidence is attached and mechanically checkable—it is not engineering sign-off.
+
+In the full `do` / `create` workflow, supplier search is a read-only planning
+step. Once the run has a validated OpenSpec change, selecting a result records
+the exact MPN as `UNVERIFIED: <mpn>` in BOM.md and writes the matching sourcing
+snapshot to constraints.json, opening the normal drift and affected-artifact
+obligations. `fetch_datasheet` then caches reproducible evidence; attaching a
+cited section promotes the BOM row to `VERIFIED(datasheet)`. ERC/DRC and the
+obligations ledger still gate the run, while later `check` invocations validate
+the saved sourcing and citation evidence entirely offline.
+
+### Live parts availability check
+
+`copperhead parts check <file>` searches live supplier data for parts mentioned
+in a repository-relative Markdown file. Enable `research.enabled: true` first;
+the default JLCSearch provider needs no API key or model.
+
+Use a table, a list, or a short description. For example:
+
+```md
+# Prototype parts
+
+- MPN: 0603WAF1001T5E qty: 10
+- 10k resistor 0603
+- ESP32 module
+- LCSC: C21190
+
+Use NE555P for the timer.
+```
+
+Tables can use `MPN`, `Part number`, `LCSC`, `Part`, `Name`, `Component`,
+`Description`, or `Value` columns, with optional `Refdes`, `Qty` / `Required qty`,
+and `Package` columns. Explicit MPN/part-number/LCSC fields require an exact match.
+
+```bash
+copperhead parts check examples/parts-check.md
+copperhead parts check demo.md
+copperhead parts check demo.md --output parts-report.md
+```
+
+The terminal shows the searched text and its source line, with four result groups:
+
+- **Available:** an exact match has enough stock. Missing lifecycle or datasheet
+  information adds a review note without removing the part from this count.
+- **Choose a part:** up to three distinct candidates for a name or description,
+  with MPN, package, stock, unit price, description, and supplier link when supplied.
+  These are suggestions; check specifications, then put the chosen MPN or LCSC
+  number in the file and run again. Compatible substitutes are not inferred.
+- **Not available:** an exact match is out of stock, below the requested quantity,
+  or marked EOL/obsolete.
+- **Not found:** no matching result was returned; this does not establish that a
+  part is out of stock everywhere.
+
+Name extraction uses deterministic rules, so arbitrary prose may need editing
+into short part lines. Code blocks, comments, and explicitly excluded sections
+are skipped. Repeated mentions are deduplicated; distinct references retain their
+own quantities. A run accepts up to 50 extracted queries and reuses identical
+lookups. Search suggestions are ordered with sufficient-stock, non-EOL results
+first, preserving supplier order within each group. Stock and pricing are snapshots;
+unknown currency is labelled explicitly.
+
+`--output` saves a Markdown report; `--json` includes queries, source lines, match
+kind, and candidate details. Exit 0 means the lookups completed without missing
+matches or unavailable exact parts; candidate choices and metadata warnings can
+still require review. Provider errors, no matches, and unavailable exact parts
+exit non-zero. The command never changes `BOM.md` or `constraints.json`; the only
+writes are its ignored transcript and an explicitly requested report. Every
+network request goes through the allowlisted research boundary. `copperhead check`
+remains offline.
 
 `--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), and `codex` / `codex:<id>` (Codex CLI, saved login). Routing is by prefix; `claude-code` is matched before the `claude` prefix. `compat:<id>` targets any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, or a local Ollama) via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV` - worked examples for each in [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
 

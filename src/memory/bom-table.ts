@@ -182,6 +182,28 @@ export interface TableRow {
   }
 
   /**
+   * Markdown tables with their named header retained. Unlike
+   * `parseCanonicalTables`, this accepts arbitrary header names so a
+   * deterministic consumer can define a small, explicit input format without
+   * pretending that every table is a BOM or pinout table.
+   */
+  export function parseNamedMarkdownTables(md: string): Array<{ header: TableRow; rows: TableRow[] }> {
+    const tables: Array<{ header: TableRow; rows: TableRow[] }> = [];
+    for (const g of scanTableGroups(md)) {
+      const sep = g.findIndex((l) => l.separator);
+      // A header-less pipe block is not a stable interface. Requiring the GFM
+      // delimiter row also keeps prose containing pipes out of audit inputs.
+      if (sep <= 0) continue;
+      const header = g[sep - 1]!;
+      tables.push({
+        header: { cells: header.cells },
+        rows: g.slice(sep + 1).filter((l) => !l.separator).map((l) => ({ cells: l.cells })),
+      });
+    }
+    return tables;
+  }
+
+  /**
    * PINOUT.md pin assignments, resolved by column *name* and tolerant of the
    * optional Name/Notes columns (see parseCanonicalTables). Only the canonical
    * table that carries both a Pin and a Net header is read; a supporting table
@@ -280,9 +302,9 @@ export interface TableRow {
   /**
    * A typed BOM.md data row, per the fixed column contract that `init` writes
    * (Refdes | Value | Footprint | MPN | Rationale — see scaffold.ts's
-   * `bomTable`). `flags` currently only ever contains `UNVERIFIED` (the MPN
-   * column literally says so) or `MISSING_MPN` (no MPN column value at all);
-   * more may be added as the export/fab-gate work grows.
+   * `bomTable`). `flags` may contain `UNVERIFIED` (the MPN column starts with
+   * that marker), `MISSING_MPN` (no MPN column value), or
+   * `VERIFIED(datasheet)` when mechanically checkable evidence is attached.
    */
   export interface BomRow {
     refdes: string;
@@ -322,8 +344,9 @@ export interface TableRow {
         const footprint = row.cells[fpI];
         const mpn = row.cells[mpnI];
         const flags: string[] = [];
-        if (mpn === 'UNVERIFIED') flags.push('UNVERIFIED');
+        if (/^UNVERIFIED(?:\s*:|$)/i.test(mpn ?? '')) flags.push('UNVERIFIED');
         else if (!mpn) flags.push('MISSING_MPN');
+        if (row.cells.some((c) => /(?<![A-Z])VERIFIED\(datasheet\)/i.test(c))) flags.push('VERIFIED(datasheet)');
         out.push({
           refdes,
           value: value || undefined,

@@ -47,6 +47,7 @@ export interface RunSummaryData {
   detail?: string;
   env?: RunMeta;
   stats?: RunStats;
+  research?: { requests: number; datasheetsCached: number; snapshotsWritten: number };
 }
 
 function renderRunStats(s: RunStats): string[] {
@@ -118,6 +119,16 @@ export class Transcript {
       `- legibility: ${s.legibilityResult ?? 'not run'}`,
       `- score: ${s.scoreResult ?? 'not run'}`,
       ``,
+      ...(s.research
+        ? [
+            `## Research network`,
+            ``,
+            `- **Requests:** ${s.research.requests}`,
+            `- **Datasheets cached:** ${s.research.datasheetsCached}`,
+            `- **Sourcing snapshots written:** ${s.research.snapshotsWritten}`,
+            ``,
+          ]
+        : []),
       `## Decisions`,
       ``,
       ...(s.decisions.length ? s.decisions.map((d) => `- ${d}`) : ['(none)']),

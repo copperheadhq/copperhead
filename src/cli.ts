@@ -159,12 +159,12 @@ program
     }
   });
 
-const checkAction = async (): Promise<void> => {
+const checkAction = async (opts: { strictSourcing?: boolean } = {}): Promise<void> => {
   const repo = repoOf(program.opts());
   const json = Boolean(program.opts().json);
   try {
     await kicadCliVersion();
-    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s));
+    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s), opts.strictSourcing ?? false);
     if (json) console.log(JSON.stringify(res, null, 2));
     process.exit(res.ok ? 0 : 1);
   } catch (err) {
@@ -177,7 +177,30 @@ program
   .command('check')
   .alias('verify')
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
+  .option('--strict-sourcing', 'treat stale/zero-stock/missing sourcing evidence as failures')
   .action(checkAction);
+
+const partsGroup = program
+  .command('parts')
+  .description('research and check electronic parts');
+
+partsGroup
+  .command('check <file>')
+  .description('search parts mentioned in Markdown and check live availability (requires research.enabled)')
+  .option('--output <path>', 'write the Markdown report to this repo-relative path')
+  .action(async (file: string, opts: { output?: string }) => {
+    const repo = repoOf(program.opts());
+    try {
+      const { runPartAudit, formatPartCheckTerminal } = await import('./commands/audit.js');
+      const result = await runPartAudit({ repoRoot: repo, input: file, ...(opts.output ? { output: opts.output } : {}) });
+      if (program.opts().json) console.log(JSON.stringify(result, null, 2));
+      else console.log(formatPartCheckTerminal(result));
+      process.exit(result.ok ? 0 : 1);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
 
 // `draft` and `score` are command groups taking the artifact as a noun
 // (`draft schematic` today, `draft pcb` when layout drafting exists), so the

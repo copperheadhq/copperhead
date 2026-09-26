@@ -288,9 +288,29 @@ copperhead skill run <name> [--scope power|all] [--model …]
     Run a skill (currently `generate-report`) via the nested sub-run. Needs a
     model, same as `do`. Does not snapshot or commit.
 
-copperhead check          (alias: copperhead verify)
-    Run ERC + DRC + doc-drift check; exit non-zero on violations.
-    No LLM calls. Usable as CI step / pre-commit hook.
+copperhead parts check <file> [--output report.md]
+    Extract part names and identifiers from repository-relative Markdown tables,
+    lists, and prose; query the enabled supplier without an LLM. Explicit MPN,
+    part-number, and LCSC fields require exact matches. Broad names show up to
+    three distinct candidates for human selection, never confirmed availability.
+    Terminal output includes source lines, match kind, stock, quantity-aware unit
+    price, package, description, and supplier links when supplied. Availability,
+    candidates to choose, unavailable exact parts, and missing matches have
+    separate counts; missing metadata is a review annotation on stocked parts.
+    Extraction is heuristic, skips code/comments/excluded sections, deduplicates
+    mentions, rejects more than 50 queries, and caches identical lookups per run.
+    Missing matches, unavailable exact parts, and provider errors exit non-zero;
+    successful candidate searches and metadata warnings exit zero with review notes.
+    Read-only except the ignored transcript and an explicit repo-contained
+    --output Markdown report. --json retains all candidate and match details.
+    This command is live-network by design; check remains offline.
+
+copperhead check [--strict-sourcing]   (alias: copperhead verify)
+    Run ERC + DRC + doc-drift + offline sourceability checks; exit non-zero
+    on violations. Stale, missing, and zero-stock sourcing evidence warns by
+    default; --strict-sourcing promotes those findings to failures. No LLM or
+    network calls. Usable as CI step / pre-commit hook. JSON output includes a
+    `sourceability` key whenever research is enabled or sourcing snapshots exist.
 
 copperhead sync [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs
@@ -366,6 +386,9 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `export_svg` | (sch\|pcb) → path | For viewer + before/after diffing |
 | `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic |
 | `generate_report` | (scope?: power\|all) → report | Skill: nested read-only sub-run; ERC/DRC/drift/nets. Always in the catalog. |
+| `web_search` | (query) → metadata[] | Research-only, available when research is enabled, `searchProvider` is `brave`, and the Brave key is present |
+| `search_parts` | (query, mpn?, refdes?) → part[] | Normalized JLCSearch or Nexar sourcing data; selection can dual-write BOM and constraints |
+| `fetch_datasheet` | (url, mpn, refdes?, section?) → cache entry | Allowlisted PDF fetch; cache/index/text only, fetched content is untrusted data |
 
 ### 4.3 System prompt — key rules (verbatim requirements)
 
@@ -420,11 +443,23 @@ interface Provider {
   "turnTimeoutMs": 600000,
   "turnMaxMs": 3600000,
   "heartbeatMs": 30000,
-  "budgets": { "sleep_current_uA": 25 }
+  "budgets": { "sleep_current_uA": 25 },
+  "research": {
+    "enabled": false,
+    "provider": "jlcsearch",
+    "searchProvider": "none",
+    "allowHosts": ["jlcsearch.tscircuit.com", "wmsc.lcsc.com"],
+    "stalenessDays": 30,
+    "maxPdfMB": 10
+  }
 }
 ```
 
-`budgets` is free-form; keys are surfaced verbatim into the system prompt so the agent treats them as hard constraints. `stageMaxTurns` is optional: per-stage turn budgets for the create pipeline, keyed by stage name; stages without an entry use `maxTurns`. `turnTimeoutMs`, `turnMaxMs` and `heartbeatMs` are optional, with the defaults shown: the per-turn inactivity deadline, the hard cap on a single turn, and the interval of the liveness line printed while a turn is in flight (see §4.5). A value `<= 0` disables each. When `turnTimeoutMs` is disabled and `turnMaxMs` is unset, `turnMaxMs` is disabled too.
+`budgets` is free-form; keys are surfaced verbatim into the system prompt so the agent treats them as hard constraints. `stageMaxTurns` is optional: per-stage turn budgets for the create pipeline, keyed by stage name; stages without an entry use `maxTurns`.
+`turnTimeoutMs`, `turnMaxMs` and `heartbeatMs` are optional, with the defaults shown: the per-turn inactivity deadline, the hard cap on a single turn, and the interval of the liveness line printed while a turn is in flight (see §4.5). A value `<= 0` disables each. When `turnTimeoutMs` is disabled and `turnMaxMs` is unset, `turnMaxMs` is disabled too.
+`research` is absent-by-default and must be explicitly enabled. The default
+JLCSearch provider requires no credentials. Optional provider keys remain
+environment-only; `check` never reads them and never performs network I/O.
 
 ---
 
@@ -443,19 +478,19 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 ## 7. Safety rails
 
 - Refuse to run `do` or `repl` on a dirty git tree (offer `--allow-dirty`, whose snapshot pairs a `git stash create` object for tracked changes with a tree object for untracked files, so the rollback restores both rather than letting `git clean` delete what the stash never captured). An untracked file that exists but cannot be read refuses the run by name: it cannot be snapshotted, and the rollback would delete it regardless, so proceeding would break exactly the promise `--allow-dirty` makes. Untracked paths that vanish before the snapshot is taken are skipped rather than refused
-- All file tools sandboxed to repo root; no network tools in Phase 1
+- All file tools sandboxed to repo root. Research network tools, when explicitly enabled, are structurally gated behind provider configuration and a single host-allowlisted egress module; `check`/`verify` remains LLM-free and network-free
 - Every rail above applies identically to the MCP entry point (`copperhead mcp`), which is a transport adapter over the same command entry points and adds no privileges of its own. Any path a host supplies is contained to the repo root by `resolveInRepo` before use, exactly as a CLI-supplied path is
 - `.env` in `.gitignore` from first commit; keys only via env vars — never written to any file, transcript, or commit
-- Transcripts in `.copperhead/runs/` redact anything matching `sk-[A-Za-z0-9_-]+`
+- Transcripts and summaries in `.copperhead/runs/` redact known key formats and the values of environment variables ending in `_KEY`, `_SECRET`, or `_TOKEN`
 - The Codex CLI's native read access and `~/.codex/sessions/` logs are outside Copperhead's enforcement/redaction boundary; the Codex path documents this host-local exposure explicitly
-- The agent never invents MPNs: any new part must come with a datasheet-verifiable justification in BOM.md, flagged `UNVERIFIED` for human review
+- The agent never invents MPNs: any new part must come with a datasheet-verifiable justification in BOM.md, flagged `UNVERIFIED` for human review. A row may become `VERIFIED(datasheet)` only when every selection-driving parameter cites a passing cached datasheet artifact; this is evidence attachment, not engineer sign-off
 
 ## 8. Phase 3 — Integrations (post-hackathon roadmap; document, don't build)
 
 - **CI**: GitHub Action running `copperhead check` (ERC + DRC + drift) with a badge — hardware repos get a green check like software
 - **Simulation checkers**: ngspice (analog sanity), openEMS (EMC) as additional verify tools — architecture is checker-agnostic
 - **KiCad plugin**: chat panel inside KiCad via the IPC API — the full-Cursor endgame
-- **Part data**: live availability/pricing (Octopart/JLC), so "sourceable" becomes a checked constraint
+- **Part data**: opt-in JLC/LCSC availability and pricing through JLCSearch is implemented; Nexar remains an optional provider and future distributor providers remain roadmap extensions
 - **Format expansion**: Altium file support; the agent core is format-agnostic, only tools change
 - **Hosted**: private-repo SaaS, per-seat; payments via merchant-of-record (Dodo)
 
@@ -476,8 +511,35 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.1** On a clean fixture: exit 0, prints ERC ✓ DRC ✓ drift ✓, makes zero LLM calls (assert: no network to api.* hosts).
 - **AC-2.2** With a deliberately broken schematic (unconnected pin): exit non-zero, violation printed with sheet/location.
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
-- **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
+- **AC-2.4** `--json` emits machine-readable results (parseable, stable keys), including `sourceability` whenever research is enabled or any `sourcing.*` snapshot exists.
 - **AC-2.5** Runs in < 60 s on the fixture.
+- **AC-2.6** Given sourcing snapshots, `check` validates them and cached datasheet citations without reading provider credentials or making any network call.
+- **AC-2.7** A stale, missing, or zero-stock sourcing snapshot warns without failing by default and fails under `--strict-sourcing`; EOL/obsolete lifecycle and broken citations fail in both modes.
+
+### AC-2a · `copperhead parts check`
+
+- **AC-2a.1** Given `research.enabled: true` and a Markdown table containing
+  an `MPN` column, when `parts check` runs, then it makes only allowlisted
+  egress requests through the research boundary, makes zero LLM calls, and
+  records the request log in a run transcript.
+- **AC-2a.2** Given a returned part whose MPN exactly matches the requested
+  MPN and whose stock satisfies `Required qty`, when `parts check` runs, then
+  it reports stock, lifecycle, price, and datasheet availability without
+  changing BOM.md or constraints.json.
+- **AC-2a.3** Given a missing exact MPN, zero/insufficient stock, or EOL
+  lifecycle, when `parts check` runs, then it exits non-zero and names the
+  failing row. Unknown lifecycle and absent datasheet URL are warnings.
+- **AC-2a.4** Given `--output <path>`, when `parts check` runs, then it writes
+  a detailed Markdown report under the repository root; a path outside the
+  root is rejected. The terminal summary names the saved report.
+- **AC-2a.5** Terminal output counts exact-MPN parts with sufficient stock and
+  non-EOL lifecycle as available, even when missing metadata flags them for
+  review. Review is an additional count on available parts, with reasons shown
+  in the available row. Only nonempty availability groups are printed. A
+  warning does not appear as an unqualified PASS. `--json` retains the
+  structured result.
+- **AC-2a.6** Lists, named tables, and prose part mentions produce queries with source lines. Explicit identifiers require exact matches; names produce up to three distinct suggestions. Suggestions are not counted as available selections, and an empty result is labelled not-found rather than out-of-stock.
+- **AC-2a.7** Repeated queries use one supplier lookup per run; each reference keeps its own quantity. Extraction refuses over 50 queries before network access and ignores code/comments/excluded sections. Reports expose heuristic queries for review.
 
 ### AC-3 · `copperhead do` — core loop
 
