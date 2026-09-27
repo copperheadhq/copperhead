@@ -123,7 +123,7 @@ function moveZonePoints(zoneText: string, from: { x: number; y: number }, to: { 
   });
 }
 
-const q = (s: string): string => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+const q = (s: string): string => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\t/g, '\\t')}"`;
 const num = (n: number): string => String(Math.round(n * 1e4) / 1e4);
 
 // ---- footprint geometry -----------------------------------------------------

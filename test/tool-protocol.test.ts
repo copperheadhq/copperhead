@@ -83,3 +83,12 @@ describe('parseToolCalls — fabricated tool results (#320)', () => {
     expect(parsed.text).toBe('Placing R1.');
   });
 });
+
+describe('parseToolCalls — CRLF replies', () => {
+  it('cuts an invented [result of …] line that ends in a carriage return', () => {
+    const reply = ['Moving J1.', call('move_footprint', { ref: 'J1', x: 1, y: 1 }), '', '[result of move_footprint]', 'moved', '', call('run_drc')].join('\r\n');
+    const parsed = parseToolCalls(reply, ids(), catalog);
+    expect(parsed.toolCalls.map((c) => c.name)).toEqual(['move_footprint']);
+    expect(parsed.notice).toMatch(/that you wrote yourself/);
+  });
+});

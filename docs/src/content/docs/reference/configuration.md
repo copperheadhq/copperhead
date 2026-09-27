@@ -32,7 +32,7 @@ sidebar:
 | `docs` | `"docs/"` | The design docs directory: [docs-as-memory](/concepts/docs-as-memory/). |
 | `model` | `null` | Default model. Overridden by `--model` and `COPPERHEAD_MODEL`. |
 | `maxTurns` | `40` | Turn budget per run. |
-| `maxRepairCycles` | `5` | Failed ERC/DRC repairs before the run rolls back to the git snapshot. A repair fails when, after an edit, a failing check has no fewer electrical findings than the one before (or, with only silkscreen or unrouted findings left, no fewer findings at all). The first failure after a clean check, a re-run without an edit, and any progress do not count. |
+| `maxRepairCycles` | `5` | Failed ERC/DRC repairs before the run rolls back to the git snapshot. A repair fails when, after an edit, a failing check has no fewer electrical findings than the one before (or, with only silkscreen findings left, no fewer findings and no fewer unrouted connections). The first failure after a clean check, a re-run without an edit, and any progress do not count. |
 | `budgets` | `{}` | Free-form hard constraints, surfaced verbatim into every run's system prompt. |
 | `baseURL` | unset | Base URL of an OpenAI-compatible endpoint. Read **only** by the `compat` model route. |
 | `apiKeyEnv` | `OPENAI_API_KEY` | Name of the environment variable holding that endpoint's key. The name, never the key itself. |

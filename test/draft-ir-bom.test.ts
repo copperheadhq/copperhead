@@ -298,4 +298,96 @@ describe('footprint cross-check (#314, AC-15.34)', () => {
       await cleanup();
     }
   });
+  /** A project-local library of one or more footprints, listed in the project fp-lib-table. */
+  async function localLibrary(repo: string, mods: Record<string, string>): Promise<void> {
+    await mkdir(path.join(repo, 'Local.pretty'), { recursive: true });
+    for (const [name, pads] of Object.entries(mods)) {
+      await writeFile(path.join(repo, 'Local.pretty', `${name}.kicad_mod`), `(footprint "${name}" (version 20240108) (generator "test") (layer "F.Cu")\n${pads})\n`, 'utf8');
+    }
+    await writeFile(
+      path.join(repo, 'fp-lib-table'),
+      '(fp_lib_table\n\t(version 7)\n\t(lib (name "Local")(type "KiCad")(uri "${KIPRJMOD}/Local.pretty")(options "")(descr ""))\n)\n',
+      'utf8',
+    );
+  }
+  const smd = (n: string, x: number, extra = ''): string => `  (pad "${n}" smd rect (at ${x} 0) (size 1 1) (layers "F.Cu" "F.Paste" "F.Mask")${extra})\n`;
+
+  /** Validate the fixture with C1 on `Local:<name>`. */
+  async function validateOn(repo: string, docs: string, name: string) {
+    await setBomFootprint(docs, 'C1', `Local:${name}`);
+    const intentPath = path.join(repo, 'schematic.intent.json');
+    await writeFile(intentPath, (await readFile(intentPath, 'utf8')).replace('Capacitor_SMD:C_0402_1005Metric', `Local:${name}`), 'utf8');
+    const { intent } = parseIntent(await readFile(intentPath, 'utf8'));
+    const footprints = await FootprintResolver.create({ projectDir: repo, global: false });
+    return validateIntent(intent!, new SymbolSource(repo, [SYMLIB]), docs, footprints);
+  }
+
+  it('an exposed pad the library marks as a heatsink is unconnected by design (the MCP73831 on its DFN-8-1EP)', async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      await localLibrary(repo, { Cap2_Heatsink: smd('1', -1) + smd('2', 1) + smd('3', 0, ' (property pad_prop_heatsink)') });
+      const res = await validateOn(repo, docs, 'Cap2_Heatsink');
+      expect(res.findings.map((f) => f.detail).join('\n')).toBe('');
+      expect(res.ok).toBe(true);
+      expect(res.validated!.warnings).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('the highest-numbered pad of a footprint named for an exposed pad is that pad, marked or not', async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      // KiCad's own DFN-8-1EP_3x2mm_P0.5mm_EP1.75x1.45mm numbers its unmarked exposed pad 9
+      await localLibrary(repo, { 'DFN-2-1EP_2x2mm': smd('1', -1) + smd('2', 1) + smd('3', 0) });
+      const res = await validateOn(repo, docs, 'DFN-2-1EP_2x2mm');
+      expect(res.findings.map((f) => f.detail).join('\n')).toBe('');
+      expect(res.ok).toBe(true);
+      expect(res.validated!.warnings).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a pad no pin names is refused when the library ships the variant the symbol fits (#325)', async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      // the 16-contact receptacle beside the 6-contact one, in miniature
+      await localLibrary(repo, { Cap3: smd('1', -1) + smd('2', 1) + smd('3', 3), Cap2: smd('1', -1) + smd('2', 1) });
+      const res = await validateOn(repo, docs, 'Cap3');
+      expect(res.ok).toBe(false);
+      const detail = res.findings.map((f) => f.detail).join('\n');
+      expect(detail).toContain('C1: pad(s) 3 of footprint Local:Cap3 have no symbol pin, so they would float unconnected on the board (its pads: 1, 2, 3)');
+      expect(detail).toContain('use a footprint whose electrical pads are all pins of the symbol (Local:Cap2 in the same library matches)');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("a pad no pin names is a warning, not a refusal, when no footprint in its library fits the symbol (the FT232RL's NC leads)", async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      await localLibrary(repo, { Cap3: smd('1', -1) + smd('2', 1) + smd('3', 3), Cap4: smd('1', -1) + smd('2', 1) + smd('3', 3) + smd('4', 5) });
+      const res = await validateOn(repo, docs, 'Cap3');
+      expect(res.findings.map((f) => f.detail).join('\n')).toBe('');
+      expect(res.ok).toBe(true);
+      expect(res.validated!.warnings).toHaveLength(1);
+      expect(res.validated!.warnings[0]).toContain('C1: pad(s) 3 of footprint Local:Cap3 have no symbol pin');
+      expect(res.validated!.warnings[0]).toContain('unconnected by design');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a symbol pin with no pad is still refused, whatever the library ships', async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      await localLibrary(repo, { Cap1_3: smd('1', -1) + smd('3', 3) });
+      const res = await validateOn(repo, docs, 'Cap1_3');
+      expect(res.ok).toBe(false);
+      expect(res.findings.map((f) => f.detail).join('\n')).toContain('C1: pin(s) 2 have no pad in footprint Local:Cap1_3');
+    } finally {
+      await cleanup();
+    }
+  });
 });

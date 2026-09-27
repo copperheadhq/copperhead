@@ -52,9 +52,10 @@ export function isCreateProducedRepo(config: unknown): boolean {
 /**
  * The Draft quality heading, with or without the numbering a LAYOUT.md whose
  * other headings are numbered carries (`## 4. Draft quality`, `## 4) Draft
- * quality`) (#327). One matcher for the fab gate and the create stage gate.
+ * quality`, `## 4.1 Draft quality`), in any letter case (#327). One matcher
+ * for the fab gate and the create stage gate.
  */
-const DRAFT_QUALITY_HEADING_RE = /^##\s+(?:\d+[.)]\s+)?Draft quality\s*$/;
+const DRAFT_QUALITY_HEADING_RE = /^##\s+(?:(?:\d+[.)]|\d+(?:\.\d+)+[.)]?)\s+)?Draft quality\s*$/i;
 export function isDraftQualityHeading(line: string): boolean {
   return DRAFT_QUALITY_HEADING_RE.test(line.trim());
 }

@@ -6,7 +6,7 @@
 
 Schematic IR validation SHALL refuse a part whose `footprint` differs from its BOM.md row's Footprint cell, naming both ids and instructing the agent to copy the BOM footprint rather than substitute another package. Cells SHALL be compared after dropping markdown backticks and spacing, never after case-folding.
 
-With a footprint resolver, validation SHALL also refuse a symbol pin its footprint has no pad for, and a footprint pad no symbol pin names (unnumbered, mechanical, shield and thermal pads excepted: MP, SH, S1, EP, NC), naming the pins or pads and the footprint's pads. The schematic stage's completion check SHALL validate with a resolver, so both checks run on resume as well as at draft time.
+With a footprint resolver, validation SHALL also refuse a symbol pin its footprint has no pad for, and a footprint pad no symbol pin names when the footprint's library ships a variant whose electrical pads are exactly the symbol's pins, naming the pins or pads, the footprint's pads and that variant. Pads unconnected by design SHALL be exempt: unnumbered, mechanical, shield and thermal pads by KiCad's naming (MP, SH, S1, EP, NC), a pad the library marks as a heatsink, and on a footprint named for an exposed pad (`-1EP`) the highest-numbered pad the symbol does not name. When the library ships no matching variant, the unnamed pads SHALL be reported in the draft's notes as the library's own pairing, not refused. The schematic stage's completion check SHALL validate with a resolver, so both checks run on resume as well as at draft time.
 
 #### Scenario: Substituted package is refused
 
@@ -16,12 +16,22 @@ With a footprint resolver, validation SHALL also refuse a symbol pin its footpri
 #### Scenario: Footprint pads without symbol pins are refused
 
 - **WHEN** the draft tool validates a 6-pin power-only USB-C symbol paired with a 16-contact receptacle footprint
-- **THEN** validation fails naming the pads no symbol pin covers (A1, A4, B1, B4, …), since they would float unconnected, and points at a footprint whose pads match the symbol
+- **THEN** validation fails naming the pads no symbol pin covers (A1, A4, B1, B4, …), since they would float unconnected, and names the 6-contact receptacle in the same library whose pads match the symbol
 
 #### Scenario: Mechanical pads are unconnected by design
 
 - **WHEN** the footprint's only pads without a symbol pin are unnumbered, MP, SH, S1, EP or NC
 - **THEN** validation passes
+
+#### Scenario: An exposed pad the symbol does not name is unconnected by design
+
+- **WHEN** the footprint's only pad without a symbol pin carries the library's heatsink property, or is the highest-numbered pad of a footprint named for an exposed pad (`DFN-8-1EP` pad 9 under the MCP73831 symbol)
+- **THEN** validation passes
+
+#### Scenario: A pairing the library ships no alternative to is noted, not refused
+
+- **WHEN** a footprint has pads no symbol pin names and no footprint in its library has exactly the symbol's pins as its electrical pads (the FT232RL's SSOP-28, whose NC leads the symbol omits)
+- **THEN** validation passes, and the draft report's notes name the pads as unconnected by the library's design, to confirm before fabrication
 
 #### Scenario: The schematic stage's completion runs the pad checks
 

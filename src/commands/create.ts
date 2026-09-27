@@ -454,15 +454,20 @@ async function populateStop(opts: CreateOptions): Promise<string | null> {
   if (!config.board || !config.schematic) return 'no board or schematic is configured; the schematic stage did not scaffold one';
   try {
     const r = await populateBoard({ repoRoot: opts.repoRoot, schematic: config.schematic, board: config.board });
-    if (r.unchanged) return null;
-    opts.log(
-      stageLine(
-        'layout-draft',
-        `placed ${r.placed.length} footprint(s) from the schematic on ${config.board} (${r.nets} nets, unrouted` +
-          `${r.outline.grown ? `; outline grown to ${r.outline.width} x ${r.outline.height} mm to fit` : ''})`,
-        'ok',
-      ),
-    );
+    // An already-populated board gets the same DRC: it may be a committed
+    // attempt's (verified, and cheap to confirm) or the board of a run killed
+    // between the populate write and its DRC, which the resume commit sweeps
+    // into HEAD unverified.
+    if (!r.unchanged) {
+      opts.log(
+        stageLine(
+          'layout-draft',
+          `placed ${r.placed.length} footprint(s) from the schematic on ${config.board} (${r.nets} nets, unrouted` +
+            `${r.outline.grown ? `; outline grown to ${r.outline.width} x ${r.outline.height} mm to fit` : ''})`,
+          'ok',
+        ),
+      );
+    }
     const drc = await runDrc(path.join(opts.repoRoot, config.board));
     if (drc.ok) return null;
     // KiCad resolves footprints through its library tables only; copperhead
@@ -474,7 +479,10 @@ async function populateStop(opts: CreateOptions): Promise<string | null> {
         "Add them to your global fp-lib-table (or, if you have none, copy KiCad's default table, the template/fp-lib-table file " +
         'in its install, into your KiCad config folder), then re-run.'
       : '';
-    return `the populated board fails DRC before any placement, so ${config.board} was restored:\n${formatViolations(drc)}${unlisted}`;
+    const left = r.unchanged
+      ? `${config.board} was populated before this run and is left as it is; fix the findings, or remove its footprints so the next run populates it afresh`
+      : `${config.board} is restored to the last verified board`;
+    return `the populated board fails DRC before any placement, so ${left}:\n${formatViolations(drc)}${unlisted}`;
   } catch (e) {
     if (e instanceof MissingFootprintsError) return formatMissingFootprints(e.missing, e.searched, 'the layout-draft stage');
     return `could not put the schematic's parts on the board: ${(e as Error).message}`;

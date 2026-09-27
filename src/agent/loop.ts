@@ -663,7 +663,11 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     // of its own "results" to disregard (a tool-less turn got this as its nudge).
     if (res.notice) messages.push({ role: 'user', content: res.notice });
 
-    if (repairBudgetExhausted(ctx.repairCycles, config.maxRepairCycles)) {
+    // Not when this same turn went on to finish: finish is approved only after
+    // the checks passed, so its violations do not persist, whatever the count
+    // reached on the way (a batched turn: a failed repair, a fix, a clean check,
+    // finish).
+    if (!ctx.finishRequest && repairBudgetExhausted(ctx.repairCycles, config.maxRepairCycles)) {
       return fail(`repair cycles exhausted (${config.maxRepairCycles}); violations persist`, 'repair-cycles-exhausted');
     }
 

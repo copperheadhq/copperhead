@@ -7,7 +7,7 @@ import { execa } from 'execa';
 import type { RunOptions } from '../src/agent/loop.js';
 import { bootstrapKicadProject } from '../src/kicad/bootstrap.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
-import { boardFootprints } from '../src/kicad/populate.js';
+import { boardFootprints, populateBoard } from '../src/kicad/populate.js';
 import { footprintSearchDirs } from '../src/kicad/footprints.js';
 import { seededKicadConfig } from './helpers.js';
 
@@ -270,6 +270,32 @@ describe('create layout-draft around board populate (#314)', () => {
       expect(out).toContain('lib_footprint_issues');
       expect(out).toContain("KiCad's library tables do not list the libraries these parts come from");
       expect(await readFile(path.join(repo, PCB), 'utf8')).toBe(before);
+    } finally {
+      await rm(emptyConfig, { recursive: true, force: true });
+      await cleanup();
+    }
+  }, 180_000);
+
+  it('a board populated but never verified (a run killed before its DRC) gets that DRC on resume, and stops on a failure', async () => {
+    const { repo, brief, cleanup } = await projectAtLayoutDraft();
+    const emptyConfig = await mkdtemp(path.join(tmpdir(), 'copperhead-kicadcfg-'));
+    try {
+      const before = await readFile(path.join(repo, PCB), 'utf8');
+      // the previous invocation wrote the populated board and died before running DRC on it
+      const r = await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB });
+      expect(r.unchanged).toBeFalsy();
+      vi.stubEnv('KICAD_CONFIG_HOME', emptyConfig);
+      const lines: string[] = [];
+      const res = await run(repo, brief, lines);
+      expect(res.ok).toBe(false);
+      expect(layout.calls).toEqual([]);
+      const out = lines.join('\n');
+      expect(out).toContain('the populated board fails DRC before any placement');
+      expect(out).toContain('was populated before this run and is left as it is');
+      expect(out).not.toMatch(/placed \d+ footprint/);
+      // the populated board is what the stage found: nothing older to put back
+      expect(boardFootprints(await readFile(path.join(repo, PCB), 'utf8')).length).toBe(5);
+      expect(boardFootprints(before)).toEqual([]);
     } finally {
       await rm(emptyConfig, { recursive: true, force: true });
       await cleanup();

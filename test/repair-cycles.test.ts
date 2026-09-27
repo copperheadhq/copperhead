@@ -5,11 +5,12 @@ import type { RunContext } from '../src/agent/context.js';
 import type { CheckReport } from '../src/kicad/report.js';
 
 type Kind = 'erc' | 'drc';
-const report = (counts: Record<string, number>): CheckReport => {
+/** A normalised report: `unrouted` is a count beside the violations, never among them (AC-15.39). */
+const report = (counts: Record<string, number>, unrouted?: number): CheckReport => {
   const violations = Object.entries(counts).flatMap(([type, n]) =>
     Array.from({ length: n }, () => ({ severity: 'error', type, description: '', items: [] })),
   );
-  return { ok: violations.length === 0, violations } as unknown as CheckReport;
+  return { ok: violations.length === 0, violations, ...(unrouted === undefined ? {} : { unrouted }) } as unknown as CheckReport;
 };
 const clean = report({});
 
@@ -85,11 +86,28 @@ describe('countRepairCycle: only a fix that did not work costs a cycle (#331)', 
     expect(s.ctx.repairCycles).toBe(1);
   });
 
-  it('does not let routing progress (fewer unconnected items) hide a new short', () => {
+  it('does not let routing progress (fewer unrouted connections) hide a new short', () => {
     const s = session();
-    s.step(report({ unconnected_items: 24 }));
-    s.step(report({ unconnected_items: 10, shorting_items: 1 }));
+    s.step(report({ silk_overlap: 2 }, 24));
+    s.step(report({ silk_overlap: 2, shorting_items: 1 }, 10));
     expect(s.ctx.repairCycles).toBe(1);
+  });
+
+  it('does not charge routing progress while silkscreen findings wait', () => {
+    // the routing stage's shape: copper clean, two deferred silkscreen overlaps,
+    // and the ratsnest shrinking with every batch of tracks
+    const s = session();
+    s.step(report({ silk_overlap: 2 }, 30));
+    for (const n of [24, 18, 11, 5, 2]) s.step(report({ silk_overlap: 2 }, n));
+    expect(s.ctx.repairCycles).toBe(0);
+    s.step(report({ silk_overlap: 2 }, 2)); // no routing and no silkscreen progress: a failed repair
+    expect(s.ctx.repairCycles).toBe(1);
+  });
+
+  it('a board with unrouted connections and no violation is a passing check, never a cycle', () => {
+    const s = session();
+    for (const n of [30, 30, 30]) s.step(report({}, n));
+    expect(s.ctx.repairCycles).toBe(0);
   });
 
   it('does not charge the first failure after a clean check', () => {

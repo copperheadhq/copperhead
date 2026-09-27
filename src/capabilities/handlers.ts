@@ -22,10 +22,10 @@ import { corruptionError, markTouched, str } from './helpers.js';
 
 /**
  * Findings that say nothing about whether a repair worked: silkscreen text (cosmetic,
- * fixed only by moving text) and, where DRC reports them as violations, unrouted
- * connections (ratsnest shrinks as routing progresses, and can hide a new short).
+ * fixed only by moving text). Unrouted connections are never among the violations:
+ * the report normaliser lifts them into `unrouted`, compared on its own below.
  */
-const isCosmetic = (v: { type: string }) => v.type.startsWith('silk_') || v.type === 'unconnected_items';
+const isCosmetic = (v: { type: string }) => v.type.startsWith('silk_');
 const electrical = (r: CheckReport) => r.violations.filter((v) => !isCosmetic(v)).length;
 
 /**
@@ -36,10 +36,11 @@ const electrical = (r: CheckReport) => r.violations.filter((v) => !isCosmetic(v)
  * - it passes, or has no failing check of the same kind before it (the first failure
  *   after a clean check is an edit's own breakage, not a failed repair);
  * - nothing was edited since the previous check (a re-run is not a repair);
- * - its electrical findings went down.
+ * - its electrical findings went down, or, with none left, its unrouted count did
+ *   (routing is progress even while silkscreen findings wait).
  * It costs a cycle when electrical findings remain and did not go down, or, once only
- * cosmetic findings are left, when the total did not go down, so a stuck silkscreen
- * or ratsnest loop still ends in rollback. A failing check blocks `finish` exactly as
+ * cosmetic findings are left, when neither the total nor the unrouted count went
+ * down, so a stuck silkscreen or ratsnest loop still ends in rollback. A failing check blocks `finish` exactly as
  * before; only the budget changes. The previous report comes from `ctx.priorChecks`,
  * because `lastErc`/`lastDrc` are cleared on every edit, which is also how an edit
  * since the last check is detected: call this before storing `report` there.
@@ -53,6 +54,7 @@ export function countRepairCycle(ctx: RunContext, kind: 'erc' | 'drc', report: C
   const before = electrical(prev);
   const now = electrical(report);
   if (now < before) return;
+  if (now === 0 && (report.unrouted ?? 0) < (prev.unrouted ?? 0)) return;
   if (now > 0 || report.violations.length >= prev.violations.length) ctx.repairCycles++;
 }
 

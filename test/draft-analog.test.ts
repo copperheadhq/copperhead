@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { validateIntent, type SchematicIntent } from '../src/kicad/draft/ir.js';
-import { draftSchematicPlacement } from '../src/kicad/draft/engine.js';
+import { draftSchematicPlacement, searchPassBudget } from '../src/kicad/draft/engine.js';
 import { emitSchematic } from '../src/kicad/emit.js';
 import { pinAbsolute } from '../src/kicad/sexp.js';
 
@@ -235,5 +235,30 @@ describe('group colours', () => {
     const p = await place(inverting('CopperAmp:OpAmp'));
     p.model.captions[0]!.text = 'Two\nlines';
     expect(emitSchematic(p.model)).toContain('"Two\\nlines"');
+  });
+});
+
+describe('the placement search spends its passes where they can help', () => {
+  it('budgets passes by part count, so a large board is not a full draft pass per trial for minutes', () => {
+    expect(searchPassBudget(4)).toBe(60);
+    expect(searchPassBudget(25)).toBe(60);
+    expect(searchPassBudget(50)).toBe(30);
+    expect(searchPassBudget(100)).toBe(15);
+    expect(searchPassBudget(160)).toBe(9);
+    expect(searchPassBudget(1000)).toBe(6);
+  });
+
+  it('does not search a large sheet with no label on anything and no crossing', async () => {
+    // thirty parts, each pair on its own two nets: nothing crosses, nothing overlaps
+    const parts = [];
+    const nets = [];
+    for (let i = 1; i <= 15; i++) {
+      parts.push({ ref: `J${i}`, libId: 'Connector_Generic:Conn_01x02', value: 'IN', group: `Block ${i}` });
+      parts.push({ ref: `R${i}`, libId: 'Device:R', value: '10k', group: `Block ${i}` });
+      nets.push({ name: `SIG${i}`, pins: [`J${i}.1`, `R${i}.1`] });
+      nets.push({ name: `RET${i}`, pins: [`J${i}.2`, `R${i}.2`] });
+    }
+    const p = await place({ version: 1, parts, nets });
+    expect(p.report.notes.filter((n) => n.startsWith('placement search'))).toEqual([]);
   });
 });

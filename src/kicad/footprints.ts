@@ -137,6 +137,9 @@ export class FootprintResolver {
     readonly searched: string[],
   ) {}
 
+  /** Pad sets of every footprint in a library dir, read once per resolver. */
+  private readonly padSets = new Map<string, Map<string, FootprintPads>>();
+
   static async create(opts: FootprintResolverOptions): Promise<FootprintResolver> {
     const env = opts.env ?? process.env;
     const major = opts.kicadMajor !== undefined ? opts.kicadMajor : await kicadMajorVersion();
@@ -171,6 +174,46 @@ export class FootprintResolver {
     }
     if (stock.length) searched.push(`stock footprints (${stock.length} dir${stock.length > 1 ? 's' : ''})`);
     return new FootprintResolver(libs, searched);
+  }
+
+  /**
+   * A footprint in the same library as `fpId` whose electrical pads are
+   * exactly the symbol's pins: the variant the symbol was drawn for (the
+   * 6-contact USB-C receptacle beside the 16-contact one, #325). Null when
+   * the library ships none, which is how a library says the extra pads are
+   * its intent (an exposed pad, a no-connect lead) rather than a slip.
+   */
+  async variantCovering(fpId: string, symbolPins: ReadonlySet<string>): Promise<string | null> {
+    const i = fpId.indexOf(':');
+    const lib = i > 0 ? fpId.slice(0, i) : '';
+    const self = i > 0 ? fpId.slice(i + 1) : '';
+    const entry = this.libs.get(lib);
+    if (!entry || !self) return null;
+    let cache = this.padSets.get(entry.dir);
+    if (!cache) {
+      cache = new Map();
+      let files: string[] = [];
+      try {
+        files = (await readdir(entry.dir)).filter((f) => f.endsWith('.kicad_mod')).sort();
+      } catch {
+        // library dir listed in a table but missing on disk
+      }
+      for (const f of files) {
+        try {
+          cache.set(f.slice(0, -'.kicad_mod'.length), footprintPads(await readFile(path.join(entry.dir, f), 'utf8')));
+        } catch {
+          // unreadable or malformed: not a candidate
+        }
+      }
+      this.padSets.set(entry.dir, cache);
+    }
+    for (const [name, pads] of cache) {
+      if (name === self) continue;
+      if ([...symbolPins].some((p) => !pads.numbers.has(p))) continue;
+      const electrical = [...pads.numbers].filter((n) => !isMechanicalPad(n) && !pads.heatsink.has(n));
+      if (electrical.every((n) => symbolPins.has(n))) return `${lib}:${name}`;
+    }
+    return null;
   }
 
   async resolve(fpId: string): Promise<FootprintLookup> {
@@ -301,18 +344,54 @@ export function formatMissingFootprints(missing: MissingFootprint[], searched: s
 
 /** Pad numbers a footprint defines (unnumbered mechanical pads excluded). */
 export function padNumbers(modText: string): Set<string> {
+  return footprintPads(modText).numbers;
+}
+
+export interface FootprintPads {
+  /** Every numbered pad. */
+  numbers: Set<string>;
+  /** Pads the library marks as a heatsink (`(property pad_prop_heatsink)`): an
+   * exposed thermal pad, unconnected by design when the symbol omits it. */
+  heatsink: Set<string>;
+}
+
+export function footprintPads(modText: string): FootprintPads {
   const root = parseSexp(modText)[0];
-  const out = new Set<string>();
-  if (!root || !isList(root)) return out;
+  const numbers = new Set<string>();
+  const heatsink = new Set<string>();
+  if (!root || !isList(root)) return { numbers, heatsink };
   for (const pad of children(root, 'pad')) {
     const n = pad[1];
-    if (typeof n === 'string' && n !== '') out.add(n);
+    if (typeof n !== 'string' || n === '') continue;
+    numbers.add(n);
+    if (children(pad, 'property').some((p) => p[1] === 'pad_prop_heatsink')) heatsink.add(n);
   }
-  return out;
+  return { numbers, heatsink };
 }
 
 export async function footprintPadNumbers(file: string): Promise<Set<string>> {
   return padNumbers(await readFile(file, 'utf8'));
+}
+
+export async function readFootprintPads(file: string): Promise<FootprintPads> {
+  return footprintPads(await readFile(file, 'utf8'));
+}
+
+/**
+ * The exposed thermal pads of a footprint whose name says it has them
+ * (`DFN-8-1EP_…`, `QFN-16-1EP_…`, `…-2EP…`): KiCad's libraries number the
+ * exposed pad after the last lead, and most, not all, mark it as a heatsink
+ * too. When the symbol names no pin for the highest-numbered pad(s), those
+ * are the exposed pad, unconnected by design.
+ */
+export function exposedPads(footprintName: string, pads: ReadonlySet<string>, symbolPins: ReadonlySet<string>): Set<string> {
+  const m = /[-_](\d*)EP(?=[-_\d]|$)/i.exec(footprintName);
+  const out = new Set<string>();
+  if (!m) return out;
+  const count = m[1] ? Number(m[1]) : 1;
+  const numeric = [...pads].filter((n) => /^\d+$/.test(n)).sort((a, b) => Number(b) - Number(a));
+  for (const n of numeric.slice(0, count)) if (!symbolPins.has(n)) out.add(n);
+  return out;
 }
 
 /**

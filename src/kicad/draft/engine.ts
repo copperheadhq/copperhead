@@ -876,10 +876,28 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     ...validated.intent.parts.filter((p) => unsettled.has(p.ref) && p.libId.startsWith('Connector') && !validated.symbols.get(p.ref)?.multiUnit).flatMap((p) => [[p.ref, 'x'], [p.ref, 'y']] as [string, Orient][]),
     ...validated.intent.parts.filter((p) => unsettled.has(p.ref) && twoLead(p.ref)).flatMap((p) => [[p.ref, 90], [p.ref, 180], [p.ref, 270]] as [string, Orient][]),
   ];
-  trace(`placement search: ${unsettled.size} of ${validated.intent.parts.length} parts unsettled, ${trials.length} trials`);
+  const baseline = score(fitted.model, fitted.report);
+  const budget = searchPassBudget(validated.intent.parts.length);
+  trace(`placement search: ${unsettled.size} of ${validated.intent.parts.length} parts unsettled, ${trials.length} trials, baseline ${baseline.overlaps}/${baseline.crossings}, ${budget} passes`);
+  // A large sheet with no label on anything and no crossing is done: on it,
+  // wire length alone is not worth a draft pass per trial (a 160-part board
+  // spent five minutes here and kept nothing). A small sheet, whose passes
+  // are cheap, is still searched for less wire.
+  if (baseline.overlaps === 0 && baseline.crossings === 0 && budget < SEARCH_PASSES) return fitted;
   // with nothing to turn the search still labels away the crossings that
   // remain; only a sheet with neither has nothing to try
-  if (!trials.length && !wireCrossings(fitted.model).length) return fitted;
+  if (!trials.length && !baseline.crossings) return fitted;
+  // The passes are few on a large board, so they go first to the parts on
+  // the nets that cross: a trial can only help where the trouble is. Intent
+  // order breaks ties, so the result stays deterministic.
+  const crossed = netsAtCrossings(fitted.model);
+  const trouble = new Map<string, number>();
+  for (const net of validated.intent.nets) {
+    const n = crossed.get(net.name) ?? 0;
+    if (!n) continue;
+    for (const ref of new Set(net.pins.map((ep) => String(ep).split('.')[0]!))) trouble.set(ref, (trouble.get(ref) ?? 0) + n);
+  }
+  trials.sort((a, b) => (trouble.get(b[0]) ?? 0) - (trouble.get(a[0]) ?? 0));
   // Trials are ranked on one draft pass each, the fitting rounds (re-tiling,
   // the measured look) left out: they settle the page, not the parts, and
   // multiply every trial's cost. The kept orientations are then drafted in
@@ -891,12 +909,12 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   let best = score(kept.model, kept.report);
   const notes: string[] = [];
   // Every trial is a full draft pass, so a large board could spend minutes
-  // here: the search stops after SEARCH_PASSES passes, spent in intent order
-  // so the result stays deterministic, and says so in the notes.
+  // here: the search stops after its budget of passes, spent in the ranked
+  // order above, and says so in the notes.
   let passes = 0;
   let exhausted = false;
   const spend = (): boolean => {
-    if (passes >= SEARCH_PASSES) {
+    if (passes >= budget) {
       exhausted = true;
       return false;
     }
@@ -929,8 +947,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // tried drawn as labels between its column-placed parts instead (a part
   // hung on a pin keeps its wire), and kept when the crossings drop.
   for (let round = 0; round < 8 && best.crossings > 0; round++) {
-    const at = wireCrossings(kept.model);
-    const nets = [...new Set(at.flatMap((c) => kept.model.wires.filter((w) => (Math.abs(w.x1 - w.x2) < 1e-6 ? Math.abs(w.x1 - c.x) < 1e-6 && Math.min(w.y1, w.y2) < c.y && c.y < Math.max(w.y1, w.y2) : Math.abs(w.y1 - c.y) < 1e-6 && Math.min(w.x1, w.x2) < c.x && c.x < Math.max(w.x1, w.x2))).map((w) => w.net)))].filter((n) => !labelled.has(n)).sort();
+    const nets = [...netsAtCrossings(kept.model).keys()].filter((n) => !labelled.has(n)).sort();
     let improved = false;
     for (const net of nets) {
       if (!spend()) break;
@@ -949,9 +966,9 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     }
     if (!improved) break;
   }
-  if (exhausted) trace(`placement search: stopped after ${SEARCH_PASSES} passes`);
+  if (exhausted) trace(`placement search: stopped after ${budget} passes`);
   if (!flips.size && !labelled.size) {
-    if (exhausted) fitted.report.notes.push(`placement search: stopped after ${SEARCH_PASSES} trial passes; no orientation kept`);
+    if (exhausted) fitted.report.notes.push(`placement search: stopped after ${budget} trial passes; no orientation kept`);
     return fitted;
   }
   const final = draftFitted(validated, projectName, today, flips, labelled);
@@ -969,7 +986,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
     trace(`placement search: the full fit of ${flips.size} orientation(s) is no better (${fs.overlaps}/${fs.crossings}/${fs.length.toFixed(0)} against ${fb.overlaps}/${fb.crossings}/${fb.length.toFixed(0)}); kept as drafted`);
     return fitted;
   }
-  final.report.notes.push(`placement search: ${notes.join(', ')}; label overlaps ${fb.overlaps} to ${fs.overlaps}, wire crossings ${fb.crossings} to ${fs.crossings}${exhausted ? `; stopped after ${SEARCH_PASSES} trial passes` : ''}`);
+  final.report.notes.push(`placement search: ${notes.join(', ')}; label overlaps ${fb.overlaps} to ${fs.overlaps}, wire crossings ${fb.crossings} to ${fs.crossings}${exhausted ? `; stopped after ${budget} trial passes` : ''}`);
   return final;
 }
 
@@ -982,9 +999,34 @@ type Orient = 'x' | 'y' | 90 | 180 | 270;
  * gets its bridge as well as its loop. */
 const AMP_INPUT = /^(\+|-|−|IN[+-]|IN−)$/i;
 const AMP_INVERTING = /^(-|−|IN-|IN−)$/i;
-/** Draft passes the placement search may spend on trials, orientation and
- * labelled-net trials together. */
+/**
+ * Draft passes the placement search may spend, orientation and labelled-net
+ * trials together. Every trial is a full draft pass whose cost grows with the
+ * part count, so the budget shrinks as the board grows: 60 passes up to 25
+ * parts, 15 at 100, never under 6. A part-count budget keeps the kept result
+ * the same on every machine, which a wall-clock one would not.
+ */
+export function searchPassBudget(parts: number): number {
+  return Math.max(SEARCH_PASSES_MIN, Math.min(SEARCH_PASSES, Math.round(SEARCH_PART_PASSES / Math.max(1, parts))));
+}
 const SEARCH_PASSES = 60;
+const SEARCH_PASSES_MIN = 6;
+const SEARCH_PART_PASSES = 1500;
+
+/** The nets whose wires cross another's, with how many crossings each has. */
+function netsAtCrossings(model: PlacementModel): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const c of wireCrossings(model)) {
+    for (const w of model.wires) {
+      const vertical = Math.abs(w.x1 - w.x2) < 1e-6;
+      const through = vertical
+        ? Math.abs(w.x1 - c.x) < 1e-6 && Math.min(w.y1, w.y2) < c.y && c.y < Math.max(w.y1, w.y2)
+        : Math.abs(w.y1 - c.y) < 1e-6 && Math.min(w.x1, w.x2) < c.x && c.x < Math.max(w.x1, w.x2);
+      if (through) out.set(w.net, (out.get(w.net) ?? 0) + 1);
+    }
+  }
+  return out;
+}
 /** What a label is worth in the placement search, mm of wire. */
 const LABEL_COST = 25.4;
 /** What a bend is worth in the placement search, mm of wire: a turn has to

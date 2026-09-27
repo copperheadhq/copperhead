@@ -86,10 +86,10 @@ export interface ParsedToolTurn {
  * own tool call in that form is inventing the result (#320, register I15), so the reply is
  * cut at the first one.
  */
-const HARNESS_MARKER = /^[ \t]*\[(?:result of [A-Za-z0-9_.:-]+|user)\][ \t]*$/m;
+const HARNESS_MARKER = /^[ \t]*\[(?:result of [A-Za-z0-9_.:-]+|user)\][ \t]*\r?$/m;
 const HARNESS_MARKER_ALL = new RegExp(HARNESS_MARKER.source, 'gm');
 /** History markers that are harmless to write but must not be replayed as the model's prose. */
-const ECHOED_MARKER_LINES = /^[ \t]*\[(?:assistant|assistant tool call)\][ \t]*$\n?/gm;
+const ECHOED_MARKER_LINES = /^[ \t]*\[(?:assistant|assistant tool call)\][ \t]*\r?$\n?/gm;
 
 /**
  * Detect a malformed-but-intended tool call in a turn that dispatched none

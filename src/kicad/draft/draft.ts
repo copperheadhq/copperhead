@@ -75,6 +75,9 @@ export async function draftSchematicToText(opts: SchematicDraftOptions): Promise
   // Date comes from the IR (hints.date), never the wall clock: the same IR
   // must emit identical bytes on every run and every day (design D4).
   const { model, report } = draftSchematicPlacement(validated, projectName, opts.today ?? intent.hints?.date ?? '2020-01-01');
+  // what validation noticed but did not refuse (a pad the library leaves
+  // unconnected by design), beside the engine's own notes
+  report.notes.push(...validated.warnings);
   // A merged net means the sheet does not implement the IR: two distinct nets
   // share a label point, and KiCad resolves them to one. Refused rather than
   // written, because the alternative is an electrically wrong board that ERC

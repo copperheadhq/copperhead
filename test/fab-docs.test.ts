@@ -42,7 +42,7 @@ describe('isCreateProducedRepo', () => {
 describe('draftQualitySection / isFilledDraftQuality', () => {
   it('accepts a numbered Draft quality heading, as the sibling headings are numbered (#327)', () => {
     const body = '\nPower routed, 6 connections unrouted.\n';
-    for (const h of ['## Draft quality', '## 4. Draft quality', '## 4) Draft quality', '##  12.  Draft quality  ']) {
+    for (const h of ['## Draft quality', '## 4. Draft quality', '## 4) Draft quality', '##  12.  Draft quality  ', '## 4.1 Draft quality', '## 4.1. Draft quality', '## Draft Quality']) {
       expect(draftQualitySection(`# Layout\n\n## 1. Placement\n\ntext\n\n${h}\n${body}\n## 5. Next\n`), h).toBe(body);
       expect(isDraftQualityHeading(h), h).toBe(true);
     }

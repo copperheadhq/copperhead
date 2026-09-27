@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { SymbolSource, SymbolResolutionError, powerNetToken, type ResolvedSymbol } from './symsource.js';
 import { parseBomTable, normalizeValue, normalizeFootprint, bomFootprintRows } from '../../memory/bom-table.js';
-import { footprintPadNumbers, isMechanicalPad, formatPadMismatch, type FootprintResolver } from '../footprints.js';
+import { readFootprintPads, exposedPads, isMechanicalPad, formatPadMismatch, type FootprintResolver } from '../footprints.js';
 
 /**
  * The netlist-intent IR (`schematic.intent.json`): the compact declarative
@@ -58,6 +58,8 @@ export interface ValidatedIntent {
   symbols: Map<string, ResolvedSymbol>;
   /** SUBSYSTEMS.md heading names in declaration order, or null when absent. */
   docGroups: string[] | null;
+  /** What validation noticed but did not refuse: reported in the draft's notes. */
+  warnings: string[];
 }
 
 /** `## Heading` names from a markdown file, in order. */
@@ -172,6 +174,7 @@ export async function validateIntent(
   footprints?: FootprintResolver,
 ): Promise<{ ok: boolean; findings: IrFinding[]; validated: ValidatedIntent | null }> {
   const findings: IrFinding[] = [];
+  const warnings: string[] = [];
   const add = (detail: string): void => {
     findings.push({ detail });
   };
@@ -258,22 +261,38 @@ export async function validateIntent(
       if (!sym || sym.isPower || !p.footprint) continue;
       const hit = await footprints.resolve(p.footprint);
       if (!hit.ok) continue;
-      const pads = await footprintPadNumbers(hit.file);
+      const { numbers: pads, heatsink } = await readFootprintPads(hit.file);
       const symPins = new Set(sym.pins.map((pin) => pin.number));
       const pins = [...symPins].filter((n) => !pads.has(n)).sort(byNum);
       // and the reverse (#325): an electrical pad no symbol pin names gets no net
       // and floats (a 16-contact USB-C receptacle under a 6-pin power-only
       // symbol leaves half its VBUS and GND contacts unconnected). Mechanical,
-      // shield and thermal pads are exempt: they are unconnected by design.
-      const unpinned = [...pads].filter((n) => !isMechanicalPad(n) && !symPins.has(n)).sort(byNum);
-      if (pins.length || unpinned.length) {
+      // shield and thermal pads are exempt, they are unconnected by design: by
+      // KiCad's pad naming, by the library's heatsink property, or as the
+      // exposed pad of a footprint named for one (DFN-8-1EP's pad 9, which the
+      // charger symbol drawn for it does not name).
+      const exposed = exposedPads(p.footprint, pads, symPins);
+      const unpinned = [...pads].filter((n) => !isMechanicalPad(n) && !heatsink.has(n) && !exposed.has(n) && !symPins.has(n)).sort(byNum);
+      // A pad no pin names is a slip when its library ships the variant the
+      // symbol fits (the 6-contact receptacle beside the 16-contact one). When
+      // it ships none, the pairing is the library's own (a no-connect lead the
+      // symbol omits, as KiCad draws the FT232RL and the PIC families): noted
+      // in the draft report for the reader, not refused, since there is no
+      // footprint to change to.
+      const variant = unpinned.length && !pins.length ? await footprints.variantCovering(p.footprint, symPins) : null;
+      const mismatch = formatPadMismatch({ ref: p.ref, footprint: p.footprint, pins, pads: [...pads].sort(byNum), ...(unpinned.length ? { unpinned } : {}) });
+      if (pins.length || variant) {
         const advice = [
           pins.length ? `use a symbol whose pin numbers match the footprint's pads` : '',
-          unpinned.length ? `use a footprint whose electrical pads are all pins of the symbol (KiCad often ships a variant with the matching contact count)` : '',
+          unpinned.length
+            ? `use a footprint whose electrical pads are all pins of the symbol (${variant ? `${variant} in the same library matches` : 'KiCad often ships a variant with the matching contact count'})`
+            : '',
         ].filter(Boolean);
-        add(
-          `${formatPadMismatch({ ref: p.ref, footprint: p.footprint, pins, pads: [...pads].sort(byNum), ...(unpinned.length ? { unpinned } : {}) })}; ` +
-            `${advice.join(', or ')} (change the footprint in BOM.md and the intent together)`,
+        add(`${mismatch}; ${advice.join(', or ')} (change the footprint in BOM.md and the intent together)`);
+      } else if (unpinned.length) {
+        warnings.push(
+          `${mismatch}; no footprint in its library matches the symbol's pins exactly, so these are taken as pads the library leaves ` +
+            `unconnected by design (an exposed pad, or a lead the symbol omits as no-connect); confirm against the datasheet before fabrication`,
         );
       }
     }
@@ -460,7 +479,7 @@ export async function validateIntent(
   }
 
   if (findings.length) return { ok: false, findings, validated: null };
-  return { ok: true, findings: [], validated: { intent, symbols, docGroups } };
+  return { ok: true, findings: [], validated: { intent, symbols, docGroups, warnings } };
 }
 
 export function formatIrFindings(findings: IrFinding[]): string {

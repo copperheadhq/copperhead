@@ -190,7 +190,7 @@ These passes came from drafting analog boards: an audio preamp with op-amp buffe
 
 **Flags on neighbouring rows.** Flags on neighbouring pin rows (never two on one row) stack edge to edge, the way a header's signals read down its pins; any other pair of texts keeps the 0.8 mm pad. A power symbol's own glyph (arrow, bar or flag) is an obstacle to every name placed near it.
 
-The search costs one draft pass per trial and stops after 60 passes, spent in intent order so the result stays deterministic; the draft report says when it stopped early.
+The search costs one draft pass per trial, so the budget of passes shrinks with the part count: 60 up to 25 parts, 15 at 100, never under 6. A sheet of more than 25 parts that already has no label on anything and no crossing is not searched at all; a smaller sheet is still searched for less wire. The passes go first to the parts on the nets that cross, with intent order breaking ties, so the result stays deterministic on every machine; the draft report says when the search stopped early.
 
 `COPPERHEAD_DRAFT_TRACE=1` prints every one of these decisions: what each pin claimed and why a part was skipped, each lane's position, each refused hang or run, every label that could not be placed where it stood and where it went, and every wire crossing by net.
 
