@@ -1,4 +1,4 @@
-import { access, readdir, readFile } from 'node:fs/promises';
+import { access, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { libTableRows } from './libtable.js';
 import { kicadMajorVersion } from './cli.js';
@@ -137,9 +137,6 @@ export class FootprintResolver {
     readonly searched: string[],
   ) {}
 
-  /** Pad sets of every footprint in a library dir, read once per resolver. */
-  private readonly padSets = new Map<string, Map<string, FootprintPads>>();
-
   static async create(opts: FootprintResolverOptions): Promise<FootprintResolver> {
     const env = opts.env ?? process.env;
     const major = opts.kicadMajor !== undefined ? opts.kicadMajor : await kicadMajorVersion();
@@ -181,7 +178,10 @@ export class FootprintResolver {
    * exactly the symbol's pins: the variant the symbol was drawn for (the
    * 6-contact USB-C receptacle beside the 16-contact one, #325). Null when
    * the library ships none, which is how a library says the extra pads are
-   * its intent (an exposed pad, a no-connect lead) rather than a slip.
+   * its intent (an exposed pad, a no-connect lead) rather than a slip. Of
+   * several, the one whose name shares the longest prefix with `fpId`'s: the
+   * same family's other contact count, before an unrelated package that
+   * happens to fit (a two-pin part on SOT-23 was pointed at a DPAK).
    */
   async variantCovering(fpId: string, symbolPins: ReadonlySet<string>): Promise<string | null> {
     const i = fpId.indexOf(':');
@@ -189,31 +189,17 @@ export class FootprintResolver {
     const self = i > 0 ? fpId.slice(i + 1) : '';
     const entry = this.libs.get(lib);
     if (!entry || !self) return null;
-    let cache = this.padSets.get(entry.dir);
-    if (!cache) {
-      cache = new Map();
-      let files: string[] = [];
-      try {
-        files = (await readdir(entry.dir)).filter((f) => f.endsWith('.kicad_mod')).sort();
-      } catch {
-        // library dir listed in a table but missing on disk
-      }
-      for (const f of files) {
-        try {
-          cache.set(f.slice(0, -'.kicad_mod'.length), footprintPads(await readFile(path.join(entry.dir, f), 'utf8')));
-        } catch {
-          // unreadable or malformed: not a candidate
-        }
-      }
-      this.padSets.set(entry.dir, cache);
-    }
-    for (const [name, pads] of cache) {
+    let best: { name: string; shared: number } | null = null;
+    for (const [name, pads] of await libraryPadSets(entry.dir)) {
       if (name === self) continue;
       if ([...symbolPins].some((p) => !pads.numbers.has(p))) continue;
       const electrical = [...pads.numbers].filter((n) => !isMechanicalPad(n) && !pads.heatsink.has(n));
-      if (electrical.every((n) => symbolPins.has(n))) return `${lib}:${name}`;
+      if (!electrical.every((n) => symbolPins.has(n))) continue;
+      let shared = 0;
+      while (shared < self.length && shared < name.length && self[shared] === name[shared]) shared++;
+      if (!best || shared > best.shared || (shared === best.shared && name < best.name)) best = { name, shared };
     }
-    return null;
+    return best ? `${lib}:${best.name}` : null;
   }
 
   async resolve(fpId: string): Promise<FootprintLookup> {
@@ -371,6 +357,41 @@ export function footprintPads(modText: string): FootprintPads {
 
 export async function footprintPadNumbers(file: string): Promise<Set<string>> {
   return padNumbers(await readFile(file, 'utf8'));
+}
+
+/**
+ * The pad sets of every footprint in a library directory, read once per
+ * process for a given directory state (the key carries the directory's mtime,
+ * which a file added or removed changes). A stock library holds up to a
+ * thousand files, and the create pipeline builds a fresh resolver for every
+ * completion check, so the cache lives here rather than on the resolver.
+ */
+const padSetsByDir = new Map<string, Map<string, FootprintPads>>();
+async function libraryPadSets(dir: string): Promise<Map<string, FootprintPads>> {
+  let key: string;
+  try {
+    key = `${dir}@${(await stat(dir)).mtimeMs}`;
+  } catch {
+    return new Map(); // library dir listed in a table but missing on disk
+  }
+  const hit = padSetsByDir.get(key);
+  if (hit) return hit;
+  const out = new Map<string, FootprintPads>();
+  let files: string[] = [];
+  try {
+    files = (await readdir(dir)).filter((f) => f.endsWith('.kicad_mod')).sort();
+  } catch {
+    return out;
+  }
+  for (const f of files) {
+    try {
+      out.set(f.slice(0, -'.kicad_mod'.length), footprintPads(await readFile(path.join(dir, f), 'utf8')));
+    } catch {
+      // unreadable or malformed: not a candidate
+    }
+  }
+  padSetsByDir.set(key, out);
+  return out;
 }
 
 export async function readFootprintPads(file: string): Promise<FootprintPads> {
