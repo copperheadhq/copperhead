@@ -85,10 +85,12 @@ export const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
  * function returns the paths it removed so a caller can log the reclaim.
  *
  * `now` is injected so the behaviour is deterministically testable; callers pass
- * `Date.now()`.
+ * `Date.now()`. `root` is the OS temp dir; tests pass a private directory, since
+ * a sweep with a short cutoff over the shared temp dir deletes the scratch dirs
+ * of every other process on the machine (a parallel test file's seeded KiCad
+ * config among them).
  */
-export async function sweepStaleTempDirs(now: number, maxAgeMs = DEFAULT_STALE_MS): Promise<string[]> {
-  const root = tmpdir();
+export async function sweepStaleTempDirs(now: number, maxAgeMs = DEFAULT_STALE_MS, root = tmpdir()): Promise<string[]> {
   const removed: string[] = [];
   let entries: string[];
   try {
