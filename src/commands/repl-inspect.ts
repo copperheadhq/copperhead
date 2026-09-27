@@ -11,7 +11,7 @@ import { loadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
 import { loadConstraints } from '../memory/constraints.js';
 import { parseBomTable } from '../memory/bom-table.js';
-import { syncVerify, formatSyncReport } from './sync.js';
+import { syncVerify, formatSyncReport, type SyncViolationItem } from './sync.js';
 import { listSymbols, listNets, pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { copper, dim, ok, warn, err } from '../agent/theme.js';
@@ -47,6 +47,23 @@ async function resolveSchematic(
   return { schPath };
 }
 
+/**
+ * Headline wording for the non-auto-resolved items.
+ *
+ * The headline shows counts without the descriptions that follow it, so
+ * calling a missing file a "requirement violation" here has nothing to correct
+ * it. AC-7.3 uses that term for a design fact that breaks a budget or a spec,
+ * and the two are worth telling apart at a glance.
+ */
+function summariseViolations(violations: SyncViolationItem[]): string {
+  const missing = violations.filter((v) => v.kind === 'schematic-missing').length;
+  const requirement = violations.length - missing;
+  const parts: string[] = [];
+  if (requirement) parts.push(`${requirement} requirement violation(s)`);
+  if (missing) parts.push(`${missing} schematic missing`);
+  return parts.join(', ');
+}
+
 /** `/sync` — verify-only inconsistency report (never auto-resolves). */
 export async function formatSyncInspect(repoRoot: string): Promise<string> {
   const report = await syncVerify(repoRoot);
@@ -55,7 +72,7 @@ export async function formatSyncInspect(repoRoot: string): Promise<string> {
     !report.resolvable.length && !report.violations.length
       ? ok('  sync: clean')
       : report.violations.length
-        ? err(`  sync: ${report.violations.length} requirement violation(s), ${report.resolvable.length} resolvable`)
+        ? err(`  sync: ${summariseViolations(report.violations)}, ${report.resolvable.length} resolvable`)
         : warn(`  sync: ${report.resolvable.length} resolvable inconsistency(ies)`);
   return ['', copper('  Sync'), traceRule(12), '', headline, '', ...body.split('\n').map((l) => `  ${l}`), ''].join(
     '\n',
