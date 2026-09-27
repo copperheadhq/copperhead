@@ -672,6 +672,16 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-16.25 (illegible schematic still exits zero)** `check` on a repo with error-severity legibility findings but clean ERC and DRC prints them under a legibility heading and exits 0.
 - **AC-16.26 (score rides along without gating)** `check --json` on a repo with a drafted schematic and a low composite carries the `score` object with composite and breakdown, and the exit code is unaffected.
 
+**Hierarchical drafting (change: add-hierarchical-drafting)**
+
+- **AC-16.65 (small design stays flat)** An intent without `hints.sheets` whose flat draft fits A3 or smaller drafts to a single sheet, byte-identical to the output before hierarchical drafting existed.
+- **AC-16.66 (large multi-group design splits)** An intent without `hints.sheets` with two or more groups whose flat draft needs A2 or larger drafts to a root sheet plus one sub-sheet per group. The report states the mode and why it was chosen. `hints.sheets` set to `flat` or `hierarchical` overrides this choice.
+- **AC-16.67 (one group per sub-sheet)** In a hierarchical draft every non-power part appears on exactly one sub-sheet, the one for its group, and no part appears on the root.
+- **AC-16.68 (shared signals cross via hierarchical pins)** A signal net with endpoints in two or more groups gets a `hierarchical_label` on each sub-sheet it touches and a same-named pin on each of those sheet symbols, and the root connects those pins. A net confined to one group gets no sheet pin. Power and ground nets stay on power symbols and never get sheet pins.
+- **AC-16.69 (root holds only sheet symbols)** The root sheet contains one sheet symbol per group and no part symbols. Every sheet pin is either wired to another pin of its net or ends in a local label of its net.
+- **AC-16.70 (hierarchical round trip)** Exporting a hierarchical draft to a netlist from its root with `kicad-cli` yields the intent's pin partition, with zero pin groups lost and zero gained. ERC reports no hierarchical-label, sheet-pin, or multiple-net-name violations, and drafting twice gives byte-identical files.
+- **AC-16.71 (every sheet reported and managed)** The draft report names the root and each sub-sheet with its group and paper size. A re-draft removes drafted sub-sheets that are no longer referenced and leaves files the drafter did not generate untouched. Geometry edits to drafted sub-sheets are refused.
+
 ### AC-5 · Viewer (Phase 2 — only if built)
 
 - **AC-5.1** `copperhead watch` serves on localhost; page shows current schematic SVG within 2 s of load.
