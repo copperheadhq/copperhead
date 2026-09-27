@@ -179,6 +179,8 @@ brief.md
 
 Each stage is a `do`-loop run with a stage-specific prompt. State lives in the repo (docs + files), so `create` is resumable: kill it at any stage, re-run, it continues from the docs.
 
+Before skipping an already-complete stage, `create` commits any managed pending work. If that commit fails, or unrelated dirty files prevent a safe commit, it stops at that stage with a resume hint and returns failure. The stage is not added to the completed list, no later agent stage runs, and pending files remain in place. An already-committed stage in a clean tree needs no new commit.
+
 ### First-draft layout (explicitly non-optimal, explicitly useful)
 
 The agent produces an **initial placement and routing plan** — correct, not optimal — and says so:
@@ -223,6 +225,7 @@ An `affects` item that targets an artifact that does not exist yet (schematic, b
 ### Change workflow (OpenSpec propose → apply → archive)
 
 - `copperhead do "<request>"` first generates `openspec/changes/<id>/` (proposal.md, spec deltas, tasks.md), then implements against it; the ERC/DRC-clean commit archives the change. Every hardware change gets a paper trail: *why → what spec changed → what files changed → verification result*
+- The locked `propose_change` tool accepts `spec_deltas`, each containing a single kebab-case capability name and its delta markdown. It writes only the proposal, tasks and `specs/<capability>/spec.md` beneath that change. Initialized OpenSpec workspaces require a nonempty delta list; the real validator decides whether the requirements and scenarios are valid. Change ids and capabilities cannot be paths, duplicate capabilities are rejected, and planning destinations cannot traverse symlinks. Revising or revalidating a proposal first revokes its edit permission; only successful validation and any required human approval unlock edits again.
 - `copperhead create` seeds `openspec/specs/` from the brief as stage one — requirements with scenarios ("Given the device sleeps, when idle 1 year, then battery ≥ 20%") become the testable source that SPEC.md budgets derive from
 - In `--interactive` mode, the human approves the proposal; in autonomous mode it's written and auto-approved with an `AUTO` marker — reviewable after the fact, never lost
 - `openspec validate` runs inside `copperhead check`
@@ -233,11 +236,13 @@ OpenSpec is never user-triggered; copperhead drives it as subprocess tools (same
 
 | When | copperhead runs | Effect |
 |---|---|---|
-| `init` / `create` start | `openspec init` (once) | Scaffolds `openspec/`; agent seeds `specs/` from the brief |
+| `create` start | `openspec init --tools none` (once) | Scaffolds `openspec/` noninteractively without configuring AI tools; agent seeds `specs/` from the brief |
 | `do` — plan step | agent writes `openspec/changes/<id>/`, then `openspec validate --change <id>` | **Edit tools stay locked until the proposal validates.** The plan step *is* the proposal |
 | `do` — after ERC/DRC pass + commit | `openspec archive <id>` | Deltas merge into `specs/`; change record closed by the same code path that committed |
 | `check` | `openspec validate` | Part of the standard gate set |
 | `--interactive` only | pause after proposal validation | Human y/n before edits unlock — the single manual trigger |
+
+If OpenSpec initialization fails, `create` reports the subprocess diagnostic and returns failure before marking the repo as create-produced, completing any stage or invoking a model. Existing design files and configuration are preserved. An existing `openspec/` path is left intact and skips initialization; this existence check does not validate its contents or certify a partially initialized workspace. Startup scratch and history cleanup still runs before this check.
 
 This kills the last "docs drift" failure mode: requirements (openspec) → budgets (SPEC.md) → constraints (constraints.json) → design (KiCad) form a chain where every link is checked by tooling, not memory.
 
@@ -365,6 +370,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `write_file` | (path, content) → ok | New files only (docs); refuses to overwrite .kicad_* |
 | `search` | (regex, glob?) → matches | ripgrep-style over repo |
 | `list_symbols` | (sch_path) → [{ref, value, footprint, sheet}] | From s-expression parse |
+| `search_symbols` | (query) → [lib_id] | Read-only cross-library search; accepts a symbol name or `Lib:Name`; single-letter names match exactly only |
 | `list_nets` | (sch_path) → [net names] | |
 | `run_erc` | () → {violations: [...]} | `kicad-cli sch erc --format json --exit-code-violations` |
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |

@@ -296,6 +296,13 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(out).toContain('Logic:SN74LVC1G17');
     });
 
+    it.each(['R', 'Device:R'])('finds %s when symbol_pins confirms it exists', async (query) => {
+      expect(await dispatchTool(ctx(), 'symbol_pins', { lib_id: 'Device:R' })).toContain('2 pin(s)');
+      const out = await dispatchTool(ctx(), 'search_symbols', { query });
+      expect(out).toContain('  - Device:R');
+      expect(out).not.toContain('not capturable');
+    });
+
     it('states a genuine miss with the searched directories', async () => {
       const out = await dispatchTool(ctx(), 'search_symbols', { query: 'ZZZQ9999XY' });
       expect(out).toContain('no installed symbol matches "ZZZQ9999XY"');

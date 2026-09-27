@@ -587,8 +587,8 @@ export function isManagedPath(f: string, config: CopperheadConfig): boolean {
  * unrelated working changes are never swept into a copperhead commit; if any
  * foreign path is dirty, leave the whole thing for the human and say so.
  */
-async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig, stageName: string): Promise<void> {
-  if (!(await isDirty(opts.repoRoot))) return;
+async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig, stageName: string): Promise<boolean> {
+  if (!(await isDirty(opts.repoRoot))) return true;
   const dirty = await changedFiles(opts.repoRoot, 'HEAD');
   const foreign = dirty.filter((f) => !isManagedPath(f, config));
   if (foreign.length) {
@@ -600,7 +600,7 @@ async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig,
         'warn',
       ),
     );
-    return;
+    return false;
   }
   try {
     const sha = await commitAll(opts.repoRoot, `copperhead: resume — commit completed stage ${stageName}`);
@@ -611,8 +611,10 @@ async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig,
         'ok',
       ),
     );
+    return true;
   } catch (e) {
     opts.log(stageLine(stageName, `could not commit resumed work (${(e as Error).message})`, 'err'));
+    return false;
   }
 }
 
@@ -973,7 +975,11 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
   // across a long run and fill the disk (4.1, I8). Best-effort; keeps the newest.
   const pruned = await pruneHistoryDir(opts.repoRoot);
   if (pruned) opts.log(dim(`startup: pruned ${pruned} old .history/ entrie(s) to cap local-history growth`));
-  await openspecInit(opts.repoRoot);
+  const initialized = await openspecInit(opts.repoRoot);
+  if (!initialized.ok) {
+    opts.log(`OpenSpec initialization failed:\n${initialized.output}`);
+    return { ok: false, completed: [] };
+  }
   // Stamp the repo create-produced before any stage runs: the marker scopes the
   // legibility finish gate and the fab release gate, and it must hold on
   // resumed runs whose project predates the marker (bootstrapKicadProject
@@ -1008,8 +1014,15 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       }
     }
     if (await stage.isComplete(opts.repoRoot, config.docs)) {
+      if (!(await commitResumedStage(opts, config, stage.name))) {
+        // There is no snapshot for a resumed stage. Leave its work in place
+        // and stop before a later stage can commit or roll it back.
+        logResumePoint(opts, stage, i);
+        printCostTable(opts, stageCosts);
+        await writeRunReport(opts, stageCosts);
+        return { ok: false, completed };
+      }
       opts.log(stageLine(stage.name, 'already complete (resuming past it)', 'ok'));
-      await commitResumedStage(opts, config, stage.name);
       completed.push(stage.name);
       if (stage.name === 'spec-seed') {
         try {
