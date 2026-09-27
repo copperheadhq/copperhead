@@ -7,7 +7,7 @@ import { execa } from 'execa';
 import type { RunOptions } from '../src/agent/loop.js';
 import { bootstrapKicadProject } from '../src/kicad/bootstrap.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
-import { boardFootprints, populateBoard } from '../src/kicad/populate.js';
+import { boardFootprints, populateBoard, moveFootprint } from '../src/kicad/populate.js';
 import { footprintSearchDirs } from '../src/kicad/footprints.js';
 import { seededKicadConfig } from './helpers.js';
 
@@ -278,13 +278,14 @@ describe('create layout-draft around board populate (#314)', () => {
 
   it('a board populated but never verified (a run killed before its DRC) gets that DRC on resume, and stops on a failure', async () => {
     const { repo, brief, cleanup } = await projectAtLayoutDraft();
-    const emptyConfig = await mkdtemp(path.join(tmpdir(), 'copperhead-kicadcfg-'));
     try {
       const before = await readFile(path.join(repo, PCB), 'utf8');
-      // the previous invocation wrote the populated board and died before running DRC on it
+      // the previous invocation wrote the populated board and died before running
+      // DRC on it; here two parts landed on one spot, so that DRC fails
       const r = await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB });
       expect(r.unchanged).toBeFalsy();
-      vi.stubEnv('KICAD_CONFIG_HOME', emptyConfig);
+      const pcb = path.join(repo, PCB);
+      await writeFile(pcb, moveFootprint(moveFootprint(await readFile(pcb, 'utf8'), 'R1', 50, 50), 'R2', 50, 50), 'utf8');
       const lines: string[] = [];
       const res = await run(repo, brief, lines);
       expect(res.ok).toBe(false);
@@ -294,10 +295,9 @@ describe('create layout-draft around board populate (#314)', () => {
       expect(out).toContain('was populated before this run and is left as it is');
       expect(out).not.toMatch(/placed \d+ footprint/);
       // the populated board is what the stage found: nothing older to put back
-      expect(boardFootprints(await readFile(path.join(repo, PCB), 'utf8')).length).toBe(5);
+      expect(boardFootprints(await readFile(pcb, 'utf8')).length).toBe(5);
       expect(boardFootprints(before)).toEqual([]);
     } finally {
-      await rm(emptyConfig, { recursive: true, force: true });
       await cleanup();
     }
   }, 180_000);
