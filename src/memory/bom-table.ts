@@ -325,25 +325,31 @@ export interface TableRow {
   
   /**
    * Parses BOM.md's data rows into typed rows. Columns are resolved by header
-   * *name* (Refdes/Value/Footprint/MPN), falling back to the canonical position
-   * when a header is absent — the same header-name discipline `parsePinoutRows`
-   * uses (#I12), so a doc that reorders or drops an optional column is still read
-   * correctly instead of silently shifting every cell. Rows without a refdes are
-   * dropped rather than thrown on: a hand-edited doc with a ragged or partial
-   * table shouldn't crash `check` or `export bom`, it should just be skipped
-   * (drift/export callers report the gaps that matter against the schematic).
+   * *name* (Refdes/Value/Footprint/MPN). Value has no positional fallback and a
+   * table without a Value column is a supporting table, not a BOM, so it is
+   * skipped (#321); Refdes/Footprint/MPN still fall back to the canonical
+   * position when their header is absent — the same header-name discipline
+   * `parsePinoutRows` uses (#I12) — so a doc that reorders or drops an optional
+   * column is still read correctly instead of silently shifting every cell.
+   * Rows without a refdes are dropped rather than thrown on: a hand-edited doc
+   * with a ragged or partial table shouldn't crash `check` or `export bom`, it
+   * should just be skipped (drift/export callers report the gaps that matter
+   * against the schematic).
    */
   export function parseBomTable(md: string): BomRow[] {
     const out: BomRow[] = [];
     for (const { header, rows } of parseCanonicalTables(md)) {
-      // Resolve by header name; -1 means "not found", so fall back to the
-      // canonical index for that column (Refdes 0, Value 1, Footprint 2, MPN 3).
+      // Value has no positional fallback: a table that omits it is a supporting
+      // table, not a BOM, and must not yield rows (#321).
+      const valI = header.cells.findIndex((c) => /^value$/i.test(c));
+      if (valI < 0) continue;
+      // Refdes/Footprint/MPN resolve by header name and fall back to the
+      // canonical index (0/2/3) when their header is absent.
       const col = (re: RegExp, fallback: number): number => {
         const i = header.cells.findIndex((c) => re.test(c));
         return i >= 0 ? i : fallback;
       };
       const refI = col(/^refdes$/i, 0);
-      const valI = col(/^value$/i, 1);
       const fpI = col(/^footprint$/i, 2);
       const mpnI = col(/^mpn$/i, 3);
       for (const row of rows) {
