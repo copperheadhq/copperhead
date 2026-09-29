@@ -72,6 +72,7 @@ copperhead demo --model cursor # full USB-C breakout create pipeline
 # or one-shot:
 copperhead do "add reverse-polarity protection on VIN"
 copperhead check               # ERC + DRC + doc drift; no LLM, CI-safe
+copperhead diff --base HEAD~1   # readable electrical change summary
 ```
 
 Starting from nothing instead? Write a product brief and run `copperhead create --brief brief.md`. The [examples/](examples/) directory has ready-made briefs sorted by difficulty, plus a note on which one is designed to fail.
@@ -118,6 +119,7 @@ copperhead do "<change request>"     # the core loop: propose, edit, verify, pro
 copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
+copperhead diff [--base <revision>]   # component, connection, and net changes since a Git revision
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
 copperhead create --brief brief.md   # brief → full output package
@@ -174,13 +176,23 @@ copperhead export bom --supplier mouser --spares 15     # Mouser cart CSV, 15% s
 
 Nothing is a black box: decisions land in an append-only `docs/DECISIONS.md`, every run writes a human-readable summary next to its transcript, and a per-run `docs/CHANGELOG.md` narrates the design history.
 
+### Electrical review (`diff`)
+
+`copperhead diff --base HEAD~1` compares the configured working schematic with a local Git revision. It reports component values and footprints, pin-to-net changes, and named nets added, removed, or renamed. A rename requires the same nonempty pin set under one old and one new name. Use `copperhead --json diff --base main` for structured data including the requested revision and resolved commit.
+
+Hierarchical projects are read recursively from each revision, preserving sheet paths. Windows path separators are accepted. A schematic absent from the baseline is treated as a new design; invalid revisions and missing child sheets fail clearly. The command changes no project files or Git index, calls no model or network, and needs no KiCad executable. Temporary sheet copies are cleaned up.
+
+`do --dry-run` also prints an electrical preview after verification and before reverting its changes. It compares against the actual pre-run design, including user edits accepted through `--allow-dirty`, and includes the preview in its JSON result and redacted run summary.
+
+This is a review of component properties and named-net assignments through the existing parser. Reference renumbering remains visible, and the report does not claim complete connectivity, merge detection, constraint evaluation, or fresh ERC/DRC results. Continue using `check` for verification.
+
 ## MCP server (experimental)
 
 Coding agents are already pointed at KiCad repos through generic file tools, which
 means a host agent can rewrite a `.kicad_sch` with no spec gate, no verification,
 and no rollback. `copperhead mcp` closes that: it serves the gated pipeline to any
-MCP host as five opaque, outcome-level tools — `copperhead_check`, `copperhead_do`,
-`copperhead_sync`, `copperhead_init`, `copperhead_doctor` — and nothing finer. There is no file-edit
+MCP host as six opaque, outcome-level tools: `copperhead_check`, `copperhead_diff`, `copperhead_do`,
+`copperhead_sync`, `copperhead_init`, `copperhead_doctor`. There is no file-edit
 tool, no raw KiCad tool, and no partial-loop tool to reach around, so a host agent
 cannot skip spec-gating or verification by any sequence of calls.
 
