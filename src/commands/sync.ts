@@ -35,6 +35,54 @@ export interface SyncReport {
   violations: SyncViolationItem[];
 }
 
+function parseSpecBudgets(spec: string): Map<string, string> {
+  const withoutComments = spec.replace(/<!--[\s\S]*?-->/g, '');
+  const budgets = new Map<string, string>();
+
+  const heading = withoutComments.match(/^## Budgets\s*$/m);
+  if (!heading || heading.index === undefined) return budgets;
+
+  const afterHeading = withoutComments.slice(heading.index + heading[0].length);
+  const nextHeading = afterHeading.search(/^#{1,2}\s/m);
+  const section = nextHeading >= 0 ? afterHeading.slice(0, nextHeading) : afterHeading;
+  const withoutCodeBlocks = section.split(/```/).filter((_, i) => i % 2 === 0).join('');
+  const budgetLine = /^-\s*([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.+?)\s*$/gm;
+  let match: RegExpExecArray | null;
+
+  while ((match = budgetLine.exec(withoutCodeBlocks)) !== null) { 
+    const key = match[1];
+    const value = match[2];
+
+    if (!key || value === undefined) continue;
+
+    // Keep only the canonical value before any explanatory prose.
+    const canonical = value.replace(/\s*\(.*$/, '').trim();
+    if (!isBudgetValue(canonical)) continue;
+    budgets.set(key, canonical);
+  }
+
+  return budgets;
+}
+
+function isBudgetValue(value: string): boolean {
+  return /^\d+(?:\.\d+)?(?:\s*[A-Za-zµμ%/0-9]+)?$/.test(value);
+}
+
+function parseLeadingNumber(
+  value: string,
+): { value: number; unit: string } | null {
+  const match = value.match(
+    /^\s*(\d+(?:\.\d+)?)\s*([A-Za-zµμ%][A-Za-z0-9_\/-]*)?/,
+  );
+
+  if (!match) return null;
+
+  return {
+    value: Number(match[1]),
+    unit: (match[2] ?? '').toLowerCase(),
+  };
+}
+
 export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   const config = await loadConfig(repoRoot);
   const resolvable: SyncItem[] = [];
@@ -56,25 +104,104 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   // every budget in config should exist in the registry
   const registry = await loadConstraints(repoRoot);
   const docsDir = path.join(repoRoot, config.docs);
+  const specPath = path.join(docsDir, 'SPEC.md');
+  const specBudgets = existsSync(specPath)
+    ? parseSpecBudgets(await readFile(specPath, 'utf8'))
+    : new Map<string, string>();
+  const budgetSource = `${config.docs.replace(/\/?$/, '/')}SPEC.md#budgets`;
   let docsText = '';
   for (const name of ['SPEC.md', 'BOM.md', 'PINOUT.md', 'SUBSYSTEMS.md', 'LAYOUT.md']) {
     const p = path.join(docsDir, name);
     if (existsSync(p)) docsText += `\n<<<${name}>>>\n` + (await readFile(p, 'utf8'));
   }
-  for (const key of Object.keys(registry)) {
+  for (const [key, constraint] of Object.entries(registry)) {
     const shortKey = key.split('.').pop()!;
+
+    // Constraints documented in SPEC.md are checked deterministically.
+    if (constraint.source.startsWith(budgetSource)) {
+      if (!specBudgets.has(shortKey)) {
+        resolvable.push({
+          kind: 'dual-write',
+          doc: 'constraints.json',
+          claim: `constraint ${key} exists in registry`,
+          actual: 'missing from SPEC.md budgets',
+          resolution: `add the constraint to the doc named by its source (${constraint.source})`,
+        });
+        continue;
+      }
+
+      const documented = specBudgets.get(shortKey)!;
+      const recorded =
+        constraint.value !== undefined
+          ? String(constraint.value)
+          : constraint.max !== undefined
+            ? String(constraint.max)
+            : constraint.min !== undefined
+              ? String(constraint.min)
+              : undefined;
+
+      if (recorded !== undefined) {
+        const documentedNumber = parseLeadingNumber(documented);
+        const recordedNumber = parseLeadingNumber(recorded);
+
+        const matches =
+          documentedNumber !== null && recordedNumber !== null
+            ? documentedNumber.value === recordedNumber.value &&
+              (
+                documentedNumber.unit === '' ||
+                recordedNumber.unit === '' ||
+                documentedNumber.unit === recordedNumber.unit
+              )
+            : documented === recorded;
+
+        if (!matches) {
+          resolvable.push({
+            kind: 'dual-write',
+            doc: 'constraints.json',
+            claim: `${shortKey}: ${recorded}`,
+            actual: `SPEC.md documents ${documented}`,
+            resolution: 'update either SPEC.md or constraints.json so both agree',
+          });
+        }
+      }
+
+      continue;
+    }
+
+    // Existing heuristic for non-SPEC documentation.
     if (docsText && !docsText.includes(shortKey)) {
       resolvable.push({
         kind: 'dual-write',
         doc: 'constraints.json',
         claim: `constraint ${key} exists in registry`,
         actual: 'no doc mentions it',
-        resolution: `add the constraint to the doc named by its source (${registry[key]!.source})`,
+        resolution: `add the constraint to the doc named by its source (${constraint.source})`,
+      });
+    }
+  }
+  const registryByShortKey = new Map(
+    Object.entries(registry)
+      .filter(([, constraint]) => constraint.source.startsWith(budgetSource))
+      .map(([key, constraint]) => [
+        key.split('.').pop()!,
+        { key, constraint },
+      ]),
+  );
+  for (const [budget, documented] of specBudgets) {
+    const entry = registryByShortKey.get(budget);
+
+    if (!entry) {
+      resolvable.push({
+        kind: 'dual-write',
+        doc: 'SPEC.md',
+        claim: `budget ${budget}: ${documented}`,
+        actual: 'missing from constraints.json',
+        resolution: 'record_constraint with the documented value and source',
       });
     }
   }
   for (const [budget, value] of Object.entries(config.budgets)) {
-    if (!Object.keys(registry).some((k) => k.endsWith(budget))) {
+    if (!Object.keys(registry).some((k) => k.split('.').pop() === budget,)) {
       resolvable.push({
         kind: 'dual-write',
         doc: '.copperhead/config.json',

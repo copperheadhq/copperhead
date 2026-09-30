@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { writeFile, readFile } from 'node:fs/promises';
+import { writeFile, readFile, rm } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
 import { availableTools, dispatchTool, dispatchToolResult, registry, type RunContext } from '../src/agent/tools.js';
@@ -393,6 +393,514 @@ describe('copperhead sync verify phase (AC-7)', () => {
       expect(report.violations).toHaveLength(1);
       expect(report.violations[0]!.description).toContain('GPIO14');
       expect(report.violations[0]!.governedBy).toBe('esp32-s3 datasheet');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports SPEC-backed registry constraints missing from SPEC budgets', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Test
+
+## Budgets
+
+- peak_current_mA: 500
+ `,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (i) =>
+            i.kind === 'dual-write' &&
+            i.doc === 'constraints.json' &&
+            i.actual === 'missing from SPEC.md budgets',
+        ),
+      ).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports SPEC budgets missing from the constraint registry', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      await runInit({ repoRoot: repo });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Test
+
+## Budgets
+
+- sleep_current_uA: 25
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (i) =>
+            i.kind === 'dual-write' &&
+            i.doc === 'SPEC.md' &&
+            i.actual === 'missing from constraints.json',
+        ),
+      ).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('does not report dual-write drift when SPEC budgets match the constraint registry', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Test
+
+## Budgets
+
+- sleep_current_uA: 25
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (i) =>
+            i.kind === 'dual-write' &&
+            i.claim.includes('sleep_current_uA'),
+        ),
+      ).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports value mismatches between SPEC budgets and the constraint registry', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Test
+
+## Budgets
+
+- sleep_current_uA: 30
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (i) =>
+            i.kind === 'dual-write' &&
+            i.claim === 'sleep_current_uA: 25' &&
+            i.actual === 'SPEC.md documents 30',
+        ),
+      ).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('ignores explanatory text after SPEC budget values', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Test
+
+## Budgets
+
+- sleep_current_uA: 25 (hard budget; 3.3 V rail; every leakage path counts)
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (i) =>
+            i.kind === 'dual-write' &&
+            i.claim.includes('sleep_current_uA'),
+        ),
+      ).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('treats numeric constraint values the same as documented budget values', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        value: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Test
+
+## Budgets
+
+- sleep_current_uA: 25
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (i) =>
+            i.kind === 'dual-write' &&
+            i.claim.includes('sleep_current_uA'),
+        ),
+      ).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('ignores example budgets inside fenced code blocks', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Spec
+
+## Budgets
+
+Example:
+
+\`\`\`text
+- sleep_current_uA: 10
+\`\`\`
+
+- sleep_current_uA: 25
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.filter((r) => r.kind === 'dual-write'),
+      ).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('ignores nested bullets inside the SPEC budgets section', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Spec
+
+## Budgets
+
+- sleep_current_uA: 25
+  - rationale: coin cell
+- note: values are worst-case
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      const dualWrite = report.resolvable.filter(
+        (r) => r.kind === 'dual-write',
+      );
+
+      expect(dualWrite).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('treats equivalent numeric budget values as matching despite units', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      const specPath = path.join(repo, 'docs', 'SPEC.md');
+
+      await writeFile(
+        specPath,
+        `# Spec
+
+## Budgets
+
+- sleep_current_uA: 25 uA
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.filter((r) => r.kind === 'dual-write'),
+      ).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports SPEC-backed constraints when SPEC.md is missing', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      await rm(path.join(repo, 'docs', 'SPEC.md'));
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (r) =>
+            r.kind === 'dual-write' &&
+            r.actual === 'missing from SPEC.md budgets',
+        ),
+      ).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('accepts min-only constraints that match SPEC budgets', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.vin_min_V', {
+        min: 3,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      await writeFile(
+        path.join(repo, 'docs', 'SPEC.md'),
+        `# Spec
+
+## Budgets
+
+- vin_min_V: 3
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.filter((r) => r.kind === 'dual-write'),
+      ).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('accepts SPEC-backed constraints with no recorded scalar value', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      await writeFile(
+        path.join(repo, 'docs', 'SPEC.md'),
+        `# Spec
+
+## Budgets
+
+- sleep_current_uA: 25
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.filter((r) => r.kind === 'dual-write'),
+      ).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('ignores commented budget entries', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'power.sleep_current_uA', {
+        max: 25,
+        source: 'docs/SPEC.md#budgets',
+        affects: [],
+      });
+
+      await writeFile(
+        path.join(repo, 'docs', 'SPEC.md'),
+        `# Spec
+
+## Budgets
+
+<!--
+- sleep_current_uA: 25
+-->
+
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (r) =>
+            r.kind === 'dual-write' &&
+            r.actual === 'missing from SPEC.md budgets',
+        ),
+      ).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('ignores non-SPEC constraints when checking for missing SPEC budgets', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+
+      await saveConstraint(repo, 'bom.sleep_current_uA', {
+        max: 25,
+        source: 'docs/BOM.md',
+        affects: [],
+      });
+
+      await writeFile(
+        path.join(repo, 'docs', 'SPEC.md'),
+        `# Spec
+
+## Budgets
+
+- sleep_current_uA: 25
+`,
+        'utf8',
+      );
+
+      const report = await syncVerify(repo);
+
+      expect(
+        report.resolvable.some(
+          (r) =>
+            r.kind === 'dual-write' &&
+            r.actual === 'missing from constraints.json',
+        ),
+      ).toBe(true);
     } finally {
       await cleanup();
     }
