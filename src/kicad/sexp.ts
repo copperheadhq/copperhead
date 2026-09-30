@@ -94,6 +94,8 @@ export interface SchematicSymbol {
   uuid: string;
   /** `(unit N)` of the placed instance; 1 for single-unit symbols. */
   unit: number;
+  /** KiCad's own simulation fields on the placed symbol, when present. */
+  simulation?: { library: string; name: string; pins: string };
 }
 
 export interface PinDef {
@@ -128,7 +130,7 @@ async function loadSheets(rootSch: string): Promise<ParsedSheet[]> {
     for (const sheet of children(root, 'sheet')) {
       const sub = property(sheet, 'Sheetfile') ?? property(sheet, 'Sheet file');
       const name = property(sheet, 'Sheetname') ?? property(sheet, 'Sheet name') ?? 'sheet';
-      if (sub) await load(path.resolve(path.dirname(abs), sub), name);
+      if (sub) await load(path.resolve(path.dirname(abs), sub.replace(/\\/g, '/')), name);
     }
   }
   await load(rootSch, '/');
@@ -247,6 +249,13 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
         },
         uuid: atomAt(child(s, 'uuid'), 1) ?? '',
         unit: parseInt(atomAt(child(s, 'unit'), 1) ?? '1', 10) || 1,
+        ...(property(s, 'Sim.Library') || property(s, 'Sim.Name') || property(s, 'Sim.Pins')
+          ? { simulation: {
+              library: property(s, 'Sim.Library') ?? '',
+              name: property(s, 'Sim.Name') ?? '',
+              pins: property(s, 'Sim.Pins') ?? '',
+            } }
+          : {}),
       },
     });
   }

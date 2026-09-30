@@ -293,9 +293,31 @@ copperhead skill run <name> [--scope power|all] [--model …]
     Run a skill (currently `generate-report`) via the nested sub-run. Needs a
     model, same as `do`. Does not snapshot or commit.
 
-copperhead check          (alias: copperhead verify)
+copperhead check [--spice] (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
+    --spice additionally checks declared three-terminal linear-regulator DC
+    operating points using a local ngspice subprocess and a local model file.
+    Each eligible regulator needs a numeric output-voltage constraint with
+    value/min/max and affects entries for its refdes and output net, plus an
+    op Simulation block in SUBSYSTEMS.md declaring its input source voltage.
+    Missing or unusable models, non-convergence, and missing ngspice are
+    failures; a regulator without a voltage constraint is reported not checked.
     No LLM calls. Usable as CI step / pre-commit hook.
+
+copperhead diff [--base <revision>] [--json]
+    Read-only, deterministic electrical review of the configured schematic
+    against a Git revision (default HEAD~1). Reports added/removed/changed
+    components, pin-to-net connections, and added/removed/renamed named nets.
+    Renames require a unique identical nonempty pin set. Both revisions include
+    every referenced sub-sheet, retaining relative paths. Backslashes in paths
+    are normalized. Missing baseline roots mean an empty design; missing child
+    sheets or invalid revisions fail with actionable errors. Output starts with
+    "Electrical changes since <base>" and JSON includes base and baseCommit.
+    Whitespace and source ordering are ignored. Reference renumbering remains
+    a component change. This uses the existing named-net reader, not a complete
+    connectivity solver or ERC/DRC substitute. The working tree and Git index
+    are unchanged; temporary sheet copies are removed on success and failure.
+    No network/model calls or KiCad executable are required.
 
 copperhead sync [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs
@@ -309,8 +331,10 @@ copperhead sync [--dry-run]
     and writes nothing. Idempotent: a second run finds nothing to do.
 
 copperhead mcp [--repo <path>]            # EXPERIMENTAL
-    Serve the gated pipeline to MCP hosts over stdio as five opaque,
-    outcome-level tools (copperhead_check / _do / _sync / _init / _doctor).
+    Serve the gated pipeline to MCP hosts over stdio as six opaque,
+    outcome-level tools (copperhead_check / _diff / _do / _sync / _init / _doctor).
+    copperhead_diff accepts an optional base revision and returns the diff
+    command's JSON report inside the shared redacted result envelope.
     No file-edit, raw-KiCad, or partial-loop tool is exposed, so a host
     agent cannot skip spec-gating or verification by any sequence of
     calls; every mutating tool runs the same loop the CLI runs. The
@@ -459,7 +483,7 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 ## 8. Phase 3 — Integrations (post-hackathon roadmap; document, don't build)
 
 - **CI**: GitHub Action running `copperhead check` (ERC + DRC + drift) with a badge — hardware repos get a green check like software
-- **Simulation checkers**: ngspice (analog sanity), openEMS (EMC) as additional verify tools — architecture is checker-agnostic
+- **Simulation checkers**: `check --spice` now covers one narrow case: linear-regulator DC operating points with a declared source, constraint, and local model. General ngspice analysis and openEMS (EMC) remain planned.
 - **KiCad plugin**: chat panel inside KiCad via the IPC API — the full-Cursor endgame
 - **Part data**: live availability/pricing (Octopart/JLC), so "sourceable" becomes a checked constraint
 - **Format expansion**: Altium file support; the agent core is format-agnostic, only tools change
@@ -495,7 +519,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-3.6 (rollback)** If violations persist after `maxRepairCycles`, working tree equals the pre-run state (`git status` clean, files byte-identical), exit non-zero, transcript path printed.
 - **AC-3.7 (surgical edits)** For every run above: the `.kicad_sch` diff touches only the s-expressions relevant to the change — file not regenerated (assert: < 5% of lines changed for AC-3.1).
 - **AC-3.8 (dirty tree)** With uncommitted changes and no `--allow-dirty`: refuses to start. Holds for `repl` as well as `do`, since `repl` is the default command. With `--allow-dirty`, a rollback restores both the tracked modifications and the untracked files that were present before the run.
-- **AC-3.9 (dry run)** `--dry-run` prints the proposed diff and writes nothing.
+- **AC-3.9 (dry run)** `--dry-run` prints the proposed text and electrical diffs after the existing spec/verification gates, before restoring the pre-run snapshot. The electrical baseline includes pre-existing dirty work. The preview appears in the run result and redacted transcript/summary; the project edits are reverted.
 - **AC-3.10 (provider parity)** AC-3.1 passes with `--model codex`, `--model gpt-5`, `--model claude`, `--model claude-code`, `--model cursor`, and `--model compat:<id>` when each provider is configured.
 - **AC-3.11 (saved login)** With `--model claude-code`, a logged-in Claude Code (`CLAUDE_CODE_OAUTH_TOKEN` set) and **no** `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`, a `do` run completes through the normal verify/commit path; copperhead reads no credential store; and no key material appears in the transcript, summary, or tree (AC-4.1 holds). A missing optional dependency or an unauthenticated install fails through the rollback path with an actionable error, not a raw stack trace.
 - **AC-3.12 (cursor saved login)** With `--model cursor`, a logged-in Cursor Agent CLI (`agent login`) and **no** model API keys, a `do` run completes through the normal verify/commit path; copperhead never reads Cursor credentials; unauthenticated or missing CLI installs fail with an actionable message and rollback.
@@ -671,6 +695,16 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 
 - **AC-16.25 (illegible schematic still exits zero)** `check` on a repo with error-severity legibility findings but clean ERC and DRC prints them under a legibility heading and exits 0.
 - **AC-16.26 (score rides along without gating)** `check --json` on a repo with a drafted schematic and a low composite carries the `score` object with composite and breakdown, and the exit code is unaffected.
+
+### AC-17 · Electrical change review (change: add-electrical-diff)
+
+- **AC-17.1 (baseline)** `diff --base <rev>` compares the configured working schematic to the same repo-relative root at that local commit, recursively copying both sheet trees. A child change is reported even when only its historical filename remains at the baseline.
+- **AC-17.2 (paths and errors)** Windows separators work in config and sheet references. Paths and symlinks cannot escape the repo. Invalid revisions and missing referenced children produce clear failures. A missing baseline root yields additions for the current design.
+- **AC-17.3 (stable review)** Components and connections sort deterministically, with changed references in natural numeric order. Whitespace and source order do not generate differences. The header includes the requested base; JSON also names the resolved base commit.
+- **AC-17.4 (nets)** Named nets have added/removed/renamed lists. A rename requires a unique, identical, nonempty set of REF.PIN members; names without this evidence remain additions/removals.
+- **AC-17.5 (MCP)** `copperhead_diff` is a read-only outcome tool, accepts optional `base`, returns the same data as CLI JSON through the shared redacted envelope, and exposes no raw filesystem or editing operations.
+- **AC-17.6 (dry-run preview)** AC-3.9's electrical preview uses the actual pre-run working design, runs only after the existing finish gates pass, and is returned before rollback. A preview failure uses the failure/rollback path, never commits.
+- **AC-17.7 (read-only)** `diff` changes no project file or Git index and creates no run transcript. Only isolated temporary sheet copies are written and always cleaned up. No provider or network is reachable from the diff module.
 
 ### AC-5 · Viewer (Phase 2 — only if built)
 

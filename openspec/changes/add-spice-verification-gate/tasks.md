@@ -1,5 +1,15 @@
 # Tasks: add-spice-verification-gate
 
+## Issue #308 first slice
+
+- [x] Explicit `check --spice` runs one local, bounded ngspice DC operating-point
+  check for declared three-terminal linear regulators and reports text/JSON.
+- [x] Existing schematic, constraint, and Simulation parsers supply connectivity,
+  output bounds, and the declared input source; unusable models cannot pass.
+- [x] Unit and environment-gated integration tests cover the first slice.
+
+The broader tasks below remain open; this slice does not complete them.
+
 ## 1. Wrapper and grammar
 
 - [ ] 1.1 Implement ngspice wrapper in `src/kicad/spice.ts` mirroring the kicad-cli wrapper: execa batch mode, version detection, install hint, per-run timeout from config

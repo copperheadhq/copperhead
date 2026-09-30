@@ -8,6 +8,7 @@ import { CachingProvider } from './response-cache.js';
 import { withWatchdog, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js';
 import { buildSystemPrompt } from './prompts.js';
 import { loadConstraints, reopenDeferredAffects } from '../memory/constraints.js';
+import { compareElectrical, formatElectricalDiff, readWorkingElectricalSnapshot, type ElectricalDiff } from '../commands/diff.js';
 import { isCreateProducedRepo, isEngineAuthoredSchematic } from '../kicad/fab.js';
 import {
   loadConfig,
@@ -95,6 +96,8 @@ export interface RunResult {
   stats: RunStats;
   /** Number of turns served from the on-disk response cache (5.2). */
   cacheHits: number;
+  /** Preview generated before a successful dry run restores its snapshot. */
+  electricalDiff?: ElectricalDiff;
 }
 
 export async function makeProvider(
@@ -250,6 +253,9 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
 
   await gitPreflight(repoRoot, { allowDirty: opts.allowDirty ?? false });
   const snap = await snapshot(repoRoot);
+  // Capture working state, not HEAD: --allow-dirty must exclude pre-existing edits.
+  // A read failure happens before any agent mutation or provider call.
+  const electricalBefore = opts.dryRun ? await readWorkingElectricalSnapshot(repoRoot, true) : null;
 
   const transcript = new Transcript(repoRoot);
   await transcript.init();
@@ -726,6 +732,14 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         .join(', ');
 
       if (opts.dryRun) {
+        let electricalDiff: ElectricalDiff;
+        try {
+          electricalDiff = compareElectrical(electricalBefore!, await readWorkingElectricalSnapshot(repoRoot, true));
+          log(formatElectricalDiff(electricalDiff));
+          await transcript.event('electrical-diff', electricalDiff);
+        } catch (err) {
+          return fail(`electrical diff failed: ${(err as Error).message}`, 'stalled');
+        }
         const { stdout: diff } = await execa('git', ['diff'], { cwd: repoRoot });
         const { stdout: untracked } = await execa('git', ['ls-files', '--others', '--exclude-standard'], {
           cwd: repoRoot,
@@ -748,12 +762,13 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           tokensOut,
           outcome: 'success',
           openObligations: null,
-          detail: 'dry run: changes reverted',
+          detail: `dry run: changes reverted\n\n${formatElectricalDiff(electricalDiff)}`,
           env: meta,
           stats: runStats,
         });
         r.finish(outcomeLine(runStats, 'dry run: changes reverted'));
         return {
+          electricalDiff,
           outcome: 'success',
           exitPath: 'done',
           summary,

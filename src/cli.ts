@@ -6,6 +6,7 @@ import { loadConfig, resolveModel, type ModelSource } from './config.js';
 import { pickModel } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
+import { runElectricalDiff, formatElectricalDiff } from './commands/diff.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
 import { runCreate } from './commands/create.js';
@@ -159,12 +160,12 @@ program
     }
   });
 
-const checkAction = async (): Promise<void> => {
+const checkAction = async (opts: { spice?: boolean }): Promise<void> => {
   const repo = repoOf(program.opts());
   const json = Boolean(program.opts().json);
   try {
     await kicadCliVersion();
-    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s));
+    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s), { spice: opts.spice });
     if (json) console.log(JSON.stringify(res, null, 2));
     process.exit(res.ok ? 0 : 1);
   } catch (err) {
@@ -177,7 +178,26 @@ program
   .command('check')
   .alias('verify')
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
+  .option('--spice', 'check declared linear-regulator DC operating points with local ngspice')
   .action(checkAction);
+
+program
+  .command('diff')
+  .description('summarize electrical changes since a Git revision; read-only, offline')
+  .option('--base <revision>', 'Git revision to compare against', 'HEAD~1')
+  .action(async (opts: { base: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const diff = await runElectricalDiff(repo, opts.base);
+      if (json) console.log(JSON.stringify(diff, null, 2));
+      else console.log(formatElectricalDiff(diff));
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
 
 // `draft` and `score` are command groups taking the artifact as a noun
 // (`draft schematic` today, `draft pcb` when layout drafting exists), so the
