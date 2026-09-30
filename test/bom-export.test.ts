@@ -122,6 +122,16 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
         'RC0603FR-0710KL,Yageo,3,R1\n',
     );
   });
+
+  it('defuses cells a spreadsheet would evaluate as a formula', () => {
+    const hostile = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R1 | 10k | R_0603 | =cmd\'/c calc\' | -Yageo |\n',
+    );
+    const { csv } = buildExport(hostile, 'mouser', { boards: 1, spares: 10, includeUnverified: false });
+    expect(csv.split('\n')[1]).toBe("'=cmd'/c calc','-Yageo,3,R1");
+  });
 });
 
 describe('exclusion rules (supplier-bom-export)', () => {
