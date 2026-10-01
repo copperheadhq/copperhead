@@ -52,6 +52,9 @@ export interface QueryOptions {
   cwd?: string;
   env?: Record<string, string | undefined>;
   maxTurns?: number;
+  /** Keep adaptive thinking visible as summarized deltas so the watchdog can
+   * distinguish an active turn from a stalled subprocess. */
+  thinking?: { type: 'adaptive'; display?: 'summarized' | 'omitted' };
   /** Aborting this controller stops the query and tears down the `claude`
    * subprocess it spawned (Agent SDK `Options.abortController`). Used so the
    * watchdog's `close()` on a hung turn kills the process instead of orphaning
@@ -176,6 +179,9 @@ export class ClaudeCodeProvider implements Provider {
           // the SDK yields nothing until the reply is complete, so a turn that is
           // still generating looks exactly like a hung one to the watchdog.
           includePartialMessages: true,
+          // Adaptive thinking is otherwise omitted from the stream, which
+          // makes a healthy long-thinking turn look idle to the watchdog.
+          thinking: { type: 'adaptive', display: 'summarized' },
           // Layered "the SDK executes nothing" defense (D1/D5):
           //  1. `tools: []` disables ALL built-in tools (Agent SDK 0.3.x docs:
           //     "[] (empty array) - Disable all built-in tools").

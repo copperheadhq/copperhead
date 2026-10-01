@@ -84,6 +84,7 @@ describe('ClaudeCodeProvider — progress streaming (turn watchdog)', () => {
     const progress: number[] = [];
     const turn = await provider.chat(messages, tools, { onStream: (chars) => progress.push(chars) });
     expect(options.includePartialMessages).toBe(true);
+    expect(options.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
     // Thinking and block boundaries are progress with an unchanged count; only
     // text deltas grow it. The complete message still supplies the reply.
     expect(progress).toEqual([0, 0, 3, 5, 5]);
