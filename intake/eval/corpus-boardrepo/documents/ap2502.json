@@ -1,0 +1,135 @@
+{
+  "documentId": "ap2502",
+  "vendor": "Diodes Incorporated",
+  "mpn": "AP2502",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "f6272ef503d2850253fbda7b92ca359dfa2848eaf2123ab8159deb31a337a1ce",
+    "url": "https://www.diodes.com/assets/Datasheets/AP2502.pdf",
+    "note": "used on BoardRepo boards: elipsitz-gamebub"
+  },
+  "pages": [
+    4,
+    5
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": "ABSENT",
+        "quiescent_current_uA": [
+          {
+            "value": "125",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "IOUT = 20 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Quiescent Current"
+            }
+          },
+          {
+            "value": "180",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 20 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Quiescent Current"
+            }
+          },
+          {
+            "value": "0.1",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 5,
+              "textContains": "Shutdown Current"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 5,
+              "textContains": "Shutdown Current"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": "ABSENT",
+        "abs_max_vin_V": [
+          {
+            "value": "6.5",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 4,
+              "textContains": "Enable Input Voltage"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "supply_voltage_V marked ABSENT: the Recommended Operating Conditions table has only 'Enable Input Voltage VEN 2.0-6.0 V' (no VIN/VCC row), and the pin table describes EN as a chip-enable/PWM input, so I did not treat it as a supply rail. Doubtful: the part has no other supply pin and the ILED(MAX) row says 'VCC=3.3 to 6.0V, Enable=VCC', so a reviewer may prefer VEN 2.0 MIN / 6.0 MAX as the supply range. 'VIN=3.6V' is the EC table-wide default and is not labelled. Quiescent current IQ 125 typ / 180 max uA (Typ/Max columns checked with pdftotext); its row condition ILED1=...=ILED4=20mA is the per-channel load current, written as IOUT = 20 mA (judgement call). Shutdown current 0.1 typ / 1 max uA ('Set EN Pin Low' is a mode, omitted). Abs max: Enable Input Voltage '-0.3 to 6.5' -> 6.5 ABS_MAX (an input-voltage row). No EN input current is printed on these pages."
+}

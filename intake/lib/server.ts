@@ -2,7 +2,9 @@
 
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { IngestResult } from "../adapters/ingest";
 import { RegistryStore } from "../adapters/registry-store";
+import type { PartRef } from "../core/model";
 
 // Next.js loads intake/.env only; the repo keeps shared keys (SARVAM_API_KEY
 // etc.) in the root .env. Load it as a fallback: already-set variables win.
@@ -20,8 +22,9 @@ loadRootEnv();
 
 export const DATA_DIR = join(process.cwd(), "data");
 export const FIXTURES_DIR = join(process.cwd(), "fixtures");
-export const REGISTRY_PATH = join(DATA_DIR, "constraints.json");
-const SEED_PATH = join(process.cwd(), "fixtures", "constraints.seed.json");
+export const REGISTRY_PATH = join(DATA_DIR, "registry.json");
+const SEED_PATH = join(process.cwd(), "fixtures", "registry.seed.json");
+const INGESTS_DIR = join(DATA_DIR, "ingests");
 
 export function registryStore(): RegistryStore {
   // First run: seed the working registry from the committed starter.
@@ -38,4 +41,21 @@ export function saveUpload(fileName: string, bytes: Buffer): string {
   const path = join(dir, fileName.replace(/[^A-Za-z0-9._-]/g, "_"));
   writeFileSync(path, bytes);
   return path;
+}
+
+/** An ingest result kept server-side, so evaluation never trusts facts posted by a client. */
+export interface StoredIngest {
+  part: PartRef;
+  result: IngestResult;
+}
+
+export function saveIngest(stored: StoredIngest): void {
+  mkdirSync(INGESTS_DIR, { recursive: true });
+  writeFileSync(join(INGESTS_DIR, `${stored.result.document.sha256}.json`), JSON.stringify(stored));
+}
+
+export function loadIngest(documentSha: string): StoredIngest | undefined {
+  if (!/^[0-9a-f]{64}$/.test(documentSha)) return undefined;
+  const path = join(INGESTS_DIR, `${documentSha}.json`);
+  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as StoredIngest) : undefined;
 }

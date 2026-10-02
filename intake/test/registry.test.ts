@@ -1,70 +1,124 @@
+// The registry (ground-intake-extraction D6; registry-memory spec).
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseRegistry, RegistryError } from "../core/registry";
+import { DEFAULT_FIELD_SPECS } from "../core/fields";
+import { parseMeasurement } from "../core/knowledge/decimal";
+import { partRef, type AdmittedReading, type Registry } from "../core/model";
+import { confirmReading, correctReading, parseRegistry, RegistryError, snapshotFor, storeReadings } from "../core/registry";
+import { unit } from "./support/fixtures";
 
-const STARTER = JSON.stringify({
-  part: "demo-part",
-  facts: [],
-  constraints: [
-    {
-      id: "sleep_current_budget",
-      description: "board sleeps within 25 uA",
-      kind: "budget_sum",
-      limit: 25,
-      unit: "uA",
-      affects: ["pin_input_leakage_uA"],
-      source: "board SPEC sleep budget",
-    },
-    {
-      id: "rail_voltage_max",
-      description: "no pin driven above the 3.3V rail abs-max",
-      kind: "max",
-      limit: 3.3,
-      unit: "V",
-      affects: ["abs_max_vin_V"],
-      source: "board SPEC rail",
-    },
-  ],
-});
+const SEED = readFileSync(join(process.cwd(), "fixtures", "registry.seed.json"), "utf8");
+const LM555 = partRef("Texas Instruments", "LM555");
+const ESP32 = partRef("Espressif", "ESP32-WROOM-32");
 
-describe("registry loading (AC-5.1)", () => {
-  it("parses the starter registry with a budget_sum and a max constraint", () => {
-    const registry = parseRegistry(STARTER);
-    const budget = registry.constraints.find((c) => c.kind === "budget_sum");
-    const max = registry.constraints.find((c) => c.kind === "max");
-    expect(budget).toMatchObject({ id: "sleep_current_budget", limit: 25, unit: "uA" });
-    expect(max).toMatchObject({ id: "rail_voltage_max", unit: "V" });
+function reading(sha: string, value: string, unitSymbol: string, qualifier: AdmittedReading["qualifier"] = "MAX"): AdmittedReading {
+  const u = unit({ evidenceId: `ev-${sha.slice(0, 8)}-p1-l1`, text: `Supply Current | ${value} | ${unitSymbol}` });
+  return {
+    measurement: parseMeasurement(value, unitSymbol),
+    qualifier,
+    conditions: {},
+    confidence: 0.9,
+    evidence: { ...u, document: { ...u.document, sha256: sha }, bbox: u.bbox! },
+    contributor: "claude-code",
+    method: { kind: "extraction", providerId: "claude-code" },
+    validators: [],
+    addedAtISO: "2026-10-02T00:00:00.000Z",
+  };
+}
+
+const docA = { documentId: "lm555.pdf", sha256: "a".repeat(64), authority: "MANUFACTURER" as const };
+const docB = { documentId: "esp32.pdf", sha256: "b".repeat(64), authority: "MANUFACTURER" as const };
+
+describe("parsing", () => {
+  it("parses the seed: a worst-case sleep budget and a rail check with stressFrom", () => {
+    const r = parseRegistry(SEED);
+    expect(r.constraints.map((c) => [c.id, c.kind, c.limit.value_decimal, c.limit.unit, c.policy.bound])).toEqual([
+      ["sleep_current_budget", "budget_sum", "25", "uA", "WORST_CASE"],
+      ["rail_voltage_max", "max", "3.3", "V", "WORST_CASE"],
+    ]);
+    expect(r.constraints[1]!.stressFrom).toEqual({ key: "abs_max_vin_V" });
   });
 
-  it("round-trips a registry containing persisted facts", () => {
-    const withFacts = JSON.parse(STARTER);
-    withFacts.facts = [
-      {
-        key: "pin_input_leakage_uA",
-        rawField: "Input leakage current",
-        value: 33,
-        unit: "uA",
-        confidence: 0.95,
-        status: "trusted",
-        source: { page: 2, bbox: { page: 2, x: 0.1, y: 0.2, width: 0.3, height: 0.05 }, snippet: "Input leakage current 0.033 mA" },
-      },
-    ];
-    const registry = parseRegistry(JSON.stringify(withFacts));
-    expect(registry.facts).toHaveLength(1);
-    expect(registry.facts[0]?.status).toBe("trusted");
-  });
-});
-
-describe("malformed registries fail closed (AC-5.2)", () => {
   it.each([
-    ["invalid JSON", "{ nope"],
-    ["non-object root", "[1, 2]"],
-    ["missing part", JSON.stringify({ facts: [], constraints: [] })],
-    ["bad constraint kind", JSON.stringify({ part: "p", facts: [], constraints: [{ id: "x", description: "", kind: "vibes", limit: 1, unit: "uA", affects: ["a"], source: "" }] })],
-    ["non-numeric limit", JSON.stringify({ part: "p", facts: [], constraints: [{ id: "x", description: "", kind: "max", limit: "many", unit: "V", affects: ["a"], source: "" }] })],
-    ["empty affects", JSON.stringify({ part: "p", facts: [], constraints: [{ id: "x", description: "", kind: "max", limit: 1, unit: "V", affects: [], source: "" }] })],
-    ["trusted fact without bbox", JSON.stringify({ part: "p", facts: [{ key: "k", rawField: "r", value: 1, confidence: 0.9, status: "trusted", source: { page: 1 } }], constraints: [] })],
-    ["confidence out of range", JSON.stringify({ part: "p", facts: [{ key: "k", rawField: "r", value: 1, confidence: 1.5, status: "hold", holdReason: "x", source: { page: 1 } }], constraints: [] })],
-  ])("rejects %s with a RegistryError", (_name, text) => {
+    ["not JSON", "{", /not valid JSON/],
+    ["version 1", JSON.stringify({ part: "x", facts: [], constraints: [] }), /version must be 2/],
+    ["a bare-number limit", SEED.replace('{ "value_decimal": "25", "unit": "uA" }', "25"), /must be a decimal/],
+    ["an unknown unit", SEED.replace('"unit": "uA"', '"unit": "furlongs"'), /unknown unit/],
+    ["an unknown kind", SEED.replace('"kind": "budget_sum"', '"kind": "ratio"'), /kind must be one of/],
+    ["a missing policy", SEED.replace(/"policy": \{[^}]*\},\n\s*"stressFrom"/, '"stressFrom"'), /policy must be/],
+    ["stressFrom on a budget", SEED.replace('"source": "board SPEC sleep budget",', '"source": "board SPEC sleep budget", "stressFrom": { "key": "x" },'), /stressFrom must be/],
+  ])("fails closed on %s", (_label, text, message) => {
     expect(() => parseRegistry(text)).toThrow(RegistryError);
+    expect(() => parseRegistry(text)).toThrow(message);
+  });
+});
+
+describe("readings per part and document", () => {
+  it("stores a reading under its part and never lets another part's reading decide", () => {
+    let r: Registry = parseRegistry(SEED);
+    r = storeReadings(r, LM555, docA, [{ key: "quiescent_current_uA", reading: reading(docA.sha256, "6", "mA") }], DEFAULT_FIELD_SPECS);
+    expect(snapshotFor(r, LM555.id).facts.map((f) => [f.key, f.value.value_decimal])).toEqual([["quiescent_current_uA", "6"]]);
+    expect(snapshotFor(r, ESP32.id).facts).toEqual([]);
+    r = storeReadings(r, ESP32, docB, [{ key: "quiescent_current_uA", reading: reading(docB.sha256, "50", "nA") }], DEFAULT_FIELD_SPECS);
+    expect(snapshotFor(r, ESP32.id).facts.map((f) => f.value.value_decimal)).toEqual(["50"]);
+    expect(snapshotFor(r, LM555.id).facts.map((f) => f.value.value_decimal)).toEqual(["6"]);
+  });
+
+  it("refuses a reading from another document than the one named", () => {
+    expect(() =>
+      storeReadings(parseRegistry(SEED), LM555, docA, [{ key: "quiescent_current_uA", reading: reading(docB.sha256, "6", "mA") }], DEFAULT_FIELD_SPECS),
+    ).toThrow(/another document/);
+  });
+
+  it("does not store the same reading twice", () => {
+    const one = { key: "quiescent_current_uA", reading: reading(docA.sha256, "6", "mA") };
+    let r = storeReadings(parseRegistry(SEED), LM555, docA, [one], DEFAULT_FIELD_SPECS);
+    r = storeReadings(r, LM555, docA, [one], DEFAULT_FIELD_SPECS);
+    expect(r.parts[LM555.id]!.parameters[0]!.readings).toHaveLength(1);
+  });
+
+  it("survives a round trip through JSON and the parser", () => {
+    const r = storeReadings(parseRegistry(SEED), LM555, docA, [{ key: "quiescent_current_uA", reading: reading(docA.sha256, "6", "mA") }], DEFAULT_FIELD_SPECS);
+    expect(parseRegistry(JSON.stringify(r))).toEqual(r);
+  });
+});
+
+describe("corrections are human readings", () => {
+  const audit = { reviewer: "A. Reviewer", reason: "misread", timestampISO: "2026-10-02T01:00:00.000Z" };
+
+  it("keeps the extracted reading and makes the correction canonical and verified", () => {
+    let r = storeReadings(parseRegistry(SEED), LM555, docA, [{ key: "quiescent_current_uA", reading: reading(docA.sha256, "3", "mA") }], DEFAULT_FIELD_SPECS);
+    r = correctReading(r, LM555.id, "quiescent_current_uA", "MAX", { value: "6", unit: "mA" }, audit);
+    const parameter = r.parts[LM555.id]!.parameters[0]!;
+    expect(parameter.readings.map((x) => [x.measurement.value_decimal, x.method.kind])).toEqual([["3", "extraction"], ["6", "human"]]);
+    expect(parameter.canonical).toEqual([expect.objectContaining({ status: "verified", value: expect.objectContaining({ value_decimal: "6" }) })]);
+    expect(snapshotFor(r, LM555.id).facts.map((f) => [f.value.value_decimal, f.status])).toEqual([["6", "verified"]]);
+  });
+
+  it("records a person's value for a reviewed extraction, citing its unit", () => {
+    const evidence = reading(docA.sha256, "1.5", "uA").evidence;
+    const r = confirmReading(parseRegistry(SEED), LM555, docA, "quiescent_current_uA", { evidence, qualifier: "MAX", conditions: {} }, { value: "1.5", unit: "uA" }, audit, DEFAULT_FIELD_SPECS);
+    const stored = r.parts[LM555.id]!.parameters[0]!.readings[0]!;
+    expect(stored.method.kind).toBe("human");
+    expect(stored.evidence.evidenceId).toBe(evidence.evidenceId);
+    expect(snapshotFor(r, LM555.id).facts[0]!.status).toBe("verified");
+  });
+
+  it("refuses to correct what is not there", () => {
+    expect(() => correctReading(parseRegistry(SEED), LM555.id, "quiescent_current_uA", "MAX", { value: "1", unit: "mA" }, audit)).toThrow(/no part/);
+  });
+});
+
+describe("a correction names its line", () => {
+  it("corrects the reading of the named line, not another reading with the same qualifier", () => {
+    const audit = { reviewer: "A. Reviewer", reason: "misread", timestampISO: "2026-10-02T01:00:00.000Z" };
+    const first = reading(docA.sha256, "15", "mA");
+    const second = { ...reading(docA.sha256, "6", "mA"), evidence: { ...reading(docA.sha256, "6", "mA").evidence, evidenceId: "ev-aaaaaaaa-p1-l2" } };
+    let r = storeReadings(parseRegistry(SEED), LM555, docA, [{ key: "quiescent_current_uA", reading: first }, { key: "quiescent_current_uA", reading: second }], DEFAULT_FIELD_SPECS);
+    r = correctReading(r, LM555.id, "quiescent_current_uA", "MAX", { value: "6", unit: "mA" }, audit, first.evidence.evidenceId);
+    const human = r.parts[LM555.id]!.parameters[0]!.readings.filter((x) => x.method.kind === "human");
+    expect(human.map((x) => x.evidence.evidenceId)).toEqual([first.evidence.evidenceId]);
   });
 });

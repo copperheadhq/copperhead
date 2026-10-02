@@ -1,0 +1,116 @@
+{
+  "documentId": "dac081c081",
+  "vendor": "Texas Instruments",
+  "mpn": "DAC081C081CIMK",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "58c92fd6e815efd381f08c75d5d7a3342b6e6b1b7d3bd5824a8453223181adaf",
+    "url": "https://www.ti.com/lit/ds/symlink/dac081c081.pdf",
+    "note": "used on BoardRepo boards: glasgowembedded-glasgow"
+  },
+  "pages": [
+    5,
+    6,
+    7
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "2.7",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 6,
+              "textContains": "Supply Voltage, VA"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "Supply Voltage, VA"
+            }
+          }
+        ],
+        "quiescent_current_uA": "ABSENT",
+        "pin_input_leakage_uA": "ABSENT",
+        "abs_max_vin_V": [
+          {
+            "value": "6.5",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 5,
+              "textContains": "Supply voltage, VA"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Abs max: 'Supply voltage, VA' and 'Voltage on any Input Pin' both print 6.5 V MAX with no conditions, so they collapse to one label (value, unit, qualifier, conditions identical); cited on the supply row. The selected pages (5-7) do not reach the supply-current or digital-input rows of the Electrical Characteristics, so quiescent current and input leakage are ABSENT. Excluded: abs-max 'Input current at any pin' +/-10 mA and 'Package input current' +/-20 mA (stress ratings, not input leakage); ROC 'Digital Input Voltage' 5.5 V and VREFIN (not supply rails)."
+}

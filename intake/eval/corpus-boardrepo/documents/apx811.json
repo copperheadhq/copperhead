@@ -1,0 +1,134 @@
+{
+  "documentId": "apx811",
+  "vendor": "Diodes Incorporated",
+  "mpn": "APX811-40UG-7",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "7a730fe754bff472a93b6e9c8a10e0a954d831bb52cfe428363498880a1b700b",
+    "url": "https://www.diodes.com/assets/Datasheets/APX811_812.pdf",
+    "note": "used on BoardRepo boards: glasgowembedded-glasgow"
+  },
+  "pages": [
+    3,
+    4
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "1.1",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 3,
+              "textContains": "Supply Voltage"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 3,
+              "textContains": "Supply Voltage"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "30",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 4,
+              "textContains": "Supply Current"
+            }
+          },
+          {
+            "value": "40",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 4,
+              "textContains": "Supply Current"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": "ABSENT",
+        "abs_max_vin_V": [
+          {
+            "value": "7",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 3,
+              "textContains": "Supply voltage"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Supply voltage taken from Recommended Operating Conditions (VCC 1.1 to 5.5 V). The Electrical Characteristics also print 'VCC Range' 1.0 MIN / 5.5 MAX (p4); the 1.0 V minimum differs from ROC and was NOT labelled because the guide sources this field from ROC when one exists - doubtful case. ICC condition 'Vth + 0.2V' is not a number, omitted; column placement (30 TYP, 40 MAX) confirmed with pdftotext. ROC 'VIN Input Voltage 0 to (VCC+0.3)' is the MR input range, not a supply. Abs max: VCC '-0.3~7' gives 7 V; VRESET is an expression/output; ICC 20 mA is a current rating."
+}

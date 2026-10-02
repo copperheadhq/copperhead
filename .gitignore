@@ -15,3 +15,8 @@ intake/fixtures/cache/*.output.zip
 intake/fixtures/cache/raw/
 intake/tsconfig.tsbuildinfo
 intake/data/
+
+# Datasheet PDFs of the intake evaluation corpus: copyrighted, fetched by URL and sha256
+intake/eval/corpus-boardrepo/pdfs/
+# Page text of evaluation datasheets: regenerated from the fetched PDFs, never committed
+intake/fixtures/cache/*.text.*.json

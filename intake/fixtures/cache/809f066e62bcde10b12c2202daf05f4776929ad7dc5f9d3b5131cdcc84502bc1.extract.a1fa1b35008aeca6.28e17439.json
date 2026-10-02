@@ -1,0 +1,128 @@
+{
+  "key": {
+    "document": "809f066e62bcde10b12c2202daf05f4776929ad7dc5f9d3b5131cdcc84502bc1",
+    "units": "b4db5aa3c6f78bc008d3c291a4c05ae6bf2dae717b1a2648bdf659e2b3590468",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-809f066e-p61-l24",
+          "value": "3.0",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": {
+            "F": "133MHz"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-809f066e-p61-l24",
+          "value": "3.6",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": {
+            "F": "133MHz"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-809f066e-p61-l26",
+          "value": "2.7",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": {
+            "F": "104MHz"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-809f066e-p61-l26",
+          "value": "3.0",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": {
+            "F": "104MHz"
+          }
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-809f066e-p61-l5",
+          "value": "–0.6 to 4.6",
+          "confidence": 0.75,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-809f066e-p61-l6",
+          "value": "–0.6 to VCC+0.4",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-809f066e-p63-l11",
+          "value": "10",
+          "confidence": 0.8,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VIN": "GND or VCC"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-809f066e-p63-l11",
+          "value": "60",
+          "confidence": 0.8,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VIN": "GND or VCC"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-809f066e-p63-l14",
+          "value": "1",
+          "confidence": 0.75,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VIN": "GND or VCC"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-809f066e-p63-l14",
+          "value": "20",
+          "confidence": 0.75,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VIN": "GND or VCC"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-809f066e-p63-l8",
+          "value": "±2",
+          "confidence": 0.75,
+          "unit": "μA",
+          "qualifier": "MAX"
+        }
+      ]
+    }
+  ]
+}

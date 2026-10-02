@@ -1,0 +1,181 @@
+{
+  "documentId": "mcp2515",
+  "vendor": "Microchip",
+  "mpn": "MCP2515-I/ST",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "3c6c943bc258556f964addae9210c100b8398e5a77cc9070677c1042f05d1527",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/MCP2515-Family-Data-Sheet-DS20001801K.pdf",
+    "note": "used on BoardRepo boards: neumi-ethersweep, peterantypas-maiana"
+  },
+  "pages": [
+    73,
+    74
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "2.7",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 74,
+              "textContains": "Supply Voltage"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 74,
+              "textContains": "Supply Voltage"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "10",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "VDD = 5.5 V, F = 25 MHz",
+            "citation": {
+              "page": 74,
+              "textContains": "Operating Current"
+            }
+          },
+          {
+            "value": "5",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "TA = -40 to 85 \u00b0C",
+            "citation": {
+              "page": 74,
+              "textContains": "Standby Current"
+            }
+          },
+          {
+            "value": "8",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "TA = -40 to 125 \u00b0C",
+            "citation": {
+              "page": 74,
+              "textContains": "CS, TXnRTS = VDD, inputs tied"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": [
+          {
+            "value": "-1",
+            "unit": "uA",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 74,
+              "textContains": "All I/Os except OSC1 and"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 74,
+              "textContains": "All I/Os except OSC1 and"
+            }
+          },
+          {
+            "value": "-5",
+            "unit": "uA",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 74,
+              "textContains": "OSC1 Pin"
+            }
+          },
+          {
+            "value": "5",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 74,
+              "textContains": "OSC1 Pin"
+            }
+          }
+        ],
+        "abs_max_vin_V": {
+          "value": "7.0",
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "citation": {
+            "page": 73,
+            "textContains": "VDD...."
+          }
+        },
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "No ROC table; supply range from the DC Characteristics VDD row (same as the table header 'VDD = 2.7V to 5.5V'). VRET register-retention voltage (2.4 V) excluded as not an operating supply. IDD conditions print both FOSC = 25 MHz and FCLK = 1 MHz; only the oscillator frequency is kept as F (judgement call). IDDS temperature ranges are printed in the row without a symbol; written as TA (table uses TAMB). The 8 uA IDDS line is cited by its condition cell, which also occurs on the 5 uA line; 'OSC1 Pin' also occurs on the VIH/VIL lines. ILI for 'All I/Os except OSC1 and TXnRTS' and for the OSC1 (oscillator input) pin both labelled as input leakage; the ILI row's 'VIN = VSS to VDD' is pin voltage, not supply, so dropped. Abs max: VDD 7.0 V; 'All Inputs and Outputs ... VDD + 1.0V' skipped as an expression."
+}

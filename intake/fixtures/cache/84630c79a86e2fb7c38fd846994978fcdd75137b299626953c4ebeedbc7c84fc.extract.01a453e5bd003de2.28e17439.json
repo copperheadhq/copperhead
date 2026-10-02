@@ -1,0 +1,78 @@
+{
+  "key": {
+    "document": "84630c79a86e2fb7c38fd846994978fcdd75137b299626953c4ebeedbc7c84fc",
+    "units": "27a14d6b10b9969786a1b5994a5af72c11ecc9dd1e44fa6c7a3524260c35aebf",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-84630c79-p1-l19",
+          "value": "3.0",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-84630c79-p1-l19",
+          "value": "3.6",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-84630c79-p1-l9",
+          "value": "–0.3",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-84630c79-p1-l9",
+          "value": "3.6",
+          "confidence": 0.93,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-84630c79-p1-l28",
+          "value": "50",
+          "confidence": 0.85,
+          "unit": "nA",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "25 °C"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-84630c79-p1-l29",
+          "value": "50",
+          "confidence": 0.85,
+          "unit": "nA",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "25 °C"
+          }
+        },
+        {
+          "field": "recommended_pullup_ohm",
+          "evidenceId": "ev-84630c79-p2-l6",
+          "value": "45",
+          "confidence": 0.9,
+          "unit": "kΩ",
+          "qualifier": "TYP"
+        }
+      ]
+    }
+  ]
+}

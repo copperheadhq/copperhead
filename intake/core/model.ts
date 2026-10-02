@@ -1,102 +1,104 @@
-// Core data model for the datasheet intake surface.
-// This module is pure: no I/O, no SDK imports, no framework imports.
+// The intake's data model (ground-intake-extraction D5): cortex's readings, parameters and
+// verdicts, plus the intake's parts, registry, change descriptors and extraction records.
+// Pure: no I/O, no SDK, no framework.
 
-// --- Provenance (from Sarvam Digitise bounding boxes) ---
+import type {
+  Constraint,
+  DocumentRef,
+  Parameter,
+  Reading,
+  ReasonCode,
+  Verdict,
+  VerificationManifest,
+} from "./knowledge/types";
+import type { ValidatorResult } from "./knowledge/validators/pipeline";
+import type { IntakeExtraction } from "./extraction";
+import type { Box, IntakeUnit, TextSource } from "./text/types";
 
-/** Normalized 0..1 page-relative coordinates. */
-export interface BoundingBox {
-  page: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+export type {
+  ConditionSet,
+  Constraint,
+  Decimal,
+  DocumentRef,
+  Parameter,
+  Qualifier,
+  Reading,
+  ReasonCode,
+  Verdict,
+} from "./knowledge/types";
 
-export interface SourceRef {
-  page: number;
-  bbox?: BoundingBox;
-  snippet?: string;
-}
+/** Confidence below this routes an otherwise admitted extraction to review; it never admits. */
+export const CONFIDENCE_THRESHOLD = 0.75;
 
-/** A SourceRef that is guaranteed to carry a bounding box. */
-export interface VerifiedSourceRef extends SourceRef {
-  bbox: BoundingBox;
-  snippet: string;
-}
+// --- Parts ---
 
-// --- Facts ---
-
-export type FactStatus = "trusted" | "hold";
-
-interface FactBase {
-  /** Canonical predicate key, e.g. "pin_input_leakage_uA". */
-  key: string;
-  /** The field label the extractor used, e.g. "Input leakage current". */
-  rawField: string;
-  value: number | string;
-  /** Normalized unit, e.g. "uA", "V". */
-  unit?: string;
-  /** 0..1, per-field confidence reported by the extractor. */
-  confidence: number;
-}
-
-/**
- * A trusted fact structurally requires a verified source (page + bbox +
- * snippet). There is no way to construct a trusted fact without provenance.
- */
-export interface TrustedFact extends FactBase {
-  status: "trusted";
-  source: VerifiedSourceRef;
-}
-
-export interface HeldFact extends FactBase {
-  status: "hold";
-  source: SourceRef;
-  /** Why this fact is held, e.g. "confidence 0.61 below threshold 0.75". */
-  holdReason: string;
-}
-
-export type ExtractedFact = TrustedFact | HeldFact;
-
-export function isTrusted(fact: ExtractedFact): fact is TrustedFact {
-  return fact.status === "trusted";
-}
-
-// --- Constraints (the board's rulebook) ---
-
-export type ConstraintKind = "budget_sum" | "max" | "min" | "equality";
-
-export interface Constraint {
+export interface PartRef {
+  /** "manufacturer:mpn". */
   id: string;
-  /** Human contract line, quoted verbatim in refusals. */
-  description: string;
-  kind: ConstraintKind;
-  limit: number;
-  unit: string;
-  /** Fact keys this constraint consumes. */
-  affects: string[];
-  /** Where the rule came from, e.g. "board SPEC sleep budget". */
-  source: string;
+  manufacturer: string;
+  mpn: string;
+}
+
+export function partRef(manufacturer: string, mpn: string): PartRef {
+  return { id: `${manufacturer}:${mpn}`, manufacturer, mpn };
+}
+
+// --- Readings ---
+
+/** A reading the intake made: its evidence is an intake unit. */
+export interface IntakeReading extends Reading {
+  evidence: IntakeUnit;
+}
+
+/** An admitted reading: its evidence has text and a bounding box. Only validation builds one. */
+export interface AdmittedReading extends IntakeReading {
+  evidence: IntakeUnit & { bbox: Box };
+}
+
+export type Outcome = "ADMITTED" | "REVIEW_REQUIRED" | "REJECTED";
+
+/** One extraction's fate: its outcome, every validator's result, and its reading when it has one. */
+export interface ExtractionRecord {
+  extraction: IntakeExtraction;
+  outcome: Outcome;
+  reasonCodes: ReasonCode[];
+  results: ValidatorResult[];
+  /** The unit it cited, when that unit exists. */
+  unit?: IntakeUnit;
+  /** Present for ADMITTED, and for REVIEW_REQUIRED when the value parsed. */
+  reading?: IntakeReading;
+  /** Set when an identical admitted reading of the same unit was kept instead of this one. */
+  duplicateOf?: number;
+}
+
+export function isAdmitted(record: ExtractionRecord): record is ExtractionRecord & { reading: AdmittedReading } {
+  return record.outcome === "ADMITTED" && record.reading !== undefined && record.reading.evidence.bbox !== undefined;
+}
+
+// --- Registry ---
+
+export interface PartEntry {
+  part: PartRef;
+  documents: DocumentRef[];
+  parameters: Parameter[];
 }
 
 export interface Registry {
-  part: string;
-  facts: ExtractedFact[];
+  version: 2;
+  /** Keyed by part id. A reading belongs to exactly one part and one document. */
+  parts: Record<string, PartEntry>;
   constraints: Constraint[];
 }
 
-// --- Proposed changes ---
+// --- Change descriptors ---
 
 export type ChangeKind = "add_component" | "connect_rail" | "swap_part";
 
-/** One quantified consequence of a change, e.g. "+33 uA against pin_input_leakage_uA". */
 export interface Contribution {
-  /** The fact key this contribution is measured by (or checked against). */
   factKey: string;
   /**
-   * The numeric contribution of the change itself, when the change adds a
-   * quantity (e.g. pull-up current into a budget). Omitted when the check is
-   * the fact value against the constraint limit directly (e.g. abs-max).
+   * A value the change applies, such as a pull-up's draw or a rail's voltage. Without a value,
+   * the contribution names a parameter of the evaluated part.
    */
   value?: number;
   unit?: string;
@@ -109,49 +111,32 @@ export interface ChangeDescriptor {
   contributions: Contribution[];
 }
 
-// --- Verdicts ---
+// --- Manifest ---
 
-export type Decision = "APPROVE" | "REFUSE" | "HOLD";
-
-export interface Computed {
-  expression: string;
-  result: number;
-  limit: number;
-  unit: string;
+export interface PageSource {
+  page: number;
+  textSource: TextSource;
+  reader: string;
 }
 
-export interface Verdict {
-  change: string;
-  decision: Decision;
-  /** One engineer-grade sentence. */
-  reason: string;
-  citedFact?: ExtractedFact;
-  citedConstraint?: Constraint;
-  computed?: Computed;
-  proposedFix?: string;
-}
-
-// --- Exportable audit artifact ---
-
-export interface VerificationManifest {
+export interface IntakeManifest {
   /** Injected by the caller; core never reads the clock. */
   timestampISO: string;
+  decisionRunId: string;
   part: string;
   change: string;
   checksRun: string[];
-  factsUsed: ExtractedFact[];
+  document?: { documentId: string; sha256: string; revision?: string };
+  pages: PageSource[];
+  extraction: { extractorModel: string; promptHash: string; schemaVersion: string; ocrModel?: string };
+  validators: string[];
+  factVersions: VerificationManifest["factVersions"];
   verdict: Verdict;
-  extraction: {
-    digitiseModel: string;
-    extractorModel: string;
-  };
   /** The exact inputs needed to reproduce the verdict. */
   inputs: {
     descriptor: ChangeDescriptor;
     constraints: Constraint[];
+    snapshot: import("./knowledge/verdict/types").FactSnapshot;
+    ruleVersion: string;
   };
 }
-
-// --- Shared constants ---
-
-export const CONFIDENCE_THRESHOLD = 0.75;

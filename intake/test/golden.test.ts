@@ -1,232 +1,171 @@
-// Golden tests GT-1..GT-5: the demo scenarios, end to end and offline.
-// A synthetic demo part exercises the exact SPEC values (33 uA leakage vs a
-// 25 uA budget, 3.6 V abs-max vs a 5 V rail); the same tests re-run against
-// real-part fixtures once those are generated live (task 7.2).
+// Golden tests GT-1..GT-5 (ground-intake-extraction D11): the demo scenarios end to end and
+// offline, on a synthetic text-layer datasheet with the exact SPEC values: 33 uA input leakage
+// against a 25 uA sleep budget, a 3.6 V absolute maximum against a 5 V rail, and a
+// footnote-qualified quiescent current.
 
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { digitiseCacheKey, extractCacheKey, JsonCache } from "../adapters/cache";
-import { FixtureDigitisationProvider, FixtureExtractor } from "../adapters/fixtures";
-import { ingest, IngestDeps } from "../adapters/ingest";
+import { ingest, type IngestDeps, type IngestResult } from "../adapters/ingest";
 import { RegistryStore } from "../adapters/registry-store";
-import { evaluate } from "../core/engine";
-import { buildManifest, reproduces } from "../core/manifest";
+import { evaluateChange } from "../core/evaluate";
+import type { IntakeExtraction } from "../core/extraction";
 import { DEFAULT_FIELD_SPECS } from "../core/fields";
-import { ChangeDescriptor } from "../core/model";
-import { DigitisedPage, RawExtractedField } from "../core/pipeline";
-import { DocumentInput } from "../ports/digitisation";
-import { bbox } from "./helpers";
+import { buildManifest, reproduces } from "../core/manifest";
+import { partRef, type ChangeDescriptor, type Registry } from "../core/model";
+import { snapshotFor } from "../core/registry";
+import type { IntakeUnit } from "../core/text/types";
+import { demoPdf } from "./support/demo-part";
+import { CannedExtractor, idOf, tempDeps, writeSeed } from "./support/fixtures";
 
-const doc: DocumentInput = {
-  fileName: "demo-io-expander.pdf",
-  bytes: Buffer.from("synthetic demo-io-expander datasheet"),
-};
+const PART = partRef("Demo Semiconductor", "DEMO-IO-EXPANDER");
+const doc = { fileName: "demo-io-expander.pdf", bytes: Buffer.from(demoPdf()) };
 
-const PAGES: DigitisedPage[] = [
-  {
-    page: 1,
-    text: "DEMO-IO-EXPANDER. Absolute maximum ratings. Input voltage VIN max 3.6 V. Supply voltage 1.65 to 3.6 V.",
-    regions: [
-      { text: "Input voltage VIN max 3.6 V", bbox: bbox(1, { y: 0.3 }) },
-      { text: "Supply voltage 1.65 to 3.6 V", bbox: bbox(1, { y: 0.4 }) },
-    ],
-  },
-  {
-    page: 2,
-    text: "Electrical characteristics. Input leakage current 0.033 mA max. Quiescent current 1.5 uA (1) footnote: at 25 C only.",
-    regions: [
-      { text: "Input leakage current 0.033 mA max", bbox: bbox(2, { y: 0.2 }) },
-      { text: "Quiescent current 1.5 uA (1)", bbox: bbox(2, { y: 0.3 }) },
-    ],
-  },
-];
+// The seed with the golden tests' 5 V rail rule, so the 3.6 V absolute maximum decides GT-2.
+const SEED = (() => {
+  const seed = JSON.parse(readFileSync(join(process.cwd(), "fixtures", "registry.seed.json"), "utf8")) as Registry;
+  seed.constraints[1]!.limit = { value_decimal: "5", unit: "V", si_value_decimal: "5" };
+  return seed;
+})();
 
-const RAW_FIELDS: RawExtractedField[] = [
-  {
-    field: "per-pin input leakage current (uA)",
-    value: 0.033,
-    unit: "mA",
-    page: 2,
-    snippet: "Input leakage current 0.033 mA",
-    confidence: 0.93,
-  },
-  {
-    field: "absolute maximum input voltage (V)",
-    value: 3.6,
-    unit: "V",
-    page: 1,
-    snippet: "Input voltage VIN max 3.6 V",
-    confidence: 0.91,
-  },
-  {
-    field: "quiescent current (uA)",
-    value: 1.5,
-    unit: "uA",
-    page: 2,
-    snippet: "Quiescent current 1.5 uA (1)",
-    footnoteQualified: true,
-    confidence: 0.88,
-  },
-];
+function extractions(units: IntakeUnit[]): IntakeExtraction[] {
+  return [
+    { field: "pin_input_leakage_uA", evidenceId: idOf(units, "Input leakage current"), value: "0.033", unit: "mA", qualifier: "MAX", confidence: 0.93 },
+    { field: "abs_max_vin_V", evidenceId: idOf(units, "Input voltage VIN"), value: "3.6", unit: "V", qualifier: "ABS_MAX", confidence: 0.91 },
+    { field: "quiescent_current_uA", evidenceId: idOf(units, "Quiescent current"), value: "1.5", unit: "uA", qualifier: "MAX", footnoteQualified: true, confidence: 0.88 },
+    { field: "supply_voltage_V", evidenceId: idOf(units, "Supply voltage"), value: "1.65", unit: "V", qualifier: "MIN", confidence: 0.9 },
+    { field: "supply_voltage_V", evidenceId: idOf(units, "Supply voltage"), value: "3.6", unit: "V", qualifier: "MAX", confidence: 0.9 },
+  ];
+}
 
-const SEED = {
-  part: "DEMO-IO-EXPANDER",
-  facts: [],
-  constraints: [
-    {
-      id: "sleep_current_budget",
-      description: "board sleeps within 25 uA",
-      kind: "budget_sum",
-      limit: 25,
-      unit: "uA",
-      affects: ["pin_input_leakage_uA", "quiescent_current_uA"],
-      source: "board SPEC sleep budget",
-    },
-    {
-      id: "rail_voltage_max",
-      description: "no pin driven above the rail abs-max",
-      kind: "max",
-      limit: 5,
-      unit: "V",
-      affects: ["abs_max_vin_V"],
-      source: "board SPEC rail",
-    },
-  ],
-};
+const pullUp: ChangeDescriptor = { kind: "add_component", label: "add 100k pull-up on a sleeping GPIO", contributions: [{ factKey: "pin_input_leakage_uA" }] };
+const driveFrom5V: ChangeDescriptor = { kind: "connect_rail", label: "drive this pin from the 5V rail", contributions: [{ factKey: "abs_max_vin_V", value: 5, unit: "V" }] };
+const sleepCurrent: ChangeDescriptor = { kind: "add_component", label: "keep the part powered in sleep", contributions: [{ factKey: "quiescent_current_uA" }] };
+const CONTEXT = { decisionRunId: "run-1", timestampISO: "2026-10-02T00:00:00.000Z", providers: [], ruleVersion: "golden" };
 
-const pullUp: ChangeDescriptor = {
-  kind: "add_component",
-  label: "add 100k pull-up on a sleeping GPIO",
-  contributions: [{ factKey: "pin_input_leakage_uA" }],
-};
+/** A deep copy with every object's keys in reverse order. */
+function reverseKeys<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(reverseKeys) as T;
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as object).reverse().map(([k, v]) => [k, reverseKeys(v)])) as T;
+  }
+  return value;
+}
 
-const driveFrom5V: ChangeDescriptor = {
-  kind: "connect_rail",
-  label: "drive this pin from the 5V rail",
-  contributions: [{ factKey: "abs_max_vin_V", value: 5, unit: "V" }],
-};
-
-const sleepCurrentCheck: ChangeDescriptor = {
-  kind: "add_component",
-  label: "keep the part powered in sleep",
-  contributions: [{ factKey: "quiescent_current_uA" }],
-};
-
+let extractor: CannedExtractor;
 let deps: IngestDeps;
 let store: RegistryStore;
-let extractCalls: number;
 
 beforeEach(() => {
-  const dir = mkdtempSync(join(tmpdir(), "intake-golden-"));
-  const cache = new JsonCache(join(dir, "cache"));
-  cache.write(digitiseCacheKey(doc.bytes), PAGES);
-  cache.write(extractCacheKey(doc.bytes, DEFAULT_FIELD_SPECS), RAW_FIELDS);
-
-  extractCalls = 0;
-  const fixtureExtractor = new FixtureExtractor(cache, doc.bytes);
-  deps = {
-    cache,
-    digitiser: new FixtureDigitisationProvider(cache),
-    extractor: {
-      modelId: fixtureExtractor.modelId,
-      extract: async (pages, specs) => {
-        extractCalls++;
-        return fixtureExtractor.extract(pages, specs);
-      },
-    },
-  };
-
-  const registryPath = join(dir, "constraints.json");
-  writeFileSync(registryPath, JSON.stringify(SEED));
-  store = new RegistryStore(registryPath);
+  extractor = new CannedExtractor("claude-code", extractions);
+  const d = tempDeps(extractor);
+  deps = d;
+  store = new RegistryStore(writeSeed(d.dir, SEED));
 });
 
-describe("GT-1: pull-up refused against the sleep budget", () => {
-  it("refuses 33 uA > 25 uA citing the leakage line and the budget line, with the internal pull-up fix", async () => {
-    const { facts } = await ingest(doc, deps);
-    const { verdict, checksRun, factsUsed } = evaluate(pullUp, facts, store.load().constraints);
+/** Ingest, store the admitted readings, evaluate: the evaluate route's path. */
+function evaluateWith(result: IngestResult, change: ChangeDescriptor, save = true) {
+  const candidate = store.withReadings(store.load(), PART, result.document, result.records, DEFAULT_FIELD_SPECS);
+  const snapshot = snapshotFor(candidate, PART.id);
+  const out = evaluateChange({ change, partId: PART.id, snapshot, constraints: candidate.constraints, context: CONTEXT });
+  if (save && out.verdict.decision !== "HOLD") store.save(candidate);
+  return { ...out, snapshot, constraints: candidate.constraints };
+}
 
+describe("GT-1: pull-up refused against the sleep budget", () => {
+  it("refuses 33 uA > 25 uA citing the leakage line and the budget, with the internal pull-up fix", async () => {
+    const result = await ingest(doc, deps);
+    const { verdict, checks, snapshot, constraints } = evaluateWith(result, pullUp);
     expect(verdict.decision).toBe("REFUSE");
-    expect(verdict.computed).toMatchObject({ limit: 25, unit: "uA" });
-    expect(verdict.computed?.result).toBeCloseTo(33, 9);
-    expect(verdict.citedFact?.key).toBe("pin_input_leakage_uA");
-    expect(verdict.citedFact?.source.bbox).toBeDefined();
+    expect(verdict.reasonCodes).toEqual(["BUDGET_EXCEEDED"]);
+    expect(verdict.computed?.result).toMatchObject({ value_decimal: "33", unit: "uA" });
+    expect(verdict.computed?.limit).toMatchObject({ value_decimal: "25", unit: "uA" });
+    expect(verdict.citedReadings[0]!.evidence.text).toBe("Input leakage current | 0.033 | mA");
+    expect(verdict.citedReadings[0]!.evidence.bbox).toBeDefined();
     expect(verdict.citedConstraint?.id).toBe("sleep_current_budget");
     expect(verdict.proposedFix).toContain("internal pull-up");
 
-    store.persistFacts(factsUsed);
     const manifest = buildManifest({
-      timestampISO: "2026-07-26T00:00:00.000Z",
-      part: "DEMO-IO-EXPANDER",
+      timestampISO: CONTEXT.timestampISO,
+      decisionRunId: CONTEXT.decisionRunId,
+      partId: PART.id,
       descriptor: pullUp,
-      constraints: SEED.constraints as never,
-      checksRun,
-      factsUsed,
-      verdict,
-      digitiseModel: deps.digitiser.modelId,
-      extractorModel: deps.extractor.modelId,
+      constraints,
+      snapshot,
+      result: { verdict, checks },
+      ruleVersion: CONTEXT.ruleVersion,
+      document: result.document,
+      pages: result.pages,
+      extraction: { extractorModel: result.extractorModel, promptHash: result.promptHash, schemaVersion: "extractions-1" },
+      validators: [],
     });
+    expect(manifest.document?.sha256).toBe(result.document.sha256);
+    expect(manifest.pages.map((p) => p.textSource)).toEqual(["pdf-text", "pdf-text"]);
+    expect(manifest.extraction.extractorModel).toBe("claude-code");
+    expect(manifest.factVersions).toHaveLength(1);
     expect(reproduces(manifest)).toBe(true);
+    // Reproduction compares canonical JSON, so key order does not matter.
+    expect(reproduces(reverseKeys(manifest))).toBe(true);
+    expect(reproduces({ ...manifest, verdict: { ...manifest.verdict, decision: "APPROVE" } })).toBe(false);
   });
 });
 
-describe("GT-2: 5V rail refused against the 3.6V abs-max", () => {
-  it("refuses 5 V > 3.6 V citing both lines", async () => {
-    const { facts } = await ingest(doc, deps);
-    const { verdict } = evaluate(driveFrom5V, facts, store.load().constraints);
-
+describe("GT-2: 5 V rail refused against the 3.6 V absolute maximum", () => {
+  it("refuses 5 V > 3.6 V citing the absolute-maximum reading and the rule", async () => {
+    const { verdict } = evaluateWith(await ingest(doc, deps), driveFrom5V);
     expect(verdict.decision).toBe("REFUSE");
-    expect(verdict.computed).toMatchObject({ result: 5, limit: 3.6, unit: "V" });
-    expect(verdict.citedFact?.key).toBe("abs_max_vin_V");
+    expect(verdict.computed?.result.value_decimal).toBe("5");
+    expect(verdict.computed?.limit.value_decimal).toBe("3.6");
+    expect(verdict.citedReadings.map((r) => r.qualifier)).toEqual(["ABS_MAX"]);
     expect(verdict.citedConstraint?.id).toBe("rail_voltage_max");
   });
 });
 
-describe("GT-3: footnote-qualified value is held, never decides", () => {
-  it("returns HOLD naming the field to re-check", async () => {
-    const { facts } = await ingest(doc, deps);
-    const quiescent = facts.find((f) => f.key === "quiescent_current_uA");
-    expect(quiescent?.status).toBe("hold");
-
-    const { verdict, factsUsed } = evaluate(sleepCurrentCheck, facts, store.load().constraints);
+describe("GT-3: a footnote-qualified value is held, never decides", () => {
+  it("returns HOLD naming the parameter to re-check", async () => {
+    const result = await ingest(doc, deps);
+    const quiescent = result.records.find((r) => r.extraction.field === "quiescent_current_uA")!;
+    expect(quiescent.outcome).toBe("REVIEW_REQUIRED");
+    expect(quiescent.reasonCodes).toContain("FOOTNOTE_QUALIFIED");
+    const { verdict } = evaluateWith(result, sleepCurrent);
     expect(verdict.decision).toBe("HOLD");
+    expect(verdict.reasonCodes).toEqual(["EVIDENCE_MISSING"]);
     expect(verdict.reason).toContain("quiescent_current_uA");
-    store.persistFacts(factsUsed.length ? factsUsed : facts);
   });
 });
 
 describe("GT-4: correcting the held value recomputes the verdict live", () => {
-  it("promotes the corrected fact and produces a decisive verdict without re-extraction", async () => {
-    const { facts } = await ingest(doc, deps);
-    store.persistFacts(facts);
-    expect(extractCalls).toBe(0);
-
-    const before = evaluate(sleepCurrentCheck, store.load().facts, store.load().constraints);
-    expect(before.verdict.decision).toBe("HOLD");
-
-    const registry = store.correctFact("quiescent_current_uA", 1.5);
-    const after = evaluate(sleepCurrentCheck, registry.facts, registry.constraints);
+  it("a person's value makes the verdict decisive without re-extraction", async () => {
+    const result = await ingest(doc, deps);
+    expect(evaluateWith(result, sleepCurrent).verdict.decision).toBe("HOLD");
+    const record = result.records.find((r) => r.extraction.field === "quiescent_current_uA")!;
+    store.confirm(
+      PART,
+      result.document,
+      "quiescent_current_uA",
+      { evidence: { ...record.unit!, bbox: record.unit!.bbox! }, qualifier: "MAX", conditions: {} },
+      { value: "1.5", unit: "uA" },
+      { reviewer: "A. Reviewer", reason: "footnote checked", timestampISO: "2026-10-02T01:00:00.000Z" },
+      DEFAULT_FIELD_SPECS,
+    );
+    const after = evaluateWith(result, sleepCurrent);
     expect(after.verdict.decision).toBe("APPROVE");
-    expect(extractCalls).toBe(0);
+    expect(after.snapshot.facts.find((f) => f.key === "quiescent_current_uA")?.status).toBe("verified");
+    expect(extractor.calls).toBe(1);
   });
 });
 
-describe("GT-5: a second change reuses stored facts with no new extraction", () => {
+describe("GT-5: a second change reuses stored readings with no new extraction", () => {
   it("evaluates from the registry without touching the extractor", async () => {
     const first = await ingest(doc, deps);
-    store.persistFacts(first.facts);
-    const callsAfterFirst = extractCalls;
+    expect(evaluateWith(first, pullUp).verdict.decision).toBe("REFUSE");
+    expect(store.hasReadings(PART.id, ["pin_input_leakage_uA", "abs_max_vin_V"])).toBe(true);
 
     const registry = store.load();
-    expect(store.hasFacts(["pin_input_leakage_uA", "abs_max_vin_V"])).toBe(true);
-    const { verdict } = evaluate(driveFrom5V, registry.facts, registry.constraints);
+    const { verdict } = evaluateChange({ change: driveFrom5V, partId: PART.id, snapshot: snapshotFor(registry, PART.id), constraints: registry.constraints, context: CONTEXT });
     expect(verdict.decision).toBe("REFUSE");
-    expect(extractCalls).toBe(callsAfterFirst);
-
     const again = await ingest(doc, deps);
-    expect(again.facts.length).toBeGreaterThan(0);
-    expect(extractCalls).toBe(callsAfterFirst);
+    expect(again.records.length).toBeGreaterThan(0);
+    expect(extractor.calls).toBe(1);
   });
 });

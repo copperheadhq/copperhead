@@ -1,16 +1,22 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { evaluate } from "../../../core/engine";
+import { evaluateChange } from "../../../core/evaluate";
+import { DEFAULT_FIELD_SPECS } from "../../../core/fields";
 import { buildManifest } from "../../../core/manifest";
-import { ChangeDescriptor, ExtractedFact } from "../../../core/model";
-import { RegistryError } from "../../../core/registry";
-import { registryStore } from "../../../lib/server";
+import type { ChangeDescriptor, Registry } from "../../../core/model";
+import { RegistryError, snapshotFor } from "../../../core/registry";
+import { loadIngest, registryStore } from "../../../lib/server";
 
 export const runtime = "nodejs";
 
+const RULE_VERSION = "intake-registry-v2";
+
 interface EvaluateBody {
   descriptor: ChangeDescriptor;
-  /** Freshly ingested facts (optional); stored registry facts take precedence per key. */
-  facts?: ExtractedFact[];
+  /** The ingested datasheet whose admitted readings join the part's stored ones. */
+  documentSha?: string;
+  /** Evaluate a part from stored readings alone (reuse without extraction). */
+  partId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -18,44 +24,55 @@ export async function POST(request: NextRequest) {
   if (!body?.descriptor?.label || !Array.isArray(body.descriptor.contributions)) {
     return NextResponse.json({ error: "invalid change descriptor" }, { status: 400 });
   }
-
   const store = registryStore();
-  let registry;
+  let registry: Registry;
   try {
     registry = store.load();
   } catch (err) {
     // Fail closed: a malformed registry refuses to evaluate (AC-5.2).
-    return NextResponse.json(
-      { error: err instanceof RegistryError ? err.message : "registry unreadable" },
-      { status: 422 },
-    );
+    return NextResponse.json({ error: err instanceof RegistryError ? err.message : "registry unreadable" }, { status: 422 });
   }
 
-  // Stored facts win (reuse, AC-8.2); fresh ingested facts fill the gaps.
-  const merged: ExtractedFact[] = [...registry.facts];
-  for (const fact of body.facts ?? []) {
-    if (!merged.some((f) => f.key === fact.key)) merged.push(fact);
-  }
+  const stored = body.documentSha ? loadIngest(body.documentSha) : undefined;
+  if (body.documentSha && !stored) return NextResponse.json({ error: "no ingest for that document; upload it first" }, { status: 404 });
+  const partId = stored?.part.id ?? body.partId;
+  if (!partId) return NextResponse.json({ error: "evaluation needs documentSha or partId" }, { status: 400 });
 
-  const { verdict, checksRun, factsUsed } = evaluate(body.descriptor, merged, registry.constraints);
-
-  // Trusted facts are written on APPROVE/REFUSE (AC-8.1); held deciding
-  // facts are stored too, so the correction flow (AC-9.1) can find them.
-  if (factsUsed.length > 0) {
-    store.persistFacts(factsUsed);
-  }
+  // The part's stored readings plus this document's admitted ones; never another part's.
+  const candidate = stored
+    ? store.withReadings(registry, stored.part, stored.result.document, stored.result.records, DEFAULT_FIELD_SPECS)
+    : registry;
+  const snapshot = snapshotFor(candidate, partId);
+  const timestampISO = new Date().toISOString();
+  const decisionRunId = randomUUID();
+  const result = evaluateChange({
+    change: body.descriptor,
+    partId,
+    snapshot,
+    constraints: candidate.constraints,
+    context: { decisionRunId, timestampISO, providers: [], ruleVersion: RULE_VERSION },
+  });
+  // Readings are written when the verdict is decided (AC-8.1).
+  if (result.verdict.decision !== "HOLD" && stored) store.save(candidate);
 
   const manifest = buildManifest({
-    timestampISO: new Date().toISOString(),
-    part: registry.part,
+    timestampISO,
+    decisionRunId,
+    partId,
     descriptor: body.descriptor,
-    constraints: registry.constraints,
-    checksRun,
-    factsUsed,
-    verdict,
-    digitiseModel: "sarvam-vision",
-    extractorModel: process.env.INTAKE_EXTRACTOR_MODEL ?? "claude-opus-5",
+    constraints: candidate.constraints,
+    snapshot,
+    result,
+    ruleVersion: RULE_VERSION,
+    ...(stored ? { document: stored.result.document } : {}),
+    pages: stored?.result.pages ?? [],
+    extraction: {
+      extractorModel: stored?.result.extractorModel ?? "registry",
+      promptHash: stored?.result.promptHash ?? "",
+      schemaVersion: "extractions-1",
+      ...(stored?.result.ocrModel ? { ocrModel: stored.result.ocrModel } : {}),
+    },
+    validators: [...new Set((stored?.result.records ?? []).flatMap((r) => r.results.map((v) => `${v.validator}@${v.version}`)))].sort(),
   });
-
-  return NextResponse.json({ verdict, manifest });
+  return NextResponse.json({ verdict: result.verdict, checks: result.checks.map((c) => c.verdict), manifest });
 }

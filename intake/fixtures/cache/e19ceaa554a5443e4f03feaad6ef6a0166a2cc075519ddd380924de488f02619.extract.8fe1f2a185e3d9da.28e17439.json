@@ -1,0 +1,114 @@
+{
+  "key": {
+    "document": "e19ceaa554a5443e4f03feaad6ef6a0166a2cc075519ddd380924de488f02619",
+    "units": "55d52dfe362e2be1df9cc3124f29e5c09e968a4f2ac4e291f8a5227c3f2eb586",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e19ceaa5-p3-l20",
+          "value": "4.5",
+          "confidence": 0.96,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e19ceaa5-p3-l20",
+          "value": "18",
+          "confidence": 0.96,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e19ceaa5-p4-l4",
+          "value": "4.5",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": {
+            "TA": "+25°C"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e19ceaa5-p4-l4",
+          "value": "18",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "+25°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e19ceaa5-p4-l5",
+          "value": "0.8",
+          "confidence": 0.9,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "TA": "+25°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e19ceaa5-p4-l5",
+          "value": "1.1",
+          "confidence": 0.9,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "+25°C"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-e19ceaa5-p4-l9",
+          "value": "-0.1",
+          "confidence": 0.78,
+          "unit": "μA",
+          "qualifier": "MIN",
+          "conditions": {
+            "TA": "+25°C"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-e19ceaa5-p4-l9",
+          "value": "0.1",
+          "confidence": 0.78,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "+25°C"
+          }
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e19ceaa5-p3-l4",
+          "value": "-0.3",
+          "confidence": 0.72,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e19ceaa5-p3-l4",
+          "value": "20",
+          "confidence": 0.92,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

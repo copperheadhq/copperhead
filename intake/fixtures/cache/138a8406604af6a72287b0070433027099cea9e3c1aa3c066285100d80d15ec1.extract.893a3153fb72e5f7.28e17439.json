@@ -1,0 +1,214 @@
+{
+  "key": {
+    "document": "138a8406604af6a72287b0070433027099cea9e3c1aa3c066285100d80d15ec1",
+    "units": "64ab4bc9836038a8133e1ff355f55de6b17c4b21d1e0ac7fe1eecfac0a787a59",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p1-l28",
+          "value": "4",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p1-l28",
+          "value": "8",
+          "confidence": 0.8,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p1-l29",
+          "value": "12",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p1-l29",
+          "value": "22",
+          "confidence": 0.8,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p1-l42",
+          "value": "0.8",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p1-l42",
+          "value": "1.6",
+          "confidence": 0.8,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p1-l43",
+          "value": "2.4",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p1-l43",
+          "value": "4.4",
+          "confidence": 0.8,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p2-l8",
+          "value": "10",
+          "confidence": 0.76,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p2-l8",
+          "value": "16",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p2-l9",
+          "value": "20",
+          "confidence": 0.76,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-138a8406-p2-l9",
+          "value": "36",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-138a8406-p1-l23",
+          "value": "40",
+          "confidence": 0.82,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-138a8406-p1-l24",
+          "value": "–1.6",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-138a8406-p1-l39",
+          "value": "20",
+          "confidence": 0.82,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-138a8406-p1-l40",
+          "value": "–0.4",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-138a8406-p1-l51",
+          "value": "50",
+          "confidence": 0.82,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-138a8406-p1-l52",
+          "value": "–2",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "MAX"
+          }
+        }
+      ]
+    }
+  ]
+}

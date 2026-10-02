@@ -1,0 +1,144 @@
+{
+  "documentId": "rp2040",
+  "vendor": "Raspberry Pi",
+  "mpn": "RP2040",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "be56fbb75ba0ae9e26558a73c93ac3e75c2ad4e6878d3b6703de2a76d886ea8c",
+    "url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf",
+    "note": "used on BoardRepo boards: controlpaths-hackbat, foostan-crkbd, jesusfreke-lalboard, shanteacontrols-opendeck, system76-launch"
+  },
+  "pages": [
+    615,
+    616,
+    617
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": "ABSENT",
+        "quiescent_current_uA": "ABSENT",
+        "pin_input_leakage_uA": [
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 616,
+              "textContains": "Pin Input Leakage"
+            }
+          }
+        ],
+        "abs_max_vin_V": [
+          {
+            "value": "3.63",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 615,
+              "textContains": "I/O Supply Voltage"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": [
+          {
+            "value": "50",
+            "unit": "kohm",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 617,
+              "textContains": "RPU | 50"
+            }
+          },
+          {
+            "value": "80",
+            "unit": "kohm",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 617,
+              "textContains": "RPU | 50"
+            }
+          },
+          {
+            "value": "0.873",
+            "unit": "kohm",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 617,
+              "textContains": "RPU2"
+            }
+          },
+          {
+            "value": "1.548",
+            "unit": "kohm",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 617,
+              "textContains": "RPU2"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "labelNotes": "Pages 615-617 hold no operating supply-voltage range (Table 621 lists supply pins without values; '@ IOVDD=1.8V' etc. are conditions) and no supply current: IIOVDD_MAX / IIOVSS_MAX 50 mA are total IO current limits, not supply currents. Pin input leakage IIN 1 uA sits in the Maximum column (checked with pdftotext); it is printed twice, for digital IO (p616) and USB IO (p617), with the identical tuple, so it is one label citing p616. Abs max: only IOVDD 3.63 V; VPIN 'IOVDD + 0.5' is an expression and skipped. Pull-ups: GPIO RPU 50-80 kohm and USB RPU2 0.873-1.548 kohm; RPD (pull-down) excluded. 'RPU' alone is a substring of 'RPU2', so the RPU citation spans two cells to be unique."
+}

@@ -1,0 +1,160 @@
+{
+  "documentId": "ap2191",
+  "vendor": "Diodes Incorporated",
+  "mpn": "AP2191W",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "79aae8cb1be7339c242cbd96b9943d1bf690b4c7578b2d392b5ffe0695de0c49",
+    "url": "https://www.diodes.com/assets/Datasheets/AP2181_91.pdf",
+    "note": "used on BoardRepo boards: elipsitz-gamebub"
+  },
+  "pages": [
+    3,
+    4
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "2.7",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 3,
+              "textContains": "Input Voltage"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 3,
+              "textContains": "Input Voltage"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "0.5",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 4,
+              "textContains": "Input Shutdown Current"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 4,
+              "textContains": "Input Shutdown Current"
+            }
+          },
+          {
+            "value": "45",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 4,
+              "textContains": "Input Quiescent Current"
+            }
+          },
+          {
+            "value": "70",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 4,
+              "textContains": "Input Quiescent Current"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": [
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 4,
+              "textContains": "EN Input Leakage"
+            }
+          }
+        ],
+        "abs_max_vin_V": {
+          "value": "6.5",
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "citation": {
+            "page": 3,
+            "textContains": "Input Voltage"
+          }
+        },
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Supply range from Recommended Operating Conditions (VIN 2.7-5.5 V). ISHDN/IQ rows print 'IOUT = 0' with no unit, so that condition is left out (VIN = +5V is a table-wide header default, also left out). ILEAK 'Input Leakage Current' (Disabled, OUT grounded, 1 uA max) is the power switch's IN-to-OUT off-state leakage on the power input, not a digital/control pin and not a supply current of the part; deliberately excluded from both fields (doubtful). IREV reverse leakage excluded. ISINK 'EN Input Leakage' (VEN = 5V, not an allowed key) labelled. Abs max: VIN 6.5 V and VEN/VFLG 6.5 V give the same (value, unit, qualifier) so one label; VOUT 'VIN +0.3' skipped as an expression. 'Input Voltage' also occurs in the ROC VIN line and the VIH/VIL EN lines on page 3."
+}

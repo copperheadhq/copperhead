@@ -1,0 +1,154 @@
+{
+  "key": {
+    "document": "f5deda2f0cd6f251622fa0fbb57fd0ddff831b797f96b9a0a53ed35059e1c4ba",
+    "units": "59341ebf706fde0b9a46277ebb630f83d591a65067a03bec44923ef101b95691",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-f5deda2f-p4-l29",
+          "value": "2.2",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-f5deda2f-p4-l29",
+          "value": "5.5",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-f5deda2f-p5-l20",
+          "value": "2.2",
+          "confidence": 0.82,
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": {
+            "TA": "25°C"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-f5deda2f-p5-l20",
+          "value": "5.5",
+          "confidence": 0.82,
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "25°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-f5deda2f-p5-l35",
+          "value": "12",
+          "confidence": 0.8,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "conditions": {
+            "IOUT": "0mA"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-f5deda2f-p5-l35",
+          "value": "25",
+          "confidence": 0.78,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "IOUT": "0mA"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-f5deda2f-p5-l36",
+          "value": "250",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "conditions": {
+            "IOUT": "250mA"
+          },
+          "footnoteQualified": true
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-f5deda2f-p5-l36",
+          "value": "425",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "IOUT": "250mA"
+          },
+          "footnoteQualified": true
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-f5deda2f-p5-l37",
+          "value": "0.2",
+          "confidence": 0.72,
+          "unit": "μA",
+          "qualifier": "TYP"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-f5deda2f-p5-l37",
+          "value": "1",
+          "confidence": 0.7,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-f5deda2f-p6-l12",
+          "value": "5.5",
+          "confidence": 0.7,
+          "unit": "μA",
+          "conditions": {
+            "VIN": "5.5V"
+          },
+          "footnoteQualified": true
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-f5deda2f-p6-l14",
+          "value": "0.001",
+          "confidence": 0.7,
+          "unit": "μA",
+          "conditions": {
+            "VIN": "5.5V"
+          },
+          "footnoteQualified": true
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-f5deda2f-p4-l7",
+          "value": "–0.3",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-f5deda2f-p4-l7",
+          "value": "6",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

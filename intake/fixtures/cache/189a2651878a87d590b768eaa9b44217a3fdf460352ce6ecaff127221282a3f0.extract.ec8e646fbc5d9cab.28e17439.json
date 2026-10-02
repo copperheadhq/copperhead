@@ -1,0 +1,40 @@
+{
+  "key": {
+    "document": "189a2651878a87d590b768eaa9b44217a3fdf460352ce6ecaff127221282a3f0",
+    "units": "2cc948b15375f95a9a54559e92613156301e4f4f7df9cf436dbdbc59af3a1d50",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-189a2651-p3-l18",
+          "value": "5",
+          "confidence": 0.82,
+          "unit": "mA",
+          "qualifier": "TYP"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-189a2651-p3-l18",
+          "value": "11",
+          "confidence": 0.82,
+          "unit": "mA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-189a2651-p2-l4",
+          "value": "15V",
+          "confidence": 0.88,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

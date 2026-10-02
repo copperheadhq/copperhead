@@ -1,0 +1,108 @@
+{
+  "key": {
+    "document": "673380a63b158278ce1be50be33067f8da577d496d5f0bffd0a662283fbb5545",
+    "units": "3ec2d83381846c496717c67fd439374f06f5f90794c108c8e18879e5cb38166c",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-673380a6-p4-l5",
+          "value": "–0.3",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-673380a6-p4-l5",
+          "value": "4.0",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-673380a6-p4-l4",
+          "value": "–0.5",
+          "confidence": 0.75,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-673380a6-p4-l4",
+          "value": "Vdd + 0.5",
+          "confidence": 0.75,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-673380a6-p4-l28",
+          "value": "2.4V-3.6V (10ns)",
+          "confidence": 0.6
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-673380a6-p5-l13",
+          "value": "2.4V-3.6V",
+          "confidence": 0.6
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-673380a6-p5-l8",
+          "value": "–1",
+          "confidence": 0.88,
+          "unit": "μA",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-673380a6-p5-l8",
+          "value": "1",
+          "confidence": 0.88,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-673380a6-p5-l17",
+          "value": "–1",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-673380a6-p5-l17",
+          "value": "1",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-673380a6-p5-l31",
+          "value": "5",
+          "confidence": 0.6,
+          "unit": "mA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-673380a6-p5-l33",
+          "value": "1.5",
+          "confidence": 0.5,
+          "qualifier": "TYP",
+          "footnoteQualified": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,48 +1,19 @@
-// Fixture-backed implementations of both ports: cached JSON, zero network.
-// USE_FIXTURES=true composes these instead of the live providers; the same
-// files double as the content-addressed cache written by live runs.
+// Fixture-backed OCR: cached Sarvam output, zero network. Extraction needs no fixture provider:
+// in cached mode the ingest reads the extraction cache and never calls an extractor.
 
-import { FieldSpec } from "../core/fields";
-import { DigitisedPage, RawExtractedField } from "../core/pipeline";
+import type { DigitisedPage } from "../core/digitised";
 import { DigitisationProvider, DigitiseFailedError, DocumentInput } from "../ports/digitisation";
-import { ExtractionError, FactExtractor } from "../ports/extractor";
-import { digitiseCacheKey, extractCacheKey, JsonCache } from "./cache";
+import { JsonCache, ocrCacheKey, sha256 } from "./cache";
+import { SARVAM_LANGUAGE, SARVAM_OUTPUT_FORMAT } from "./sarvam";
 
 export class FixtureDigitisationProvider implements DigitisationProvider {
-  readonly modelId = "sarvam-vision (fixtures)";
+  readonly modelId = "sarvam-vision";
   constructor(private readonly cache: JsonCache) {}
 
   async digitise(doc: DocumentInput): Promise<DigitisedPage[]> {
-    const pages = this.cache.read<DigitisedPage[]>(digitiseCacheKey(doc.bytes));
-    if (!pages) {
-      throw new DigitiseFailedError(
-        `no digitise fixture for ${doc.fileName}; generate fixtures with a live run first`,
-      );
-    }
+    const key = ocrCacheKey(sha256(doc.bytes), this.modelId, SARVAM_LANGUAGE, SARVAM_OUTPUT_FORMAT);
+    const pages = this.cache.read<DigitisedPage[]>(key);
+    if (!pages) throw new DigitiseFailedError(`no OCR fixture for ${doc.fileName}; generate fixtures with a live run first`);
     return pages;
-  }
-}
-
-export class FixtureExtractor implements FactExtractor {
-  readonly modelId: string;
-  private readonly docBytes: Buffer;
-
-  constructor(
-    private readonly cache: JsonCache,
-    docBytes: Buffer,
-    modelId = "claude-opus-5 (fixtures)",
-  ) {
-    this.docBytes = docBytes;
-    this.modelId = modelId;
-  }
-
-  async extract(_pages: DigitisedPage[], specs: FieldSpec[]): Promise<RawExtractedField[]> {
-    const fields = this.cache.read<RawExtractedField[]>(extractCacheKey(this.docBytes, specs));
-    if (!fields) {
-      throw new ExtractionError(
-        "no extractor fixture for this document and field list; generate fixtures with a live run first",
-      );
-    }
-    return fields;
   }
 }

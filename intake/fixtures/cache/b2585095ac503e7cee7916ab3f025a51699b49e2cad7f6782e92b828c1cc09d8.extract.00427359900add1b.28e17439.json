@@ -1,0 +1,144 @@
+{
+  "key": {
+    "document": "b2585095ac503e7cee7916ab3f025a51699b49e2cad7f6782e92b828c1cc09d8",
+    "units": "4084a79421d25bbd074a995b92a0b5607c0d1d964fecc641ea4744c8e0e8fe30",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-b2585095-p60-l24",
+          "value": "3.0",
+          "confidence": 0.78,
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": {
+            "F": "133MHz"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-b2585095-p60-l24",
+          "value": "3.6",
+          "confidence": 0.78,
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": {
+            "F": "133MHz"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-b2585095-p60-l26",
+          "value": "2.7",
+          "confidence": 0.78,
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": {
+            "F": "104MHz"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-b2585095-p60-l26",
+          "value": "3.0",
+          "confidence": 0.78,
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": {
+            "F": "104MHz"
+          }
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-b2585095-p60-l5",
+          "value": "–0.6",
+          "confidence": 0.8,
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "footnoteQualified": true
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-b2585095-p60-l5",
+          "value": "4.6",
+          "confidence": 0.8,
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "footnoteQualified": true
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-b2585095-p60-l6",
+          "value": "–0.6",
+          "confidence": 0.68,
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "footnoteQualified": true
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-b2585095-p60-l6",
+          "value": "VCC+0.4",
+          "confidence": 0.68,
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "footnoteQualified": true
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-b2585095-p62-l11",
+          "value": "10",
+          "confidence": 0.82,
+          "unit": "μA",
+          "qualifier": "TYP"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-b2585095-p62-l11",
+          "value": "50",
+          "confidence": 0.82,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-b2585095-p62-l14",
+          "value": "1",
+          "confidence": 0.72,
+          "unit": "μA",
+          "qualifier": "TYP"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-b2585095-p62-l14",
+          "value": "15",
+          "confidence": 0.72,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-b2585095-p62-l8",
+          "value": "±2",
+          "confidence": 0.72,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-b2585095-p62-l9",
+          "value": "±2",
+          "confidence": 0.6,
+          "unit": "μA",
+          "qualifier": "MAX"
+        }
+      ]
+    }
+  ]
+}

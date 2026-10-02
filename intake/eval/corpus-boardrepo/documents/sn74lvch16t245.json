@@ -1,0 +1,135 @@
+{
+  "documentId": "sn74lvch16t245",
+  "vendor": "Texas Instruments",
+  "mpn": "SN74LVCH16T245",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "faaa5018b8a37d6725ec8dfb2d5b5a03f8ea16767eae391744035753781e62a1",
+    "url": "https://www.ti.com/lit/ds/symlink/sn74lvch16t245.pdf",
+    "note": "used on BoardRepo boards: elipsitz-gamebub"
+  },
+  "pages": [
+    6,
+    7,
+    8
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "1.65",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 7,
+              "textContains": "VCCA | 1.65"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 7,
+              "textContains": "VCCA | 1.65"
+            }
+          }
+        ],
+        "quiescent_current_uA": "ABSENT",
+        "pin_input_leakage_uA": [
+          {
+            "value": "0.5",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 8,
+              "textContains": "VI = VCCA or GND"
+            }
+          },
+          {
+            "value": "2",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 8,
+              "textContains": "VI = VCCA or GND"
+            }
+          }
+        ],
+        "abs_max_vin_V": [
+          {
+            "value": "6.5",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "Supply voltage"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Supply: VCCA and VCCB both print 1.65 MIN / 5.5 MAX in Recommended Operating Conditions; identical tuples, so one MIN and one MAX label (cited on the VCCA line). Leakage: II (control inputs) prints '\u00b10.5' under TYP and '\u00b12' under MAX (columns checked with pdftotext); labelled as magnitudes 0.5 TYP and 2 MAX since the guide has no rule for \u00b1. Its VCCA/VCCB = 1.65 V to 5.5 V conditions are not allowed keys and are omitted. Bus-hold currents IBHL, IBHH, IBHLO, IBHHO (15-900 uA) are bus-hold sustaining/overdrive currents, not input leakage, so excluded (judgement call). ICC is not on pages 6-8, so quiescent is ABSENT. Abs max: supply voltage (VCCA, VCCB) and input voltage VI (A port, B port, control inputs) all print 6.5 V MAX: one distinct tuple, cited on the supply line. VO rows are output voltages and the 'VCCx + 0.5' rows are expressions; not labelled."
+}

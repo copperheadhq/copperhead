@@ -4,29 +4,38 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type {
   ChangeDescriptor,
   ChangeKind,
-  ExtractedFact,
+  DocumentRef,
+  ExtractionRecord,
+  IntakeManifest,
+  PageSource,
+  PartRef,
+  Reading,
   Registry,
-  VerificationManifest,
   Verdict,
 } from "../core/model";
-import type { DigitisedPage } from "../core/pipeline";
 import PdfViewer, { Highlight } from "../components/PdfViewer";
 
 interface IngestResponse {
   fileName: string;
-  pages: DigitisedPage[];
-  facts: ExtractedFact[];
-  digitiseModel: string;
+  part: PartRef;
+  document: DocumentRef;
+  pages: PageSource[];
+  records: ExtractionRecord[];
   extractorModel: string;
+  promptHash: string;
+  ocrModel: string | null;
+  passes: number;
 }
 
 interface EvaluateResponse {
   verdict: Verdict;
-  manifest: VerificationManifest;
+  checks: Verdict[];
+  manifest: IntakeManifest;
 }
 
 interface Demo {
   part: string;
+  manufacturer: string;
   file: string;
   blurb: string;
 }
@@ -34,16 +43,19 @@ interface Demo {
 const DEMOS: Demo[] = [
   {
     part: "LM555",
+    manufacturer: "Texas Instruments",
     file: "/datasheets/lm555-electrical.pdf",
     blurb: "the timer everyone knows · supply current vs sleep budget",
   },
   {
     part: "SN74LS00",
+    manufacturer: "Texas Instruments",
     file: "/datasheets/sn74ls00-electrical.pdf",
     blurb: "quad NAND · input current vs 25 uA sleep budget",
   },
   {
     part: "ESP32-WROOM-32",
+    manufacturer: "Espressif",
     file: "/datasheets/esp32-wroom32-electrical.pdf",
     blurb: "3.6 V abs-max vs the 5 V rail",
   },
@@ -162,7 +174,7 @@ const FACT_KEYS = [
   "pin_input_leakage_uA",
   "abs_max_vin_V",
   "quiescent_current_uA",
-  "supply_voltage_range_V",
+  "supply_voltage_V",
   "recommended_pullup_ohm",
 ];
 
@@ -175,8 +187,9 @@ export default function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [editUnit, setEditUnit] = useState("");
   const [mode, setMode] = useState<"cached" | "live">("cached");
   const [dragOver, setDragOver] = useState(false);
   const [activePart, setActivePart] = useState<string | null>(null);
@@ -205,7 +218,7 @@ export default function Home() {
 
   const appendLog = (message: string) => setLog((prev) => [...prev, message]);
 
-  const onUpload = async (f: File) => {
+  const onUpload = async (f: File, demo?: Demo) => {
     setFile(f);
     setIngest(null);
     setResult(null);
@@ -220,6 +233,10 @@ export default function Home() {
       const form = new FormData();
       form.append("file", f);
       form.append("mode", mode);
+      if (demo) {
+        form.append("manufacturer", demo.manufacturer);
+        form.append("mpn", demo.part);
+      }
       const res = await fetch("/api/ingest", { method: "POST", body: form });
       if (!res.body) throw new Error("no response stream");
       const reader = res.body.getReader();
@@ -263,7 +280,7 @@ export default function Home() {
       const res = await fetch(demo.file);
       if (!res.ok) throw new Error(`could not load ${demo.file}`);
       const blob = await res.blob();
-      await onUpload(new File([blob], demo.file.split("/").pop()!, { type: "application/pdf" }));
+      await onUpload(new File([blob], demo.file.split("/").pop()!, { type: "application/pdf" }), demo);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(null);
@@ -279,7 +296,7 @@ export default function Home() {
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ descriptor, facts: ingest?.facts ?? [] }),
+        body: JSON.stringify(ingest ? { descriptor, documentSha: ingest.document.sha256 } : { descriptor }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "evaluation failed");
@@ -293,22 +310,32 @@ export default function Home() {
     }
   };
 
-  const onCorrect = async (key: string) => {
-    const numeric = Number(editValue);
-    const value = Number.isNaN(numeric) || editValue.trim() === "" ? editValue : numeric;
+  const onCorrect = async (record: ExtractionRecord) => {
+    const key = record.extraction.field;
+    const value = editValue.trim();
+    const unit = editUnit.trim();
+    if (!ingest || !record.extraction.qualifier) return;
     setBusy("saving correction");
     setError(null);
     try {
       const res = await fetch("/api/registry", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ key, value }),
+        body: JSON.stringify({
+          key,
+          qualifier: record.extraction.qualifier,
+          value,
+          unit,
+          reviewer: "intake reviewer",
+          documentSha: ingest.document.sha256,
+          evidenceId: record.extraction.evidenceId,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "correction failed");
       setRegistry(data as Registry);
       setEditing(null);
-      appendLog(`corrected ${key} = ${String(value)} (user-verified)`);
+      appendLog(`recorded ${key} ${record.extraction.qualifier} = ${value} ${unit} as a human reading (verified)`);
       if (lastDescriptor) await evaluateDescriptor(lastDescriptor);
       else setBusy(null);
     } catch (err) {
@@ -317,9 +344,9 @@ export default function Home() {
     }
   };
 
-  const clickFact = (fact: ExtractedFact) => {
-    const target: Highlight = { page: fact.source.page };
-    if (fact.source.snippet !== undefined) target.snippet = fact.source.snippet;
+  const clickUnit = (evidence: { page: number; bbox?: Highlight["bbox"]; evidenceId: string }) => {
+    const target: Highlight = { page: evidence.page, key: evidence.evidenceId };
+    if (evidence.bbox) target.bbox = evidence.bbox;
     setHighlight(target);
   };
 
@@ -334,20 +361,22 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
-  // Facts come from the uploaded datasheet's extraction; registry entries only
-  // overlay corrections for those same keys (never facts from earlier parts).
-  const allFacts: ExtractedFact[] = (() => {
-    if (!ingest) return [];
-    const corrected = registry?.facts ?? [];
-    return ingest.facts
-      .map((fact) => corrected.find((f) => f.key === fact.key) ?? fact)
-      .sort((a, b) => b.confidence - a.confidence);
-  })();
+  // Rows are this datasheet's extractions; the registry only marks values a person verified.
+  const records: ExtractionRecord[] = ingest?.records ?? [];
+  const partEntry = ingest ? registry?.parts[ingest.part.id] : undefined;
+  const verified = (r: ExtractionRecord) =>
+    partEntry?.parameters.some(
+      (p) =>
+        p.key === r.extraction.field &&
+        p.readings.some((x) => x.method.kind === "human" && x.qualifier === r.extraction.qualifier && x.evidence.evidenceId === r.extraction.evidenceId),
+    ) ?? false;
+  const statusLabel = (r: ExtractionRecord) =>
+    verified(r) ? "verified" : r.outcome === "ADMITTED" ? "admitted" : r.outcome === "REVIEW_REQUIRED" ? "review" : "rejected";
 
-  // Confidence bands: the extraction gate sits at 0.75.
+  // Confidence bands: below 0.75 an extraction goes to review; confidence never admits.
   const confClass = (c: number) => (c >= 0.9 ? "conf-high" : c >= 0.75 ? "conf-mid" : "conf-low");
 
-  const heldCount = allFacts.filter((f) => f.status === "hold").length;
+  const heldCount = records.filter((r) => r.outcome !== "ADMITTED" && !verified(r)).length;
   const presets = (activePart && PRESETS_BY_PART[activePart]) || GENERIC_PRESETS;
 
   return (
@@ -453,7 +482,7 @@ export default function Home() {
                 {heldCount > 0 && <span className="badge hold h2-note">{heldCount} to review</span>}
               </h2>
               <div className="card no-pad facts-card">
-                {allFacts.length === 0 ? (
+                {records.length === 0 ? (
                   <p className="empty">Extracted facts land here, each with provenance and confidence.</p>
                 ) : (
                   <table className="fact-table">
@@ -463,49 +492,58 @@ export default function Home() {
                         <th>parameter</th>
                         <th className="num">value</th>
                         <th className="num">confidence</th>
-                        <th className="num">section</th>
+                        <th className="num">source</th>
                         <th aria-label="action" />
                       </tr>
                     </thead>
                     <tbody>
-                      {allFacts.map((fact) => (
-                        <Fragment key={fact.key}>
+                      {records.map((record, i) => (
+                        <Fragment key={`${record.extraction.evidenceId}-${record.extraction.field}-${i}`}>
                           <tr
                             className="fact-row"
-                            onClick={() => clickFact(fact)}
-                            title="click to see the exact line in the datasheet"
+                            onClick={() => record.unit && clickUnit(record.unit)}
+                            title={`${record.unit?.text ?? "no such line"}${record.reasonCodes.length ? `\n${record.reasonCodes.join(", ")}` : ""}`}
                           >
-                            <td
-                              className={`td-status ${fact.status === "hold" ? "hold" : ""}`}
-                              title={fact.status === "hold" ? fact.holdReason : undefined}
-                            >
-                              {fact.status === "hold" ? "review" : "trusted"}
+                            <td className={`td-status ${statusLabel(record) === "admitted" || statusLabel(record) === "verified" ? "" : "hold"}`}>
+                              {statusLabel(record)}
                             </td>
-                            <td className="td-key">{fact.key}</td>
+                            <td className="td-key">
+                              {record.extraction.field} <span className="dim">{record.extraction.qualifier ?? ""}</span>
+                            </td>
                             <td className="td-value num">
-                              {String(fact.value)} {fact.unit ?? ""}
+                              {record.extraction.value} {record.extraction.unit ?? ""}
                             </td>
-                            <td className={`td-conf num ${confClass(fact.confidence)}`}>
-                              {(fact.confidence * 100).toFixed(0)}%
+                            <td className={`td-conf num ${confClass(record.extraction.confidence)}`}>
+                              {(record.extraction.confidence * 100).toFixed(0)}%
                             </td>
-                            <td className="td-cite num">p.{fact.source.page} ↗</td>
+                            <td className="td-cite num">
+                              {record.unit ? `p.${record.unit.page}${record.unit.textSource === "ocr" ? " ocr" : ""} ↗` : "—"}
+                            </td>
                             <td className="td-action num">
-                              {fact.status === "hold" &&
-                                registry?.facts.some((f) => f.key === fact.key) && (
-                                  <button
-                                    className="ghost mini"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditing(fact.key);
-                                      setEditValue(String(fact.value));
-                                    }}
-                                  >
-                                    Verify
-                                  </button>
-                                )}
+                              {record.outcome === "REVIEW_REQUIRED" && !verified(record) && record.extraction.qualifier && (
+                                <button
+                                  className="ghost mini"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditing(i);
+                                    setEditValue(record.extraction.value);
+                                    setEditUnit(record.extraction.unit ?? "");
+                                  }}
+                                >
+                                  Verify
+                                </button>
+                              )}
                             </td>
                           </tr>
-                          {fact.status === "hold" && editing === fact.key && (
+                          {record.outcome !== "ADMITTED" && editing !== i && (
+                            <tr className="hold-row">
+                              <td />
+                              <td colSpan={5} className="dim">
+                                {record.reasonCodes.join(", ")}
+                              </td>
+                            </tr>
+                          )}
+                          {editing === i && (
                             <tr className="hold-row">
                               <td />
                               <td colSpan={5}>
@@ -516,10 +554,11 @@ export default function Home() {
                                       value={editValue}
                                       onChange={(e) => setEditValue(e.target.value)}
                                       onKeyDown={(e) => {
-                                        if (e.key === "Enter") void onCorrect(fact.key);
+                                        if (e.key === "Enter") void onCorrect(record);
                                       }}
                                     />
-                                    <button onClick={() => void onCorrect(fact.key)}>Save</button>
+                                    <input style={{ width: 50 }} value={editUnit} onChange={(e) => setEditUnit(e.target.value)} />
+                                    <button onClick={() => void onCorrect(record)}>Save</button>
                                     <button className="ghost" onClick={() => setEditing(null)}>
                                       Cancel
                                     </button>
@@ -625,25 +664,23 @@ export default function Home() {
                 <span className="dim verdict-change">{result.verdict.change}</span>
               </div>
               <p className="verdict-reason">{result.verdict.reason}</p>
+              <p className="dim">{result.verdict.reasonCodes.join(" · ")}</p>
               {result.verdict.computed && <p className="computed">{result.verdict.computed.expression}</p>}
-              {result.verdict.citedFact && (
-                <button
-                  className="citation clickable-citation"
-                  onClick={() => clickFact(result.verdict.citedFact!)}
-                >
-                  <strong>Datasheet says:</strong> {result.verdict.citedFact.rawField} ={" "}
-                  {String(result.verdict.citedFact.value)} {result.verdict.citedFact.unit ?? ""}
+              {result.verdict.citedReadings.map((reading: Reading, i) => (
+                <button key={i} className="citation clickable-citation" onClick={() => clickUnit(reading.evidence)}>
+                  <strong>Datasheet says:</strong> {reading.evidence.text.replace(/ \| /g, "  ·  ")}
                   <span className="source">
-                    page {result.verdict.citedFact.source.page} · click to see the line
+                    {reading.qualifier} {reading.measurement.value_decimal} {reading.measurement.unit} · page{" "}
+                    {reading.evidence.page} · {reading.method.kind === "human" ? "verified by a person" : "click to see the line"}
                   </span>
                 </button>
-              )}
+              ))}
               {result.verdict.citedConstraint && (
                 <div className="citation">
                   <strong>Board rule:</strong> {result.verdict.citedConstraint.description}
                   <span className="source">
-                    {result.verdict.citedConstraint.kind} · limit {result.verdict.citedConstraint.limit}{" "}
-                    {result.verdict.citedConstraint.unit} · {result.verdict.citedConstraint.source}
+                    {result.verdict.citedConstraint.kind} · limit {result.verdict.citedConstraint.limit.value_decimal}{" "}
+                    {result.verdict.citedConstraint.limit.unit} · {result.verdict.citedConstraint.source}
                   </span>
                 </div>
               )}
@@ -684,7 +721,7 @@ export default function Home() {
         {/* Right column: the datasheet, full height */}
         <div className="right-col">
           <div className="viewer-scroll">
-            <PdfViewer file={file} pages={ingest?.pages ?? []} highlight={highlight} />
+            <PdfViewer file={file} highlight={highlight} />
           </div>
         </div>
       </div>

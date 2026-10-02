@@ -1,63 +1,54 @@
-// Canonical field specifications: the fields we ask the extractor for and
-// how their raw labels map to canonical predicate keys with target units.
-// Pure module: no I/O.
+// Field requests (ground-intake-extraction D5): what the extractor is asked for, with the
+// dimension and conditions each parameter needs. Pure.
+
+import type { ConditionField } from "./knowledge/validators/candidate";
 
 export interface FieldSpec {
-  /** Canonical predicate key, e.g. "pin_input_leakage_uA". */
+  /** Canonical parameter key, e.g. "pin_input_leakage_uA". */
   key: string;
-  /** The plain-English field description given to the extractor. */
-  prompt: string;
-  /** Label fragments that identify this field in extractor output. */
-  labels: string[];
-  /** Canonical unit facts under this key are stored in, if numeric. */
-  targetUnit?: string;
+  /** What to look for, as the extractor is told. */
+  description: string;
+  /** The cortex dimension family the value must have (voltage, current, resistance, ...). */
+  dimension: string;
+  /** Conditions a reading of this parameter must state. */
+  requiredConditions: ConditionField[];
 }
 
 export const DEFAULT_FIELD_SPECS: FieldSpec[] = [
   {
-    key: "supply_voltage_range_V",
-    prompt: "supply voltage range (V)",
-    labels: ["supply voltage"],
-    targetUnit: "V",
+    key: "supply_voltage_V",
+    description:
+      "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+    dimension: "voltage",
+    requiredConditions: [],
   },
   {
     key: "quiescent_current_uA",
-    prompt: "quiescent current (uA)",
-    labels: ["quiescent current", "supply current"],
-    targetUnit: "uA",
+    description: "quiescent or supply current drawn by the part",
+    dimension: "current",
+    requiredConditions: [],
   },
   {
     key: "pin_input_leakage_uA",
-    prompt: "per-pin input leakage current (uA)",
-    labels: ["input leakage", "leakage current"],
-    targetUnit: "uA",
+    description: "input leakage current of an input pin (high-level or low-level input current)",
+    dimension: "current",
+    requiredConditions: [],
   },
   {
     key: "abs_max_vin_V",
-    prompt: "absolute maximum input voltage (V)",
-    labels: ["absolute maximum input voltage", "abs max input", "maximum voltage"],
-    targetUnit: "V",
+    description:
+      "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+    dimension: "voltage",
+    requiredConditions: [],
   },
   {
     key: "recommended_pullup_ohm",
-    prompt: "recommended pull-up resistance (ohm)",
-    labels: ["pull-up resistance", "pullup resistance", "pull-up resistor"],
-    targetUnit: "ohm",
+    description: "pull-up resistance, internal or recommended external",
+    dimension: "resistance",
+    requiredConditions: [],
   },
 ];
 
-/**
- * Resolve a raw extractor field label (or extractor-suggested key) to a
- * FieldSpec. Returns undefined for fields no spec consumes; such fields are
- * stored but never required for a verdict.
- */
-export function resolveFieldSpec(
-  rawFieldLabel: string,
-  specs: FieldSpec[] = DEFAULT_FIELD_SPECS,
-): FieldSpec | undefined {
-  const label = rawFieldLabel.trim().toLowerCase();
-  // Exact key match first (extractor may echo the canonical key).
-  const byKey = specs.find((s) => s.key === rawFieldLabel);
-  if (byKey) return byKey;
-  return specs.find((s) => s.labels.some((l) => label.includes(l.toLowerCase())));
+export function specFor(key: string, specs: FieldSpec[] = DEFAULT_FIELD_SPECS): FieldSpec | undefined {
+  return specs.find((s) => s.key === key);
 }

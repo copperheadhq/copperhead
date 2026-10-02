@@ -1,0 +1,157 @@
+{
+  "key": {
+    "document": "e6fbd8400161399554fe905326e73236e74bb3af0b546ea1942deed14310536e",
+    "units": "c232f167011c60769b38a3dc7727e97bf871cb5cc9f98cb38d6d774ccf757203",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e6fbd840-p4-l37",
+          "value": "1.65",
+          "confidence": 0.92,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e6fbd840-p4-l37",
+          "value": "5.5",
+          "confidence": 0.92,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e6fbd840-p4-l39",
+          "value": "1.65",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e6fbd840-p4-l39",
+          "value": "5.5",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e6fbd840-p6-l34",
+          "value": "3",
+          "confidence": 0.75,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e6fbd840-p6-l35",
+          "value": "2",
+          "confidence": 0.72,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e6fbd840-p6-l36",
+          "value": "–2",
+          "confidence": 0.6,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e6fbd840-p6-l37",
+          "value": "3",
+          "confidence": 0.72,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e6fbd840-p6-l38",
+          "value": "–2",
+          "confidence": 0.65,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e6fbd840-p6-l39",
+          "value": "2",
+          "confidence": 0.6,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-e6fbd840-p6-l41",
+          "value": "4",
+          "confidence": 0.75,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-e6fbd840-p6-l16",
+          "value": "±1",
+          "confidence": 0.78,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "25 °C"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-e6fbd840-p6-l18",
+          "value": "±2",
+          "confidence": 0.65,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e6fbd840-p4-l10",
+          "value": "–0.5",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "footnoteQualified": true
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e6fbd840-p4-l10",
+          "value": "6.5",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "footnoteQualified": true
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e6fbd840-p4-l8",
+          "value": "–0.5",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e6fbd840-p4-l8",
+          "value": "6.5",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,214 @@
+{
+  "documentId": "lp5907",
+  "vendor": "Texas Instruments",
+  "mpn": "LP5907MFX-3.3",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "f5deda2f0cd6f251622fa0fbb57fd0ddff831b797f96b9a0a53ed35059e1c4ba",
+    "url": "https://www.ti.com/lit/ds/symlink/lp5907.pdf",
+    "note": "used on BoardRepo boards: elipsitz-gamebub, system76-launch"
+  },
+  "pages": [
+    4,
+    5,
+    6
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "2.2",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 4,
+              "textContains": "Input supply voltage"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 4,
+              "textContains": "Input supply voltage"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "12",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "VEN = 1.2V, IOUT = 0mA"
+            }
+          },
+          {
+            "value": "25",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "VEN = 1.2V, IOUT = 0mA"
+            }
+          },
+          {
+            "value": "250",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "IOUT = 250 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Quiescent current"
+            }
+          },
+          {
+            "value": "425",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 250 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Quiescent current"
+            }
+          },
+          {
+            "value": "0.2",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 5,
+              "textContains": "VEN = 0.3V (disabled)"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 5,
+              "textContains": "VEN = 0.3V (disabled)"
+            }
+          },
+          {
+            "value": "14",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Ground current"
+            }
+          },
+          {
+            "value": "50",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "IOUT = 100 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "IOUT = 100mA"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": [
+          {
+            "value": "5.5",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 5.5 V",
+            "citation": {
+              "page": 6,
+              "textContains": "VEN = 5.5V and VIN = 5.5V"
+            }
+          },
+          {
+            "value": "0.001",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 5.5 V",
+            "citation": {
+              "page": 6,
+              "textContains": "VEN = 0V and VIN = 5.5V"
+            }
+          }
+        ],
+        "abs_max_vin_V": {
+          "value": "6",
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "citation": {
+            "page": 4,
+            "textContains": "Input voltage"
+          }
+        },
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Column placement (TYP vs MAX) checked with pdftotext -layout on pages 5-6. Supply range from ROC (VIN 2.2-5.5 V); the identical EC 'Input voltage' row (TA = 25C) is not labelled again. IQ 12/25 uA sits on a line without the parameter name, cited by its test-condition cell 'VEN = 1.2V, IOUT = 0mA', which also appears on the IG (14 uA) line. Ground current IG (14 uA at IOUT = 0 mA, 50 uA at IOUT = 100 mA) counted as a supply current. IEN 5.5 uA TYP is the EN input current set by the internal 1 MOhm EN pull-down (footnote 10); still an EN-pin input current, so labelled. VEN conditions dropped (not an allowed key). Abs max: VIN 6 V and VEN 6 V collapse to one label; VOUT 'See' skipped. RAD (230 Ohm) and the EN 1 MOhm resistor are pull-downs, so recommended_pullup_ohm is ABSENT."
+}

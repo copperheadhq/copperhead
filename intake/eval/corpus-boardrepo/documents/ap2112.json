@@ -1,0 +1,154 @@
+{
+  "documentId": "ap2112",
+  "vendor": "Diodes Incorporated",
+  "mpn": "AP2112K-3.3",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "ef8d376f2ec356e29172eb9e053819a0ebdcc576dba7fc9ab0505c568427920f",
+    "url": "https://www.diodes.com/assets/Datasheets/AP2112.pdf",
+    "note": "used on BoardRepo boards: adamb314-servoproject"
+  },
+  "pages": [
+    3,
+    4
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "2.5",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 3,
+              "textContains": "VIN"
+            }
+          },
+          {
+            "value": "6.0",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 3,
+              "textContains": "VIN"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "55",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 2.5 V, IOUT = 0 mA",
+            "citation": {
+              "page": 4,
+              "textContains": "Quiescent Current"
+            }
+          },
+          {
+            "value": "80",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "VIN = 2.5 V, IOUT = 0 mA",
+            "citation": {
+              "page": 4,
+              "textContains": "Quiescent Current"
+            }
+          },
+          {
+            "value": "0.01",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 2.5 V",
+            "citation": {
+              "page": 4,
+              "textContains": "Standby Current"
+            }
+          },
+          {
+            "value": "1.0",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "VIN = 2.5 V",
+            "citation": {
+              "page": 4,
+              "textContains": "Standby Current"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": "ABSENT",
+        "abs_max_vin_V": {
+          "value": "6.5",
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "citation": {
+            "page": 3,
+            "textContains": "Power Supply Voltage"
+          }
+        },
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Supply range taken from Recommended Operating Conditions (VIN 2.5-6.0 V); cited by symbol 'VIN' because 'Supply Voltage' is also a substring of the abs-max 'Power Supply Voltage' line. Standby current (ISTD, VEN off) counted as a supply current. No EN-pin input current is printed (only the 3.0 MOhm EN pull-down RPD), so pin_input_leakage is ABSENT; RPD and the 60 Ohm VOUT discharge resistor are pull-downs and excluded from recommended_pullup_ohm. ISHORT and IOUT(MAX) excluded as output/limit currents."
+}

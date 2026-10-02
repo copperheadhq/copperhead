@@ -1,0 +1,327 @@
+{
+  "documentId": "is61wv25616",
+  "vendor": "ISSI",
+  "mpn": "IS61WV25616EDBLL-10TLI",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "673380a63b158278ce1be50be33067f8da577d496d5f0bffd0a662283fbb5545",
+    "url": "https://www.issi.com/WW/pdf/61-64WV25616EDBLL.pdf",
+    "note": "used on BoardRepo boards: elipsitz-gamebub"
+  },
+  "pages": [
+    4,
+    5
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "2.4",
+            "unit": "V",
+            "qualifier": "MIN",
+            "conditions": "TA = -40 to 85 \u00b0C",
+            "citation": {
+              "page": 4,
+              "textContains": "2.4V-3.6V (10ns)"
+            }
+          },
+          {
+            "value": "3.6",
+            "unit": "V",
+            "qualifier": "MAX",
+            "conditions": "TA = -40 to 85 \u00b0C",
+            "citation": {
+              "page": 4,
+              "textContains": "2.4V-3.6V (10ns)"
+            }
+          },
+          {
+            "value": "3.3",
+            "unit": "V",
+            "qualifier": "NOM",
+            "conditions": "TA = -40 to 85 \u00b0C",
+            "citation": {
+              "page": 4,
+              "textContains": "3.3V \u00b1 10% (8ns)"
+            }
+          },
+          {
+            "value": "2.4",
+            "unit": "V",
+            "qualifier": "MIN",
+            "conditions": "TA = -40 to 125 \u00b0C",
+            "citation": {
+              "page": 4,
+              "textContains": "Automotive (A3)"
+            }
+          },
+          {
+            "value": "3.6",
+            "unit": "V",
+            "qualifier": "MAX",
+            "conditions": "TA = -40 to 125 \u00b0C",
+            "citation": {
+              "page": 4,
+              "textContains": "Automotive (A3)"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "40",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Vdd Dynamic Operating"
+            }
+          },
+          {
+            "value": "30",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Vdd Dynamic Operating"
+            }
+          },
+          {
+            "value": "25",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Vdd Dynamic Operating"
+            }
+          },
+          {
+            "value": "45",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Iout = 0 mA, f = fmaX"
+            }
+          },
+          {
+            "value": "35",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Iout = 0 mA, f = fmaX"
+            }
+          },
+          {
+            "value": "50",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA",
+            "citation": {
+              "page": 5,
+              "textContains": "Auto. | \u2014 | \u2014 | \u2014 | 50"
+            }
+          },
+          {
+            "value": "21",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "IOUT = 0 mA, F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "Icc1"
+            }
+          },
+          {
+            "value": "20",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA, F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "Icc1"
+            }
+          },
+          {
+            "value": "25",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA, F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "Iout = 0 mA, f = 0"
+            }
+          },
+          {
+            "value": "40",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "IOUT = 0 mA, F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "Auto. | \u2014 | \u2014 | \u2014 | 40"
+            }
+          },
+          {
+            "value": "10",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "TTL Standby Current"
+            }
+          },
+          {
+            "value": "15",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "TTL Standby Current"
+            }
+          },
+          {
+            "value": "30",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "CE \u2265 VIH, f = 0"
+            }
+          },
+          {
+            "value": "5",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "CMOS Standby"
+            }
+          },
+          {
+            "value": "6",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "Current (CMOS Inputs)"
+            }
+          },
+          {
+            "value": "1.5",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "F = 0 Hz",
+            "citation": {
+              "page": 5,
+              "textContains": "VIn \u2264 0.2V, f = 0"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": [
+          {
+            "value": "-1",
+            "unit": "uA",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 5,
+              "textContains": "Input Leakage"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 5,
+              "textContains": "Input Leakage"
+            }
+          }
+        ],
+        "abs_max_vin_V": [
+          {
+            "value": "4.0",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 4,
+              "textContains": "Vdd Relates to GND"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "The p5 Power Supply Characteristics table is badly garbled in the dump; values were read with pdftotext -layout/-bbox. Several printed values appear in the dump only as footnote markers: Icc1 typ 21 mA ('[^21]'), Isb1 Com. 10 mA ('[^10]'), Isb2 Ind. 6 mA ('[^6]'). They are printed in the PDF and labelled. Columns are speed grades -8/-10/-20 with Min/Max each, and sub-rows Com./Ind./Auto.; all non-dash Max values are labelled MAX, typ.(2) rows TYP, in mA. Conditions: Icc 'Iout = 0 mA' -> IOUT = 0 mA (f = fmax is not numeric); 'f = 0' -> F = 0 Hz (unit Hz added by me). Distinct tuples only: Icc Ind -20 30 and Auto -20 45 duplicate Com/Ind values; Isb2 Auto 15 duplicates Isb1 Ind 15 (both F = 0 Hz, mA, MAX) so one label. Supply: there is no Recommended Operating Conditions table; the OPERATING RANGE table (p4) gives 2.4V-3.6V per grade (split MIN/MAX) and 3.3V +/- 10% for the 8 ns part (labelled 3.3 NOM; the +/-10% bounds are not printed numbers). I attached the row's Ambient Temperature as TA (Industrial and A1 rows give the same tuple; A3 is -40 to 125 C); doubtful whether that column counts as a row condition. The DC table headers 'VDD = 3.3V + 10%' / '2.4V-3.6V' repeat the range and are not labelled again. Leakage ILI -1/1 uA appears in both DC tables with identical values, labelled once; ILO excluded. Abs max: Vdd '-0.3 to 4.0' -> 4.0; Vterm 'Vdd + 0.5' skipped. Citations on value-only 'Auto.' lines span cells to be unique."
+}

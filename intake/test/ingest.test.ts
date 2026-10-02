@@ -1,103 +1,80 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
-import { digitiseCacheKey, extractCacheKey, JsonCache } from "../adapters/cache";
-import { FixtureDigitisationProvider, FixtureExtractor } from "../adapters/fixtures";
-import { ingest, IngestDeps } from "../adapters/ingest";
-import { DEFAULT_FIELD_SPECS } from "../core/fields";
-import { DigitisedPage, RawExtractedField } from "../core/pipeline";
-import { DocumentInput } from "../ports/digitisation";
-import { digitisedPage, rawField } from "./helpers";
+// Ingestion and the cache (ground-intake-extraction D2, D3, D9; datasheet-ingestion spec).
 
-const doc: DocumentInput = { fileName: "demo.pdf", bytes: Buffer.from("fake pdf bytes") };
+import { describe, expect, it } from "vitest";
+import { ingest } from "../adapters/ingest";
+import type { IntakeExtraction } from "../core/extraction";
+import { demoPdf } from "./support/demo-part";
+import { CannedExtractor, idOf, tempDeps } from "./support/fixtures";
 
-function fixtureDeps(dir: string): IngestDeps {
-  const cache = new JsonCache(dir);
-  return {
-    cache,
-    digitiser: new FixtureDigitisationProvider(cache),
-    extractor: new FixtureExtractor(cache, doc.bytes),
-  };
+const bytes = Buffer.from(demoPdf());
+const doc = { fileName: "demo-io-expander.pdf", bytes };
+
+function leakage(units: { evidenceId: string; text: string }[]): IntakeExtraction[] {
+  return [{ field: "pin_input_leakage_uA", evidenceId: idOf(units as never, "Input leakage current"), value: "0.033", unit: "mA", qualifier: "MAX", confidence: 0.93 }];
 }
 
-describe("ingest with fixtures (AC-12.2)", () => {
-  let dir: string;
+describe("ingestion", () => {
+  it("reads the text layer, never OCR, and validates the extraction", async () => {
+    const extractor = new CannedExtractor("model-a", leakage);
+    const result = await ingest(doc, tempDeps(extractor));
+    expect(result.pages.map((p) => p.textSource)).toEqual(["pdf-text", "pdf-text"]);
+    expect(result.ocrModel).toBeUndefined();
+    expect(result.records.map((r) => r.outcome)).toEqual(["ADMITTED"]);
+    expect(result.extractorModel).toBe("model-a");
+    expect(result.promptHash).toMatch(/^[0-9a-f]{16}$/);
+  });
 
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "intake-cache-"));
-    const cache = new JsonCache(dir);
-    cache.write(digitiseCacheKey(doc.bytes), [digitisedPage()] satisfies DigitisedPage[]);
-    cache.write(
-      extractCacheKey(doc.bytes, DEFAULT_FIELD_SPECS),
-      [rawField()] satisfies RawExtractedField[],
+  it("serves a repeat ingest from the cache with no extractor call", async () => {
+    const extractor = new CannedExtractor("model-a", leakage);
+    const deps = tempDeps(extractor);
+    await ingest(doc, deps);
+    await ingest(doc, deps);
+    expect(extractor.calls).toBe(1);
+  });
+
+  it("does not serve a cached extraction to a different model", async () => {
+    const a = new CannedExtractor("model-a", leakage);
+    const deps = tempDeps(a);
+    await ingest(doc, deps);
+    const b = new CannedExtractor("model-b", leakage);
+    const result = await ingest(doc, { ...deps, extractor: b, extractorModel: "model-b" });
+    expect(b.calls).toBe(1);
+    expect(result.extractorModel).toBe("model-b");
+  });
+
+  it("does not serve a cached extraction for other pages", async () => {
+    const extractor = new CannedExtractor("model-a", () => []);
+    const deps = tempDeps(extractor);
+    await ingest(doc, deps, { pages: [1] });
+    await ingest(doc, deps, { pages: [2] });
+    await ingest(doc, deps, { pages: [1] });
+    expect(extractor.calls).toBe(2);
+  });
+
+  it("records an explicit new pass beside the old one and reports what differs", async () => {
+    let answer: "first" | "second" = "first";
+    const extractor = new CannedExtractor("model-a", (units) =>
+      answer === "first" ? leakage(units) : [{ ...leakage(units)[0]!, value: "0.033", qualifier: "TYP" }],
     );
+    const deps = tempDeps(extractor);
+    await ingest(doc, deps);
+    answer = "second";
+    const again = await ingest(doc, deps, { newPass: true });
+    expect(again.passes).toBe(2);
+    expect(again.changedSincePreviousPass?.added.map((e) => e.qualifier)).toEqual(["TYP"]);
+    expect(again.changedSincePreviousPass?.removed.map((e) => e.qualifier)).toEqual(["MAX"]);
+    const plain = await ingest(doc, deps);
+    expect(plain.passes).toBe(2);
+    expect(extractor.calls).toBe(2);
   });
 
-  it("serves cached digitise and extract JSON with no live provider", async () => {
-    const result = await ingest(doc, fixtureDeps(dir));
-    expect(result.facts).toHaveLength(1);
-    expect(result.facts[0]?.status).toBe("trusted");
-    expect(result.digitiseModel).toContain("fixtures");
-  });
-
-  it("never calls providers when the cache is warm (reuse, AC-8.2)", async () => {
-    let digitiseCalls = 0;
-    let extractCalls = 0;
-    const cache = new JsonCache(dir);
-    const deps: IngestDeps = {
-      cache,
-      digitiser: {
-        modelId: "counting",
-        digitise: async () => {
-          digitiseCalls++;
-          return [digitisedPage()];
-        },
-      },
-      extractor: {
-        modelId: "counting",
-        extract: async () => {
-          extractCalls++;
-          return [rawField()];
-        },
-      },
-    };
-    await ingest(doc, deps);
-    await ingest(doc, deps);
-    expect(digitiseCalls).toBe(0);
-    expect(extractCalls).toBe(0);
-  });
-
-  it("calls each provider exactly once on a cold cache, then reuses", async () => {
-    const coldDir = mkdtempSync(join(tmpdir(), "intake-cold-"));
-    let digitiseCalls = 0;
-    let extractCalls = 0;
-    const deps: IngestDeps = {
-      cache: new JsonCache(coldDir),
-      digitiser: {
-        modelId: "counting",
-        digitise: async () => {
-          digitiseCalls++;
-          return [digitisedPage()];
-        },
-      },
-      extractor: {
-        modelId: "counting",
-        extract: async () => {
-          extractCalls++;
-          return [rawField()];
-        },
-      },
-    };
-    await ingest(doc, deps);
-    await ingest(doc, deps);
-    await ingest(doc, deps);
-    expect(digitiseCalls).toBe(1);
-    expect(extractCalls).toBe(1);
-  });
-
-  it("fails closed when fixtures are missing", async () => {
-    const emptyDir = mkdtempSync(join(tmpdir(), "intake-empty-"));
-    await expect(ingest(doc, fixtureDeps(emptyDir))).rejects.toThrow(/no digitise fixture/);
+  it("cached mode never calls a model: a miss is an error, a hit names the model that ran", async () => {
+    const live = tempDeps(new CannedExtractor("model-a", leakage));
+    const { extractor: _e, ...cachedOnly } = live;
+    await expect(ingest(doc, cachedOnly)).rejects.toThrow(/no cached extraction/);
+    await ingest(doc, live);
+    const cached = await ingest(doc, cachedOnly);
+    expect(cached.extractorModel).toBe("model-a");
+    expect(cached.records).toHaveLength(1);
   });
 });

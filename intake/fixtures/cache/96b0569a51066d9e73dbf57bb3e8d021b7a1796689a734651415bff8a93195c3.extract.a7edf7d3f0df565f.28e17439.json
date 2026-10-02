@@ -1,0 +1,119 @@
+{
+  "key": {
+    "document": "96b0569a51066d9e73dbf57bb3e8d021b7a1796689a734651415bff8a93195c3",
+    "units": "2b90eee9cca44c4f1f8556edfffe729da4c25a139e6b57a5a13ae85b2d6bf07d",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-96b0569a-p2-l14",
+          "value": "+1.7V",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": {
+            "TA": "-40°C to +85°C"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-96b0569a-p2-l14",
+          "value": "+5.5V",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "-40°C to +85°C"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-96b0569a-p2-l16",
+          "value": "+2.5V",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": {
+            "TA": "-40°C to +125°C"
+          }
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-96b0569a-p2-l16",
+          "value": "+5.5V",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": {
+            "TA": "-40°C to +125°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-96b0569a-p2-l32",
+          "value": "0.01",
+          "confidence": 0.85,
+          "unit": "μΑ",
+          "qualifier": "TYP"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-96b0569a-p2-l32",
+          "value": "1",
+          "confidence": 0.85,
+          "unit": "μΑ",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-96b0569a-p2-l33",
+          "value": "5",
+          "confidence": 0.75,
+          "unit": "μΑ",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-96b0569a-p2-l26",
+          "value": "±1",
+          "confidence": 0.92,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VIN": "VSS or VCC"
+          }
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-96b0569a-p2-l4",
+          "value": "6.5V",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-96b0569a-p2-l5",
+          "value": "-0.3V",
+          "confidence": 0.75,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-96b0569a-p2-l5",
+          "value": "VCC +1.0V",
+          "confidence": 0.75,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

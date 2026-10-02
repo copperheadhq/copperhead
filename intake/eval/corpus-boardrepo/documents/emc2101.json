@@ -1,0 +1,188 @@
+{
+  "documentId": "emc2101",
+  "vendor": "Microchip",
+  "mpn": "EMC2101",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "b3ff3a4907071379be4862567c673292de97bac3d0612705e869fbd2b15b207d",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/2101.pdf",
+    "note": "used on BoardRepo boards: skot-bitaxe"
+  },
+  "pages": [
+    10,
+    11
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "3.0",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 10,
+              "textContains": "Supply Voltage"
+            }
+          },
+          {
+            "value": "3.3",
+            "unit": "V",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 10,
+              "textContains": "Supply Voltage"
+            }
+          },
+          {
+            "value": "3.6",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "Supply Voltage"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "0.6",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 11,
+              "textContains": "16 conversion / second - PWM or"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 11,
+              "textContains": "16 conversion / second - PWM or"
+            }
+          },
+          {
+            "value": "200",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 11,
+              "textContains": "1 conversion / 16 seconds - PWM"
+            }
+          },
+          {
+            "value": "300",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 11,
+              "textContains": "1 conversion / 16 seconds - DAC"
+            }
+          },
+          {
+            "value": "400",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 11,
+              "textContains": "Temp monitoring Disabled, DAC"
+            }
+          },
+          {
+            "value": "270",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 11,
+              "textContains": "ISTANDBY"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": "ABSENT",
+        "abs_max_vin_V": [
+          {
+            "value": "5.0",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "Supply Voltage (VDD)"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "Voltage on 5V tolerant pins (V5VT_pin)"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "No Recommended Operating Conditions table on these pages; supply from Table 3.2 Electrical Specifications (VDD 3.0/3.3/3.6 V). Column placement of the IDD rows checked with pdftotext: 0.6 TYP/1 MAX mA; 200 TYP uA; 300 TYP uA; 300 TYP/400 MAX uA; ISTANDBY 270 is in the MAX column. The two 300 uA TYP readings (DAC driver no load; temp monitoring disabled) have no allowed-key conditions, so they collapse to one label. Conversion-rate/mode conditions omitted. Abs max: VDD 5.0 V and 5V-tolerant pins 5.5 V labelled; the '|V5VT_pin - VDD|' 3.6 V row is a pin-to-VDD differential limit and was excluded (judgement call); 'VDD +0.3' skipped. Note 3.1 mentions pull-up resistors but prints no resistance value."
+}

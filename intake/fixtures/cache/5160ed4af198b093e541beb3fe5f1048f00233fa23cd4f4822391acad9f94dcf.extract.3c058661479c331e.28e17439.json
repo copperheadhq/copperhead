@@ -1,0 +1,90 @@
+{
+  "key": {
+    "document": "5160ed4af198b093e541beb3fe5f1048f00233fa23cd4f4822391acad9f94dcf",
+    "units": "2ada2fc1e34243f9ed95f7398c3e3754d1c9c852017b0e5c8810d848de718bf6",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-5160ed4a-p5-l32",
+          "value": "2.7",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-5160ed4a-p5-l32",
+          "value": "5.5",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-5160ed4a-p5-l9",
+          "value": "6",
+          "confidence": 0.75,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-5160ed4a-p5-l8",
+          "value": "–0.3",
+          "confidence": 0.7,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-5160ed4a-p5-l8",
+          "value": "40",
+          "confidence": 0.7,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-5160ed4a-p5-l10",
+          "value": "–0.3",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-5160ed4a-p5-l10",
+          "value": "40",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-5160ed4a-p6-l25",
+          "value": "0.1",
+          "confidence": 0.75,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "footnoteQualified": true
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-5160ed4a-p6-l25",
+          "value": "0.5",
+          "confidence": 0.75,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "footnoteQualified": true
+        }
+      ]
+    }
+  ]
+}

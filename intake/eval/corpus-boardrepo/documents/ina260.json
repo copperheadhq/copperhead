@@ -1,0 +1,124 @@
+{
+  "documentId": "ina260",
+  "vendor": "Texas Instruments",
+  "mpn": "INA260",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "5160ed4af198b093e541beb3fe5f1048f00233fa23cd4f4822391acad9f94dcf",
+    "url": "https://www.ti.com/lit/ds/symlink/ina260.pdf",
+    "note": "used on BoardRepo boards: skot-bitaxe"
+  },
+  "pages": [
+    5,
+    6
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "2.7",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 5,
+              "textContains": "Operating supply voltage"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 5,
+              "textContains": "Operating supply voltage"
+            }
+          }
+        ],
+        "quiescent_current_uA": "ABSENT",
+        "pin_input_leakage_uA": "ABSENT",
+        "abs_max_vin_V": [
+          {
+            "value": "6",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 5,
+              "textContains": "Supply, VS"
+            }
+          },
+          {
+            "value": "40",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 5,
+              "textContains": "Analog inputs: IN+, IN\u2013"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Abs max voltage rows: Supply VS 6 V; Analog inputs IN+/IN- common-mode 40 V; VBUS pin 40 V; SDA, SCL, ALERT 6 V; A0/A1 'VS + 0.3' skipped. Identical (value, unit, qualifier) readings collapse, leaving 6 V (cited on Supply, VS) and 40 V (cited on Analog inputs; VBUS pin also prints 40). Including the analog-input/VBUS 40 V rows as 'input voltage' rows is a judgement call. pin_input_leakage ABSENT: the only leakage on these pages is 'Input leakage' (IN+ pin)+(IN- pin) in power-down mode, 0.1 TYP / 0.5 MAX uA, and IB input bias 17 uA - both on the analog current-sense pins, excluded per the guide. Supply current (IQ) is not on the selected pages. VCM 0-36 V is a common-mode input range, not a supply."
+}

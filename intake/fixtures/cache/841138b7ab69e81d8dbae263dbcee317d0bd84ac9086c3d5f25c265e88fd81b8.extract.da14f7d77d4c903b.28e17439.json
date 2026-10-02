@@ -1,0 +1,112 @@
+{
+  "key": {
+    "document": "841138b7ab69e81d8dbae263dbcee317d0bd84ac9086c3d5f25c265e88fd81b8",
+    "units": "67ffdd8be76a9c1cff3d19905ecda77bab8447d16ae17b922e103ab8f66d9bfd",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-841138b7-p1-l6",
+          "value": "4.5",
+          "confidence": 0.94,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-841138b7-p1-l6",
+          "value": "16",
+          "confidence": 0.94,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-841138b7-p1-l7",
+          "value": "3",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VCC": "5 V"
+          },
+          "footnoteQualified": true
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-841138b7-p1-l7",
+          "value": "6",
+          "confidence": 0.78,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "5 V"
+          },
+          "footnoteQualified": true
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-841138b7-p1-l8",
+          "value": "10",
+          "confidence": 0.85,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VCC": "15 V"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-841138b7-p1-l8",
+          "value": "15",
+          "confidence": 0.85,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VCC": "15 V"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-841138b7-p1-l32",
+          "value": "1",
+          "confidence": 0.7,
+          "unit": "nA",
+          "qualifier": "TYP"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-841138b7-p1-l32",
+          "value": "100",
+          "confidence": 0.7,
+          "unit": "nA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-841138b7-p1-l28",
+          "value": "0.1",
+          "confidence": 0.5,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "footnoteQualified": true
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-841138b7-p1-l28",
+          "value": "0.25",
+          "confidence": 0.5,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "footnoteQualified": true
+        }
+      ]
+    }
+  ]
+}

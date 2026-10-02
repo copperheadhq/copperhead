@@ -2,7 +2,7 @@
 // bounding boxes. Implementations: SarvamProvider (live), FixtureProvider
 // (cached JSON, zero network).
 
-import { DigitisedPage } from "../core/pipeline";
+import { DigitisedPage } from "../core/digitised";
 
 export interface DocumentInput {
   /** File name, used for upload naming and cache diagnostics. */

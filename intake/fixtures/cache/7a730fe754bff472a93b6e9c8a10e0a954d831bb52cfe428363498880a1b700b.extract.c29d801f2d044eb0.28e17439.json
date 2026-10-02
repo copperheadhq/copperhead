@@ -1,0 +1,80 @@
+{
+  "key": {
+    "document": "7a730fe754bff472a93b6e9c8a10e0a954d831bb52cfe428363498880a1b700b",
+    "units": "dd627fb4e94aa9c68aba46452e70b50f13248b082df9b69faa9e497f8752a954",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-7a730fe7-p3-l19",
+          "value": "1.1",
+          "confidence": 0.94,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-7a730fe7-p3-l19",
+          "value": "5.5",
+          "confidence": 0.94,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-7a730fe7-p4-l6",
+          "value": "1.0",
+          "confidence": 0.8,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-7a730fe7-p4-l6",
+          "value": "5.5",
+          "confidence": 0.8,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-7a730fe7-p4-l7",
+          "value": "30",
+          "confidence": 0.82,
+          "unit": "μA",
+          "qualifier": "TYP"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-7a730fe7-p4-l7",
+          "value": "40",
+          "confidence": 0.82,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-7a730fe7-p3-l12",
+          "value": "-0.3~7",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-7a730fe7-p3-l13",
+          "value": "-0.3 to (Vcc+0.3)",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

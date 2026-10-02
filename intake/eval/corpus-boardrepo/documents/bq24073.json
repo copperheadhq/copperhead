@@ -1,0 +1,233 @@
+{
+  "documentId": "bq24073",
+  "vendor": "Texas Instruments",
+  "mpn": "BQ24073RGT",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "4fe4e4f9855501f83b400c6932e3098439e51c50539e40dc45b44a8d509e8db1",
+    "url": "https://www.ti.com/lit/ds/symlink/bq24073.pdf",
+    "note": "used on BoardRepo boards: elipsitz-gamebub"
+  },
+  "pages": [
+    10,
+    12,
+    13
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "4.35",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 10,
+              "textContains": "IN voltage range"
+            }
+          },
+          {
+            "value": "26",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "IN voltage range"
+            }
+          },
+          {
+            "value": "6.4",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "\u201972, \u201973, \u201875, '79"
+            }
+          },
+          {
+            "value": "10.2",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "\u201874"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "4.3",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "TJ = 85 \u00b0C",
+            "citation": {
+              "page": 12,
+              "textContains": "Sleep current into BAT pin"
+            }
+          },
+          {
+            "value": "6.5",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "TJ = 85 \u00b0C",
+            "citation": {
+              "page": 12,
+              "textContains": "Sleep current into BAT pin"
+            }
+          },
+          {
+            "value": "41.3",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 6 V, TJ = 85 \u00b0C",
+            "citation": {
+              "page": 12,
+              "textContains": "VIN = 6 V, TJ= 85\u00b0C"
+            }
+          },
+          {
+            "value": "50",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "VIN = 6 V, TJ = 85 \u00b0C",
+            "citation": {
+              "page": 12,
+              "textContains": "VIN = 6 V, TJ= 85\u00b0C"
+            }
+          },
+          {
+            "value": "99.8",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 10 V, TJ = 85 \u00b0C",
+            "citation": {
+              "page": 12,
+              "textContains": "VIN = 10 V, TJ= 85\u00b0C"
+            }
+          },
+          {
+            "value": "200",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "VIN = 10 V, TJ = 85 \u00b0C",
+            "citation": {
+              "page": 12,
+              "textContains": "VIN = 10 V, TJ= 85\u00b0C"
+            }
+          },
+          {
+            "value": "1.1",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 6 V",
+            "citation": {
+              "page": 12,
+              "textContains": "Active supply current, IN pin"
+            }
+          },
+          {
+            "value": "1.5",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "VIN = 6 V",
+            "citation": {
+              "page": 12,
+              "textContains": "Active supply current, IN pin"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": "ABSENT",
+        "abs_max_vin_V": [
+          {
+            "value": "28",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "IN (with respect to VSS)"
+            }
+          },
+          {
+            "value": "5",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "BAT (with respect to VSS)"
+            }
+          },
+          {
+            "value": "7",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 10,
+              "textContains": "\u20130.3"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Supply: ROC prints 'IN voltage range' 4.35-26 V and 'IN operating voltage range' 4.35-6.4 V ('72/'73/'75/'79) and 4.35-10.2 V ('74). The three 4.35 V minimums collapse to one label (part-number variants are not allowed condition keys). Quiescent: IBAT(PDWN) sleep current 4.3/6.5 uA (TJ = 85 C printed in its multi-line test-condition cell), IIN standby at VIN 6 V and 10 V, ICC active supply 1.1/1.5 mA at VIN = 6 V; TYP/MAX columns confirmed with pdftotext. Abs max: all three VI Input Voltage rows (IN 28 V, BAT 5 V, OUT/EN1/EN2/CE/... 7 V). The 7 V value sits on a dump line holding only '\u20130.3 | 7 | V' (the pin list is on the lines around it), so its citation is the cell '\u20130.3', which also matches the IN and BAT lines. Excluded: abs-max II input current 1.6 A, ROC currents, ISC/IBIAS/INTC source currents, RILIM/RISET/RITERM/RTMR programming resistors (not pull-ups). EN1/EN2/CE input currents are not on the selected pages."
+}

@@ -1,0 +1,194 @@
+{
+  "datasetVersion": "boardrepo-2026.10.02",
+  "description": "Datasheets of ICs used on BoardRepo boards reviewed in the copperhead showcase, labelled for the intake's five fields on their selected pages.",
+  "releaseSets": {
+    "all": [
+      "24lc01b",
+      "ams1117",
+      "ap2112",
+      "ap2191",
+      "ap2502",
+      "ap3211",
+      "apx811",
+      "bq24073",
+      "cd74hc4051",
+      "dac081c081",
+      "emc2101",
+      "esp32-s3-wroom-1",
+      "ina260",
+      "is61wv25616",
+      "lp5907",
+      "mcp2515",
+      "rp2040",
+      "sn74lvc1t45",
+      "sn74lvch16t245",
+      "w25q128jv",
+      "w25q32jv"
+    ]
+  },
+  "decisionFixtures": [
+    {
+      "id": "ams1117-budget-1mA-refuse",
+      "change": "Keep the AMS1117 regulator powered from a 1 mA sleep budget",
+      "part": "Advanced Monolithic Systems:AMS1117-3.3",
+      "constraint": {
+        "id": "ldo-budget-1mA",
+        "description": "LDO supply current within 1 mA",
+        "kind": "max",
+        "limit": {
+          "value": "1",
+          "unit": "mA"
+        },
+        "affects": [
+          "quiescent_current_uA"
+        ],
+        "source": "boardrepo corpus",
+        "policy": {
+          "bound": "WORST_CASE",
+          "missingCondition": "HOLD"
+        }
+      },
+      "terms": [
+        {
+          "part": "Advanced Monolithic Systems:AMS1117-3.3",
+          "key": "quiescent_current_uA"
+        }
+      ],
+      "expected": "REFUSE",
+      "requiresDocuments": [
+        "ams1117"
+      ]
+    },
+    {
+      "id": "ams1117-budget-20mA-approve",
+      "change": "Keep the AMS1117 regulator powered from a 20 mA budget",
+      "part": "Advanced Monolithic Systems:AMS1117-3.3",
+      "constraint": {
+        "id": "ldo-budget-20mA",
+        "description": "LDO supply current within 20 mA",
+        "kind": "max",
+        "limit": {
+          "value": "20",
+          "unit": "mA"
+        },
+        "affects": [
+          "quiescent_current_uA"
+        ],
+        "source": "boardrepo corpus",
+        "policy": {
+          "bound": "WORST_CASE",
+          "missingCondition": "HOLD"
+        }
+      },
+      "terms": [
+        {
+          "part": "Advanced Monolithic Systems:AMS1117-3.3",
+          "key": "quiescent_current_uA"
+        }
+      ],
+      "expected": "APPROVE",
+      "requiresDocuments": [
+        "ams1117"
+      ]
+    },
+    {
+      "id": "ap2112-quiescent-100uA-approve",
+      "change": "Keep the AP2112 on through sleep from a 2.5 V input",
+      "part": "Diodes Incorporated:AP2112K-3.3",
+      "constraint": {
+        "id": "sleep-budget-100uA",
+        "description": "Regulator supply current within 100 uA at VIN = 2.5 V",
+        "kind": "max",
+        "limit": {
+          "value": "100",
+          "unit": "uA"
+        },
+        "affects": [
+          "quiescent_current_uA"
+        ],
+        "source": "boardrepo corpus",
+        "conditions": "VIN = 2.5 V",
+        "policy": {
+          "bound": "WORST_CASE",
+          "missingCondition": "HOLD"
+        }
+      },
+      "terms": [
+        {
+          "part": "Diodes Incorporated:AP2112K-3.3",
+          "key": "quiescent_current_uA"
+        }
+      ],
+      "expected": "APPROVE",
+      "requiresDocuments": [
+        "ap2112"
+      ]
+    },
+    {
+      "id": "ap2112-leakage-insufficient-hold",
+      "change": "Add a pull-up on the AP2112 enable pin",
+      "part": "Diodes Incorporated:AP2112K-3.3",
+      "constraint": {
+        "id": "pin-leakage-1uA",
+        "description": "Enable pin leakage within 1 uA",
+        "kind": "max",
+        "limit": {
+          "value": "1",
+          "unit": "uA"
+        },
+        "affects": [
+          "pin_input_leakage_uA"
+        ],
+        "source": "boardrepo corpus",
+        "policy": {
+          "bound": "WORST_CASE",
+          "missingCondition": "HOLD"
+        }
+      },
+      "terms": [
+        {
+          "part": "Diodes Incorporated:AP2112K-3.3",
+          "key": "pin_input_leakage_uA"
+        }
+      ],
+      "expected": "HOLD",
+      "insufficientEvidence": true,
+      "requiresDocuments": [
+        "ap2112"
+      ]
+    },
+    {
+      "id": "mcp2515-operating-5mA-refuse",
+      "change": "Run the MCP2515 at 25 MHz from 5.5 V within a 5 mA budget",
+      "part": "Microchip:MCP2515-I/ST",
+      "constraint": {
+        "id": "can-budget-5mA",
+        "description": "CAN controller operating current within 5 mA at VDD = 5.5 V, 25 MHz",
+        "kind": "max",
+        "limit": {
+          "value": "5",
+          "unit": "mA"
+        },
+        "affects": [
+          "quiescent_current_uA"
+        ],
+        "source": "boardrepo corpus",
+        "conditions": "VDD = 5.5 V, F = 25 MHz",
+        "policy": {
+          "bound": "WORST_CASE",
+          "missingCondition": "HOLD"
+        }
+      },
+      "terms": [
+        {
+          "part": "Microchip:MCP2515-I/ST",
+          "key": "quiescent_current_uA"
+        }
+      ],
+      "expected": "REFUSE",
+      "requiresDocuments": [
+        "mcp2515"
+      ]
+    }
+  ]
+}

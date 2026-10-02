@@ -1,0 +1,84 @@
+{
+  "key": {
+    "document": "27d71971da07c280c6068d08c74720d1a25b8f20cf8494dc1765bdd28d40d435",
+    "units": "76a58a5ae6718c3271b67ddf38e11c107412624afe63a52aedcf6c8e6f3439a3",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-27d71971-p27-l15",
+          "value": "3.0",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-27d71971-p27-l15",
+          "value": "3.6",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-27d71971-p27-l10",
+          "value": "–0.3",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-27d71971-p27-l10",
+          "value": "3.6",
+          "confidence": 0.92,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-27d71971-p27-l28",
+          "value": "50",
+          "confidence": 0.85,
+          "unit": "nA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VDD": "3.3 V",
+            "TA": "25 °C"
+          }
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-27d71971-p27-l29",
+          "value": "50",
+          "confidence": 0.85,
+          "unit": "nA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VDD": "3.3 V",
+            "TA": "25 °C"
+          }
+        },
+        {
+          "field": "recommended_pullup_ohm",
+          "evidenceId": "ev-27d71971-p27-l41",
+          "value": "45",
+          "confidence": 0.9,
+          "unit": "kΩ",
+          "qualifier": "TYP",
+          "conditions": {
+            "VDD": "3.3 V",
+            "TA": "25 °C"
+          }
+        }
+      ]
+    }
+  ]
+}

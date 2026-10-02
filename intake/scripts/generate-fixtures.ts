@@ -1,63 +1,42 @@
-// Live fixture generation: run the real Sarvam Digitise + LLM extraction
-// pipeline on a datasheet PDF and leave the results in fixtures/cache/,
-// where the fixture providers (USE_FIXTURES=true) and the demo serve them
-// offline. Usage:
+// Ingest a datasheet from the command line and record its text, OCR and extraction in the
+// fixture cache (ground-intake-extraction D11). Live mode calls the extractor only for inputs
+// never extracted, or with --new-pass; cached mode makes no network call.
 //
-//   npx tsx scripts/generate-fixtures.ts fixtures/datasheets/<name>.pdf
-//
-// Reads SARVAM_API_KEY from intake/.env or the repo root .env; the
-// Anthropic client resolves its own credentials (env var or ant profile).
+//   npx tsx scripts/generate-fixtures.ts <pdf> [--pages 1,2] [--force-ocr] [--mode live|cached] [--new-pass] [--json out.json]
 
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { buildIngestDeps, ingest } from "../adapters/ingest";
-import { isTrusted } from "../core/model";
+import { readFileSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+import { buildIngestDeps, ingest, type IngestMode } from "../adapters/ingest";
 
-function loadEnvFile(path: string): void {
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const match = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-    if (match && match[1] && process.env[match[1]] === undefined && match[2] !== "") {
-      process.env[match[1]] = match[2];
-    }
-  }
-}
-
-async function main() {
-  const target = process.argv[2];
-  if (!target) {
-    console.error("usage: npx tsx scripts/generate-fixtures.ts <datasheet.pdf>");
-    process.exit(1);
-  }
-  loadEnvFile(join(process.cwd(), ".env"));
-  loadEnvFile(join(process.cwd(), "..", ".env"));
-
-  const path = resolve(target);
-  const doc = { fileName: path.split("/").pop()!, bytes: readFileSync(path) };
-  const fixturesDir = join(process.cwd(), "fixtures");
-
-  console.log(`Ingesting ${doc.fileName} (${doc.bytes.length} bytes)…`);
-  const started = Date.now();
-  const result = await ingest(doc, buildIngestDeps(doc, fixturesDir));
-  const seconds = ((Date.now() - started) / 1000).toFixed(1);
-
-  console.log(`\nDone in ${seconds}s via ${result.digitiseModel} + ${result.extractorModel}`);
-  console.log(`Pages: ${result.pages.length}; regions: ${result.pages.map((p) => p.regions.length).join(", ")}`);
-  console.log(`\nFacts:`);
-  for (const fact of result.facts) {
-    const status = isTrusted(fact) ? "trusted" : `HOLD (${fact.holdReason})`;
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const file = args.find((a) => !a.startsWith("--") && !/^\d/.test(a));
+  if (!file) throw new Error("usage: generate-fixtures.ts <pdf> [--pages 1,2] [--force-ocr] [--mode live|cached] [--new-pass] [--json out.json]");
+  const flag = (name: string) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const pages = flag("--pages")?.split(",").map(Number);
+  const mode = (flag("--mode") ?? "live") as IngestMode;
+  const fixtures = join(process.cwd(), "fixtures");
+  const deps = buildIngestDeps(fixtures, { mode, onProgress: (m) => console.error(`  ${m}`) });
+  const result = await ingest({ fileName: basename(file), bytes: readFileSync(file) }, deps, {
+    ...(pages ? { pages } : {}),
+    ...(args.includes("--force-ocr") ? { forceOcr: true } : {}),
+    ...(args.includes("--new-pass") ? { newPass: true } : {}),
+    onProgress: (m) => console.error(`  ${m}`),
+  });
+  for (const r of result.records) {
+    const e = r.extraction;
     console.log(
-      `  ${fact.key} = ${fact.value} ${fact.unit ?? ""}  conf=${fact.confidence.toFixed(2)}  p.${fact.source.page}  ${status}`,
+      `${r.outcome.padEnd(15)} ${e.field.padEnd(24)} ${(e.qualifier ?? "-").padEnd(7)} ${`${e.value} ${e.unit ?? ""}`.padEnd(14)} ${e.evidenceId}  ${r.reasonCodes.join(",")}`,
     );
   }
-  const trusted = result.facts.filter(isTrusted).length;
-  console.log(
-    `\nTrusted-fact rate: ${trusted}/${result.facts.length}${result.facts.length ? ` (${((100 * trusted) / result.facts.length).toFixed(0)}%)` : ""}`,
-  );
-  console.log(`Cache written under fixtures/cache/ — commit to serve as demo fixtures.`);
+  const out = flag("--json");
+  if (out) writeFileSync(out, JSON.stringify(result, null, 2));
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(err instanceof Error ? err.message : err);
   process.exit(1);
 });

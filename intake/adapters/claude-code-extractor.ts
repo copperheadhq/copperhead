@@ -10,15 +10,16 @@
 // silently bills a paid key.
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { FieldSpec } from "../core/fields";
-import { DigitisedPage, RawExtractedField } from "../core/pipeline";
+import type { IntakeExtraction } from "../core/extraction";
+import type { FieldSpec } from "../core/fields";
+import type { IntakeUnit } from "../core/text/types";
 import { ExtractionError, FactExtractor } from "../ports/extractor";
-import { buildExtractionPrompt, parseJsonReply, toRawFields } from "./extractor-common";
+import { buildExtractionPrompt, parseJsonReply, toExtractions } from "./extractor-common";
 
 const JSON_INSTRUCTION = [
   "",
   "Respond with ONLY a JSON object of the shape:",
-  '{ "fields": [ { "field": string, "value": number | string, "unit"?: string, "page": number, "snippet": string, "footnoteQualified"?: boolean, "confidence": number } ] }',
+  '{ "extractions": [ { "field": string, "evidenceId": string, "value": string, "unit"?: string, "qualifier"?: "MIN"|"TYP"|"MAX"|"NOM"|"ABS_MAX", "conditions"?: { [key: string]: string }, "footnoteQualified"?: boolean, "confidence": number } ] }',
   "No prose, no markdown fences.",
 ].join("\n");
 
@@ -33,11 +34,11 @@ export class ClaudeCodeExtractor implements FactExtractor {
     this.onProgress = options.onProgress ?? (() => {});
   }
 
-  async extract(pages: DigitisedPage[], specs: FieldSpec[]): Promise<RawExtractedField[]> {
+  async extract(units: IntakeUnit[], specs: FieldSpec[]): Promise<IntakeExtraction[]> {
     this.onProgress(
-      `asking Claude (via the Claude Code saved login, no API key) for ${specs.length} fields`,
+      `asking Claude (via the Claude Code saved login, no API key) to point at ${specs.length} fields among ${units.length} lines`,
     );
-    const prompt = buildExtractionPrompt(pages, specs) + JSON_INSTRUCTION;
+    const prompt = buildExtractionPrompt(units, specs) + JSON_INSTRUCTION;
 
     let text = "";
     try {
@@ -59,6 +60,8 @@ export class ClaudeCodeExtractor implements FactExtractor {
             ...process.env,
             ANTHROPIC_API_KEY: undefined,
             OPENAI_API_KEY: undefined,
+            // A nested Claude Code session refuses to start when it sees its parent's marker.
+            CLAUDECODE: undefined,
           } as Record<string, string | undefined>,
         },
       })) {
@@ -85,6 +88,8 @@ export class ClaudeCodeExtractor implements FactExtractor {
     }
 
     if (!text.trim()) throw new ExtractionError("claude-code extractor returned no text");
-    return toRawFields(parseJsonReply(text));
+    const { extractions, dropped } = toExtractions(parseJsonReply(text));
+    if (dropped > 0) this.onProgress(`dropped ${dropped} malformed extraction(s)`);
+    return extractions;
   }
 }

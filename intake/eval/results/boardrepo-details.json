@@ -1,0 +1,6721 @@
+[
+  {
+    "documentId": "24lc01b",
+    "vendor": "Microchip",
+    "mpn": "24LC01BT/OT",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/21711J.pdf",
+    "boards": "used on BoardRepo boards: peterantypas-maiana",
+    "pages": [
+      {
+        "page": 2,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 37,
+    "labelled": {
+      "supply_voltage_V": 4,
+      "quiescent_current_uA": 7,
+      "pin_input_leakage_uA": 1,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "+1.7",
+        "unit": "V",
+        "conditions": {
+          "TA": "-40°C to +85°C"
+        },
+        "confidence": 0.9,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'TA = -40°C to +85°C': unparseable numeric value: '-40°C to +85'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l14",
+        "line": "Industrial (I): | TA = -40°C to +85°C, VCC = +1.7V to +5.5V",
+        "page": 2,
+        "bbox": {
+          "x": 0.4092137254901961,
+          "y": 0.3444444444444444,
+          "width": 0.38783464052287525,
+          "height": 0.011363636363636435
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "+5.5",
+        "unit": "V",
+        "conditions": {
+          "TA": "-40°C to +85°C"
+        },
+        "confidence": 0.9,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'TA = -40°C to +85°C': unparseable numeric value: '-40°C to +85'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l14",
+        "line": "Industrial (I): | TA = -40°C to +85°C, VCC = +1.7V to +5.5V",
+        "page": 2,
+        "bbox": {
+          "x": 0.4092137254901961,
+          "y": 0.3444444444444444,
+          "width": 0.38783464052287525,
+          "height": 0.011363636363636435
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "+2.5",
+        "unit": "V",
+        "conditions": {
+          "TA": "-40°C to +125°C"
+        },
+        "confidence": 0.85,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'TA = -40°C to +125°C': unparseable numeric value: '-40°C to +125'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l16",
+        "line": "Automotive (E): TA = -40°C to +125°C, VCC = +2.5V to +5.5V",
+        "page": 2,
+        "bbox": {
+          "x": 0.4092145424836601,
+          "y": 0.3583837121212121,
+          "width": 0.3946818627450973,
+          "height": 0.011363636363636364
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "+5.5",
+        "unit": "V",
+        "conditions": {
+          "TA": "-40°C to +125°C"
+        },
+        "confidence": 0.85,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'TA = -40°C to +125°C': unparseable numeric value: '-40°C to +125'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l16",
+        "line": "Automotive (E): TA = -40°C to +125°C, VCC = +2.5V to +5.5V",
+        "page": 2,
+        "bbox": {
+          "x": 0.4092145424836601,
+          "y": 0.3583837121212121,
+          "width": 0.3946818627450973,
+          "height": 0.011363636363636364
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "0.01",
+        "unit": "μΑ",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_UNKNOWN"
+        ],
+        "failed": [
+          {
+            "validator": "unit-system",
+            "status": "REJECTED",
+            "detail": "unknown unit symbol 'uΑ'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l32",
+        "line": "D11 | ICCS | Standby current | — | 0.01 | 1 | μΑ | Industrial",
+        "page": 2,
+        "bbox": {
+          "x": 0.10784117647058825,
+          "y": 0.619747095959596,
+          "width": 0.6319238562091504,
+          "height": 0.011363636363636435
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "μΑ",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_UNKNOWN"
+        ],
+        "failed": [
+          {
+            "validator": "unit-system",
+            "status": "REJECTED",
+            "detail": "unknown unit symbol 'uΑ'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l32",
+        "line": "D11 | ICCS | Standby current | — | 0.01 | 1 | μΑ | Industrial",
+        "page": 2,
+        "bbox": {
+          "x": 0.10784117647058825,
+          "y": 0.619747095959596,
+          "width": 0.6319238562091504,
+          "height": 0.011363636363636435
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "5",
+        "unit": "μΑ",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_UNKNOWN"
+        ],
+        "failed": [
+          {
+            "validator": "unit-system",
+            "status": "REJECTED",
+            "detail": "unknown unit symbol 'uΑ'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l33",
+        "line": "— | — | 5 | μΑ | Automotive",
+        "page": 2,
+        "bbox": {
+          "x": 0.4339194444444445,
+          "y": 0.6336868686868686,
+          "width": 0.31957794117647054,
+          "height": 0.011363636363636364
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "±1",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "VSS or VCC"
+        },
+        "confidence": 0.92,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE",
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'tolerance' needs review before admission as a single reading"
+          },
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'VIN = VSS or VCC': unparseable numeric value: 'VSS or'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l26",
+        "line": "D6 | ILI | Input leakage current | — | — | ±1 | μA | VIN = VSS or VCC",
+        "page": 2,
+        "bbox": {
+          "x": 0.10784166666666667,
+          "y": 0.5174743686868687,
+          "width": 0.6835900326797387,
+          "height": 0.011363636363636435
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-96b0569a-p2-l4",
+        "line": "VCC.............................................................................................................................................................................6.5V",
+        "page": 2,
+        "bbox": {
+          "x": 0.10293970588235293,
+          "y": 0.14626224747474748,
+          "width": 0.7648352941176413,
+          "height": 0.011363636363636364
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l5",
+        "line": "All inputs and outputs w.r.t. VSS ......................................................................................................... -0.3V to VCC +1.0V",
+        "page": 2,
+        "bbox": {
+          "x": 0.10293970588235303,
+          "y": 0.16520202020202024,
+          "width": 0.764701307189541,
+          "height": 0.011363636363636364
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "VCC +1.0V",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: 'VCC +1.0V'"
+          }
+        ],
+        "evidenceId": "ev-96b0569a-p2-l5",
+        "line": "All inputs and outputs w.r.t. VSS ......................................................................................................... -0.3V to VCC +1.0V",
+        "page": 2,
+        "bbox": {
+          "x": 0.10293970588235303,
+          "y": 0.16520202020202024,
+          "width": 0.764701307189541,
+          "height": 0.011363636363636364
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "ams1117",
+    "vendor": "Advanced Monolithic Systems",
+    "mpn": "AMS1117-3.3",
+    "url": "http://www.advanced-monolithic.com/pdf/ds1117.pdf",
+    "boards": "used on BoardRepo boards: controlpaths-hackbat, fossasia-pslab-hardware",
+    "pages": [
+      {
+        "page": 2,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 3,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 103,
+    "labelled": {
+      "supply_voltage_V": 0,
+      "quiescent_current_uA": 2,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "5",
+        "unit": "mA",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-189a2651-p3-l18",
+        "line": "Quiescent Current | AMS1117-1.5/-1.8/-2.5/- | 5 | 11 | mA",
+        "page": 3,
+        "bbox": {
+          "x": 0.08235209124215687,
+          "y": 0.3756669164,
+          "width": 0.8265261416863314,
+          "height": 0.01030302618181816
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "11",
+        "unit": "mA",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-189a2651-p3-l18",
+        "line": "Quiescent Current | AMS1117-1.5/-1.8/-2.5/- | 5 | 11 | mA",
+        "page": 3,
+        "bbox": {
+          "x": 0.08235209124215687,
+          "y": 0.3756669164,
+          "width": 0.8265261416863314,
+          "height": 0.01030302618181816
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "15",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.88,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-189a2651-p2-l4",
+        "line": "Input Voltage | 15V | Lead Temperature (25 sec) | 265°C",
+        "page": 2,
+        "bbox": {
+          "x": 0.08235209124215684,
+          "y": 0.11781853469090901,
+          "width": 0.8212251692918924,
+          "height": 0.013333328000000064
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "ap2112",
+    "vendor": "Diodes Incorporated",
+    "mpn": "AP2112K-3.3",
+    "url": "https://www.diodes.com/assets/Datasheets/AP2112.pdf",
+    "boards": "used on BoardRepo boards: adamb314-servoproject",
+    "pages": [
+      {
+        "page": 3,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 4,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 62,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 4,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-ef8d376f-p3-l18",
+        "line": "VIN | Supply Voltage | 2.5 | 6.0 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.14945098039215687,
+          "y": 0.5530277777777778,
+          "width": 0.7202919607843136,
+          "height": 0.01084848484848483
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "6.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-ef8d376f-p3-l18",
+        "line": "VIN | Supply Voltage | 2.5 | 6.0 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.14945098039215687,
+          "y": 0.5530277777777778,
+          "width": 0.7202919607843136,
+          "height": 0.01084848484848483
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-ef8d376f-p3-l4",
+        "line": "VCC | Power Supply Voltage | 6.5 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.17101307189542483,
+          "y": 0.16599494949494945,
+          "width": 0.7187298692810457,
+          "height": 0.010848484848484972
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "55",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "2.5V",
+          "IOUT": "0mA"
+        },
+        "confidence": 0.93,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-ef8d376f-p4-l15",
+        "line": "IQ | Quiescent Current | VIN = 2.5V, IOUT = 0mA | — | 55 | 80 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.158078431372549,
+          "y": 0.37800252525252526,
+          "width": 0.7551939215686272,
+          "height": 0.01084848484848483
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "80",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "2.5V",
+          "IOUT": "0mA"
+        },
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-ef8d376f-p4-l15",
+        "line": "IQ | Quiescent Current | VIN = 2.5V, IOUT = 0mA | — | 55 | 80 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.158078431372549,
+          "y": 0.37800252525252526,
+          "width": 0.7551939215686272,
+          "height": 0.01084848484848483
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "ap2191",
+    "vendor": "Diodes Incorporated",
+    "mpn": "AP2191W",
+    "url": "https://www.diodes.com/assets/Datasheets/AP2181_91.pdf",
+    "boards": "used on BoardRepo boards: elipsitz-gamebub",
+    "pages": [
+      {
+        "page": 3,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 4,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 85,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 4,
+      "pin_input_leakage_uA": 1,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.7",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-79aae8cb-p3-l37",
+        "line": "VIN | Input Voltage | 2.7 | 5.5 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.14078344041862742,
+          "y": 0.7643031245818181,
+          "width": 0.7616870055611733,
+          "height": 0.012662510086509102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-79aae8cb-p3-l37",
+        "line": "VIN | Input Voltage | 2.7 | 5.5 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.14078344041862742,
+          "y": 0.7643031245818181,
+          "width": 0.7616870055611733,
+          "height": 0.012662510086509102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "45",
+        "unit": "μA",
+        "conditions": {
+          "IOUT": "0"
+        },
+        "confidence": 0.93,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'IOUT = 0': no unit in '0'"
+          }
+        ],
+        "evidenceId": "ev-79aae8cb-p4-l6",
+        "line": "IQ | Input Quiescent Current | Enabled, IOUT = 0 | — | 45 | 70 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.11411678441862744,
+          "y": 0.19142456585454537,
+          "width": 0.8101186867390467,
+          "height": 0.011298874268327456
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "70",
+        "unit": "μA",
+        "conditions": {
+          "IOUT": "0"
+        },
+        "confidence": 0.93,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'IOUT = 0': no unit in '0'"
+          }
+        ],
+        "evidenceId": "ev-79aae8cb-p4-l6",
+        "line": "IQ | Input Quiescent Current | Enabled, IOUT = 0 | — | 45 | 70 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.11411678441862744,
+          "y": 0.19142456585454537,
+          "width": 0.8101186867390467,
+          "height": 0.011298874268327456
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-79aae8cb-p4-l21",
+        "line": "ISINK | EN Input Leakage | VEN = 5V | — | — | 1 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.10646972865392154,
+          "y": 0.40278811767272726,
+          "width": 0.8177660596007512,
+          "height": 0.01205644972287277
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-79aae8cb-p4-l7",
+        "line": "ILEAK | Input Leakage Current | Disabled, OUT grounded | — | — | 1 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.10529325853627451,
+          "y": 0.2079397107636363,
+          "width": 0.81894147732858,
+          "height": 0.011298874268327456
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-79aae8cb-p3-l23",
+        "line": "VIN | Input Voltage | 6.5 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.14078344041862742,
+          "y": 0.5085456511272728,
+          "width": 0.7616864609935712,
+          "height": 0.011450389359236332
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-79aae8cb-p3-l25",
+        "line": "VEN , VFLG | Enable Voltage | 6.5 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.12097952677156863,
+          "y": 0.5417274560363636,
+          "width": 0.7814912037742855,
+          "height": 0.011298874268327312
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "ap2502",
+    "vendor": "Diodes Incorporated",
+    "mpn": "AP2502",
+    "url": "https://www.diodes.com/assets/Datasheets/AP2502.pdf",
+    "boards": "used on BoardRepo boards: elipsitz-gamebub",
+    "pages": [
+      {
+        "page": 4,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 5,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 68,
+    "labelled": {
+      "supply_voltage_V": 0,
+      "quiescent_current_uA": 4,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.5,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.50 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-f6272ef5-p5-l7",
+        "line": "Enable Input Voltage | VEN | 2.0 | 6.0 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.12816806722689075,
+          "y": 0.24857921615201906,
+          "width": 0.7082517579831933,
+          "height": 0.01190023752969119
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "6.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.5,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.50 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-f6272ef5-p5-l7",
+        "line": "Enable Input Voltage | VEN | 2.0 | 6.0 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.12816806722689075,
+          "y": 0.24857921615201906,
+          "width": 0.7082517579831933,
+          "height": 0.01190023752969119
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "125",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f6272ef5-p5-l22",
+        "line": "Quiescent Current | IQ | ILED1=ILED2=ILED3=ILED4=20mA | 125 | 180 | μA",
+        "page": 5,
+        "bbox": {
+          "x": 0.12927731092436975,
+          "y": 0.6633486935866985,
+          "width": 0.7307236134453783,
+          "height": 0.012898040380047477
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "180",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f6272ef5-p5-l22",
+        "line": "Quiescent Current | IQ | ILED1=ILED2=ILED3=ILED4=20mA | 125 | 180 | μA",
+        "page": 5,
+        "bbox": {
+          "x": 0.12927731092436975,
+          "y": 0.6633486935866985,
+          "width": 0.7307236134453783,
+          "height": 0.012898040380047477
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-f6272ef5-p4-l18",
+        "line": "Enable Input Voltage | VEN | -0.3 to 6.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.12816806722689075,
+          "y": 0.5663226840855107,
+          "width": 0.7033182857142856,
+          "height": 0.011900237529691257
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f6272ef5-p4-l18",
+        "line": "Enable Input Voltage | VEN | -0.3 to 6.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.12816806722689075,
+          "y": 0.5663226840855107,
+          "width": 0.7033182857142856,
+          "height": 0.011900237529691257
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "ap3211",
+    "vendor": "Diodes Incorporated",
+    "mpn": "AP3211K",
+    "url": "https://www.diodes.com/assets/Datasheets/AP3211.pdf",
+    "boards": "used on BoardRepo boards: peterantypas-maiana",
+    "pages": [
+      {
+        "page": 3,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 4,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 53,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 4,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "4.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.96,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e19ceaa5-p3-l20",
+        "line": "VIN | Input Voltage | 4.5 | 18 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.17375816993464052,
+          "y": 0.6065126262626263,
+          "width": 0.7177494771241829,
+          "height": 0.010606060606060577
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "18",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.96,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e19ceaa5-p3-l20",
+        "line": "VIN | Input Voltage | 4.5 | 18 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.17375816993464052,
+          "y": 0.6065126262626263,
+          "width": 0.7177494771241829,
+          "height": 0.010606060606060577
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "4.5",
+        "unit": "V",
+        "conditions": {
+          "TA": "+25°C"
+        },
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e19ceaa5-p4-l4",
+        "line": "VIN | Input Voltage | – | 4.5 | – | 18 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.14572549019607842,
+          "y": 0.16857070707070712,
+          "width": 0.7673507843137256,
+          "height": 0.010606060606060577
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "18",
+        "unit": "V",
+        "conditions": {
+          "TA": "+25°C"
+        },
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e19ceaa5-p4-l4",
+        "line": "VIN | Input Voltage | – | 4.5 | – | 18 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.14572549019607842,
+          "y": 0.16857070707070712,
+          "width": 0.7673507843137256,
+          "height": 0.010606060606060577
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "0.8",
+        "unit": "mA",
+        "conditions": {
+          "TA": "+25°C"
+        },
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e19ceaa5-p4-l5",
+        "line": "IQ | Quiescent Current | VFB = 0.9V | – | 0.8 | 1.1 | mA",
+        "page": 4,
+        "bbox": {
+          "x": 0.14905882352941177,
+          "y": 0.19281313131313127,
+          "width": 0.7695076470588234,
+          "height": 0.010606060606060721
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "1.1",
+        "unit": "mA",
+        "conditions": {
+          "TA": "+25°C"
+        },
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e19ceaa5-p4-l5",
+        "line": "IQ | Quiescent Current | VFB = 0.9V | – | 0.8 | 1.1 | mA",
+        "page": 4,
+        "bbox": {
+          "x": 0.14905882352941177,
+          "y": 0.19281313131313127,
+          "width": 0.7695076470588234,
+          "height": 0.010606060606060721
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MIN",
+        "value": "-0.1",
+        "unit": "μA",
+        "conditions": {
+          "TA": "+25°C"
+        },
+        "confidence": 0.78,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e19ceaa5-p4-l9",
+        "line": "IFB | Feedback Bias Current | VFB = 0.85V | -0.1 | – | 0.1 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.1470980392156863,
+          "y": 0.28982070707070706,
+          "width": 0.7697037254901963,
+          "height": 0.010606060606060577
+        },
+        "correct": false,
+        "citationCorrect": false
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "0.1",
+        "unit": "μA",
+        "conditions": {
+          "TA": "+25°C"
+        },
+        "confidence": 0.78,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_AMBIGUOUS"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value occurs under the MIN and MAX columns"
+          }
+        ],
+        "evidenceId": "ev-e19ceaa5-p4-l9",
+        "line": "IFB | Feedback Bias Current | VFB = 0.85V | -0.1 | – | 0.1 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.1470980392156863,
+          "y": 0.28982070707070706,
+          "width": 0.7697037254901963,
+          "height": 0.010606060606060577
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-e19ceaa5-p3-l4",
+        "line": "VIN | Input Pin Voltage | -0.3 to 20 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.17316993464052288,
+          "y": 0.16857070707070712,
+          "width": 0.7122592810457515,
+          "height": 0.010606060606060577
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "20",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e19ceaa5-p3-l4",
+        "line": "VIN | Input Pin Voltage | -0.3 to 20 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.17316993464052288,
+          "y": 0.16857070707070712,
+          "width": 0.7122592810457515,
+          "height": 0.010606060606060577
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "apx811",
+    "vendor": "Diodes Incorporated",
+    "mpn": "APX811-40UG-7",
+    "url": "https://www.diodes.com/assets/Datasheets/APX811_812.pdf",
+    "boards": "used on BoardRepo boards: glasgowembedded-glasgow",
+    "pages": [
+      {
+        "page": 3,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 4,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 68,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 2,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "1.1",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.94,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-7a730fe7-p3-l19",
+        "line": "VCC | Supply Voltage | 1.1 | 5.5 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.17147058823529412,
+          "y": 0.6769695707070706,
+          "width": 0.6618389215686276,
+          "height": 0.011931818181818167
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.94,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-7a730fe7-p3-l19",
+        "line": "VCC | Supply Voltage | 1.1 | 5.5 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.17147058823529412,
+          "y": 0.6769695707070706,
+          "width": 0.6618389215686276,
+          "height": 0.011931818181818167
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "1.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-7a730fe7-p4-l6",
+        "line": "VCC | VCC Range | 1.0 | 5.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.1507843137254902,
+          "y": 0.22030303030303033,
+          "width": 0.7044098039215686,
+          "height": 0.011931818181818096
+        },
+        "correct": false,
+        "citationCorrect": false
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-7a730fe7-p4-l6",
+        "line": "VCC | VCC Range | 1.0 | 5.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.1507843137254902,
+          "y": 0.22030303030303033,
+          "width": 0.7044098039215686,
+          "height": 0.011931818181818096
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "30",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-7a730fe7-p4-l7",
+        "line": "ICC | Supply Current | Vth + 0.2V | 30 | 40 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.15372549019607842,
+          "y": 0.23590909090909096,
+          "width": 0.7058684313725493,
+          "height": 0.012838636363636309
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "40",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-7a730fe7-p4-l7",
+        "line": "ICC | Supply Current | Vth + 0.2V | 30 | 40 | μA",
+        "page": 4,
+        "bbox": {
+          "x": 0.15372549019607842,
+          "y": 0.23590909090909096,
+          "width": 0.7058684313725493,
+          "height": 0.012838636363636309
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.3~7",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: '-0.3~7'"
+          }
+        ],
+        "evidenceId": "ev-7a730fe7-p3-l12",
+        "line": "VCC | Supply voltage | -0.3~7 | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.16225490196078432,
+          "y": 0.48053030303030303,
+          "width": 0.6849265686274509,
+          "height": 0.011931818181818167
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.3 to (Vcc+0.3)",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: '-0.3 to (Vcc+0.3)'"
+          }
+        ],
+        "evidenceId": "ev-7a730fe7-p3-l13",
+        "line": "VRESET | RESET | -0.3 to (Vcc+0.3) | V",
+        "page": 3,
+        "bbox": {
+          "x": 0.15284313725490198,
+          "y": 0.5001515151515151,
+          "width": 0.6942591911764706,
+          "height": 0.011931818181818167
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "bq24073",
+    "vendor": "Texas Instruments",
+    "mpn": "BQ24073RGT",
+    "url": "https://www.ti.com/lit/ds/symlink/bq24073.pdf",
+    "boards": "used on BoardRepo boards: elipsitz-gamebub",
+    "pages": [
+      {
+        "page": 10,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 12,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 13,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 204,
+    "labelled": {
+      "supply_voltage_V": 4,
+      "quiescent_current_uA": 8,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 3,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "4.35",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.93,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-4fe4e4f9-p10-l39",
+        "line": "IN voltage range | 4.35 | 26 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.1750522875816993,
+          "y": 0.6485542929292929,
+          "width": 0.7020604575163399,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "26",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.93,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-4fe4e4f9-p10-l39",
+        "line": "IN voltage range | 4.35 | 26 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.1750522875816993,
+          "y": 0.6485542929292929,
+          "width": 0.7020604575163399,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "4.35",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p10-l40",
+        "line": "VI | ’72, ’73, ‘75, '79 | 4.35 | 6.4",
+        "page": 10,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.6661679292929293,
+          "width": 0.7383970588235294,
+          "height": 0.011616161616161602
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "6.4",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p10-l40",
+        "line": "VI | ’72, ’73, ‘75, '79 | 4.35 | 6.4",
+        "page": 10,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.6661679292929293,
+          "width": 0.7383970588235294,
+          "height": 0.011616161616161602
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "4.35",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.70 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p10-l42",
+        "line": "‘74 | 4.35 | 10.2",
+        "page": 10,
+        "bbox": {
+          "x": 0.35660784313725485,
+          "y": 0.6837815656565656,
+          "width": 0.47797875816993457,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "10.2",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.70 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p10-l42",
+        "line": "‘74 | 4.35 | 10.2",
+        "page": 10,
+        "bbox": {
+          "x": 0.35660784313725485,
+          "y": 0.6837815656565656,
+          "width": 0.47797875816993457,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p10-l7",
+        "line": "IN (with respect to VSS) | –0.3 | 28 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.27156862745098037,
+          "y": 0.18182449494949493,
+          "width": 0.6090669934640525,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "28",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-4fe4e4f9-p10-l7",
+        "line": "IN (with respect to VSS) | –0.3 | 28 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.27156862745098037,
+          "y": 0.18182449494949493,
+          "width": 0.6090669934640525,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p10-l11",
+        "line": "–0.3 | 7 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.6580669934640523,
+          "y": 0.22311237373737364,
+          "width": 0.22256862745098055,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "7",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p10-l11",
+        "line": "–0.3 | 7 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.6580669934640523,
+          "y": 0.22311237373737364,
+          "width": 0.22256862745098055,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "4.3",
+        "unit": "μA",
+        "conditions": {
+          "TJ": "85°C"
+        },
+        "confidence": 0.88,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-4fe4e4f9-p12-l31",
+        "line": "IBAT(PDWN) | Sleep current into BAT pin | 4.3 | 6.5 | μA",
+        "page": 12,
+        "bbox": {
+          "x": 0.09618627450980398,
+          "y": 0.4209962121212121,
+          "width": 0.7933398692810456,
+          "height": 0.008712121212121254
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "6.5",
+        "unit": "μA",
+        "conditions": {
+          "TJ": "85°C"
+        },
+        "confidence": 0.88,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-4fe4e4f9-p12-l31",
+        "line": "IBAT(PDWN) | Sleep current into BAT pin | 4.3 | 6.5 | μA",
+        "page": 12,
+        "bbox": {
+          "x": 0.09618627450980398,
+          "y": 0.4209962121212121,
+          "width": 0.7933398692810456,
+          "height": 0.008712121212121254
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "41.3",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "6 V",
+          "TJ": "85°C"
+        },
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'μA' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p12-l33",
+        "line": "EN1= HI, EN2=HI, VIN = 6 V, TJ= 85°C | 41.3 | 50",
+        "page": 12,
+        "bbox": {
+          "x": 0.4001535947712419,
+          "y": 0.440125,
+          "width": 0.45578267973856224,
+          "height": 0.008712121212121183
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "50",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "6 V",
+          "TJ": "85°C"
+        },
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'μA' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p12-l33",
+        "line": "EN1= HI, EN2=HI, VIN = 6 V, TJ= 85°C | 41.3 | 50",
+        "page": 12,
+        "bbox": {
+          "x": 0.4001535947712419,
+          "y": 0.440125,
+          "width": 0.45578267973856224,
+          "height": 0.008712121212121183
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "99.8",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "10 V",
+          "TJ": "85°C"
+        },
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'μA' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p12-l35",
+        "line": "EN1= HI, EN2=HI, VIN = 10 V, TJ= 85°C | 99.8 | 200",
+        "page": 12,
+        "bbox": {
+          "x": 0.4001535947712419,
+          "y": 0.4547083333333334,
+          "width": 0.45578267973856224,
+          "height": 0.008712121212121183
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "200",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "10 V",
+          "TJ": "85°C"
+        },
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'μA' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p12-l35",
+        "line": "EN1= HI, EN2=HI, VIN = 10 V, TJ= 85°C | 99.8 | 200",
+        "page": 12,
+        "bbox": {
+          "x": 0.4001535947712419,
+          "y": 0.4547083333333334,
+          "width": 0.45578267973856224,
+          "height": 0.008712121212121183
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "1.1",
+        "unit": "mA",
+        "conditions": {
+          "VIN": "6 V"
+        },
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.70 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p12-l37",
+        "line": "ICC | Active supply current, IN pin | 1.1 | 1.5 | mA",
+        "page": 12,
+        "bbox": {
+          "x": 0.09618627450980398,
+          "y": 0.4738371212121212,
+          "width": 0.79459477124183,
+          "height": 0.008712121212121254
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "1.5",
+        "unit": "mA",
+        "conditions": {
+          "VIN": "6 V"
+        },
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.70 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-4fe4e4f9-p12-l37",
+        "line": "ICC | Active supply current, IN pin | 1.1 | 1.5 | mA",
+        "page": 12,
+        "bbox": {
+          "x": 0.09618627450980398,
+          "y": 0.4738371212121212,
+          "width": 0.79459477124183,
+          "height": 0.008712121212121254
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "cd74hc4051",
+    "vendor": "Texas Instruments",
+    "mpn": "CD74HC4051",
+    "url": "https://www.ti.com/lit/ds/symlink/cd74hc4051.pdf",
+    "boards": "used on BoardRepo boards: fossasia-pslab-hardware",
+    "pages": [
+      {
+        "page": 6,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 7,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 8,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 147,
+    "labelled": {
+      "supply_voltage_V": 7,
+      "quiescent_current_uA": 0,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 4,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.88,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e83bf359-p7-l19",
+        "line": "2 | 6 | V",
+        "page": 7,
+        "bbox": {
+          "x": 0.7088071895424838,
+          "y": 0.3730808080808081,
+          "width": 0.17158333333333337,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.88,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e83bf359-p7-l19",
+        "line": "2 | 6 | V",
+        "page": 7,
+        "bbox": {
+          "x": 0.7088071895424838,
+          "y": 0.3730808080808081,
+          "width": 0.17158333333333337,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "4.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.78,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'V' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p7-l23",
+        "line": "4.5 | 5.5",
+        "page": 7,
+        "bbox": {
+          "x": 0.6979052287581701,
+          "y": 0.4028156565656566,
+          "width": 0.14322712418300648,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.78,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'V' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p7-l23",
+        "line": "4.5 | 5.5",
+        "page": 7,
+        "bbox": {
+          "x": 0.6979052287581701,
+          "y": 0.4028156565656566,
+          "width": 0.14322712418300648,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p7-l27",
+        "line": "VCC – VEE | types, CD54 and | 2 | 10 | V",
+        "page": 7,
+        "bbox": {
+          "x": 0.0961895424836602,
+          "y": 0.4386111111111111,
+          "width": 0.7842009803921569,
+          "height": 0.011616161616161602
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "10",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p7-l27",
+        "line": "VCC – VEE | types, CD54 and | 2 | 10 | V",
+        "page": 7,
+        "bbox": {
+          "x": 0.0961895424836602,
+          "y": 0.4386111111111111,
+          "width": 0.7842009803921569,
+          "height": 0.011616161616161602
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p6-l9",
+        "line": "VCC | DC Supply voltage | –0.5 | 7 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.1911047979797977,
+          "width": 0.7646127450980393,
+          "height": 0.011616161616161818
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "7",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.88,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e83bf359-p6-l9",
+        "line": "VCC | DC Supply voltage | –0.5 | 7 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.1911047979797977,
+          "width": 0.7646127450980393,
+          "height": 0.011616161616161818
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p6-l8",
+        "line": "VCC – VEE | -0.5 | 10.5 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.17349116161616143,
+          "width": 0.7646127450980393,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "10.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p6-l8",
+        "line": "VCC – VEE | -0.5 | 10.5 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.17349116161616143,
+          "width": 0.7646127450980393,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.70 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p6-l21",
+        "line": "VSEL or VEN | Logic control input pin voltage (EN, Ax, SELx) | –0.5 | 30 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.3386426767676767,
+          "width": 0.7646127450980393,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "30",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e83bf359-p6-l21",
+        "line": "VSEL or VEN | Logic control input pin voltage (EN, Ax, SELx) | –0.5 | 30 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.3386426767676767,
+          "width": 0.7646127450980393,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "dac081c081",
+    "vendor": "Texas Instruments",
+    "mpn": "DAC081C081CIMK",
+    "url": "https://www.ti.com/lit/ds/symlink/dac081c081.pdf",
+    "boards": "used on BoardRepo boards: glasgowembedded-glasgow",
+    "pages": [
+      {
+        "page": 5,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 6,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 7,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 143,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 0,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.7",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-58c92fd6-p6-l7",
+        "line": "Supply Voltage, VA | 2.7 | 5.5 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.16515151515151524,
+          "width": 0.777986928104575,
+          "height": 0.011616161616161674
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-58c92fd6-p6-l7",
+        "line": "Supply Voltage, VA | 2.7 | 5.5 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.16515151515151524,
+          "width": 0.777986928104575,
+          "height": 0.011616161616161674
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "−0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-58c92fd6-p5-l7",
+        "line": "Supply voltage, VA | −0.3 | 6.5 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.17866161616161616,
+          "width": 0.789751633986928,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-58c92fd6-p5-l7",
+        "line": "Supply voltage, VA | −0.3 | 6.5 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.17866161616161616,
+          "width": 0.789751633986928,
+          "height": 0.011616161616161674
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "−0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.88,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-58c92fd6-p5-l8",
+        "line": "Voltage on any Input Pin | −0.3 | 6.5 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.19532828282828288,
+          "width": 0.789751633986928,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-58c92fd6-p5-l8",
+        "line": "Voltage on any Input Pin | −0.3 | 6.5 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.19532828282828288,
+          "width": 0.789751633986928,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": false
+      }
+    ]
+  },
+  {
+    "documentId": "emc2101",
+    "vendor": "Microchip",
+    "mpn": "EMC2101",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/2101.pdf",
+    "boards": "used on BoardRepo boards: skot-bitaxe",
+    "pages": [
+      {
+        "page": 10,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 11,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 84,
+    "labelled": {
+      "supply_voltage_V": 3,
+      "quiescent_current_uA": 6,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 2,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "3.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b3ff3a49-p10-l35",
+        "line": "Supply Voltage | VDD | 3.0 | 3.3 | 3.6 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.12745196078431376,
+          "y": 0.8949987373737373,
+          "width": 0.4602382352941176,
+          "height": 0.011364772727272729
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "3.6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b3ff3a49-p10-l35",
+        "line": "Supply Voltage | VDD | 3.0 | 3.3 | 3.6 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.12745196078431376,
+          "y": 0.8949987373737373,
+          "width": 0.4602382352941176,
+          "height": 0.011364772727272729
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-b3ff3a49-p10-l7",
+        "line": "Supply Voltage (VDD) | -0.3 to 5.0 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.1274519607843137,
+          "y": 0.2560598484848483,
+          "width": 0.7124372549019609,
+          "height": 0.011364393939394037
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "5.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b3ff3a49-p10-l7",
+        "line": "Supply Voltage (VDD) | -0.3 to 5.0 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.1274519607843137,
+          "y": 0.2560598484848483,
+          "width": 0.7124372549019609,
+          "height": 0.011364393939394037
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-b3ff3a49-p10-l8",
+        "line": "Voltage on 5V tolerant pins (V5VT_pin) | -0.3 to 5.5 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.12745098039215685,
+          "y": 0.2800753787878788,
+          "width": 0.7124392156862744,
+          "height": 0.011364015151515056
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.70 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-b3ff3a49-p10-l8",
+        "line": "Voltage on 5V tolerant pins (V5VT_pin) | -0.3 to 5.5 | V",
+        "page": 10,
+        "bbox": {
+          "x": 0.12745098039215685,
+          "y": 0.2800753787878788,
+          "width": 0.7124392156862744,
+          "height": 0.011364015151515056
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "0.6",
+        "unit": "mA",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b3ff3a49-p11-l6",
+        "line": "Supply Current | IDD | 0.6 | 1 | mA | 16 conversion / second - PWM or",
+        "page": 11,
+        "bbox": {
+          "x": 0.12745098039215685,
+          "y": 0.17393939393939392,
+          "width": 0.7394764705882344,
+          "height": 0.01378787878787888
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "mA",
+        "conditions": null,
+        "confidence": 0.78,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b3ff3a49-p11-l6",
+        "line": "Supply Current | IDD | 0.6 | 1 | mA | 16 conversion / second - PWM or",
+        "page": 11,
+        "bbox": {
+          "x": 0.12745098039215685,
+          "y": 0.17393939393939392,
+          "width": 0.7394764705882344,
+          "height": 0.01378787878787888
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "200",
+        "unit": "uA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b3ff3a49-p11-l8",
+        "line": "Supply Current | IDD | 200 | uA | 1 conversion / 16 seconds - PWM",
+        "page": 11,
+        "bbox": {
+          "x": 0.12745098039215697,
+          "y": 0.2093181818181818,
+          "width": 0.7401235294117641,
+          "height": 0.01378787878787888
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "300",
+        "unit": "uA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b3ff3a49-p11-l10",
+        "line": "Supply Current | IDD | 300 | uA | 1 conversion / 16 seconds - DAC",
+        "page": 11,
+        "bbox": {
+          "x": 0.12745098039215697,
+          "y": 0.24469659090909093,
+          "width": 0.7370720588235296,
+          "height": 0.011364015151515056
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "300",
+        "unit": "uA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b3ff3a49-p11-l12",
+        "line": "Supply Current | IDD | 300 | 400 | uA | Temp monitoring Disabled, DAC",
+        "page": 11,
+        "bbox": {
+          "x": 0.12745098039215697,
+          "y": 0.2800753787878788,
+          "width": 0.7275514705882361,
+          "height": 0.011364015151515056
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "400",
+        "unit": "uA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-b3ff3a49-p11-l12",
+        "line": "Supply Current | IDD | 300 | 400 | uA | Temp monitoring Disabled, DAC",
+        "page": 11,
+        "bbox": {
+          "x": 0.12745098039215697,
+          "y": 0.2800753787878788,
+          "width": 0.7275514705882361,
+          "height": 0.011364015151515056
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "270",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MAX column; the extraction claims TYP"
+          }
+        ],
+        "evidenceId": "ev-b3ff3a49-p11-l14",
+        "line": "Standby Current | ISTANDBY | 270 | μA | PWM disabled, Monitoring",
+        "page": 11,
+        "bbox": {
+          "x": 0.12745098039215697,
+          "y": 0.31537878787878787,
+          "width": 0.6887931372549025,
+          "height": 0.013787752525252649
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "esp32-s3-wroom-1",
+    "vendor": "Espressif",
+    "mpn": "ESP32-S3-WROOM-1",
+    "url": "https://www.espressif.com/sites/default/files/documentation/esp32-s3-wroom-1_wroom-1u_datasheet_en.pdf",
+    "boards": "used on BoardRepo boards: elipsitz-gamebub, joeycastillo-the-open-book, skot-bitaxe",
+    "pages": [
+      {
+        "page": 27,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 28,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 82,
+    "labelled": {
+      "supply_voltage_V": 3,
+      "quiescent_current_uA": 11,
+      "pin_input_leakage_uA": 1,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 1
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "3.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-27d71971-p27-l15",
+        "line": "VDD33 | Power supply voltage | 3.0 | 3.3 | 3.6 | V",
+        "page": 27,
+        "bbox": {
+          "x": 0.18453836849885769,
+          "y": 0.4457968618228034,
+          "width": 0.6207903568068809,
+          "height": 0.011833612467186935
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "3.6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-27d71971-p27-l15",
+        "line": "VDD33 | Power supply voltage | 3.0 | 3.3 | 3.6 | V",
+        "page": 27,
+        "bbox": {
+          "x": 0.18453836849885769,
+          "y": 0.4457968618228034,
+          "width": 0.6207903568068809,
+          "height": 0.011833612467186935
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-27d71971-p27-l10",
+        "line": "VDD33 | Power supply voltage | –0.3 | 3.6 | V",
+        "page": 27,
+        "bbox": {
+          "x": 0.30244758768982666,
+          "y": 0.2861774341065934,
+          "width": 0.38497191842494294,
+          "height": 0.011833612467187003
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "3.6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-27d71971-p27-l10",
+        "line": "VDD33 | Power supply voltage | –0.3 | 3.6 | V",
+        "page": 27,
+        "bbox": {
+          "x": 0.30244758768982666,
+          "y": 0.2861774341065934,
+          "width": 0.38497191842494294,
+          "height": 0.011833612467187003
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "50",
+        "unit": "nA",
+        "conditions": {
+          "VDD": "3.3 V",
+          "TA": "25 °C"
+        },
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-27d71971-p27-l28",
+        "line": "IIH | High-level input current | — | — | 50 | nA",
+        "page": 27,
+        "bbox": {
+          "x": 0.10594846122832953,
+          "y": 0.7097636508332443,
+          "width": 0.7848281081171885,
+          "height": 0.012899357398234914
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "50",
+        "unit": "nA",
+        "conditions": {
+          "VDD": "3.3 V",
+          "TA": "25 °C"
+        },
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-27d71971-p27-l29",
+        "line": "IIL | Low-level input current | — | — | 50 | nA",
+        "page": 27,
+        "bbox": {
+          "x": 0.10594846122832953,
+          "y": 0.7286984285357944,
+          "width": 0.7848281081171885,
+          "height": 0.012898169594602639
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "recommended_pullup_ohm",
+        "qualifier": "TYP",
+        "value": "45",
+        "unit": "kΩ",
+        "conditions": {
+          "VDD": "3.3 V",
+          "TA": "25 °C"
+        },
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-27d71971-p27-l41",
+        "line": "RP U | Internal weak pull-up resistor | — | 45 | — | kΩ",
+        "page": 27,
+        "bbox": {
+          "x": 0.10594846122832953,
+          "y": 0.8602880661369062,
+          "width": 0.7854287011154414,
+          "height": 0.012899357398234931
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "ina260",
+    "vendor": "Texas Instruments",
+    "mpn": "INA260",
+    "url": "https://www.ti.com/lit/ds/symlink/ina260.pdf",
+    "boards": "used on BoardRepo boards: skot-bitaxe",
+    "pages": [
+      {
+        "page": 5,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 6,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 112,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 0,
+      "pin_input_leakage_uA": 0,
+      "abs_max_vin_V": 2,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.7",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-5160ed4a-p5-l32",
+        "line": "VS | Operating supply voltage | 2.7 | 5.5 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.5642676767676769,
+          "width": 0.7858300653594771,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-5160ed4a-p5-l32",
+        "line": "VS | Operating supply voltage | 2.7 | 5.5 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.5642676767676769,
+          "width": 0.7858300653594771,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-5160ed4a-p5-l9",
+        "line": "Supply, VS | 6",
+        "page": 5,
+        "bbox": {
+          "x": 0.2761437908496732,
+          "y": 0.21199494949494946,
+          "width": 0.501875816993464,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-5160ed4a-p5-l8",
+        "line": "Analog inputs: IN+, IN– | Common-mode (VIN+ + VIN–) / 2 | –0.3 | 40 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.19532828282828288,
+          "width": 0.7771699346405228,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "40",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.70 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-5160ed4a-p5-l8",
+        "line": "Analog inputs: IN+, IN– | Common-mode (VIN+ + VIN–) / 2 | –0.3 | 40 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.19532828282828288,
+          "width": 0.7771699346405228,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-5160ed4a-p5-l10",
+        "line": "VBUS pin | –0.3 | 40",
+        "page": 5,
+        "bbox": {
+          "x": 0.2761437908496732,
+          "y": 0.22866161616161618,
+          "width": 0.5055490196078432,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "40",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-5160ed4a-p5-l10",
+        "line": "VBUS pin | –0.3 | 40",
+        "page": 5,
+        "bbox": {
+          "x": 0.2761437908496732,
+          "y": 0.22866161616161618,
+          "width": 0.5055490196078432,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "TYP",
+        "value": "0.1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-5160ed4a-p6-l25",
+        "line": "Input leakage | 0.1 | 0.5 | μA",
+        "page": 6,
+        "bbox": {
+          "x": 0.16715686274509803,
+          "y": 0.3888888888888889,
+          "width": 0.7155686274509805,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "0.5",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-5160ed4a-p6-l25",
+        "line": "Input leakage | 0.1 | 0.5 | μA",
+        "page": 6,
+        "bbox": {
+          "x": 0.16715686274509803,
+          "y": 0.3888888888888889,
+          "width": 0.7155686274509805,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "is61wv25616",
+    "vendor": "ISSI",
+    "mpn": "IS61WV25616EDBLL-10TLI",
+    "url": "https://www.issi.com/WW/pdf/61-64WV25616EDBLL.pdf",
+    "boards": "used on BoardRepo boards: elipsitz-gamebub",
+    "pages": [
+      {
+        "page": 4,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 5,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 75,
+    "labelled": {
+      "supply_voltage_V": 5,
+      "quiescent_current_uA": 16,
+      "pin_input_leakage_uA": 2,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-673380a6-p4-l5",
+        "line": "Vdd | Vdd Relates to GND | –0.3 to 4.0 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.08006535947712418,
+          "y": 0.1659900252525253,
+          "width": 0.5544732026143792,
+          "height": 0.012626262626262626
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "4.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-673380a6-p4-l5",
+        "line": "Vdd | Vdd Relates to GND | –0.3 to 4.0 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.08006535947712418,
+          "y": 0.1659900252525253,
+          "width": 0.5544732026143792,
+          "height": 0.012626262626262626
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-673380a6-p4-l4",
+        "line": "Vterm | Terminal Voltage with Respect to GND | –0.5 to Vdd + 0.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.08006535947712418,
+          "y": 0.1483132575757576,
+          "width": 0.5544753267973856,
+          "height": 0.012626262626262626
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "Vdd + 0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: 'Vdd + 0.5'"
+          }
+        ],
+        "evidenceId": "ev-673380a6-p4-l4",
+        "line": "Vterm | Terminal Voltage with Respect to GND | –0.5 to Vdd + 0.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.08006535947712418,
+          "y": 0.1483132575757576,
+          "width": 0.5544753267973856,
+          "height": 0.012626262626262626
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": null,
+        "value": "2.4V-3.6V (10ns)",
+        "unit": null,
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE",
+          "UNIT_UNKNOWN",
+          "QUALIFIER_MISSING"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: '2.4V-3.6V (10ns)'"
+          },
+          {
+            "validator": "unit-system",
+            "status": "REJECTED",
+            "detail": "no unit on extraction"
+          },
+          {
+            "validator": "qualifier",
+            "status": "REVIEW_REQUIRED",
+            "detail": "no qualifier on extraction — never guessed"
+          }
+        ],
+        "evidenceId": "ev-673380a6-p4-l28",
+        "line": "Industrial | –40°C to +85°C | 2.4V-3.6V (10ns) | —",
+        "page": 4,
+        "bbox": {
+          "x": 0.06699346405228758,
+          "y": 0.7213564393939395,
+          "width": 0.6666503267973857,
+          "height": 0.012626262626262626
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": null,
+        "value": "2.4V-3.6V",
+        "unit": null,
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE",
+          "UNIT_UNKNOWN",
+          "QUALIFIER_MISSING"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: '2.4V-3.6V'"
+          },
+          {
+            "validator": "unit-system",
+            "status": "REJECTED",
+            "detail": "no unit on extraction"
+          },
+          {
+            "validator": "qualifier",
+            "status": "REVIEW_REQUIRED",
+            "detail": "no qualifier on extraction — never guessed"
+          }
+        ],
+        "evidenceId": "ev-673380a6-p5-l13",
+        "line": "VDD = 2.4V-3.6V",
+        "page": 5,
+        "bbox": {
+          "x": 0.08823529411764706,
+          "y": 0.3533637626262626,
+          "width": 0.14087777777777777,
+          "height": 0.015151515151515079
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MIN",
+        "value": "–1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.88,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-673380a6-p5-l8",
+        "line": "ILI | Input Leakage | GND ≤ VIn ≤ Vdd | –1 | 1 | μA",
+        "page": 5,
+        "bbox": {
+          "x": 0.10784313725490197,
+          "y": 0.21801022727272723,
+          "width": 0.81390522875817,
+          "height": 0.012626262626262626
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.88,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-673380a6-p5-l8",
+        "line": "ILI | Input Leakage | GND ≤ VIn ≤ Vdd | –1 | 1 | μA",
+        "page": 5,
+        "bbox": {
+          "x": 0.10784313725490197,
+          "y": 0.21801022727272723,
+          "width": 0.81390522875817,
+          "height": 0.012626262626262626
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MIN",
+        "value": "–1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": true,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-673380a6-p5-l17",
+        "line": "ILI | Input Leakage | GND ≤ VIn ≤ Vdd | –1 | 1 | μA",
+        "page": 5,
+        "bbox": {
+          "x": 0.10784313725490197,
+          "y": 0.4715455808080808,
+          "width": 0.81390522875817,
+          "height": 0.012626262626262626
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": true,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-673380a6-p5-l17",
+        "line": "ILI | Input Leakage | GND ≤ VIn ≤ Vdd | –1 | 1 | μA",
+        "page": 5,
+        "bbox": {
+          "x": 0.10784313725490197,
+          "y": 0.4715455808080808,
+          "width": 0.81390522875817,
+          "height": 0.012626262626262626
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "5",
+        "unit": "mA",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-673380a6-p5-l31",
+        "line": "Isb2 | CMOS Standby | Vdd = Max., | Com. | — | 5 | — | 5 | — | 5 | mA",
+        "page": 5,
+        "bbox": {
+          "x": 0.09803921568627451,
+          "y": 0.8033636363636364,
+          "width": 0.748362908496732,
+          "height": 0.012626262626262626
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "1.5",
+        "unit": null,
+        "conditions": null,
+        "confidence": 0.5,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_UNKNOWN",
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-system",
+            "status": "REJECTED",
+            "detail": "no unit on extraction"
+          },
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-673380a6-p5-l33",
+        "line": "VIn ≤ 0.2V, f = 0 | typ. | 1.5 | 1.5",
+        "page": 5,
+        "bbox": {
+          "x": 0.31862745098039214,
+          "y": 0.8488181818181818,
+          "width": 0.34405228758169937,
+          "height": 0.012626262626262626
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "lp5907",
+    "vendor": "Texas Instruments",
+    "mpn": "LP5907MFX-3.3",
+    "url": "https://www.ti.com/lit/ds/symlink/lp5907.pdf",
+    "boards": "used on BoardRepo boards: elipsitz-gamebub, system76-launch",
+    "pages": [
+      {
+        "page": 4,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 5,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 6,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 169,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 8,
+      "pin_input_leakage_uA": 2,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.2",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f5deda2f-p4-l29",
+        "line": "VIN | Input supply voltage | 2.2 | 5.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.5710290404040405,
+          "width": 0.7679689542483661,
+          "height": 0.01161616161616153
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f5deda2f-p4-l29",
+        "line": "VIN | Input supply voltage | 2.2 | 5.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.5710290404040405,
+          "width": 0.7679689542483661,
+          "height": 0.01161616161616153
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.2",
+        "unit": "V",
+        "conditions": {
+          "TA": "25°C"
+        },
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f5deda2f-p5-l20",
+        "line": "VIN | Input voltage | TA = 25°C | 2.2 | 5.5 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09618954248366028,
+          "y": 0.40306818181818194,
+          "width": 0.7826503267973857,
+          "height": 0.01161616161616153
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": {
+          "TA": "25°C"
+        },
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f5deda2f-p5-l20",
+        "line": "VIN | Input voltage | TA = 25°C | 2.2 | 5.5 | V",
+        "page": 5,
+        "bbox": {
+          "x": 0.09618954248366028,
+          "y": 0.40306818181818194,
+          "width": 0.7826503267973857,
+          "height": 0.01161616161616153
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "12",
+        "unit": "μA",
+        "conditions": {
+          "IOUT": "0mA"
+        },
+        "confidence": 0.8,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'μA' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-f5deda2f-p5-l35",
+        "line": "VEN = 1.2V, IOUT = 0mA | 12 | 25",
+        "page": 5,
+        "bbox": {
+          "x": 0.3723251633986929,
+          "y": 0.5748484848484849,
+          "width": 0.46570424836601304,
+          "height": 0.01161616161616153
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "25",
+        "unit": "μA",
+        "conditions": {
+          "IOUT": "0mA"
+        },
+        "confidence": 0.78,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'μA' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-f5deda2f-p5-l35",
+        "line": "VEN = 1.2V, IOUT = 0mA | 12 | 25",
+        "page": 5,
+        "bbox": {
+          "x": 0.3723251633986929,
+          "y": 0.5748484848484849,
+          "width": 0.46570424836601304,
+          "height": 0.01161616161616153
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "250",
+        "unit": "μA",
+        "conditions": {
+          "IOUT": "250mA"
+        },
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f5deda2f-p5-l36",
+        "line": "IQ | Quiescent current | VEN = 1.2V, IOUT = 250mA | 250 | 425 | μA",
+        "page": 5,
+        "bbox": {
+          "x": 0.09618954248366028,
+          "y": 0.591114898989899,
+          "width": 0.7864150326797386,
+          "height": 0.012963383838383833
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "425",
+        "unit": "μA",
+        "conditions": {
+          "IOUT": "250mA"
+        },
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f5deda2f-p5-l36",
+        "line": "IQ | Quiescent current | VEN = 1.2V, IOUT = 250mA | 250 | 425 | μA",
+        "page": 5,
+        "bbox": {
+          "x": 0.09618954248366028,
+          "y": 0.591114898989899,
+          "width": 0.7864150326797386,
+          "height": 0.012963383838383833
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "0.2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'μA' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-f5deda2f-p5-l37",
+        "line": "VEN = 0.3V (disabled) | 0.2 | 1",
+        "page": 5,
+        "bbox": {
+          "x": 0.3723251633986929,
+          "y": 0.6100757575757576,
+          "width": 0.46570424836601304,
+          "height": 0.01161616161616153
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "UNIT_NOT_CONTAINED"
+        ],
+        "failed": [
+          {
+            "validator": "unit-present",
+            "status": "REJECTED",
+            "detail": "unit 'μA' does not occur in the cited unit or its context"
+          }
+        ],
+        "evidenceId": "ev-f5deda2f-p5-l37",
+        "line": "VEN = 0.3V (disabled) | 0.2 | 1",
+        "page": 5,
+        "bbox": {
+          "x": 0.3723251633986929,
+          "y": 0.6100757575757576,
+          "width": 0.46570424836601304,
+          "height": 0.01161616161616153
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": null,
+        "value": "5.5",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "5.5V"
+        },
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_MISSING",
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier",
+            "status": "REVIEW_REQUIRED",
+            "detail": "no qualifier on extraction — never guessed"
+          },
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-f5deda2f-p6-l12",
+        "line": "VEN = 5.5V and VIN = 5.5V | 5.5",
+        "page": 6,
+        "bbox": {
+          "x": 0.37232516339869276,
+          "y": 0.21099116161616163,
+          "width": 0.40086601307189546,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": null,
+        "value": "0.001",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "5.5V"
+        },
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_MISSING",
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier",
+            "status": "REVIEW_REQUIRED",
+            "detail": "no qualifier on extraction — never guessed"
+          },
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-f5deda2f-p6-l14",
+        "line": "VEN = 0V and VIN = 5.5V | 0.001",
+        "page": 6,
+        "bbox": {
+          "x": 0.37232516339869276,
+          "y": 0.2286047979797979,
+          "width": 0.40086601307189546,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.3",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-f5deda2f-p4-l7",
+        "line": "VIN | Input voltage | –0.3 | 6 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.18485479797979795,
+          "width": 0.7760196078431373,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-f5deda2f-p4-l7",
+        "line": "VIN | Input voltage | –0.3 | 6 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.18485479797979795,
+          "width": 0.7760196078431373,
+          "height": 0.011616161616161674
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "mcp2515",
+    "vendor": "Microchip",
+    "mpn": "MCP2515-I/ST",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/MCP2515-Family-Data-Sheet-DS20001801K.pdf",
+    "boards": "used on BoardRepo boards: neumi-ethersweep, peterantypas-maiana",
+    "pages": [
+      {
+        "page": 73,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 74,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 56,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 3,
+      "pin_input_leakage_uA": 4,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.7",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p74-l9",
+        "line": "VDD | Supply Voltage | 2.7 | 5.5 | V",
+        "page": 74,
+        "bbox": {
+          "x": 0.17391960784313726,
+          "y": 0.1829289141414141,
+          "width": 0.44842679738562086,
+          "height": 0.011364772727272729
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.95,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p74-l9",
+        "line": "VDD | Supply Voltage | 2.7 | 5.5 | V",
+        "page": 74,
+        "bbox": {
+          "x": 0.17391960784313726,
+          "y": 0.1829289141414141,
+          "width": 0.44842679738562086,
+          "height": 0.011364772727272729
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "7.0",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p73-l4",
+        "line": "VDD.............................................................................................................................................................................7.0V",
+        "page": 73,
+        "bbox": {
+          "x": 0.1323514705882353,
+          "y": 0.1424743686868687,
+          "width": 0.7648436274509767,
+          "height": 0.01378787878787888
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.6V to VDD + 1.0V",
+        "unit": null,
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE",
+          "UNIT_UNKNOWN"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: '-0.6V to VDD + 1.0V'"
+          },
+          {
+            "validator": "unit-system",
+            "status": "REJECTED",
+            "detail": "no unit on extraction"
+          }
+        ],
+        "evidenceId": "ev-3c6c943b-p73-l5",
+        "line": "All Inputs and Outputs w.r.t. VSS ........................................................................................................-0.6V to VDD + 1.0V",
+        "page": 73,
+        "bbox": {
+          "x": 0.13235098039215698,
+          "y": 0.16020164141414137,
+          "width": 0.7649037581699325,
+          "height": 0.011363636363636364
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MIN",
+        "value": "-1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p74-l31",
+        "line": "ILI | All I/Os except OSC1 and | -1 | +1 | μA | CS = RESET = VDD,",
+        "page": 74,
+        "bbox": {
+          "x": 0.1739204248366013,
+          "y": 0.5844440656565657,
+          "width": 0.6082055555555558,
+          "height": 0.0113640151515152
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "+1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p74-l31",
+        "line": "ILI | All I/Os except OSC1 and | -1 | +1 | μA | CS = RESET = VDD,",
+        "page": 74,
+        "bbox": {
+          "x": 0.1739204248366013,
+          "y": 0.5844440656565657,
+          "width": 0.6082055555555558,
+          "height": 0.0113640151515152
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MIN",
+        "value": "-5",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p74-l33",
+        "line": "OSC1 Pin | -5 | +5 | μA",
+        "page": 74,
+        "bbox": {
+          "x": 0.24744934640522875,
+          "y": 0.6159592171717172,
+          "width": 0.37921029411764706,
+          "height": 0.011363636363636364
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "+5",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p74-l33",
+        "line": "OSC1 Pin | -5 | +5 | μA",
+        "page": 74,
+        "bbox": {
+          "x": 0.24744934640522875,
+          "y": 0.6159592171717172,
+          "width": 0.37921029411764706,
+          "height": 0.011363636363636364
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "5",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p74-l38",
+        "line": "IDDS | Standby Current | — | 5 | μA | CS, TXnRTS = VDD, inputs tied",
+        "page": 74,
+        "bbox": {
+          "x": 0.1739204248366013,
+          "y": 0.6980804292929292,
+          "width": 0.6775735294117646,
+          "height": 0.011364015151515165
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "8",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-3c6c943b-p74-l40",
+        "line": "— | 8 | μA | CS, TXnRTS = VDD, inputs tied",
+        "page": 74,
+        "bbox": {
+          "x": 0.46705767973856205,
+          "y": 0.7308075757575758,
+          "width": 0.3844362745098039,
+          "height": 0.013787878787878773
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "rp2040",
+    "vendor": "Raspberry Pi",
+    "mpn": "RP2040",
+    "url": "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf",
+    "boards": "used on BoardRepo boards: controlpaths-hackbat, foostan-crkbd, jesusfreke-lalboard, shanteacontrols-opendeck, system76-launch",
+    "pages": [
+      {
+        "page": 615,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 616,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 617,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 139,
+    "labelled": {
+      "supply_voltage_V": 0,
+      "quiescent_current_uA": 0,
+      "pin_input_leakage_uA": 1,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 4
+    },
+    "records": [
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-be56fbb7-p615-l34",
+        "line": "digital IO (Standard | I/O Supply Voltage | IOVDD | -0.5 | 3.63 | V",
+        "page": 615,
+        "bbox": {
+          "x": 0.09407337723424271,
+          "y": 0.7172789794391191,
+          "width": 0.6387796163150116,
+          "height": 0.011992065471736217
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "3.63",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MAX column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-be56fbb7-p615-l34",
+        "line": "digital IO (Standard | I/O Supply Voltage | IOVDD | -0.5 | 3.63 | V",
+        "page": 615,
+        "bbox": {
+          "x": 0.09407337723424271,
+          "y": 0.7172789794391191,
+          "width": 0.6387796163150116,
+          "height": 0.011992065471736217
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "-0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-be56fbb7-p615-l36",
+        "line": "Voltage at IO | VPIN | -0.5 | IOVDD + 0.5 | V",
+        "page": 615,
+        "bbox": {
+          "x": 0.19822604488644,
+          "y": 0.7420803192816163,
+          "width": 0.5346269486628142,
+          "height": 0.010094905510221037
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "IOVDD + 0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.78,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE",
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: 'IOVDD + 0.5'"
+          },
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MAX column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-be56fbb7-p615-l36",
+        "line": "Voltage at IO | VPIN | -0.5 | IOVDD + 0.5 | V",
+        "page": 615,
+        "bbox": {
+          "x": 0.19822604488644,
+          "y": 0.7420803192816163,
+          "width": 0.5346269486628142,
+          "height": 0.010094905510221037
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-be56fbb7-p616-l19",
+        "line": "Standard and FT | Pin Input Leakage | IIN | 1 | μA",
+        "page": 616,
+        "bbox": {
+          "x": 0.09407337723424271,
+          "y": 0.4213685873451401,
+          "width": 0.6426903809971779,
+          "height": 0.012584541923529159
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.7,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.70 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-be56fbb7-p617-l32",
+        "line": "Pin Input Leakage | IIN | 1 | μA",
+        "page": 617,
+        "bbox": {
+          "x": 0.19822604488644,
+          "y": 0.6082552352445094,
+          "width": 0.5385377133449806,
+          "height": 0.010094905510221004
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "recommended_pullup_ohm",
+        "qualifier": "MIN",
+        "value": "50",
+        "unit": "kΩ",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-be56fbb7-p617-l18",
+        "line": "Pull-Up Resistance | RPU | 50 | 80 | kΩ",
+        "page": 617,
+        "bbox": {
+          "x": 0.19822604488644,
+          "y": 0.38130634643480743,
+          "width": 0.5382218955785513,
+          "height": 0.010094905510221004
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "recommended_pullup_ohm",
+        "qualifier": "MAX",
+        "value": "80",
+        "unit": "kΩ",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-be56fbb7-p617-l18",
+        "line": "Pull-Up Resistance | RPU | 50 | 80 | kΩ",
+        "page": 617,
+        "bbox": {
+          "x": 0.19822604488644,
+          "y": 0.38130634643480743,
+          "width": 0.5382218955785513,
+          "height": 0.010094905510221004
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "recommended_pullup_ohm",
+        "qualifier": "MIN",
+        "value": "0.873",
+        "unit": "kΩ",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-be56fbb7-p617-l46",
+        "line": "Pull-Up Resistance | RPU2 | 0.873 | 1.548 | kΩ",
+        "page": 617,
+        "bbox": {
+          "x": 0.19822604488644,
+          "y": 0.8674719975293685,
+          "width": 0.5382218955785513,
+          "height": 0.01009490551022107
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "recommended_pullup_ohm",
+        "qualifier": "MAX",
+        "value": "1.548",
+        "unit": "kΩ",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-be56fbb7-p617-l46",
+        "line": "Pull-Up Resistance | RPU2 | 0.873 | 1.548 | kΩ",
+        "page": 617,
+        "bbox": {
+          "x": 0.19822604488644,
+          "y": 0.8674719975293685,
+          "width": 0.5382218955785513,
+          "height": 0.01009490551022107
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "sn74lvc1t45",
+    "vendor": "Texas Instruments",
+    "mpn": "SN74LVC1T45",
+    "url": "https://www.ti.com/lit/ds/symlink/sn74lvc1t45.pdf",
+    "boards": "used on BoardRepo boards: elipsitz-gamebub",
+    "pages": [
+      {
+        "page": 4,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 5,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 6,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 166,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 5,
+      "pin_input_leakage_uA": 2,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "1.65",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e6fbd840-p4-l37",
+        "line": "VCCA | 1.65 | 5.5",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836599,
+          "y": 0.6721969696969698,
+          "width": 0.7434705882352941,
+          "height": 0.011616161616161637
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.92,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e6fbd840-p4-l37",
+        "line": "VCCA | 1.65 | 5.5",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836599,
+          "y": 0.6721969696969698,
+          "width": 0.7434705882352941,
+          "height": 0.011616161616161637
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "1.65",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e6fbd840-p4-l39",
+        "line": "VCCB | 1.65 | 5.5",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836599,
+          "y": 0.6898106060606063,
+          "width": 0.7434705882352941,
+          "height": 0.011616161616161637
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e6fbd840-p4-l39",
+        "line": "VCCB | 1.65 | 5.5",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836599,
+          "y": 0.6898106060606063,
+          "width": 0.7434705882352941,
+          "height": 0.011616161616161637
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "3",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e6fbd840-p6-l34",
+        "line": "1.65 to 5.5V | 1.65 to 5.5V | 3",
+        "page": 6,
+        "bbox": {
+          "x": 0.38545915032679745,
+          "y": 0.5195770202020203,
+          "width": 0.462299019607843,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p6-l35",
+        "line": "ICCA | VI = VCCI or GND, IO = 0 | 5.5V | 0V | 2 | μA",
+        "page": 6,
+        "bbox": {
+          "x": 0.0961895424836602,
+          "y": 0.5371906565656567,
+          "width": 0.791282679738562,
+          "height": 0.01161616161616153
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "–2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p6-l36",
+        "line": "0V | 5.5V | –2",
+        "page": 6,
+        "bbox": {
+          "x": 0.4127140522875818,
+          "y": 0.554804292929293,
+          "width": 0.43504411764705875,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "3",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p6-l37",
+        "line": "1.65 to 5.5V | 1.65 to 5.5V | 3",
+        "page": 6,
+        "bbox": {
+          "x": 0.38545915032679745,
+          "y": 0.5724179292929293,
+          "width": 0.462299019607843,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "–2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.65,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.65 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p6-l38",
+        "line": "ICCB | VI = VCCI or GND, IO = 0 | 5.5V | 0V | –2 | μA",
+        "page": 6,
+        "bbox": {
+          "x": 0.0961895424836602,
+          "y": 0.5900315656565658,
+          "width": 0.791282679738562,
+          "height": 0.011616161616161602
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p6-l39",
+        "line": "0V | 5.5V | 2",
+        "page": 6,
+        "bbox": {
+          "x": 0.4127140522875818,
+          "y": 0.6076452020202021,
+          "width": 0.43504411764705875,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "4",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e6fbd840-p6-l41",
+        "line": "VI = VCCI or GND, IO = 0 | 1.65 to 5.5V | 1.65 to 5.5V | 4 | μA",
+        "page": 6,
+        "bbox": {
+          "x": 0.1918790849673203,
+          "y": 0.6313194444444445,
+          "width": 0.6955931372549019,
+          "height": 0.011616161616161602
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "±1",
+        "unit": "μA",
+        "conditions": {
+          "TA": "25 °C"
+        },
+        "confidence": 0.78,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'tolerance' needs review before admission as a single reading"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p6-l16",
+        "line": "TA = 25 °C | ±1",
+        "page": 6,
+        "bbox": {
+          "x": 0.5832385620915034,
+          "y": 0.3301830808080808,
+          "width": 0.2645196078431371,
+          "height": 0.011616161616161674
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "±2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.65,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'tolerance' needs review before admission as a single reading"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p6-l18",
+        "line": "±2",
+        "page": 6,
+        "bbox": {
+          "x": 0.8333137254901961,
+          "y": 0.3538573232323232,
+          "width": 0.014444444444444404,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH",
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          },
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p4-l10",
+        "line": "VI | Input voltage | –0.5 | 6.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.2044040404040406,
+          "width": 0.7791813725490195,
+          "height": 0.012963383838383904
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p4-l10",
+        "line": "VI | Input voltage | –0.5 | 6.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.0961895424836601,
+          "y": 0.2044040404040406,
+          "width": 0.7791813725490195,
+          "height": 0.012963383838383904
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-e6fbd840-p4-l8",
+        "line": "Supply voltage | –0.5 | 6.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.1478300653594771,
+          "y": 0.18207702020202024,
+          "width": 0.7275408496732026,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-e6fbd840-p4-l8",
+        "line": "Supply voltage | –0.5 | 6.5 | V",
+        "page": 4,
+        "bbox": {
+          "x": 0.1478300653594771,
+          "y": 0.18207702020202024,
+          "width": 0.7275408496732026,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      }
+    ]
+  },
+  {
+    "documentId": "sn74lvch16t245",
+    "vendor": "Texas Instruments",
+    "mpn": "SN74LVCH16T245",
+    "url": "https://www.ti.com/lit/ds/symlink/sn74lvch16t245.pdf",
+    "boards": "used on BoardRepo boards: elipsitz-gamebub",
+    "pages": [
+      {
+        "page": 6,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 7,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 8,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 160,
+    "labelled": {
+      "supply_voltage_V": 2,
+      "quiescent_current_uA": 0,
+      "pin_input_leakage_uA": 2,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "1.65",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-faaa5018-p7-l6",
+        "line": "VCCA | 1.65 | 5.5",
+        "page": 7,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.14848484848484853,
+          "width": 0.7559019607843137,
+          "height": 0.011616161616161674
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-faaa5018-p7-l6",
+        "line": "VCCA | 1.65 | 5.5",
+        "page": 7,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.14848484848484853,
+          "width": 0.7559019607843137,
+          "height": 0.011616161616161674
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "1.65",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.87,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-faaa5018-p7-l8",
+        "line": "VCCB | 1.65 | 5.5",
+        "page": 7,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.16515151515151524,
+          "width": 0.7559019607843137,
+          "height": 0.011616161616161674
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "5.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.87,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-faaa5018-p7-l8",
+        "line": "VCCB | 1.65 | 5.5",
+        "page": 7,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.16515151515151524,
+          "width": 0.7559019607843137,
+          "height": 0.011616161616161674
+        },
+        "correct": true,
+        "citationCorrect": false
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.88,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-faaa5018-p6-l8",
+        "line": "Supply voltage | –0.5 | 6.5 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.1419934640522876,
+          "y": 0.18434343434343434,
+          "width": 0.7412222222222223,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.9,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-faaa5018-p6-l8",
+        "line": "Supply voltage | –0.5 | 6.5 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.1419934640522876,
+          "y": 0.18434343434343434,
+          "width": 0.7412222222222223,
+          "height": 0.010101010101010102
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH",
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          },
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-faaa5018-p6-l11",
+        "line": "VI | Input voltage | I/O ports (B port) | –0.5 | 6.5 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.22133838383838378,
+          "width": 0.7900784313725491,
+          "height": 0.013636363636363722
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-faaa5018-p6-l11",
+        "line": "VI | Input voltage | I/O ports (B port) | –0.5 | 6.5 | V",
+        "page": 6,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.22133838383838378,
+          "width": 0.7900784313725491,
+          "height": 0.013636363636363722
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "QUALIFIER_COLUMN_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "qualifier-column",
+            "status": "REJECTED",
+            "detail": "the value sits under the MIN column; the extraction claims ABS_MAX"
+          }
+        ],
+        "evidenceId": "ev-faaa5018-p6-l12",
+        "line": "Control inputs | –0.5 | 6.5",
+        "page": 6,
+        "bbox": {
+          "x": 0.5660130718954248,
+          "y": 0.24002525252525256,
+          "width": 0.2526339869281046,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "6.5",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.60 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-faaa5018-p6-l12",
+        "line": "Control inputs | –0.5 | 6.5",
+        "page": 6,
+        "bbox": {
+          "x": 0.5660130718954248,
+          "y": 0.24002525252525256,
+          "width": 0.2526339869281046,
+          "height": 0.010101010101010102
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "TYP",
+        "value": "±0.5",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'tolerance' needs review before admission as a single reading"
+          }
+        ],
+        "evidenceId": "ev-faaa5018-p8-l33",
+        "line": "II | VI = VCCA or GND | 1.65 V to 5.5 V | 1.65 V to 5.5 V | ±0.5 | ±2 | μA",
+        "page": 8,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.5381313131313132,
+          "width": 0.7979215686274509,
+          "height": 0.011616161616161602
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "±2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'tolerance' needs review before admission as a single reading"
+          }
+        ],
+        "evidenceId": "ev-faaa5018-p8-l33",
+        "line": "II | VI = VCCA or GND | 1.65 V to 5.5 V | 1.65 V to 5.5 V | ±0.5 | ±2 | μA",
+        "page": 8,
+        "bbox": {
+          "x": 0.09313725490196079,
+          "y": 0.5381313131313132,
+          "width": 0.7979215686274509,
+          "height": 0.011616161616161602
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "w25q128jv",
+    "vendor": "Winbond",
+    "mpn": "W25Q128JVS",
+    "url": "https://www.winbond.com/resource-files/w25q128jv%20revf%2003272018%20plus.pdf",
+    "boards": "used on BoardRepo boards: jesusfreke-lalboard, shanteacontrols-opendeck",
+    "pages": [
+      {
+        "page": 61,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 62,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 63,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 104,
+    "labelled": {
+      "supply_voltage_V": 4,
+      "quiescent_current_uA": 12,
+      "pin_input_leakage_uA": 1,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "3.0",
+        "unit": "V",
+        "conditions": {
+          "F": "133MHz"
+        },
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-809f066e-p61-l24",
+        "line": "FR = 133MHz, | fR = 50MHz | 3.0 | 3.6 | V",
+        "page": 61,
+        "bbox": {
+          "x": 0.3986309873880938,
+          "y": 0.6323562086552542,
+          "width": 0.4377137162647847,
+          "height": 0.012573852446599046
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "3.6",
+        "unit": "V",
+        "conditions": {
+          "F": "133MHz"
+        },
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-809f066e-p61-l24",
+        "line": "FR = 133MHz, | fR = 50MHz | 3.0 | 3.6 | V",
+        "page": 61,
+        "bbox": {
+          "x": 0.3986309873880938,
+          "y": 0.6323562086552542,
+          "width": 0.4377137162647847,
+          "height": 0.012573852446599046
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.7",
+        "unit": "V",
+        "conditions": {
+          "F": "104MHz"
+        },
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-809f066e-p61-l26",
+        "line": "FR = 104MHz, | fR = 50MHz | 2.7 | 3.0 | V",
+        "page": 61,
+        "bbox": {
+          "x": 0.3986309873880938,
+          "y": 0.6535651163965056,
+          "width": 0.4377137162647847,
+          "height": 0.012573852446599046
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "3.0",
+        "unit": "V",
+        "conditions": {
+          "F": "104MHz"
+        },
+        "confidence": 0.85,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-809f066e-p61-l26",
+        "line": "FR = 104MHz, | fR = 50MHz | 2.7 | 3.0 | V",
+        "page": 61,
+        "bbox": {
+          "x": 0.3986309873880938,
+          "y": 0.6535651163965056,
+          "width": 0.4377137162647847,
+          "height": 0.012573852446599046
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.6 to 4.6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'range' needs review before admission as a single reading"
+          }
+        ],
+        "evidenceId": "ev-809f066e-p61-l5",
+        "line": "Supply Voltage | VCC | –0.6 to 4.6 | V",
+        "page": 61,
+        "bbox": {
+          "x": 0.12746520290139188,
+          "y": 0.23704994192799078,
+          "width": 0.7088795007514866,
+          "height": 0.012573852446598902
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.6 to VCC+0.4",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: '-0.6 to VCC+0.4'"
+          }
+        ],
+        "evidenceId": "ev-809f066e-p61-l6",
+        "line": "Voltage Applied to Any Pin | VIO | Relative to Ground | –0.6 to VCC+0.4 | V",
+        "page": 61,
+        "bbox": {
+          "x": 0.12746520290139188,
+          "y": 0.25810735747109026,
+          "width": 0.7088795007514866,
+          "height": 0.012573852446598902
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "10",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "GND or VCC"
+        },
+        "confidence": 0.8,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'VIN = GND or VCC': unparseable numeric value: 'GND or'"
+          }
+        ],
+        "evidenceId": "ev-809f066e-p63-l11",
+        "line": "Standby Current | ICC1 | 10 | 60 | μA",
+        "page": 63,
+        "bbox": {
+          "x": 0.12746520290139188,
+          "y": 0.29619249608645154,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "60",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "GND or VCC"
+        },
+        "confidence": 0.8,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'VIN = GND or VCC': unparseable numeric value: 'GND or'"
+          }
+        ],
+        "evidenceId": "ev-809f066e-p63-l11",
+        "line": "Standby Current | ICC1 | 10 | 60 | μA",
+        "page": 63,
+        "bbox": {
+          "x": 0.12746520290139188,
+          "y": 0.29619249608645154,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "1",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "GND or VCC"
+        },
+        "confidence": 0.75,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'VIN = GND or VCC': unparseable numeric value: 'GND or'"
+          }
+        ],
+        "evidenceId": "ev-809f066e-p63-l14",
+        "line": "Power-down Current | ICC2 | 1 | 20 | μA",
+        "page": 63,
+        "bbox": {
+          "x": 0.12746520290139188,
+          "y": 0.33031611372014336,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "20",
+        "unit": "μA",
+        "conditions": {
+          "VIN": "GND or VCC"
+        },
+        "confidence": 0.75,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "CONDITION_MISMATCH"
+        ],
+        "failed": [
+          {
+            "validator": "conditions",
+            "status": "REVIEW_REQUIRED",
+            "detail": "unparseable condition 'VIN = GND or VCC': unparseable numeric value: 'GND or'"
+          }
+        ],
+        "evidenceId": "ev-809f066e-p63-l14",
+        "line": "Power-down Current | ICC2 | 1 | 20 | μA",
+        "page": 63,
+        "bbox": {
+          "x": 0.12746520290139188,
+          "y": 0.33031611372014336,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "±2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.75,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'tolerance' needs review before admission as a single reading"
+          }
+        ],
+        "evidenceId": "ev-809f066e-p63-l8",
+        "line": "Input Leakage | ILI | ±2 | μA",
+        "page": 63,
+        "bbox": {
+          "x": 0.12746520290139188,
+          "y": 0.25119931323536826,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  },
+  {
+    "documentId": "w25q32jv",
+    "vendor": "Winbond",
+    "mpn": "W25Q32JV",
+    "url": "https://www.winbond.com/resource-files/w25q32jv%20revg%2003272018%20plus.pdf",
+    "boards": "used on BoardRepo boards: joeycastillo-the-open-book",
+    "pages": [
+      {
+        "page": 60,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 61,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      },
+      {
+        "page": 62,
+        "textSource": "pdf-text",
+        "reader": "pdfjs-6.1.200+rows-1"
+      }
+    ],
+    "extractorModel": "claude-code",
+    "units": 105,
+    "labelled": {
+      "supply_voltage_V": 4,
+      "quiescent_current_uA": 12,
+      "pin_input_leakage_uA": 1,
+      "abs_max_vin_V": 1,
+      "recommended_pullup_ohm": 0
+    },
+    "records": [
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "3.0",
+        "unit": "V",
+        "conditions": {
+          "F": "133MHz"
+        },
+        "confidence": 0.78,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b2585095-p60-l24",
+        "line": "FR = 133MHz, | fR = 50MHz | 3.0 | 3.6 | V",
+        "page": 60,
+        "bbox": {
+          "x": 0.4086290269881722,
+          "y": 0.5638817350906428,
+          "width": 0.4375176762726262,
+          "height": 0.012573852446599046
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "3.6",
+        "unit": "V",
+        "conditions": {
+          "F": "133MHz"
+        },
+        "confidence": 0.78,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b2585095-p60-l24",
+        "line": "FR = 133MHz, | fR = 50MHz | 3.0 | 3.6 | V",
+        "page": 60,
+        "bbox": {
+          "x": 0.4086290269881722,
+          "y": 0.5638817350906428,
+          "width": 0.4375176762726262,
+          "height": 0.012573852446599046
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MIN",
+        "value": "2.7",
+        "unit": "V",
+        "conditions": {
+          "F": "104MHz"
+        },
+        "confidence": 0.78,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b2585095-p60-l26",
+        "line": "FR = 104MHz, | fR = 50MHz | 2.7 | 3.0 | V",
+        "page": 60,
+        "bbox": {
+          "x": 0.4086290269881722,
+          "y": 0.5850906428318942,
+          "width": 0.4375176762726262,
+          "height": 0.012573852446599046
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "supply_voltage_V",
+        "qualifier": "MAX",
+        "value": "3.0",
+        "unit": "V",
+        "conditions": {
+          "F": "104MHz"
+        },
+        "confidence": 0.78,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b2585095-p60-l26",
+        "line": "FR = 104MHz, | fR = 50MHz | 2.7 | 3.0 | V",
+        "page": 60,
+        "bbox": {
+          "x": 0.4086290269881722,
+          "y": 0.5850906428318942,
+          "width": 0.4375176762726262,
+          "height": 0.012573852446599046
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH",
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          },
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-b2585095-p60-l5",
+        "line": "Supply Voltage | VCC | –0.6 to 4.6 | V",
+        "page": 60,
+        "bbox": {
+          "x": 0.1374632425014703,
+          "y": 0.20629702570317632,
+          "width": 0.7088795007514865,
+          "height": 0.012573852446598902
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "4.6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.8,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-b2585095-p60-l5",
+        "line": "Supply Voltage | VCC | –0.6 to 4.6 | V",
+        "page": 60,
+        "bbox": {
+          "x": 0.1374632425014703,
+          "y": 0.20629702570317632,
+          "width": 0.7088795007514865,
+          "height": 0.012573852446598902
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "–0.6",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.68,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "RANGE_POSITION_MISMATCH",
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "range-position",
+            "status": "REJECTED",
+            "detail": "the value is the lower end of a printed range; the extraction claims ABS_MAX"
+          },
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-b2585095-p60-l6",
+        "line": "Voltage Applied to Any Pin | VIO | Relative to Ground | –0.6 to VCC+0.4 | V",
+        "page": 60,
+        "bbox": {
+          "x": 0.1374632425014703,
+          "y": 0.2275059334444276,
+          "width": 0.7088795007514865,
+          "height": 0.012573852446598902
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "abs_max_vin_V",
+        "qualifier": "ABS_MAX",
+        "value": "VCC+0.4",
+        "unit": "V",
+        "conditions": null,
+        "confidence": 0.68,
+        "outcome": "REJECTED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE",
+          "FOOTNOTE_QUALIFIED"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REJECTED",
+            "detail": "unparseable numeric value: 'VCC+0.4'"
+          },
+          {
+            "validator": "footnote-hold",
+            "status": "REVIEW_REQUIRED",
+            "detail": "the value is qualified by a footnote"
+          }
+        ],
+        "evidenceId": "ev-b2585095-p60-l6",
+        "line": "Voltage Applied to Any Pin | VIO | Relative to Ground | –0.6 to VCC+0.4 | V",
+        "page": 60,
+        "bbox": {
+          "x": 0.1374632425014703,
+          "y": 0.2275059334444276,
+          "width": 0.7088795007514865,
+          "height": 0.012573852446598902
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "10",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b2585095-p62-l11",
+        "line": "Standby Current | ICC1 | 10 | 50 | μA",
+        "page": 62,
+        "bbox": {
+          "x": 0.13569888257204468,
+          "y": 0.27240822097661965,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "50",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.82,
+        "outcome": "ADMITTED",
+        "duplicate": false,
+        "reasonCodes": [],
+        "failed": [],
+        "evidenceId": "ev-b2585095-p62-l11",
+        "line": "Standby Current | ICC1 | 10 | 50 | μA",
+        "page": 62,
+        "bbox": {
+          "x": 0.13569888257204468,
+          "y": 0.27240822097661965,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": true,
+        "citationCorrect": true
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "TYP",
+        "value": "1",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-b2585095-p62-l14",
+        "line": "Power-down Current | ICC2 | 1 | 15 | μA",
+        "page": 62,
+        "bbox": {
+          "x": 0.13569888257204468,
+          "y": 0.30376710599404133,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "quiescent_current_uA",
+        "qualifier": "MAX",
+        "value": "15",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "LOW_CONFIDENCE"
+        ],
+        "failed": [
+          {
+            "validator": "confidence-routing",
+            "status": "REVIEW_REQUIRED",
+            "detail": "confidence 0.72 is below 0.75; routed to review"
+          }
+        ],
+        "evidenceId": "ev-b2585095-p62-l14",
+        "line": "Power-down Current | ICC2 | 1 | 15 | μA",
+        "page": 62,
+        "bbox": {
+          "x": 0.13569888257204468,
+          "y": 0.30376710599404133,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "±2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.72,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'tolerance' needs review before admission as a single reading"
+          }
+        ],
+        "evidenceId": "ev-b2585095-p62-l8",
+        "line": "Input Leakage | ILI | ±2 | μA",
+        "page": 62,
+        "bbox": {
+          "x": 0.13569888257204468,
+          "y": 0.2271120537292329,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      },
+      {
+        "field": "pin_input_leakage_uA",
+        "qualifier": "MAX",
+        "value": "±2",
+        "unit": "μA",
+        "conditions": null,
+        "confidence": 0.6,
+        "outcome": "REVIEW_REQUIRED",
+        "duplicate": false,
+        "reasonCodes": [
+          "VALUE_UNPARSEABLE"
+        ],
+        "failed": [
+          {
+            "validator": "numeric",
+            "status": "REVIEW_REQUIRED",
+            "detail": "numeric form 'tolerance' needs review before admission as a single reading"
+          }
+        ],
+        "evidenceId": "ev-b2585095-p62-l9",
+        "line": "I/O Leakage | ILO | ±2 | μA",
+        "page": 62,
+        "bbox": {
+          "x": 0.13569888257204468,
+          "y": 0.24695753168711812,
+          "width": 0.7276334705613279,
+          "height": 0.011361914861384638
+        },
+        "correct": null,
+        "citationCorrect": null
+      }
+    ]
+  }
+]

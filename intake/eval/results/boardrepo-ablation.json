@@ -1,0 +1,794 @@
+{
+  "datasetVersion": "boardrepo-2026.10.02",
+  "documents": 21,
+  "extractions": 216,
+  "groupChecksFired": [],
+  "configs": [
+    {
+      "name": "parse only",
+      "ignore": [
+        "conditions",
+        "unit-system",
+        "numeric",
+        "range-position",
+        "footnote-hold",
+        "confidence-routing",
+        "qualifier-column",
+        "unit-present",
+        "qualifier",
+        "field",
+        "value-in-unit",
+        "bound-wording",
+        "duplicates",
+        "range-invariants"
+      ],
+      "metrics": {
+        "admitted": 187,
+        "correct": 152,
+        "wrong": 35,
+        "wrongConfident": 6,
+        "precision": 0.8128342245989305,
+        "recall": 0.6009389671361502,
+        "citationAccuracy": 0.8421052631578947,
+        "review": 0,
+        "rejected": 0,
+        "unparseable": 25,
+        "byField": {
+          "supply_voltage_V": {
+            "admitted": 59,
+            "correct": 56,
+            "wrong": 3,
+            "expected": 54,
+            "matched": 44
+          },
+          "abs_max_vin_V": {
+            "admitted": 56,
+            "correct": 29,
+            "wrong": 27,
+            "expected": 28,
+            "matched": 24
+          },
+          "quiescent_current_uA": {
+            "admitted": 51,
+            "correct": 50,
+            "wrong": 1,
+            "expected": 108,
+            "matched": 46
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 16,
+            "correct": 12,
+            "wrong": 4,
+            "expected": 18,
+            "matched": 9
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "cortex validators",
+      "ignore": [
+        "field",
+        "value-in-unit",
+        "range-position",
+        "qualifier-column",
+        "unit-present",
+        "bound-wording",
+        "footnote-hold",
+        "confidence-routing"
+      ],
+      "metrics": {
+        "admitted": 130,
+        "correct": 119,
+        "wrong": 11,
+        "wrongConfident": 0,
+        "precision": 0.9153846153846154,
+        "recall": 0.4694835680751174,
+        "citationAccuracy": 0.8403361344537815,
+        "review": 69,
+        "rejected": 14,
+        "unparseable": 0,
+        "byField": {
+          "supply_voltage_V": {
+            "admitted": 56,
+            "correct": 53,
+            "wrong": 3,
+            "expected": 54,
+            "matched": 41
+          },
+          "quiescent_current_uA": {
+            "admitted": 45,
+            "correct": 44,
+            "wrong": 1,
+            "expected": 108,
+            "matched": 40
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 16,
+            "correct": 12,
+            "wrong": 4,
+            "expected": 18,
+            "matched": 9
+          },
+          "abs_max_vin_V": {
+            "admitted": 8,
+            "correct": 5,
+            "wrong": 3,
+            "expected": 28,
+            "matched": 5
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "cortex validators + confidence routing",
+      "ignore": [
+        "field",
+        "value-in-unit",
+        "range-position",
+        "qualifier-column",
+        "unit-present",
+        "bound-wording",
+        "footnote-hold"
+      ],
+      "metrics": {
+        "admitted": 105,
+        "correct": 98,
+        "wrong": 7,
+        "wrongConfident": 0,
+        "precision": 0.9333333333333333,
+        "recall": 0.4084507042253521,
+        "citationAccuracy": 0.8775510204081632,
+        "review": 95,
+        "rejected": 14,
+        "unparseable": 0,
+        "byField": {
+          "supply_voltage_V": {
+            "admitted": 48,
+            "correct": 47,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 38
+          },
+          "quiescent_current_uA": {
+            "admitted": 31,
+            "correct": 31,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 30
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 13,
+            "correct": 9,
+            "wrong": 4,
+            "expected": 18,
+            "matched": 8
+          },
+          "abs_max_vin_V": {
+            "admitted": 8,
+            "correct": 6,
+            "wrong": 2,
+            "expected": 28,
+            "matched": 6
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all validators",
+      "ignore": [],
+      "metrics": {
+        "admitted": 103,
+        "correct": 101,
+        "wrong": 2,
+        "wrongConfident": 0,
+        "precision": 0.9805825242718447,
+        "recall": 0.41784037558685444,
+        "citationAccuracy": 0.8712871287128713,
+        "review": 59,
+        "rejected": 52,
+        "unparseable": 0,
+        "byField": {
+          "abs_max_vin_V": {
+            "admitted": 17,
+            "correct": 17,
+            "wrong": 0,
+            "expected": 28,
+            "matched": 16
+          },
+          "supply_voltage_V": {
+            "admitted": 46,
+            "correct": 45,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 36
+          },
+          "quiescent_current_uA": {
+            "admitted": 25,
+            "correct": 25,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 24
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 10,
+            "correct": 9,
+            "wrong": 1,
+            "expected": 18,
+            "matched": 8
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but range-position",
+      "ignore": [
+        "range-position"
+      ],
+      "metrics": {
+        "admitted": 100,
+        "correct": 97,
+        "wrong": 3,
+        "wrongConfident": 0,
+        "precision": 0.97,
+        "recall": 0.39906103286384975,
+        "citationAccuracy": 0.865979381443299,
+        "review": 71,
+        "rejected": 43,
+        "unparseable": 0,
+        "byField": {
+          "supply_voltage_V": {
+            "admitted": 46,
+            "correct": 45,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 36
+          },
+          "quiescent_current_uA": {
+            "admitted": 25,
+            "correct": 25,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 24
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 10,
+            "correct": 9,
+            "wrong": 1,
+            "expected": 18,
+            "matched": 8
+          },
+          "abs_max_vin_V": {
+            "admitted": 14,
+            "correct": 13,
+            "wrong": 1,
+            "expected": 28,
+            "matched": 12
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but qualifier-column",
+      "ignore": [
+        "qualifier-column"
+      ],
+      "metrics": {
+        "admitted": 97,
+        "correct": 93,
+        "wrong": 4,
+        "wrongConfident": 0,
+        "precision": 0.9587628865979382,
+        "recall": 0.38497652582159625,
+        "citationAccuracy": 0.8709677419354839,
+        "review": 84,
+        "rejected": 33,
+        "unparseable": 0,
+        "byField": {
+          "abs_max_vin_V": {
+            "admitted": 10,
+            "correct": 9,
+            "wrong": 1,
+            "expected": 28,
+            "matched": 9
+          },
+          "supply_voltage_V": {
+            "admitted": 46,
+            "correct": 45,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 36
+          },
+          "quiescent_current_uA": {
+            "admitted": 25,
+            "correct": 25,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 24
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 11,
+            "correct": 9,
+            "wrong": 2,
+            "expected": 18,
+            "matched": 8
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but unit-present",
+      "ignore": [
+        "unit-present"
+      ],
+      "metrics": {
+        "admitted": 111,
+        "correct": 109,
+        "wrong": 2,
+        "wrongConfident": 0,
+        "precision": 0.9819819819819819,
+        "recall": 0.45539906103286387,
+        "citationAccuracy": 0.8807339449541285,
+        "review": 61,
+        "rejected": 42,
+        "unparseable": 0,
+        "byField": {
+          "abs_max_vin_V": {
+            "admitted": 17,
+            "correct": 17,
+            "wrong": 0,
+            "expected": 28,
+            "matched": 16
+          },
+          "supply_voltage_V": {
+            "admitted": 48,
+            "correct": 47,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 38
+          },
+          "quiescent_current_uA": {
+            "admitted": 31,
+            "correct": 31,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 30
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 10,
+            "correct": 9,
+            "wrong": 1,
+            "expected": 18,
+            "matched": 8
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but footnote-hold",
+      "ignore": [
+        "footnote-hold"
+      ],
+      "metrics": {
+        "admitted": 109,
+        "correct": 105,
+        "wrong": 4,
+        "wrongConfident": 0,
+        "precision": 0.963302752293578,
+        "recall": 0.4272300469483568,
+        "citationAccuracy": 0.8571428571428571,
+        "review": 53,
+        "rejected": 52,
+        "unparseable": 0,
+        "byField": {
+          "abs_max_vin_V": {
+            "admitted": 21,
+            "correct": 21,
+            "wrong": 0,
+            "expected": 28,
+            "matched": 18
+          },
+          "supply_voltage_V": {
+            "admitted": 46,
+            "correct": 45,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 36
+          },
+          "quiescent_current_uA": {
+            "admitted": 25,
+            "correct": 25,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 24
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 12,
+            "correct": 9,
+            "wrong": 3,
+            "expected": 18,
+            "matched": 8
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but confidence-routing",
+      "ignore": [
+        "confidence-routing"
+      ],
+      "metrics": {
+        "admitted": 131,
+        "correct": 127,
+        "wrong": 4,
+        "wrongConfident": 0,
+        "precision": 0.9694656488549618,
+        "recall": 0.49295774647887325,
+        "citationAccuracy": 0.8267716535433071,
+        "review": 30,
+        "rejected": 52,
+        "unparseable": 0,
+        "byField": {
+          "abs_max_vin_V": {
+            "admitted": 23,
+            "correct": 23,
+            "wrong": 0,
+            "expected": 28,
+            "matched": 20
+          },
+          "supply_voltage_V": {
+            "admitted": 54,
+            "correct": 51,
+            "wrong": 3,
+            "expected": 54,
+            "matched": 39
+          },
+          "quiescent_current_uA": {
+            "admitted": 36,
+            "correct": 36,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 32
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 13,
+            "correct": 12,
+            "wrong": 1,
+            "expected": 18,
+            "matched": 9
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but conditions",
+      "ignore": [
+        "conditions"
+      ],
+      "metrics": {
+        "admitted": 110,
+        "correct": 108,
+        "wrong": 2,
+        "wrongConfident": 0,
+        "precision": 0.9818181818181818,
+        "recall": 0.4507042253521127,
+        "citationAccuracy": 0.8796296296296297,
+        "review": 51,
+        "rejected": 52,
+        "unparseable": 0,
+        "byField": {
+          "supply_voltage_V": {
+            "admitted": 47,
+            "correct": 46,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 37
+          },
+          "abs_max_vin_V": {
+            "admitted": 17,
+            "correct": 17,
+            "wrong": 0,
+            "expected": 28,
+            "matched": 16
+          },
+          "quiescent_current_uA": {
+            "admitted": 31,
+            "correct": 31,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 30
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 10,
+            "correct": 9,
+            "wrong": 1,
+            "expected": 18,
+            "matched": 8
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but unit-system",
+      "ignore": [
+        "unit-system"
+      ],
+      "metrics": {
+        "admitted": 103,
+        "correct": 101,
+        "wrong": 2,
+        "wrongConfident": 0,
+        "precision": 0.9805825242718447,
+        "recall": 0.41784037558685444,
+        "citationAccuracy": 0.8712871287128713,
+        "review": 60,
+        "rejected": 48,
+        "unparseable": 3,
+        "byField": {
+          "abs_max_vin_V": {
+            "admitted": 17,
+            "correct": 17,
+            "wrong": 0,
+            "expected": 28,
+            "matched": 16
+          },
+          "supply_voltage_V": {
+            "admitted": 46,
+            "correct": 45,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 36
+          },
+          "quiescent_current_uA": {
+            "admitted": 25,
+            "correct": 25,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 24
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 10,
+            "correct": 9,
+            "wrong": 1,
+            "expected": 18,
+            "matched": 8
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but numeric",
+      "ignore": [
+        "numeric"
+      ],
+      "metrics": {
+        "admitted": 103,
+        "correct": 101,
+        "wrong": 2,
+        "wrongConfident": 0,
+        "precision": 0.9805825242718447,
+        "recall": 0.41784037558685444,
+        "citationAccuracy": 0.8712871287128713,
+        "review": 59,
+        "rejected": 46,
+        "unparseable": 6,
+        "byField": {
+          "abs_max_vin_V": {
+            "admitted": 17,
+            "correct": 17,
+            "wrong": 0,
+            "expected": 28,
+            "matched": 16
+          },
+          "supply_voltage_V": {
+            "admitted": 46,
+            "correct": 45,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 36
+          },
+          "quiescent_current_uA": {
+            "admitted": 25,
+            "correct": 25,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 24
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 10,
+            "correct": 9,
+            "wrong": 1,
+            "expected": 18,
+            "matched": 8
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    },
+    {
+      "name": "all but qualifier",
+      "ignore": [
+        "qualifier"
+      ],
+      "metrics": {
+        "admitted": 103,
+        "correct": 101,
+        "wrong": 2,
+        "wrongConfident": 0,
+        "precision": 0.9805825242718447,
+        "recall": 0.41784037558685444,
+        "citationAccuracy": 0.8712871287128713,
+        "review": 59,
+        "rejected": 52,
+        "unparseable": 0,
+        "byField": {
+          "abs_max_vin_V": {
+            "admitted": 17,
+            "correct": 17,
+            "wrong": 0,
+            "expected": 28,
+            "matched": 16
+          },
+          "supply_voltage_V": {
+            "admitted": 46,
+            "correct": 45,
+            "wrong": 1,
+            "expected": 54,
+            "matched": 36
+          },
+          "quiescent_current_uA": {
+            "admitted": 25,
+            "correct": 25,
+            "wrong": 0,
+            "expected": 108,
+            "matched": 24
+          },
+          "pin_input_leakage_uA": {
+            "admitted": 10,
+            "correct": 9,
+            "wrong": 1,
+            "expected": 18,
+            "matched": 8
+          },
+          "recommended_pullup_ohm": {
+            "admitted": 5,
+            "correct": 5,
+            "wrong": 0,
+            "expected": 5,
+            "matched": 5
+          }
+        }
+      }
+    }
+  ],
+  "stopped": {
+    "correct": 53,
+    "wrong": 33,
+    "unparseable": 25
+  },
+  "soleStops": {
+    "conditions": {
+      "correct": 10,
+      "wrong": 0,
+      "unparseable": 0
+    },
+    "unit-system": {
+      "correct": 0,
+      "wrong": 0,
+      "unparseable": 3
+    },
+    "range-position": {
+      "correct": 0,
+      "wrong": 5,
+      "unparseable": 0
+    },
+    "numeric": {
+      "correct": 0,
+      "wrong": 0,
+      "unparseable": 6
+    },
+    "footnote-hold": {
+      "correct": 4,
+      "wrong": 2,
+      "unparseable": 0
+    },
+    "confidence-routing": {
+      "correct": 28,
+      "wrong": 3,
+      "unparseable": 0
+    },
+    "qualifier-column": {
+      "correct": 1,
+      "wrong": 11,
+      "unparseable": 0
+    },
+    "unit-present": {
+      "correct": 8,
+      "wrong": 0,
+      "unparseable": 0
+    }
+  }
+}

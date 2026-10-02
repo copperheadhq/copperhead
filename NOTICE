@@ -3,3 +3,9 @@ Copyright 2026 Chouhan Industries
 
 This product includes software developed at Chouhan Industries
 (https://github.com/chouhanindustries/copperhead).
+
+The datasheet intake (intake/core/knowledge/, intake/eval/ and
+intake/test/knowledge/) includes software from copperhead-cortex,
+Copyright 2026 Chouhan Industries, licensed under the Apache License,
+Version 2.0 (https://github.com/chouhanindustries/copperhead-cortex,
+commit b4a45e8). See intake/core/knowledge/PROVENANCE.md.

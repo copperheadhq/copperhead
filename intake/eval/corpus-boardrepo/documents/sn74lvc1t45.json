@@ -1,0 +1,181 @@
+{
+  "documentId": "sn74lvc1t45",
+  "vendor": "Texas Instruments",
+  "mpn": "SN74LVC1T45",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "e6fbd8400161399554fe905326e73236e74bb3af0b546ea1942deed14310536e",
+    "url": "https://www.ti.com/lit/ds/symlink/sn74lvc1t45.pdf",
+    "note": "used on BoardRepo boards: elipsitz-gamebub"
+  },
+  "pages": [
+    4,
+    5,
+    6
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "1.65",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 4,
+              "textContains": "VCCA"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 4,
+              "textContains": "VCCA"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "3",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "1.65 to 5.5V"
+            }
+          },
+          {
+            "value": "2",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "ICCA"
+            }
+          },
+          {
+            "value": "-2",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "ICCB"
+            }
+          },
+          {
+            "value": "4",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "ICCA + ICCB"
+            }
+          },
+          {
+            "value": "50",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "\u0394ICCB"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": [
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "TA = 25 \u00b0C",
+            "citation": {
+              "page": 6,
+              "textContains": "TA = 25 \u00b0C"
+            }
+          },
+          {
+            "value": "2",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "conditions": "TA = -40 to 85 \u00b0C",
+            "citation": {
+              "page": 6,
+              "textContains": "\u00b12"
+            }
+          }
+        ],
+        "abs_max_vin_V": {
+          "value": "6.5",
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "citation": {
+            "page": 4,
+            "textContains": "Supply voltage"
+          }
+        },
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Columns checked with pdftotext -layout. Supply: ROC VCCA and VCCB rows are both 1.65-5.5 V; as identical (value, unit, qualifier, conditions) they are labelled once (cited at the VCCA line; 'VCCA' also occurs elsewhere on page 4). Supply currents: VCCA/VCCB columns are not allowed condition keys and 'IO = 0' has no unit, so all ICC rows carry no conditions and collapse: ICCA/ICCB 3 uA MAX (both 1.65-5.5V), 2 uA MAX and -2 uA MAX (the printed negative MAX for the unpowered-side rows, kept as printed), ICCA+ICCB 4 uA MAX, and Delta-ICCA (A port, DIR) / Delta-ICCB 50 uA MAX, each once. Input leakage: only II (DIR control input), printed '\u00b11' (TA = 25 C) and '\u00b12' (TA = -40 to +85 C) in the MAX column, labelled as magnitudes 1 and 2 uA MAX; those value lines are textually identical to the Ioff/IOZ value lines, so citations are not unique. Ioff (power-off I/O leakage) and IOZ (output leakage) excluded. Abs max: VCCA/VCCB supply 6.5 V and VI 6.5 V collapse to one label; VO rows are outputs, skipped."
+}

@@ -1,0 +1,112 @@
+{
+  "key": {
+    "document": "e83bf35951599380945e5ee5852f8af98857fb52ce36cb38a83b100f5a66ad79",
+    "units": "4e38799abd46eaa04e3e09571f7aed59b98a9464278dc4babb5f6c7e38ad861d",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e83bf359-p7-l19",
+          "value": "2",
+          "confidence": 0.88,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e83bf359-p7-l19",
+          "value": "6",
+          "confidence": 0.88,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e83bf359-p7-l23",
+          "value": "4.5",
+          "confidence": 0.78,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e83bf359-p7-l23",
+          "value": "5.5",
+          "confidence": 0.78,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e83bf359-p7-l27",
+          "value": "2",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-e83bf359-p7-l27",
+          "value": "10",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e83bf359-p6-l9",
+          "value": "–0.5",
+          "confidence": 0.85,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e83bf359-p6-l9",
+          "value": "7",
+          "confidence": 0.88,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e83bf359-p6-l8",
+          "value": "-0.5",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e83bf359-p6-l8",
+          "value": "10.5",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e83bf359-p6-l21",
+          "value": "–0.5",
+          "confidence": 0.7,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-e83bf359-p6-l21",
+          "value": "30",
+          "confidence": 0.72,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

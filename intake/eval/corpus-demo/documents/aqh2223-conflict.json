@@ -1,0 +1,44 @@
+{
+  "documentId": "aqh2223-conflict",
+  "vendor": "panasonic",
+  "mpn": "AQH2223",
+  "revision": "Rev 2",
+  "sourceType": "text",
+  "content": {
+    "kind": "inline-text",
+    "text": "Electrical Characteristics\nPARAM | DESCRIPTION | MIN | TYP | MAX | UNIT | CONDITIONS\nIQ | Quiescent current | — | 0.05 | — | mA | VIN = 5 V\nIQ | Quiescent current (dup row, conflicting) | — | 0.07 | — | mA | VIN = 5 V"
+  },
+  "caseTags": ["conflict"],
+  "fields": [
+    {
+      "key": "iq_typ_mA",
+      "description": "typical quiescent current",
+      "expectDimension": "current",
+      "parameter": { "key": "iq_uA", "dimension": "current", "requiredConditions": ["vin"] }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "demo-single-labeler",
+      "labeledAtISO": "2026-08-08T00:00:00Z",
+      "fields": {
+        "iq_typ_mA": [
+          {
+            "value": "0.05",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 5 V",
+            "citation": { "page": 1, "textContains": "IQ | Quiescent current" }
+          },
+          {
+            "value": "0.07",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "VIN = 5 V",
+            "citation": { "page": 1, "textContains": "IQ | Quiescent current (dup row, conflicting)" }
+          }
+        ]
+      }
+    }
+  }
+}

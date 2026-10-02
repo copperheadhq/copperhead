@@ -1,0 +1,443 @@
+{
+  "providerId": "intake (cached extractions)",
+  "datasetVersion": "boardrepo-2026.10.02",
+  "releaseSet": "all",
+  "golden": false,
+  "auditViolations": [
+    "document-type spread 1 < 2",
+    "document '24lc01b' is not dual-labeled",
+    "document 'ams1117' is not dual-labeled",
+    "document 'ap2112' is not dual-labeled",
+    "document 'ap2191' is not dual-labeled",
+    "document 'ap2502' is not dual-labeled",
+    "document 'ap3211' is not dual-labeled",
+    "document 'apx811' is not dual-labeled",
+    "document 'bq24073' is not dual-labeled",
+    "document 'cd74hc4051' is not dual-labeled",
+    "document 'dac081c081' is not dual-labeled",
+    "document 'emc2101' is not dual-labeled",
+    "document 'esp32-s3-wroom-1' is not dual-labeled",
+    "document 'ina260' is not dual-labeled",
+    "document 'is61wv25616' is not dual-labeled",
+    "document 'lp5907' is not dual-labeled",
+    "document 'mcp2515' is not dual-labeled",
+    "document 'rp2040' is not dual-labeled",
+    "document 'sn74lvc1t45' is not dual-labeled",
+    "document 'sn74lvch16t245' is not dual-labeled",
+    "document 'w25q128jv' is not dual-labeled",
+    "document 'w25q32jv' is not dual-labeled",
+    "release sets 1 < 2",
+    "no document tagged 'adversarial'",
+    "no document tagged 'missing-condition'",
+    "no document tagged 'typical-only'",
+    "no document tagged 'conflict'"
+  ],
+  "documents": [
+    {
+      "documentId": "24lc01b",
+      "admitted": 1,
+      "correct": 1,
+      "wrong": 0,
+      "routedToReview": 5,
+      "rejected": 5,
+      "missed": 12,
+      "reasonCounts": {
+        "conditions:REVIEW_REQUIRED": 5,
+        "unit-system:REJECTED": 3,
+        "numeric:REVIEW_REQUIRED": 1,
+        "range-position:REJECTED": 1,
+        "numeric:REJECTED": 1
+      }
+    },
+    {
+      "documentId": "ams1117",
+      "admitted": 3,
+      "correct": 3,
+      "wrong": 0,
+      "routedToReview": 0,
+      "rejected": 0,
+      "missed": 0,
+      "reasonCounts": {}
+    },
+    {
+      "documentId": "ap2112",
+      "admitted": 4,
+      "correct": 4,
+      "wrong": 0,
+      "routedToReview": 1,
+      "rejected": 0,
+      "missed": 3,
+      "reasonCounts": {
+        "footnote-hold:REVIEW_REQUIRED": 1
+      }
+    },
+    {
+      "documentId": "ap2191",
+      "admitted": 4,
+      "correct": 4,
+      "wrong": 0,
+      "routedToReview": 4,
+      "rejected": 0,
+      "missed": 4,
+      "reasonCounts": {
+        "conditions:REVIEW_REQUIRED": 2,
+        "confidence-routing:REVIEW_REQUIRED": 2
+      }
+    },
+    {
+      "documentId": "ap2502",
+      "admitted": 3,
+      "correct": 3,
+      "wrong": 0,
+      "routedToReview": 2,
+      "rejected": 1,
+      "missed": 2,
+      "reasonCounts": {
+        "confidence-routing:REVIEW_REQUIRED": 2,
+        "range-position:REJECTED": 1
+      }
+    },
+    {
+      "documentId": "ap3211",
+      "admitted": 8,
+      "correct": 7,
+      "wrong": 1,
+      "routedToReview": 1,
+      "rejected": 1,
+      "missed": 2,
+      "reasonCounts": {
+        "qualifier-column:REVIEW_REQUIRED": 1,
+        "range-position:REJECTED": 1
+      }
+    },
+    {
+      "documentId": "apx811",
+      "admitted": 6,
+      "correct": 5,
+      "wrong": 1,
+      "routedToReview": 0,
+      "rejected": 2,
+      "missed": 1,
+      "reasonCounts": {
+        "numeric:REJECTED": 2
+      }
+    },
+    {
+      "documentId": "bq24073",
+      "admitted": 5,
+      "correct": 5,
+      "wrong": 0,
+      "routedToReview": 7,
+      "rejected": 6,
+      "missed": 10,
+      "reasonCounts": {
+        "confidence-routing:REVIEW_REQUIRED": 7,
+        "qualifier-column:REJECTED": 2,
+        "unit-present:REJECTED": 4
+      }
+    },
+    {
+      "documentId": "cd74hc4051",
+      "admitted": 3,
+      "correct": 3,
+      "wrong": 0,
+      "routedToReview": 5,
+      "rejected": 4,
+      "missed": 8,
+      "reasonCounts": {
+        "unit-present:REJECTED": 2,
+        "confidence-routing:REVIEW_REQUIRED": 5,
+        "qualifier-column:REJECTED": 2
+      }
+    },
+    {
+      "documentId": "dac081c081",
+      "admitted": 4,
+      "correct": 4,
+      "wrong": 0,
+      "routedToReview": 0,
+      "rejected": 2,
+      "missed": 0,
+      "reasonCounts": {
+        "qualifier-column:REJECTED": 2
+      }
+    },
+    {
+      "documentId": "emc2101",
+      "admitted": 8,
+      "correct": 8,
+      "wrong": 0,
+      "routedToReview": 2,
+      "rejected": 3,
+      "missed": 4,
+      "reasonCounts": {
+        "range-position:REJECTED": 2,
+        "confidence-routing:REVIEW_REQUIRED": 2,
+        "qualifier-column:REJECTED": 1
+      }
+    },
+    {
+      "documentId": "esp32-s3-wroom-1",
+      "admitted": 6,
+      "correct": 6,
+      "wrong": 0,
+      "routedToReview": 0,
+      "rejected": 1,
+      "missed": 12,
+      "reasonCounts": {
+        "qualifier-column:REJECTED": 1
+      }
+    },
+    {
+      "documentId": "ina260",
+      "admitted": 3,
+      "correct": 3,
+      "wrong": 0,
+      "routedToReview": 4,
+      "rejected": 2,
+      "missed": 1,
+      "reasonCounts": {
+        "qualifier-column:REJECTED": 2,
+        "confidence-routing:REVIEW_REQUIRED": 2,
+        "footnote-hold:REVIEW_REQUIRED": 2
+      }
+    },
+    {
+      "documentId": "is61wv25616",
+      "admitted": 3,
+      "correct": 3,
+      "wrong": 0,
+      "routedToReview": 1,
+      "rejected": 6,
+      "missed": 21,
+      "reasonCounts": {
+        "range-position:REJECTED": 2,
+        "numeric:REJECTED": 3,
+        "unit-system:REJECTED": 3,
+        "qualifier:REVIEW_REQUIRED": 2,
+        "confidence-routing:REVIEW_REQUIRED": 1,
+        "footnote-hold:REVIEW_REQUIRED": 1
+      }
+    },
+    {
+      "documentId": "lp5907",
+      "admitted": 7,
+      "correct": 7,
+      "wrong": 0,
+      "routedToReview": 2,
+      "rejected": 5,
+      "missed": 8,
+      "reasonCounts": {
+        "unit-present:REJECTED": 4,
+        "qualifier:REVIEW_REQUIRED": 2,
+        "footnote-hold:REVIEW_REQUIRED": 2,
+        "qualifier-column:REJECTED": 1
+      }
+    },
+    {
+      "documentId": "mcp2515",
+      "admitted": 9,
+      "correct": 9,
+      "wrong": 0,
+      "routedToReview": 0,
+      "rejected": 1,
+      "missed": 1,
+      "reasonCounts": {
+        "numeric:REJECTED": 1,
+        "unit-system:REJECTED": 1
+      }
+    },
+    {
+      "documentId": "rp2040",
+      "admitted": 4,
+      "correct": 4,
+      "wrong": 0,
+      "routedToReview": 2,
+      "rejected": 4,
+      "missed": 2,
+      "reasonCounts": {
+        "qualifier-column:REJECTED": 4,
+        "numeric:REJECTED": 1,
+        "confidence-routing:REVIEW_REQUIRED": 2
+      }
+    },
+    {
+      "documentId": "sn74lvc1t45",
+      "admitted": 7,
+      "correct": 7,
+      "wrong": 0,
+      "routedToReview": 8,
+      "rejected": 2,
+      "missed": 5,
+      "reasonCounts": {
+        "confidence-routing:REVIEW_REQUIRED": 5,
+        "numeric:REVIEW_REQUIRED": 2,
+        "qualifier-column:REJECTED": 2,
+        "footnote-hold:REVIEW_REQUIRED": 2
+      }
+    },
+    {
+      "documentId": "sn74lvch16t245",
+      "admitted": 5,
+      "correct": 5,
+      "wrong": 0,
+      "routedToReview": 4,
+      "rejected": 3,
+      "missed": 2,
+      "reasonCounts": {
+        "qualifier-column:REJECTED": 3,
+        "footnote-hold:REVIEW_REQUIRED": 2,
+        "confidence-routing:REVIEW_REQUIRED": 1,
+        "numeric:REVIEW_REQUIRED": 2
+      }
+    },
+    {
+      "documentId": "w25q128jv",
+      "admitted": 4,
+      "correct": 4,
+      "wrong": 0,
+      "routedToReview": 6,
+      "rejected": 1,
+      "missed": 14,
+      "reasonCounts": {
+        "numeric:REVIEW_REQUIRED": 2,
+        "numeric:REJECTED": 1,
+        "conditions:REVIEW_REQUIRED": 4
+      }
+    },
+    {
+      "documentId": "w25q32jv",
+      "admitted": 6,
+      "correct": 6,
+      "wrong": 0,
+      "routedToReview": 5,
+      "rejected": 3,
+      "missed": 12,
+      "reasonCounts": {
+        "range-position:REJECTED": 2,
+        "footnote-hold:REVIEW_REQUIRED": 4,
+        "numeric:REJECTED": 1,
+        "confidence-routing:REVIEW_REQUIRED": 2,
+        "numeric:REVIEW_REQUIRED": 2
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "fixtureId": "ams1117-budget-1mA-refuse",
+      "expected": "REFUSE",
+      "actual": "REFUSE",
+      "reasonCodes": [
+        "BUDGET_EXCEEDED"
+      ],
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "fixtureId": "ams1117-budget-20mA-approve",
+      "expected": "APPROVE",
+      "actual": "APPROVE",
+      "reasonCodes": [
+        "REQUIREMENT_SATISFIED"
+      ],
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "fixtureId": "ap2112-quiescent-100uA-approve",
+      "expected": "APPROVE",
+      "actual": "APPROVE",
+      "reasonCodes": [
+        "REQUIREMENT_SATISFIED"
+      ],
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "fixtureId": "ap2112-leakage-insufficient-hold",
+      "expected": "HOLD",
+      "actual": "HOLD",
+      "reasonCodes": [
+        "EVIDENCE_MISSING"
+      ],
+      "passed": true,
+      "skipped": false
+    },
+    {
+      "fixtureId": "mcp2515-operating-5mA-refuse",
+      "expected": "REFUSE",
+      "actual": "HOLD",
+      "reasonCodes": [
+        "CONDITION_NOT_COVERED"
+      ],
+      "passed": false,
+      "skipped": false
+    }
+  ],
+  "metrics": {
+    "admittedReadings": 103,
+    "correctReadings": 101,
+    "wrongReadings": 2,
+    "fieldPrecision": 0.9805825242718447,
+    "fieldRecall": 0.41784037558685444,
+    "conditionF1": 0.4897959183673469,
+    "citationAccuracy": 0.8712871287128713,
+    "wrongWhileConfident": 0,
+    "decisionAccuracy": 0.8,
+    "falseApproves": 0,
+    "insufficientEvidenceAllHold": true,
+    "decisionFixturesRun": 5
+  },
+  "reviewRoutingThreshold": 0.8000010000000001,
+  "gates": [
+    {
+      "gate": "field-precision",
+      "required": "≥ 0.98",
+      "actual": "0.9806",
+      "passed": true
+    },
+    {
+      "gate": "condition-f1",
+      "required": "≥ 0.95",
+      "actual": "0.4898",
+      "passed": false
+    },
+    {
+      "gate": "citation-accuracy",
+      "required": "= 1",
+      "actual": "0.8713",
+      "passed": false
+    },
+    {
+      "gate": "wrong-while-confident",
+      "required": "= 0",
+      "actual": "0.0000",
+      "passed": true
+    },
+    {
+      "gate": "decision-accuracy",
+      "required": "= 1",
+      "actual": "0.8000",
+      "passed": false
+    },
+    {
+      "gate": "zero-false-approve",
+      "required": "= 0",
+      "actual": "0.0000",
+      "passed": true
+    },
+    {
+      "gate": "insufficient-evidence-all-hold",
+      "required": "all HOLD",
+      "actual": "all HOLD",
+      "passed": true
+    },
+    {
+      "gate": "cost-to-verify",
+      "required": "< 10 min/datasheet (measured)",
+      "actual": "not measured",
+      "passed": false
+    }
+  ],
+  "passed": false
+}

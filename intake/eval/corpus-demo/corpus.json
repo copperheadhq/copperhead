@@ -1,0 +1,82 @@
+{
+  "datasetVersion": "demo-0.1.0",
+  "description": "Starter corpus exercising the harness mechanics. Single-labeled and far below the §18 composition floor — it evaluates providers but can NEVER mint a calibration record. The golden corpus replaces this; see README.md.",
+  "releaseSets": {
+    "dev": ["aqh2223-conflict", "az23c-adversarial", "mcp1700-missing-condition", "tps62840-text"],
+    "holdout": []
+  },
+  "decisionFixtures": [
+    {
+      "id": "sleep-100uA-approve",
+      "change": "Add always-on sensor sampling in deep sleep",
+      "part": "ti:TPS62840DLCR",
+      "constraint": {
+        "id": "sleep-current-budget-100",
+        "description": "Deep-sleep current must stay at or under 100 uA",
+        "kind": "max",
+        "limit": { "value": "100", "unit": "uA" },
+        "affects": ["iq_uA"],
+        "source": "corpus-demo",
+        "conditions": "VIN = 3.6 V",
+        "policy": { "bound": "WORST_CASE", "missingCondition": "HOLD" }
+      },
+      "terms": [{ "part": "ti:TPS62840DLCR", "key": "iq_uA" }],
+      "expected": "APPROVE",
+      "requiresDocuments": ["tps62840-text"]
+    },
+    {
+      "id": "sleep-25uA-refuse",
+      "change": "Tighten the sleep budget to 25 uA",
+      "part": "ti:TPS62840DLCR",
+      "constraint": {
+        "id": "sleep-current-budget-25",
+        "description": "Deep-sleep current must stay at or under 25 uA",
+        "kind": "max",
+        "limit": { "value": "25", "unit": "uA" },
+        "affects": ["iq_uA"],
+        "source": "corpus-demo",
+        "conditions": "VIN = 3.6 V",
+        "policy": { "bound": "WORST_CASE", "missingCondition": "HOLD" }
+      },
+      "terms": [{ "part": "ti:TPS62840DLCR", "key": "iq_uA" }],
+      "expected": "REFUSE",
+      "requiresDocuments": ["tps62840-text"]
+    },
+    {
+      "id": "sleep-40uA-refuse",
+      "change": "Budget between the TYP and MAX readings — a TYP/MAX cell swap flips this verdict",
+      "part": "ti:TPS62840DLCR",
+      "constraint": {
+        "id": "sleep-current-budget-40",
+        "description": "Deep-sleep current must stay at or under 40 uA (true MAX is 60 uA)",
+        "kind": "max",
+        "limit": { "value": "40", "unit": "uA" },
+        "affects": ["iq_uA"],
+        "source": "corpus-demo",
+        "conditions": "VIN = 3.6 V",
+        "policy": { "bound": "WORST_CASE", "missingCondition": "HOLD" }
+      },
+      "terms": [{ "part": "ti:TPS62840DLCR", "key": "iq_uA" }],
+      "expected": "REFUSE",
+      "requiresDocuments": ["tps62840-text"]
+    },
+    {
+      "id": "thermal-hold-insufficient",
+      "change": "Check junction thermal margin",
+      "part": "ti:TPS62840DLCR",
+      "constraint": {
+        "id": "thermal-resistance-max",
+        "description": "Junction-to-ambient thermal resistance limit (no such evidence exists in the corpus)",
+        "kind": "max",
+        "limit": { "value": "50", "unit": "°C" },
+        "affects": ["theta_ja"],
+        "source": "corpus-demo",
+        "policy": { "bound": "WORST_CASE", "missingCondition": "HOLD" }
+      },
+      "terms": [{ "part": "ti:TPS62840DLCR", "key": "theta_ja" }],
+      "expected": "HOLD",
+      "insufficientEvidence": true,
+      "requiresDocuments": ["tps62840-text"]
+    }
+  ]
+}

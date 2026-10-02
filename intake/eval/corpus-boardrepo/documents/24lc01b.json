@@ -1,0 +1,212 @@
+{
+  "documentId": "24lc01b",
+  "vendor": "Microchip",
+  "mpn": "24LC01BT/OT",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "96b0569a51066d9e73dbf57bb3e8d021b7a1796689a734651415bff8a93195c3",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/21711J.pdf",
+    "note": "used on BoardRepo boards: peterantypas-maiana"
+  },
+  "pages": [
+    2
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "1.7",
+            "unit": "V",
+            "qualifier": "MIN",
+            "conditions": "TA = -40 to 85 \u00b0C",
+            "citation": {
+              "page": 2,
+              "textContains": "VCC = +1.7V to +5.5V"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "conditions": "TA = -40 to 85 \u00b0C",
+            "citation": {
+              "page": 2,
+              "textContains": "VCC = +1.7V to +5.5V"
+            }
+          },
+          {
+            "value": "2.5",
+            "unit": "V",
+            "qualifier": "MIN",
+            "conditions": "TA = -40 to 125 \u00b0C",
+            "citation": {
+              "page": 2,
+              "textContains": "VCC = +2.5V to +5.5V"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "conditions": "TA = -40 to 125 \u00b0C",
+            "citation": {
+              "page": 2,
+              "textContains": "VCC = +2.5V to +5.5V"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "0.1",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "VCC = 5.5 V, F = 400 kHz",
+            "citation": {
+              "page": 2,
+              "textContains": "Operating current"
+            }
+          },
+          {
+            "value": "3",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "VCC = 5.5 V, F = 400 kHz",
+            "citation": {
+              "page": 2,
+              "textContains": "Operating current"
+            }
+          },
+          {
+            "value": "0.05",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 2,
+              "textContains": "ICC read"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 2,
+              "textContains": "ICC read"
+            }
+          },
+          {
+            "value": "0.01",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 2,
+              "textContains": "Standby current"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 2,
+              "textContains": "Standby current"
+            }
+          },
+          {
+            "value": "5",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 2,
+              "textContains": "Automotive"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": [
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 2,
+              "textContains": "Input leakage current"
+            }
+          }
+        ],
+        "abs_max_vin_V": [
+          {
+            "value": "6.5",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 2,
+              "textContains": "VCC......"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "No Recommended Operating Conditions table; the supply range is printed only in the DC Characteristics header lines (Industrial: VCC +1.7 to +5.5 V at TA -40 to 85 C; Automotive: VCC +2.5 to +5.5 V at TA -40 to 125 C). Labelled as MIN/MAX with the TA printed in the same cell as conditions - judgement call, since these are header lines rather than a parameter row. D9 conditions 'VCC = 5.5V, SCL = 400 kHz' mapped to VCC = 5.5 V, F = 400 kHz (SCL clock frequency treated as F - judgement call). D10 (ICC read) prints '-' in its conditions cell, so no conditions. D11 standby: 0.01 TYP / 1 MAX uA (Industrial) and 5 MAX uA (Automotive); grade names and SDA=SCL=VCC/WP=VSS are not allowed condition keys. ILI printed as '+/-1' uA in the MAX column; labelled as 1 uA MAX. ILO (output leakage) excluded. Abs max VCC 6.5 V; 'All inputs and outputs ... -0.3V to VCC +1.0V' is an expression, skipped. Standby unit printed with a Greek capital Alpha ('\u03bc\u0391'), normalised to uA."
+}

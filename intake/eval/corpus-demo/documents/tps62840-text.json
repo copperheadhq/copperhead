@@ -1,0 +1,74 @@
+{
+  "documentId": "tps62840-text",
+  "vendor": "ti",
+  "mpn": "TPS62840DLCR",
+  "revision": "Rev C",
+  "sourceType": "text",
+  "content": {
+    "kind": "inline-text",
+    "text": "Recommended Operating Conditions\nPARAM | DESCRIPTION | MIN | TYP | MAX | UNIT | CONDITIONS\nVIN | Input voltage range | 1.8 | — | 6.5 | V | TA = 25°C\nElectrical Characteristics\nPARAM | DESCRIPTION | MIN | TYP | MAX | UNIT | CONDITIONS\nIQ | Quiescent current | — | 0.033 | 0.060 | mA | VIN = 3.6 V, TA = 25°C"
+  },
+  "caseTags": ["typical-only", "clean"],
+  "fields": [
+    {
+      "key": "vin_min_V",
+      "description": "min input voltage",
+      "expectDimension": "voltage",
+      "parameter": { "key": "vin_recommended_V", "dimension": "voltage", "requiredConditions": [] }
+    },
+    {
+      "key": "vin_max_V",
+      "description": "max input voltage",
+      "expectDimension": "voltage",
+      "parameter": { "key": "vin_recommended_V", "dimension": "voltage", "requiredConditions": [] }
+    },
+    {
+      "key": "iq_typ_mA",
+      "description": "typical quiescent current",
+      "expectDimension": "current",
+      "parameter": { "key": "iq_uA", "dimension": "current", "requiredConditions": ["vin"] }
+    },
+    {
+      "key": "iq_max_mA",
+      "description": "maximum quiescent current",
+      "expectDimension": "current",
+      "parameter": { "key": "iq_uA", "dimension": "current", "requiredConditions": ["vin"] }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "demo-single-labeler",
+      "labeledAtISO": "2026-08-08T00:00:00Z",
+      "fields": {
+        "vin_min_V": {
+          "value": "1.8",
+          "unit": "V",
+          "qualifier": "MIN",
+          "conditions": "TA = 25°C",
+          "citation": { "page": 1, "textContains": "VIN | Input voltage range" }
+        },
+        "vin_max_V": {
+          "value": "6.5",
+          "unit": "V",
+          "qualifier": "MAX",
+          "conditions": "TA = 25°C",
+          "citation": { "page": 1, "textContains": "VIN | Input voltage range" }
+        },
+        "iq_typ_mA": {
+          "value": "0.033",
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": "VIN = 3.6 V, TA = 25°C",
+          "citation": { "page": 1, "textContains": "IQ | Quiescent current" }
+        },
+        "iq_max_mA": {
+          "value": "0.060",
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": "VIN = 3.6 V, TA = 25°C",
+          "citation": { "page": 1, "textContains": "IQ | Quiescent current" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "documentId": "cd74hc4051",
+  "vendor": "Texas Instruments",
+  "mpn": "CD74HC4051",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "e83bf35951599380945e5ee5852f8af98857fb52ce36cb38a83b100f5a66ad79",
+    "url": "https://www.ti.com/lit/ds/symlink/cd74hc4051.pdf",
+    "note": "used on BoardRepo boards: fossasia-pslab-hardware"
+  },
+  "pages": [
+    6,
+    7,
+    8
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "2",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 7,
+              "textContains": "2 | 6 | V"
+            }
+          },
+          {
+            "value": "6",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 7,
+              "textContains": "2 | 6 | V"
+            }
+          },
+          {
+            "value": "4.5",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 7,
+              "textContains": "4.5 | 5.5"
+            }
+          },
+          {
+            "value": "5.5",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 7,
+              "textContains": "4.5 | 5.5"
+            }
+          },
+          {
+            "value": "10",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 7,
+              "textContains": "VCC \u2013 VEE"
+            }
+          },
+          {
+            "value": "0",
+            "unit": "V",
+            "qualifier": "MIN",
+            "citation": {
+              "page": 7,
+              "textContains": "VEE | (3)"
+            }
+          },
+          {
+            "value": "-6",
+            "unit": "V",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 7,
+              "textContains": "VEE | (3)"
+            }
+          }
+        ],
+        "quiescent_current_uA": "ABSENT",
+        "pin_input_leakage_uA": "ABSENT",
+        "abs_max_vin_V": [
+          {
+            "value": "10.5",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "VCC \u2013 VEE"
+            }
+          },
+          {
+            "value": "7",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "DC Supply voltage"
+            }
+          },
+          {
+            "value": "-7",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "VEE | 0.5"
+            }
+          },
+          {
+            "value": "30",
+            "unit": "V",
+            "qualifier": "ABS_MAX",
+            "citation": {
+              "page": 6,
+              "textContains": "Logic control input pin voltage"
+            }
+          }
+        ],
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Supply rows in Recommended Operating Conditions (p7): VCC 2-6 V (HC types) and 4.5-5.5 V (HCT types), VCC-VEE 2-10 V, VEE 0 (MIN column) to -6 (MAX column). The VCC-VEE MIN of 2 V duplicates the HC VCC MIN tuple (2 V MIN, no conditions) so it is one label. The 'TA = full package temperature range' condition is not numeric and is omitted. The HC/HCT VCC values sit on lines with no parameter text, so their citations are the value-line text itself (spans cells). Abs max: VEE row prints 0.5 under MIN and -7 under MAX; labelled -7 as ABS_MAX because it is the MAX column (doubtful: it is a negative-rail rating). VCC-VEE 10.5 V treated as a supply-voltage row. The logic control input pin voltage (VSEL/VEN) prints 30 V as its MAX; labelled as printed even though it looks unusual. ICC 50 mA in Abs Max is a DC current limit, not a supply current, and IIK/IOK are clamp currents, so quiescent and leakage are ABSENT on pages 6-8 (p8 only holds VIH/VIL). RL = 100 ohm is a load, not a pull-up."
+}

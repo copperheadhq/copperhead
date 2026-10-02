@@ -1,0 +1,96 @@
+{
+  "key": {
+    "document": "be56fbb75ba0ae9e26558a73c93ac3e75c2ad4e6878d3b6703de2a76d886ea8c",
+    "units": "40285eb39155d271611f30663fd7308a5a80de32c637cc0c7cb31af5f7534932",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-be56fbb7-p615-l34",
+          "value": "-0.5",
+          "confidence": 0.82,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-be56fbb7-p615-l34",
+          "value": "3.63",
+          "confidence": 0.92,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-be56fbb7-p615-l36",
+          "value": "-0.5",
+          "confidence": 0.75,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-be56fbb7-p615-l36",
+          "value": "IOVDD + 0.5",
+          "confidence": 0.78,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-be56fbb7-p616-l19",
+          "value": "1",
+          "confidence": 0.72,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-be56fbb7-p617-l32",
+          "value": "1",
+          "confidence": 0.7,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "recommended_pullup_ohm",
+          "evidenceId": "ev-be56fbb7-p617-l18",
+          "value": "50",
+          "confidence": 0.92,
+          "unit": "kΩ",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "recommended_pullup_ohm",
+          "evidenceId": "ev-be56fbb7-p617-l18",
+          "value": "80",
+          "confidence": 0.92,
+          "unit": "kΩ",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "recommended_pullup_ohm",
+          "evidenceId": "ev-be56fbb7-p617-l46",
+          "value": "0.873",
+          "confidence": 0.85,
+          "unit": "kΩ",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "recommended_pullup_ohm",
+          "evidenceId": "ev-be56fbb7-p617-l46",
+          "value": "1.548",
+          "confidence": 0.85,
+          "unit": "kΩ",
+          "qualifier": "MAX"
+        }
+      ]
+    }
+  ]
+}

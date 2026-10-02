@@ -1,0 +1,64 @@
+{
+  "key": {
+    "document": "f6272ef503d2850253fbda7b92ca359dfa2848eaf2123ab8159deb31a337a1ce",
+    "units": "e7811b0db21deea208725b8843769771ca136b6950acfc6b28c37ef3fb89072c",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-f6272ef5-p5-l7",
+          "value": "2.0",
+          "confidence": 0.5,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-f6272ef5-p5-l7",
+          "value": "6.0",
+          "confidence": 0.5,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-f6272ef5-p5-l22",
+          "value": "125",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "TYP"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-f6272ef5-p5-l22",
+          "value": "180",
+          "confidence": 0.8,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-f6272ef5-p4-l18",
+          "value": "-0.3",
+          "confidence": 0.75,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-f6272ef5-p4-l18",
+          "value": "6.5",
+          "confidence": 0.8,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

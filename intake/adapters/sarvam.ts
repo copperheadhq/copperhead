@@ -11,8 +11,7 @@ import { SarvamAIClient } from "sarvamai";
 import { unzipSync, strFromU8 } from "fflate";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { BoundingBox } from "../core/model";
-import { DigitisedPage, DigitisedRegion } from "../core/pipeline";
+import { BoundingBox, DigitisedPage, DigitisedRegion } from "../core/digitised";
 import {
   DigitisationProvider,
   DigitiseFailedError,
@@ -24,6 +23,9 @@ import { POLL_INTERVAL_MS, POLL_TIMEOUT_MS, TimeoutError, withBackoff, withTimeo
 
 /** The demo feeds at most this many pages; Sarvam hard-caps at 10. */
 export const MAX_PAGES = 2;
+/** The Digitise options that, with the provider id, key the OCR cache. */
+export const SARVAM_LANGUAGE = "en-IN";
+export const SARVAM_OUTPUT_FORMAT = "md";
 export const SARVAM_PAGE_LIMIT = 10;
 
 /** Cheap page-count estimate: counts PDF page objects. Undercounts never block. */
@@ -187,8 +189,8 @@ export class SarvamProvider implements DigitisationProvider {
       // JSON is always included in the output ZIP alongside the primary
       // format.
       this.client.documentIntelligence.createJob({
-        language: "en-IN",
-        outputFormat: "md",
+        language: SARVAM_LANGUAGE,
+        outputFormat: SARVAM_OUTPUT_FORMAT,
         pollingIntervalMs: POLL_INTERVAL_MS,
       }),
     );

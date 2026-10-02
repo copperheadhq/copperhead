@@ -1,0 +1,188 @@
+{
+  "key": {
+    "document": "4fe4e4f9855501f83b400c6932e3098439e51c50539e40dc45b44a8d509e8db1",
+    "units": "bc27621b3924859a247f1bf38981e4618c194dcd3713bf81c22761b9feedc010",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l39",
+          "value": "4.35",
+          "confidence": 0.93,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l39",
+          "value": "26",
+          "confidence": 0.93,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l40",
+          "value": "4.35",
+          "confidence": 0.72,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l40",
+          "value": "6.4",
+          "confidence": 0.72,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l42",
+          "value": "4.35",
+          "confidence": 0.7,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l42",
+          "value": "10.2",
+          "confidence": 0.7,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l7",
+          "value": "–0.3",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l7",
+          "value": "28",
+          "confidence": 0.92,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l11",
+          "value": "–0.3",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-4fe4e4f9-p10-l11",
+          "value": "7",
+          "confidence": 0.6,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-4fe4e4f9-p12-l31",
+          "value": "4.3",
+          "confidence": 0.88,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "conditions": {
+            "TJ": "85°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-4fe4e4f9-p12-l31",
+          "value": "6.5",
+          "confidence": 0.88,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "TJ": "85°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-4fe4e4f9-p12-l33",
+          "value": "41.3",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VIN": "6 V",
+            "TJ": "85°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-4fe4e4f9-p12-l33",
+          "value": "50",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VIN": "6 V",
+            "TJ": "85°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-4fe4e4f9-p12-l35",
+          "value": "99.8",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VIN": "10 V",
+            "TJ": "85°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-4fe4e4f9-p12-l35",
+          "value": "200",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VIN": "10 V",
+            "TJ": "85°C"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-4fe4e4f9-p12-l37",
+          "value": "1.1",
+          "confidence": 0.7,
+          "unit": "mA",
+          "qualifier": "TYP",
+          "conditions": {
+            "VIN": "6 V"
+          }
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-4fe4e4f9-p12-l37",
+          "value": "1.5",
+          "confidence": 0.7,
+          "unit": "mA",
+          "qualifier": "MAX",
+          "conditions": {
+            "VIN": "6 V"
+          }
+        }
+      ]
+    }
+  ]
+}

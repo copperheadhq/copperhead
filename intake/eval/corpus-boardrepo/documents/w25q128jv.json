@@ -1,0 +1,261 @@
+{
+  "documentId": "w25q128jv",
+  "vendor": "Winbond",
+  "mpn": "W25Q128JVS",
+  "revision": "as published at the URL on 2026-10-02",
+  "sourceType": "born-digital",
+  "content": {
+    "kind": "reference",
+    "sha256": "809f066e62bcde10b12c2202daf05f4776929ad7dc5f9d3b5131cdcc84502bc1",
+    "url": "https://www.winbond.com/resource-files/w25q128jv%20revf%2003272018%20plus.pdf",
+    "note": "used on BoardRepo boards: jesusfreke-lalboard, shanteacontrols-opendeck"
+  },
+  "pages": [
+    61,
+    62,
+    63
+  ],
+  "caseTags": [
+    "clean"
+  ],
+  "fields": [
+    {
+      "key": "supply_voltage_V",
+      "description": "supply or operating voltage range from the recommended operating conditions or electrical characteristics; report the MIN and the MAX as two separate entries",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "supply_voltage_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "quiescent_current_uA",
+      "description": "quiescent or supply current drawn by the part",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "quiescent_current_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "pin_input_leakage_uA",
+      "description": "input leakage current of an input pin (high-level or low-level input current)",
+      "expectDimension": "current",
+      "parameter": {
+        "key": "pin_input_leakage_uA",
+        "dimension": "current",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "abs_max_vin_V",
+      "description": "absolute maximum supply or input voltage rating, from the absolute maximum ratings table (qualifier ABS_MAX)",
+      "expectDimension": "voltage",
+      "parameter": {
+        "key": "abs_max_vin_V",
+        "dimension": "voltage",
+        "requiredConditions": []
+      }
+    },
+    {
+      "key": "recommended_pullup_ohm",
+      "description": "pull-up resistance, internal or recommended external",
+      "expectDimension": "resistance",
+      "parameter": {
+        "key": "recommended_pullup_ohm",
+        "dimension": "resistance",
+        "requiredConditions": []
+      }
+    }
+  ],
+  "labels": {
+    "adjudicated": {
+      "labeler": "Claude (one labeller; not dual-labelled, so the corpus is not golden)",
+      "labeledAtISO": "2026-10-02T00:00:00.000Z",
+      "fields": {
+        "supply_voltage_V": [
+          {
+            "value": "3.0",
+            "unit": "V",
+            "qualifier": "MIN",
+            "conditions": "F = 133 MHz",
+            "citation": {
+              "page": 61,
+              "textContains": "FR = 133MHz,"
+            }
+          },
+          {
+            "value": "3.6",
+            "unit": "V",
+            "qualifier": "MAX",
+            "conditions": "F = 133 MHz",
+            "citation": {
+              "page": 61,
+              "textContains": "FR = 133MHz,"
+            }
+          },
+          {
+            "value": "2.7",
+            "unit": "V",
+            "qualifier": "MIN",
+            "conditions": "F = 104 MHz",
+            "citation": {
+              "page": 61,
+              "textContains": "FR = 104MHz,"
+            }
+          },
+          {
+            "value": "3.0",
+            "unit": "V",
+            "qualifier": "MAX",
+            "conditions": "F = 104 MHz",
+            "citation": {
+              "page": 61,
+              "textContains": "FR = 104MHz,"
+            }
+          }
+        ],
+        "quiescent_current_uA": [
+          {
+            "value": "10",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 63,
+              "textContains": "Standby Current"
+            }
+          },
+          {
+            "value": "60",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 63,
+              "textContains": "Standby Current"
+            }
+          },
+          {
+            "value": "1",
+            "unit": "uA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 63,
+              "textContains": "Power-down Current"
+            }
+          },
+          {
+            "value": "20",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 63,
+              "textContains": "Power-down Current"
+            }
+          },
+          {
+            "value": "8",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "F = 50 MHz",
+            "citation": {
+              "page": 63,
+              "textContains": "ICC3"
+            }
+          },
+          {
+            "value": "15",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "F = 50 MHz",
+            "citation": {
+              "page": 63,
+              "textContains": "ICC3"
+            }
+          },
+          {
+            "value": "10",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "F = 80 MHz",
+            "citation": {
+              "page": 63,
+              "textContains": "ICC3"
+            }
+          },
+          {
+            "value": "18",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "F = 80 MHz",
+            "citation": {
+              "page": 63,
+              "textContains": "ICC3"
+            }
+          },
+          {
+            "value": "12",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "conditions": "F = 104 MHz",
+            "citation": {
+              "page": 63,
+              "textContains": "ICC3"
+            }
+          },
+          {
+            "value": "20",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "conditions": "F = 104 MHz",
+            "citation": {
+              "page": 63,
+              "textContains": "ICC3"
+            }
+          },
+          {
+            "value": "20",
+            "unit": "mA",
+            "qualifier": "TYP",
+            "citation": {
+              "page": 63,
+              "textContains": "ICC4"
+            }
+          },
+          {
+            "value": "25",
+            "unit": "mA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 63,
+              "textContains": "ICC4"
+            }
+          }
+        ],
+        "pin_input_leakage_uA": [
+          {
+            "value": "2",
+            "unit": "uA",
+            "qualifier": "MAX",
+            "citation": {
+              "page": 63,
+              "textContains": "Input Leakage"
+            }
+          }
+        ],
+        "abs_max_vin_V": {
+          "value": "4.6",
+          "unit": "V",
+          "qualifier": "ABS_MAX",
+          "citation": {
+            "page": 61,
+            "textContains": "Supply Voltage"
+          }
+        },
+        "recommended_pullup_ohm": "ABSENT"
+      }
+    }
+  },
+  "labelNotes": "Columns checked with pdftotext -layout. Operating Ranges print two VCC rows keyed by clock: 'FR = 133MHz, fR = 50MHz' (3.0-3.6 V) and 'FR = 104MHz, fR = 50MHz' (2.7-3.0 V); conditions keep only the distinguishing FR frequency as F (fR = 50 MHz is common to both; judgement call). ICC3 read-current rows take F from the row text 'Dual /Quad 50/80/104MHz' (printed on the line below the values); all three value lines read '(2) | ICC3 | ...', so the citation is not unique. ICC4 (Write Status Register), ICC5 (Page Program), ICC6 (Sector/Block Erase) and ICC7 (Chip Erase) all print 20 TYP / 25 MAX mA with no allowed conditions, so they collapse to one TYP and one MAX label (cited at ICC4). ILI printed '\u00b12' in the MAX column: labelled as 2 uA MAX (not split into -2 MIN). ILO is output leakage, excluded. Abs max: VCC range '-0.6 to 4.6' gives 4.6 ABS_MAX only; VIO/VIOT are VCC-relative expressions, skipped."
+}

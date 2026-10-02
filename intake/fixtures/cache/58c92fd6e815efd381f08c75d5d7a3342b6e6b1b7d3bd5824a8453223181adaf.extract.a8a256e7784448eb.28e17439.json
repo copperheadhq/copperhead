@@ -1,0 +1,64 @@
+{
+  "key": {
+    "document": "58c92fd6e815efd381f08c75d5d7a3342b6e6b1b7d3bd5824a8453223181adaf",
+    "units": "c0b4dce3d87f0c38f8d9678c5c0540fc301f0fa54fc8eb6d15f69f713860f4f5",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-58c92fd6-p6-l7",
+          "value": "2.7",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-58c92fd6-p6-l7",
+          "value": "5.5",
+          "confidence": 0.92,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-58c92fd6-p5-l7",
+          "value": "−0.3",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-58c92fd6-p5-l7",
+          "value": "6.5",
+          "confidence": 0.92,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-58c92fd6-p5-l8",
+          "value": "−0.3",
+          "confidence": 0.88,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-58c92fd6-p5-l8",
+          "value": "6.5",
+          "confidence": 0.9,
+          "unit": "V",
+          "qualifier": "ABS_MAX"
+        }
+      ]
+    }
+  ]
+}

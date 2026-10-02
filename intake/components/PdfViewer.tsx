@@ -1,17 +1,18 @@
 "use client";
 
-// Renders the uploaded datasheet PDF itself (via pdf.js) with amber
-// highlight rectangles drawn from the digitised bounding boxes. Clicking a
-// fact elsewhere sets `highlight`; the viewer scrolls to the cited region on
-// the matching page and the rectangle containing the fact's snippet flashes.
+// Renders the uploaded datasheet PDF itself (via pdf.js) with an amber highlight on the cited
+// evidence unit's own bounding box. Clicking a reading elsewhere sets `highlight`; the viewer
+// scrolls to that line on its page. No text is matched here: the box comes from the core.
 // (The browser's native PDF plugin cannot host overlays, hence pdf.js.)
 
 import { useEffect, useRef, useState } from "react";
-import type { DigitisedPage } from "../core/pipeline";
+import type { Box } from "../core/text/types";
 
 export interface Highlight {
   page: number;
-  snippet?: string;
+  bbox?: Box;
+  /** Distinguishes highlights of different units, so a repeat click re-flashes. */
+  key?: string;
 }
 
 interface RenderedPage {
@@ -21,25 +22,11 @@ interface RenderedPage {
   height: number;
 }
 
-function squash(s: string): string {
-  return s.replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-function regionsFor(pages: DigitisedPage[], highlight: Highlight) {
-  if (highlight.snippet === undefined) return [];
-  const digitised = pages.find((p) => p.page === highlight.page);
-  return (digitised?.regions ?? []).filter((r) =>
-    squash(r.text).includes(squash(highlight.snippet!)),
-  );
-}
-
 export default function PdfViewer({
   file,
-  pages,
   highlight,
 }: {
   file: File | null;
-  pages: DigitisedPage[];
   highlight: Highlight | null;
 }) {
   const [rendered, setRendered] = useState<RenderedPage[]>([]);
@@ -104,21 +91,20 @@ export default function PdfViewer({
     const containerTop = container.getBoundingClientRect().top;
     let target =
       el.getBoundingClientRect().top - containerTop + container.scrollTop - 12;
-    const region = regionsFor(pages, highlight)[0];
-    if (region && inner) {
+    if (highlight.bbox && inner) {
       const innerTop =
         inner.getBoundingClientRect().top - containerTop + container.scrollTop;
       target =
-        innerTop + region.bbox.y * inner.clientHeight - container.clientHeight * 0.35;
+        innerTop + highlight.bbox.y * inner.clientHeight - container.clientHeight * 0.35;
     }
     container.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
-  }, [highlight, rendered, pages]);
+  }, [highlight, rendered]);
 
   if (!file) {
     return (
       <div className="card dim viewer-empty">
-        The datasheet renders here after upload. Click any fact to jump to the exact line it came
-        from.
+        The datasheet renders here after upload. Click any reading to jump to the exact line it
+        was read from.
       </div>
     );
   }
@@ -129,8 +115,7 @@ export default function PdfViewer({
   return (
     <div className="pdf-viewer">
       {rendered.map((page) => {
-        const active =
-          highlight?.page === page.pageNumber ? regionsFor(pages, highlight) : [];
+        const active = highlight?.page === page.pageNumber && highlight.bbox ? [highlight.bbox] : [];
         return (
           <div
             key={page.pageNumber}
@@ -146,15 +131,15 @@ export default function PdfViewer({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={page.dataUrl} alt={`Datasheet page ${page.pageNumber}`} />
-              {active.map((region, i) => (
+              {active.map((box, i) => (
                 <div
-                  key={`${highlight?.snippet ?? ""}-${i}`}
+                  key={`${highlight?.key ?? ""}-${i}`}
                   className="pdf-highlight"
                   style={{
-                    left: `${region.bbox.x * 100}%`,
-                    top: `${region.bbox.y * 100}%`,
-                    width: `${region.bbox.width * 100}%`,
-                    height: `${region.bbox.height * 100}%`,
+                    left: `${box.x * 100}%`,
+                    top: `${box.y * 100}%`,
+                    width: `${box.width * 100}%`,
+                    height: `${box.height * 100}%`,
                   }}
                 />
               ))}

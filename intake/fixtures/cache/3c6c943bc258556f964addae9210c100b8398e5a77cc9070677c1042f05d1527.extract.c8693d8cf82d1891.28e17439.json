@@ -1,0 +1,94 @@
+{
+  "key": {
+    "document": "3c6c943bc258556f964addae9210c100b8398e5a77cc9070677c1042f05d1527",
+    "units": "b22b9bc50f2766c663ad0af3b476f5fbbfad1a2b4e9b621259cd3272325d60a0",
+    "fields": "fb2e658b0d9efdc9ac7cb13364ab9ad8ca782913f9007f1c0ead4a20a931bb77",
+    "promptHash": "3aef3e121b541716",
+    "schemaVersion": "extractions-1",
+    "model": "claude-code"
+  },
+  "passes": [
+    {
+      "extractions": [
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-3c6c943b-p74-l9",
+          "value": "2.7",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "supply_voltage_V",
+          "evidenceId": "ev-3c6c943b-p74-l9",
+          "value": "5.5",
+          "confidence": 0.95,
+          "unit": "V",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-3c6c943b-p73-l4",
+          "value": "7.0V",
+          "confidence": 0.85,
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "abs_max_vin_V",
+          "evidenceId": "ev-3c6c943b-p73-l5",
+          "value": "-0.6V to VDD + 1.0V",
+          "confidence": 0.7,
+          "qualifier": "ABS_MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-3c6c943b-p74-l31",
+          "value": "-1",
+          "confidence": 0.9,
+          "unit": "μA",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-3c6c943b-p74-l31",
+          "value": "+1",
+          "confidence": 0.9,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-3c6c943b-p74-l33",
+          "value": "-5",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "MIN"
+        },
+        {
+          "field": "pin_input_leakage_uA",
+          "evidenceId": "ev-3c6c943b-p74-l33",
+          "value": "+5",
+          "confidence": 0.85,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-3c6c943b-p74-l38",
+          "value": "5",
+          "confidence": 0.8,
+          "unit": "μA",
+          "qualifier": "MAX"
+        },
+        {
+          "field": "quiescent_current_uA",
+          "evidenceId": "ev-3c6c943b-p74-l40",
+          "value": "8",
+          "confidence": 0.75,
+          "unit": "μA",
+          "qualifier": "MAX"
+        }
+      ]
+    }
+  ]
+}
