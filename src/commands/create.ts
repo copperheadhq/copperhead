@@ -4,7 +4,7 @@ import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { loadConfig, resolveCompatSettings } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
-import { exportSvg, runErc } from '../kicad/cli.js';
+import { exportSvg, runErc, runDrc } from '../kicad/cli.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
@@ -244,16 +244,27 @@ export const STAGES: Stage[] = [
   {
     name: 'layout-draft',
     isComplete: async (root, docs) => {
-      // The LAYOUT.md marker alone is not enough: `copperhead init` scaffolds
-      // LAYOUT.md with the literal "## Draft quality" heading, so an init-ed
-      // repo would skip this stage without a single footprint placed. Require
-      // a board with at least one footprint on it as well.
       const config = await loadConfig(root);
       if (!config.board) return false;
       const p = path.join(root, config.board);
       if (!existsSync(p)) return false;
       if (!(await readFile(p, 'utf8')).includes('(footprint')) return false;
-      return docHasContent(root, path.join(docs, 'LAYOUT.md'), '## Draft quality');
+      if (!(await runDrc(p)).ok) return false;
+
+      const layoutMd = path.join(root, docs, 'LAYOUT.md');
+      if (!existsSync(layoutMd)) return false;
+      const text = await readFile(layoutMd, 'utf8');
+      const heading = /^(#{1,6})\s.*\bDraft quality\b.*$/im.exec(text);
+      if (!heading) return false;
+      const depth = heading[1]!.length;
+      const afterHeadingLine = text.slice(heading.index + heading[0].length);
+      const nextSection = afterHeadingLine.search(new RegExp(`^#{1,${depth}}\\s`, 'm'));
+      const section = nextSection >= 0 ? afterHeadingLine.slice(0, nextSection) : afterHeadingLine;
+      const cleanSection = section.replace(/<!--[\s\S]*?-->/g, '');
+      const realLines = cleanSection
+        .split('\n')
+        .filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
+      return realLines.length > 0;
     },
     prompt: () =>
       'Stage 5: first-draft layout. Rule-driven placement written as real coordinates: connectors on edges, decoupling at IC pins, ESD at connectors, keepouts honored. Route power and short critical nets; leave the rest as ratsnest. Every routed net must pass run_drc. Then write the "## Draft quality" section in LAYOUT.md: exactly what is fine and what a human or specialist tool should redo. Non-optimal is acceptable; unlabeled non-optimal is not.',
@@ -801,6 +812,9 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       if (stage.name === 'spec-seed') {
         try {
           await writeBriefHash(opts.repoRoot, config.docs, briefMeta);
+          if (await isDirty(opts.repoRoot)) {
+            await commitAll(opts.repoRoot, 'copperhead: pipeline provenance (BRIEF.sha256)');
+          }
         } catch (err) {
           opts.log(
             `warning: could not record brief provenance (${(err as Error).message})`,
@@ -809,6 +823,9 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       }
       stageCosts.push({ name: stage.name, resumed: true, wallMs: 0, turns: 0, tokensIn: 0, tokensOut: 0, cacheHits: 0 });
       await emitJlcpcbAfterOutputs(stage.name, opts);
+      if (stage.name === 'outputs' && await isDirty(opts.repoRoot)) {
+        await commitAll(opts.repoRoot, 'copperhead: export JLCPCB assembly BOM');
+      }
       continue;
     }
     // Auto-recovery loop: run the stage, and if it fails or ends without meeting
@@ -974,6 +991,9 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     if (stage.name === 'spec-seed') {
       try {
         await writeBriefHash(opts.repoRoot, config.docs, briefMeta);
+        if (await isDirty(opts.repoRoot)) {
+          await commitAll(opts.repoRoot, 'copperhead: pipeline provenance (BRIEF.sha256)');
+        }
       } catch (err) {
         opts.log(
           `warning: could not record brief provenance (${(err as Error).message})`,
@@ -982,6 +1002,9 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     }
     await renderStageArtifacts(opts, stage.name, stageTranscriptDir);
     await emitJlcpcbAfterOutputs(stage.name, opts);
+    if (stage.name === 'outputs' && await isDirty(opts.repoRoot)) {
+      await commitAll(opts.repoRoot, 'copperhead: export JLCPCB assembly BOM');
+    }
     logCumulative(opts, stageCosts);
   }
 
