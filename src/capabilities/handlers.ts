@@ -2,8 +2,9 @@ import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
-import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
+import { runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
+import { runErcWithExclusions } from '../kicad/erc-exclusions.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
 import { scoreSchematic, formatScore } from '../kicad/score.js';
@@ -385,7 +386,7 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.schematic)
         return 'no schematic configured; ERC does not apply yet — skip it until a schematic exists and is set in .copperhead/config.json';
       const schPath = path.join(ctx.repoRoot, ctx.config.schematic);
-      const report = await runErc(schPath);
+      const report = await runErcWithExclusions(schPath);
       countRepairCycle(ctx, 'erc', report);
       ctx.lastErc = report;
       if (report.ok) ctx.ledger.clear('erc');

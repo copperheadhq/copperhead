@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { loadConfig } from '../config.js';
-import { runErc, runDrc } from '../kicad/cli.js';
+import { runDrc } from '../kicad/cli.js';
+import { runErcWithExclusions } from '../kicad/erc-exclusions.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '../memory/constraints.js';
@@ -43,8 +44,8 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   let drc: CheckReport | null = null;
 
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    erc = await runErc(path.join(repoRoot, config.schematic));
-    log(erc.ok ? 'ERC ✓' : formatViolations(erc));
+    erc = await runErcWithExclusions(path.join(repoRoot, config.schematic));
+    log(erc.ok && !erc.excluded?.length && !erc.unusedExclusions?.length ? 'ERC ✓' : formatViolations(erc));
   } else {
     log('ERC skipped (no schematic configured; run copperhead init)');
   }

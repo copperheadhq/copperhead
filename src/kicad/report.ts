@@ -31,6 +31,20 @@ export interface CheckReport {
    * KiCad reports as modified or unresolvable stays a violation.
    */
   intrinsic?: Violation[];
+  /**
+   * ERC only: findings the schematic intent's `ercExclusions` excuse (#355),
+   * each with the reason given for it. Never counted against `ok`, always
+   * printed, so an exclusion is visible evidence rather than a silent pass.
+   */
+  excluded?: ExcludedViolation[];
+  /** ERC only: declared exclusions that excused no finding (stale entries). */
+  unusedExclusions?: { type: string; pins: string[]; reason: string }[];
+}
+
+export interface ExcludedViolation extends Violation {
+  /** The excusing entry's reason and pins, verbatim from the intent. */
+  reason: string;
+  pins: string[];
 }
 
 interface RawItem {
@@ -133,15 +147,38 @@ export function formatViolations(report: CheckReport): string {
     ? `\n  ${report.intrinsic.length} finding(s) inside a single library footprint, not a placement problem: ` +
       report.intrinsic.map((v) => `${footprintOwner(v)} ${v.type}`).join(', ')
     : '';
-  if (report.ok) return `${report.source.toUpperCase()}: clean${unrouted}${intrinsic}`;
-  const lines = [`${report.source.toUpperCase()}: ${report.violations.length} violation(s)${unrouted}${intrinsic}`];
-  for (const v of report.violations) {
+  const excluded = report.excluded?.length ? `; ${report.excluded.length} finding(s) excluded by the intent` : '';
+  const lines = report.ok
+    ? [`${report.source.toUpperCase()}: clean${excluded}${unrouted}${intrinsic}`]
+    : [`${report.source.toUpperCase()}: ${report.violations.length} violation(s)${excluded}${unrouted}${intrinsic}`];
+  const pushFinding = (v: Violation, indent: string): void => {
     const where = v.sheet ? ` [sheet ${v.sheet}]` : '';
-    lines.push(`  ${v.severity} ${v.type}${where}: ${v.description}`);
+    lines.push(`${indent}${v.severity} ${v.type}${where}: ${v.description}`);
     for (const i of v.items) {
       const pos = i.x !== undefined ? ` @ (${i.x}, ${i.y})` : '';
-      lines.push(`    - ${i.description}${pos}`);
+      lines.push(`${indent}  - ${i.description}${pos}`);
+    }
+  };
+  for (const v of report.violations) pushFinding(v, '  ');
+  if (report.excluded?.length) {
+    lines.push('  excluded by schematic.intent.json ercExclusions (not counted, listed for review):');
+    for (const v of report.excluded) {
+      pushFinding(v, '    ');
+      lines.push(`      reason (${v.pins.join(', ')}): ${v.reason}`);
     }
   }
+  for (const ex of report.unusedExclusions ?? []) {
+    lines.push(`  note: ercExclusions entry ${ex.type} [${ex.pins.join(', ')}] excused no finding; remove it if the wiring changed`);
+  }
   return lines.join('\n');
+}
+
+/**
+ * The excluded findings in one line for run summaries, or '' when there are
+ * none: `; 2 excluded by the intent (pin_to_pin U9.7: SA0 low selects 0x18; …)`.
+ */
+export function excludedSummary(report: CheckReport | null): string {
+  if (!report?.excluded?.length) return '';
+  const each = report.excluded.map((v) => `${v.type} ${v.pins.join('+')}: ${v.reason}`).join('; ');
+  return `; ${report.excluded.length} excluded by the intent (${each})`;
 }

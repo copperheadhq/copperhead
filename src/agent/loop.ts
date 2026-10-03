@@ -9,6 +9,7 @@ import { withWatchdog, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js
 import { buildSystemPrompt } from './prompts.js';
 import { loadConstraints, reopenDeferredAffects } from '../memory/constraints.js';
 import { isCreateProducedRepo, isEngineAuthoredSchematic } from '../kicad/fab.js';
+import { excludedSummary } from '../kicad/report.js';
 import {
   loadConfig,
   CONFIG_DIR,
@@ -401,7 +402,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   const outcomeLine = (s: RunStats, extra?: string | null): string =>
     [
       s.exitPath,
-      ctx.lastErc ? `ERC ${ctx.lastErc.ok ? 'clean' : 'failing'}` : 'ERC not run',
+      ctx.lastErc ? `ERC ${ctx.lastErc.ok ? 'clean' : 'failing'}${ctx.lastErc.excluded?.length ? ` (${ctx.lastErc.excluded.length} excluded)` : ''}` : 'ERC not run',
       ...(ctx.lastDrc ? [`DRC ${ctx.lastDrc.ok ? 'clean' : 'failing'}`] : []),
       ...(extra ? [extra] : []),
       fmtDuration(s.durationMs),
@@ -431,7 +432,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       changeId: ctx.changeId,
       plan,
       filesTouched: [...ctx.filesTouched],
-      ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : `${ctx.lastErc.violations.length} violations`) : null,
+      ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : `${ctx.lastErc.violations.length} violations`) + excludedSummary(ctx.lastErc) : null,
       drcResult: ctx.lastDrc ? (ctx.lastDrc.ok ? 'clean' : `${ctx.lastDrc.violations.length} violations`) : null,
       legibilityResult: ctx.lastLegibility ? `${ctx.lastLegibility.error} error, ${ctx.lastLegibility.advisory} advisory` : null,
       scoreResult: ctx.lastScore !== null ? `${ctx.lastScore}/100` : null,
@@ -719,7 +720,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       }
 
       const verification = [
-        ctx.lastErc ? `ERC ${ctx.lastErc.ok ? 'clean' : 'FAILING'}` : 'ERC not required',
+        ctx.lastErc ? `ERC ${ctx.lastErc.ok ? 'clean' : 'FAILING'}${ctx.lastErc.excluded?.length ? ` (${ctx.lastErc.excluded.length} excluded)` : ''}` : 'ERC not required',
         ctx.lastDrc ? `DRC ${ctx.lastDrc.ok ? 'clean' : 'FAILING'}` : null,
       ]
         .filter(Boolean)
@@ -820,7 +821,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         changeId: ctx.changeId,
         plan,
         filesTouched: files,
-        ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : 'FAILING') : 'not run',
+        ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : 'FAILING') + excludedSummary(ctx.lastErc) : 'not run',
         drcResult: ctx.lastDrc ? (ctx.lastDrc.ok ? 'clean' : 'FAILING') : 'not run',
         legibilityResult: ctx.lastLegibility ? `${ctx.lastLegibility.error} error, ${ctx.lastLegibility.advisory} advisory` : null,
         scoreResult: ctx.lastScore !== null ? `${ctx.lastScore}/100` : null,

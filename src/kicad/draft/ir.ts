@@ -32,12 +32,35 @@ export interface IntentNet {
   kind?: 'power' | 'ground' | 'signal';
 }
 
+/**
+ * An ERC finding the design intends (#355): stock symbols type some pins
+ * conservatively (LIS3DH SDO/SA0 as Output, TPS22917 QOD as open collector),
+ * so wiring their datasheets require fails ERC and nothing else in the IR can
+ * say so. Keyed by part pins, not by KiCad marker position or UUID, so an
+ * exclusion survives every re-draft. Applied by `runErc` and printed with its
+ * reason wherever ERC is reported; never written into the sheet or project.
+ */
+export interface IntentErcExclusion {
+  /** KiCad ERC check name, as `run_erc` prints it (`pin_to_pin`). */
+  type: string;
+  /**
+   * `"REF.PIN"` endpoints. A finding matches when every part pin it names is
+   * listed here; power-symbol pins (`#FLG01`, `#PWR03`) are the engine's and
+   * need not be.
+   */
+  pins: string[];
+  /** Why the finding is intended: cite the requirement that wires it so. */
+  reason: string;
+}
+
 export interface SchematicIntent {
   version: number;
   parts: IntentPart[];
   nets: IntentNet[];
   /** Pins deliberately unconnected; emitted as `(no_connect …)` markers. */
   noConnect?: string[];
+  /** ERC findings the design intends; see {@link IntentErcExclusion}. */
+  ercExclusions?: IntentErcExclusion[];
   hints?: {
     /** Left-to-right group order override; otherwise SUBSYSTEMS.md order. */
     groupOrder?: string[];
@@ -404,6 +427,46 @@ export async function validateIntent(
       if (!partByRef.has(ref!)) add(`noConnect "${ep}" references unknown part ${ref}`);
       else if (sym && !sym.pins.some((p) => p.number === pin)) add(`noConnect "${ep}": ${ref} has no pin ${pin}`);
       if (usedPins.has(`${ref}.${pin}`)) add(`pin ${ep} is declared no-connect but appears in a net`);
+    }
+  }
+
+  // ERC exclusions (#355): each names a check, the connected part pins it
+  // excuses, and a reason. Checked as strictly as a net, because an entry that
+  // matched more than the author meant would hide a real wiring error.
+  const ercExclusions = intent.ercExclusions;
+  if (ercExclusions !== undefined) {
+    if (!Array.isArray(ercExclusions)) {
+      add(`"ercExclusions" must be an array of {type, pins, reason} objects, got ${JSON.stringify(ercExclusions)}`);
+    } else {
+      ercExclusions.forEach((ex, i) => {
+        const at = `ercExclusions[${i}]`;
+        if (ex === null || typeof ex !== 'object' || Array.isArray(ex)) {
+          add(`${at} must be an object with "type", "pins" and "reason", got ${JSON.stringify(ex)}`);
+          return;
+        }
+        if (typeof ex.type !== 'string' || !/^[a-z][a-z0-9_]*$/.test(ex.type)) {
+          add(`${at}: "type" must be a KiCad ERC check name as run_erc prints it (e.g. "pin_to_pin"), got ${JSON.stringify(ex.type)}`);
+        }
+        if (typeof ex.reason !== 'string' || !ex.reason.trim()) {
+          add(`${at}: "reason" must say why the finding is intended (cite the requirement), got ${JSON.stringify(ex.reason)}`);
+        }
+        if (!Array.isArray(ex.pins) || !ex.pins.length || ex.pins.some((e) => typeof e !== 'string')) {
+          add(`${at}: "pins" must be a non-empty array of "REF.PIN" strings, got ${JSON.stringify(ex.pins)}`);
+          return;
+        }
+        for (const ep of ex.pins) {
+          const m = /^([^.]+)\.(.+)$/.exec(ep);
+          if (!m) {
+            add(`${at}: pin "${ep}" is not of the form REF.PIN`);
+            continue;
+          }
+          const [, ref, pin] = m;
+          const sym = symbols.get(ref!);
+          if (!partByRef.has(ref!)) add(`${at}: pin "${ep}" references unknown part ${ref} (power-symbol pins need not be listed)`);
+          else if (sym && !sym.pins.some((p) => p.number === pin)) add(`${at}: ${ref} has no pin ${pin}`);
+          else if (!usedPins.has(pinKey(ref!, pin!))) add(`${at}: pin ${ep} is in no net, so it has no connection to excuse; an open pin belongs in "noConnect"`);
+        }
+      });
     }
   }
 
