@@ -6,6 +6,14 @@ still containing release-blocking uncertainty. Each issue below targets the
 Copperhead pipeline; the generated board must not be repaired by hand to hide a
 pipeline defect.
 
+## Reproduction fixture
+
+Unless an issue says otherwise, run its commands with:
+
+```bash
+DESIGN=/home/tumulurishashank277_gmail_com/work/designs/01-usbc-5v-breakout
+```
+
 ## Priority order
 
 | Priority | Issue | Required outcome | Status |
@@ -35,6 +43,32 @@ presence, or freshness of generated files. Consequently, “DRC-clean draft” a
 “safe manufacturing input” shared the same export path. The create pipeline
 also had no source-content hash tying its output files to the PCB bytes that
 produced them.
+
+### Steps to reproduce
+
+This is a historical reproduction against a Copperhead revision before
+`bdeddc8`; the current revision contains the fix.
+
+1. Run the create pipeline through its outputs stage on a DRC-clean project
+   whose PCB footprint ID differs from its schematic footprint assignment.
+2. Confirm the mismatch independently with:
+
+   ```bash
+   copperhead --repo "$DESIGN" check --fab --strict --json
+   ```
+
+3. Inspect `outputs/` and `.copperhead/config.json`.
+
+Expected: export is refused before KiCad writes any manufacturing file.
+
+Historical actual result: Gerber and drill files were written despite the
+footprint mismatch, and no `fabOutputs` board hash tied them to the source PCB.
+
+The fixed behavior is pinned by:
+
+```bash
+npx vitest run test/fab-release.test.ts
+```
 
 ### Resolution
 
@@ -75,6 +109,34 @@ and a `Draft quality` section, rather than an exact identity check over
 Therefore a plausible-looking substitute footprint could satisfy the stage even
 though its land pattern had no authoritative source.
 
+### Steps to reproduce
+
+1. Point `DESIGN` at the generated USB-C project if it is not already set:
+
+   ```bash
+   DESIGN=/home/tumulurishashank277_gmail_com/work/designs/01-usbc-5v-breakout
+   ```
+
+2. Run the fabrication parity check:
+
+   ```bash
+   copperhead --repo "$DESIGN" check --fab --strict --json
+   ```
+
+3. Inspect `.fab.schPcbMatch.violations` in the JSON result.
+4. Compare the footprint properties directly:
+
+   ```bash
+   rg 'property "Footprint"' "$DESIGN/usb-c-5v-power-breakout.kicad_sch"
+   rg '^\s*\(footprint ' "$DESIGN/usb-c-5v-power-breakout.kicad_pcb"
+   ```
+
+Expected: Stage 5 refuses to finish as soon as exact footprint identity or pad
+parity is lost.
+
+Actual result in the affected design: all six references use `_DRAFT` PCB
+footprints while the schematic specifies library-qualified footprints.
+
 ### Required pipeline fix
 
 - Populate the PCB deterministically from exact schematic footprint IDs before
@@ -110,6 +172,32 @@ grandfathered, or otherwise skipped stage can reach the final create check with
 an invalid drawing. The final gate therefore does not independently reassert
 the schematic-stage presentation contract.
 
+### Steps to reproduce
+
+1. Run the normal check and save its JSON:
+
+   ```bash
+   copperhead --repo "$DESIGN" check --json > /tmp/01-usbc-check.json
+   ```
+
+2. Inspect the overall result and legibility result:
+
+   ```bash
+   jq '{ok, findings: .legibility.counts, score: .legibility.score.composite}' /tmp/01-usbc-check.json
+   ```
+
+3. Inspect the error details:
+
+   ```bash
+   jq '.legibility.findings[] | select(.severity == "error")' /tmp/01-usbc-check.json
+   ```
+
+Expected: a create-authored schematic with any error-severity finding makes the
+final create verification fail.
+
+Actual result in the affected design: ordinary checking reports `ok: true`
+while separately reporting three legibility errors and a composite score of 40.
+
 ### Required pipeline fix
 
 - Include error-severity legibility findings in final create success for
@@ -141,6 +229,33 @@ the contract for that drafting stage was met, but the final user-facing language
 does not consistently distinguish this from product release readiness. A
 `Draft quality` disclaimer records uncertainty without changing the terminal
 state, allowing “completed draft” to be interpreted as “approved to order.”
+
+### Steps to reproduce
+
+1. Open the latest create run summary:
+
+   ```bash
+   sed -n '1,220p' "$DESIGN/.copperhead/runs/REPORT.md"
+   ```
+
+2. Inspect the generated layout disclaimer:
+
+   ```bash
+   sed -n '/## Draft quality/,$p' "$DESIGN/docs/LAYOUT.md"
+   ```
+
+3. List the manufacturing files the same run placed in `outputs/`:
+
+   ```bash
+   find "$DESIGN/outputs" -maxdepth 2 -type f | sort
+   ```
+
+Expected: the terminal state and artifact location clearly identify the result
+as `verification-required`, with no implication that it is orderable.
+
+Actual result in the affected design: the pipeline presents completed output
+stages and manufacturing artifacts while `LAYOUT.md` still requires specialist
+verification. The assurance level must be inferred from prose.
 
 ### Required pipeline fix
 
@@ -175,6 +290,31 @@ stage. There is also no completed part-research stage that converts candidate
 parts into evidence-backed selections. Thus uncertainty can only be carried or
 blocked; it cannot be systematically resolved.
 
+### Steps to reproduce
+
+1. Find all unresolved BOM selections:
+
+   ```bash
+   rg -n 'UNVERIFIED' "$DESIGN/docs/BOM.md"
+   ```
+
+2. Run the strict fabrication check:
+
+   ```bash
+   copperhead --repo "$DESIGN" check --fab --strict --json \
+     | jq '.fab.bom'
+   ```
+
+3. Inspect the repository for structured evidence records containing datasheet
+   revision, page, extracted rating, and retrieval date.
+
+Expected: every failed claim identifies the missing evidence and provides a
+pipeline stage capable of resolving it.
+
+Actual result in the affected design: every refdes is reported only as
+`UNVERIFIED`; the Markdown marker carries no structured claim or evidence, so
+Copperhead can block release but cannot complete the verification itself.
+
 ### Required pipeline fix
 
 - Store per-part verification fields for MPN identity, footprint fit, pin map,
@@ -207,6 +347,31 @@ connectivity; it does not infer allowable current from copper thickness,
 temperature rise, component derating, or contact ratings. Copperhead has no
 graph connecting the requirement to every series element and no calculation or
 evidence gate that can prove the weakest element meets the claim.
+
+### Steps to reproduce
+
+1. Locate the 3 A requirement and the layout qualification:
+
+   ```bash
+   rg -n '3 A|1\.5.*2\.0 mm|temperature-rise|voltage-drop' \
+     "$DESIGN/docs" "$DESIGN/.copperhead/constraints.json"
+   ```
+
+2. Run all currently available deterministic checks:
+
+   ```bash
+   copperhead --repo "$DESIGN" check --fab --strict --json
+   ```
+
+3. Inspect the result for a traced VBUS path, copper temperature-rise result,
+   worst-case voltage drop, component derating, and limiting-element margin.
+
+Expected: the 3 A claim fails until every series component and copper section
+has evidence and calculated margin.
+
+Actual result in the affected design: DRC can be clean and routing complete,
+but no current-path calculation exists; the only warning is free-form prose in
+`LAYOUT.md` saying the draft tracks do not prove 3 A capability.
 
 ### Required pipeline fix
 
