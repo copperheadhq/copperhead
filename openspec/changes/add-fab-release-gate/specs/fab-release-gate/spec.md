@@ -29,7 +29,7 @@
 - **THEN** the command exits non-zero citing the `UNVERIFIED` row
 
 ### Requirement: Schematic-to-PCB match check
-`check --fab` SHALL compare refdes, footprint assignments, pad-number sets, and pad-net assignments between the `.kicad_sch` and `.kicad_pcb` using the read-only s-expression reader, and SHALL fail naming every mismatch. Malformed or truncated files SHALL fail closed. The comparison SHALL NOT regenerate or serialize either file.
+`check --fab` SHALL compare refdes, footprint assignments, pad-number sets, and pad-net assignments between the `.kicad_sch` and `.kicad_pcb` using the read-only s-expression reader, and SHALL fail naming every mismatch. A PCB root-sheet net named `/NAME` SHALL match schematic net `NAME`, and a PCB-generated `unconnected-(...)` net SHALL match a schematic pin with no net. Hierarchical net paths SHALL remain significant. Malformed or truncated files SHALL fail closed. The comparison SHALL NOT regenerate or serialize either file.
 
 #### Scenario: Component missing from board
 - **WHEN** the schematic contains `D2` and the board does not
@@ -38,6 +38,14 @@
 #### Scenario: Footprint mismatch
 - **WHEN** `R1` has footprint `R_0402` in the schematic and `R_0603` on the board
 - **THEN** `check --fab` exits non-zero and reports both values for `R1`
+
+#### Scenario: Equivalent KiCad net names match
+- **WHEN** a schematic pin is on root-sheet net `USB_CC1` and its PCB pad is on `/USB_CC1`, or a schematic pin has no net and its PCB pad carries KiCad's generated `unconnected-(...)` name
+- **THEN** the schematic-to-PCB check does not report either pad as a mismatch
+
+#### Scenario: Hierarchical net paths remain distinct
+- **WHEN** a schematic pin is on `/child/SIGNAL` and its PCB pad is on root-sheet net `/SIGNAL`
+- **THEN** `check --fab` exits non-zero and reports the pad-net mismatch
 
 ### Requirement: Output freshness check
 `check --fab` SHALL verify that the gerber and drill package exists and was exported from the current `.kicad_pcb`, by comparing a SHA-256 content hash of the board file recorded at export time against the current file. Missing outputs, a missing hash record, or a hash mismatch SHALL each fail with a one-line regeneration hint.

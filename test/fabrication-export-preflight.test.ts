@@ -320,6 +320,32 @@ describe('schematic-to-PCB fabrication parity', () => {
     ).status).toBe('pass');
   });
 
+  it('accepts KiCad root-sheet and synthetic unconnected PCB net names', () => {
+    expect(compareSchematicPcbParity(
+      [symbol('J1', 'Connector:USB_C')],
+      [pin('J1', 'A5', 'USB_CC1'), pin('J1', 'A6', null)],
+      [{ ref: 'J1', footprint: 'Connector:USB_C' }],
+      [
+        { ref: 'J1', pad: 'A5', net: '/USB_CC1' },
+        { ref: 'J1', pad: 'A6', net: 'unconnected-(J1-D+-PadA6)' },
+      ],
+    ).status).toBe('pass');
+  });
+
+  it('does not erase hierarchy or accept a genuinely different root net', () => {
+    const result = compareSchematicPcbParity(
+      [symbol('R1', 'Resistor:R')],
+      [pin('R1', '1', 'SIGNAL'), pin('R1', '2', '/child/SIGNAL')],
+      [{ ref: 'R1', footprint: 'Resistor:R' }],
+      [
+        { ref: 'R1', pad: '1', net: '/OTHER' },
+        { ref: 'R1', pad: '2', net: 'SIGNAL' },
+      ],
+    );
+    expect(result.status).toBe('fail');
+    expect(result.violations).toHaveLength(2);
+  });
+
   it('fails closed when both design files contain no components', () => {
     const result = compareSchematicPcbParity([], [], [], []);
     expect(result.status).toBe('fail');

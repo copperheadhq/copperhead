@@ -86,6 +86,19 @@ interface BoardPad {
   net: string;
 }
 
+/**
+ * KiCad prefixes root-sheet local labels with `/` in a PCB net name, while
+ * the schematic reader returns the label itself. It also assigns synthetic
+ * `unconnected-(...)` names to PCB pads whose schematic pin has no net.
+ * Canonicalise only those two representations: hierarchical `/sheet/net`
+ * names remain distinct because dropping their path could merge real nets.
+ */
+function canonicalParityNet(net: string): string {
+  if (/^unconnected-\(/i.test(net)) return '';
+  if (/^\/[^/]+$/.test(net)) return net.slice(1);
+  return net;
+}
+
 /** Compare component identity, footprint ids, pad sets, and pad-net assignments. */
 export function compareSchematicPcbParity(
   symbols: SchematicSymbol[],
@@ -128,7 +141,7 @@ export function compareSchematicPcbParity(
     if (!pcbParts.has(ref!)) continue;
     if (!actualPads.has(key)) {
       violations.push({ claim: 'schematic/PCB parity', actual: `${ref}.${pad} is missing from PCB footprint`, location: ref });
-    } else if (actualPads.get(key) !== expectedNet) {
+    } else if (canonicalParityNet(actualPads.get(key) ?? '') !== canonicalParityNet(expectedNet)) {
       violations.push({
         claim: 'schematic/PCB parity',
         actual: `${ref}.${pad} is on ${actualPads.get(key) || 'no net'} on PCB, ${expectedNet || 'no net'} in schematic`,
