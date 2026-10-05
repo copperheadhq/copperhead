@@ -9,6 +9,7 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { fabReportOk, formatFabReport, runFabGate, type FabReport } from '../kicad/fab.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -35,9 +36,15 @@ export interface CheckResult {
     /** Advisory quantitative score; null when no schematic is configured. */
     score: ScoreReport | null;
   };
+  fab?: FabReport;
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+export interface CheckOptions {
+  fab?: boolean;
+  strict?: boolean;
+}
+
+export async function runCheck(repoRoot: string, log: (s: string) => void, options: CheckOptions = {}): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
@@ -122,12 +129,16 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  const fab = options.fab ? await runFabGate(repoRoot, config, drc, { strict: options.strict }) : undefined;
+  if (fab) log(formatFabReport(fab));
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (!fab || fabReportOk(fab));
 
   return {
     ok,
@@ -137,5 +148,6 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,
+    ...(fab ? { fab } : {}),
   };
 }

@@ -353,7 +353,7 @@ export interface TableRow {
         const footprint = row.cells[fpI];
         const mpn = row.cells[mpnI];
         const flags: string[] = [];
-        if (mpn === 'UNVERIFIED') flags.push('UNVERIFIED');
+        if (/\bUNVERIFIED\b/i.test(mpn ?? '')) flags.push('UNVERIFIED');
         else if (!mpn) flags.push('MISSING_MPN');
         out.push({
           refdes,

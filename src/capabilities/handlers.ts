@@ -16,6 +16,7 @@ import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../m
 import { openspecValidate } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
+import { fabReportOk, formatFabReport, recordFabOutputs, runFabGate } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
 import { corruptionError, markTouched, str } from './helpers.js';
@@ -693,14 +694,29 @@ export const HANDLERS: HandlerDef[] = [
     requiresUnlock: true,
     handler: async (ctx) => {
       if (!ctx.config.board) return 'no board configured';
+      const boardPath = path.join(ctx.repoRoot, ctx.config.board);
+      const drc = ctx.lastDrc ?? await runDrc(boardPath);
+      const preflight = await runFabGate(ctx.repoRoot, ctx.config, drc, {
+        strict: true,
+        skipOutputs: true,
+        skipDevplan: true,
+      });
+      if (!fabReportOk(preflight)) {
+        return {
+          ok: false,
+          text: `fabrication preflight failed; outputs were not generated:\n${formatFabReport(preflight)}`,
+        };
+      }
       const outDir = path.join(ctx.repoRoot, 'outputs');
       await mkdir(outDir, { recursive: true });
       const res = await exportFab(
-        path.join(ctx.repoRoot, ctx.config.board),
+        boardPath,
         ctx.config.schematic ? path.join(ctx.repoRoot, ctx.config.schematic) : null,
         outDir,
       );
+      if (res.failed.length === 0) await recordFabOutputs(ctx.repoRoot, ctx.config);
       ctx.filesTouched.add('outputs/');
+      if (res.failed.length === 0) ctx.filesTouched.add('.copperhead/config.json');
       const lines = [`produced: ${res.produced.join(', ') || '(none)'}`];
       for (const f of res.failed) lines.push(`FAILED ${f.artifact}: ${f.reason}`);
       return { ok: res.failed.length === 0, text: lines.join('\n') };

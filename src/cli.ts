@@ -159,12 +159,15 @@ program
     }
   });
 
-const checkAction = async (): Promise<void> => {
+const checkAction = async (opts: { fab?: boolean; strict?: boolean }): Promise<void> => {
   const repo = repoOf(program.opts());
   const json = Boolean(program.opts().json);
   try {
     await kicadCliVersion();
-    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s));
+    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s), {
+      fab: opts.fab ?? false,
+      strict: opts.strict ?? false,
+    });
     if (json) console.log(JSON.stringify(res, null, 2));
     process.exit(res.ok ? 0 : 1);
   } catch (err) {
@@ -177,6 +180,8 @@ program
   .command('check')
   .alias('verify')
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
+  .option('--fab', 'also run the fabrication release gate')
+  .option('--strict', 'treat fabrication warnings as failures (with --fab)')
   .action(checkAction);
 
 // `draft` and `score` are command groups taking the artifact as a noun

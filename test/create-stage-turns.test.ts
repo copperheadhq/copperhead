@@ -60,13 +60,33 @@ vi.mock('../src/agent/loop.js', async (importOriginal) => ({
 vi.mock('../src/openspec/cli.js', () => ({
   openspecInit: async () => ({ ok: true, output: 'mocked' }),
 }));
+const mockRunCheck = vi.hoisted(() => vi.fn(async () => ({ ok: true })));
 vi.mock('../src/commands/check.js', () => ({
-  runCheck: async () => ({ ok: true }),
+  runCheck: mockRunCheck,
 }));
 
-import { runCreate } from '../src/commands/create.js';
+import { runCreate, STAGES } from '../src/commands/create.js';
 
 describe('create pipeline per-stage turn budgets (AC-15.18, AC-15.19)', () => {
+  it('runs the final fabrication check in strict mode', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const originalCompletionChecks = STAGES.map((stage) => stage.isComplete);
+    try {
+      for (const stage of STAGES) stage.isComplete = async () => true;
+      const briefPath = path.join(repo, 'brief.md');
+      await writeFile(briefPath, '# A complete device\n', 'utf8');
+      mockRunCheck.mockClear();
+
+      const res = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });
+
+      expect(res.ok).toBe(true);
+      expect(mockRunCheck).toHaveBeenCalledWith(repo, expect.any(Function), { fab: true, strict: true });
+    } finally {
+      STAGES.forEach((stage, index) => { stage.isComplete = originalCompletionChecks[index]!; });
+      await cleanup();
+    }
+  });
+
   it('a stage with a stageMaxTurns entry gets that budget; others get the default', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

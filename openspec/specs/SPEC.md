@@ -296,6 +296,9 @@ copperhead skill run <name> [--scope power|all] [--model …]
 copperhead check          (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
+    With --fab, also require complete routing, an orderable BOM,
+    schematic/PCB footprint parity, current hash-backed Gerber/drill outputs,
+    and release documentation. --strict makes UNVERIFIED BOM rows fatal.
 
 copperhead sync [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs
@@ -484,6 +487,12 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+- **AC-2.6** `check --fab` adds stable routing, BOM, schematic/PCB parity,
+  output-freshness, and documentation results without changing plain `check`.
+  Failures exit non-zero; `UNVERIFIED` BOM rows warn unless `--strict` is set.
+- **AC-2.7** Fabrication export refuses before writing outputs when the
+  pre-export routing, BOM, schematic/PCB parity, or layout-documentation checks
+  fail, and records the source-board SHA-256 and output paths after success.
 
 ### AC-3 · `copperhead do` — core loop
 

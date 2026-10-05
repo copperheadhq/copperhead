@@ -64,6 +64,24 @@
 - **WHEN** `check --fab` runs on the fixture with the test network guard active
 - **THEN** no connection to any api.* host is attempted and the run completes in under 60 seconds
 
+### Requirement: Manufacturing export is preflight-gated
+The `export_outputs` tool SHALL run routing completeness, BOM readiness,
+schematic-to-PCB match, and layout-documentation checks before invoking any
+KiCad exporter. Its automated preflight SHALL use strict BOM readiness, so an
+`UNVERIFIED` part blocks export even though an explicitly invoked non-strict
+`check --fab` reports that condition as a warning. A failing preflight SHALL produce no new manufacturing files.
+A successful export SHALL record the source-board content hash and generated
+paths used by the output-freshness check.
+
+#### Scenario: Draft board cannot become an output package
+- **WHEN** `export_outputs` is requested for a DRC-clean board whose PCB
+  footprint differs from the schematic assignment
+- **THEN** export is refused before writing Gerbers and the mismatch is named
+
+#### Scenario: Autonomous export refuses unverified parts
+- **WHEN** `export_outputs` is requested while any BOM row remains `UNVERIFIED`
+- **THEN** export is refused before invoking KiCad and the affected refdes is named
+
 ### Requirement: JSON report shape
 With `--json`, the fab gate SHALL emit a stable `fab` object with keys `routing`, `bom`, `schPcbMatch`, `outputs`, and `docs`, each containing `status` (`pass`, `warn`, or `fail`) and a `violations` array of `{claim, actual, location?}` entries.
 

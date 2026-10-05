@@ -74,6 +74,12 @@ export interface CopperheadConfig {
   apiKeyEnv?: string;
   /** Content hashes of generated docs, for init idempotency (AC-1.4). */
   generatedHashes?: Record<string, string>;
+  /** Provenance for the most recent successful fabrication export. */
+  fabOutputs?: {
+    boardSha256: string;
+    files: string[];
+    generatedAt: string;
+  };
   /**
    * How the repo was bootstrapped. `"create"` marks a Mode A pipeline repo
    * (fab gate requires DEVPLAN.md). Written by `copperhead create`; absent on
@@ -152,6 +158,13 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(typeof raw.baseURL === 'string' && raw.baseURL.trim() ? { baseURL: raw.baseURL.trim() } : {}),
     ...(typeof raw.apiKeyEnv === 'string' && raw.apiKeyEnv.trim() ? { apiKeyEnv: raw.apiKeyEnv.trim() } : {}),
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
+    ...(raw.fabOutputs &&
+    typeof raw.fabOutputs.boardSha256 === 'string' &&
+    Array.isArray(raw.fabOutputs.files) &&
+    raw.fabOutputs.files.every((f) => typeof f === 'string') &&
+    typeof raw.fabOutputs.generatedAt === 'string'
+      ? { fabOutputs: raw.fabOutputs }
+      : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
   };

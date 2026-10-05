@@ -285,6 +285,25 @@ export async function listSymbols(rootSch: string): Promise<SchematicSymbol[]> {
   return out.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
 }
 
+export interface BoardFootprint {
+  ref: string;
+  footprint: string;
+}
+
+/** One row per placed PCB footprint. Read-only; never serializes the board. */
+export async function listBoardFootprints(boardPath: string): Promise<BoardFootprint[]> {
+  const root = parseSexp(await readFile(boardPath, 'utf8'))[0];
+  if (root === undefined || !isList(root)) throw new Error(`not a KiCad s-expression file: ${boardPath}`);
+  const out: BoardFootprint[] = [];
+  for (const fp of children(root, 'footprint')) {
+    const ref = property(fp, 'Reference') ??
+      children(fp, 'fp_text').find((n) => atomAt(n, 1) === 'reference')?.[2];
+    if (typeof ref !== 'string' || !ref || ref === 'REF**') continue;
+    out.push({ ref, footprint: atomAt(fp, 1) ?? '' });
+  }
+  return out.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
+}
+
 /** All net names visible via labels and power symbols, across all sheets. */
 export async function listNets(rootSch: string): Promise<string[]> {
   const sheets = await loadSheets(rootSch);

@@ -13,6 +13,8 @@ import path from 'node:path';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import { STAGES } from '../src/commands/create.js';
+import { recordFabOutputs } from '../src/kicad/fab.js';
+import { DEFAULTS } from '../src/config.js';
 
 /** Return the isComplete function for the named stage (throws if not found). */
 function stageNamed(name: string) {
@@ -310,26 +312,32 @@ describe('outputs isComplete', () => {
     });
   });
 
-  it('returns true when outputs/ contains at least one Gerber file (.gbr)', async () => {
+  it('returns false when outputs have no provenance record', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 
-  it('returns true when outputs/ contains a .gtl (top copper) Gerber', async () => {
+  it('returns false when only a Gerber exists, even with no provenance', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'board.gtl'), 'G04*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 
-  it('returns true when Gerber file is located in a nested subdirectory inside outputs/', async () => {
+  it('returns true only for hash-backed Gerber and drill outputs from the current board', async () => {
     await withTmpDir(async (root) => {
+      await mkdir(path.join(root, '.copperhead'), { recursive: true });
       await mkdir(path.join(root, 'outputs', 'gerbers'), { recursive: true });
+      await writeFile(path.join(root, 'board.kicad_pcb'), '(kicad_pcb)\n', 'utf8');
       await writeFile(path.join(root, 'outputs', 'gerbers', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
+      await writeFile(path.join(root, 'outputs', 'gerbers', 'board.drl'), 'M48\n', 'utf8');
+      const config = { schematic: null, board: 'board.kicad_pcb', ...DEFAULTS };
+      await writeFile(path.join(root, '.copperhead', 'config.json'), `${JSON.stringify(config)}\n`, 'utf8');
+      await recordFabOutputs(root, config);
       expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
     });
   });

@@ -26,6 +26,14 @@
 - **D4: Output freshness by recorded content hash, not mtime.** At export time (create stage 6, or a future `export` command) the SHA-256 of the source `.kicad_pcb` is written to `.copperhead/config.json` next to the output paths. `check --fab` recomputes and compares. mtime is untrustworthy across clones and CI checkouts; hashes survive `git clone`. Missing hash record with outputs present is reported as "unverifiable freshness" (failure, with the regeneration hint).
 - **D5: `UNVERIFIED` BOM rows are a warning by default, a failure with `--strict`.** Ordering prototypes with unverified parts is a legitimate, human-approved act; blocking it by default would make the gate get bypassed. `--strict` exists for release CI. Missing MPN or missing footprint is always a failure: those rows cannot be ordered at all.
 - **D6: JSON shape mirrors the existing report.** `fab: { routing, bom, schPcbMatch, outputs, docs }`, each `{ status: "pass" | "warn" | "fail", violations: [{claim, actual, location?}] }`. Stable keys per AC-2.4.
+- **D7: Export performs the pre-output subset before writing.** The agent's
+  `export_outputs` tool runs routing, BOM, schematic/PCB parity, and layout-doc
+  checks before invoking KiCad. Output freshness and create-only DEVPLAN are
+  excluded at that point because those artifacts are produced during later
+  pipeline steps; successful export records the hash required by the full gate.
+  Automated export and create's final gate use strict BOM readiness: unlike a
+  human explicitly running non-strict `check --fab`, the autonomous pipeline
+  cannot accept `UNVERIFIED` sourcing warnings on the user's behalf.
 
 ## Risks / Trade-offs
 

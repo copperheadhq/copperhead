@@ -72,6 +72,7 @@ copperhead demo --model cursor # full USB-C breakout create pipeline
 # or one-shot:
 copperhead do "add reverse-polarity protection on VIN"
 copperhead check               # ERC + DRC + doc drift; no LLM, CI-safe
+copperhead check --fab         # additionally prove routing/BOM/parity/output readiness
 ```
 
 Starting from nothing instead? Write a product brief and run `copperhead create --brief brief.md`. The [examples/](examples/) directory has ready-made briefs sorted by difficulty, plus a note on which one is designed to fail.
@@ -118,6 +119,7 @@ copperhead do "<change request>"     # the core loop: propose, edit, verify, pro
 copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
+copperhead check --fab [--strict]    # deterministic fabrication release gate
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
 copperhead create --brief brief.md   # brief → full output package
@@ -128,6 +130,14 @@ copperhead mcp                       # EXPERIMENTAL: serve the gated pipeline to
 Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, `skill run`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
 
 `copperhead create` still uses its own hardcoded stages; those are not yet skills.
+
+`check --fab` is the stronger “can this be ordered?” gate. It requires zero
+unrouted connections, an orderable BOM, matching schematic/PCB footprints,
+filled layout-release notes, and Gerber/drill files whose recorded SHA-256
+provenance matches the current board. `--strict` promotes `UNVERIFIED` BOM rows
+from warnings to failures. Manufacturing export runs the applicable checks
+before writing files, so a merely ERC/DRC-clean draft cannot silently become an
+orderable package.
 
 `--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), and `codex` / `codex:<id>` (Codex CLI, saved login). Routing is by prefix; `claude-code` is matched before the `claude` prefix. `compat:<id>` targets any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, or a local Ollama) via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV` - worked examples for each in [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
 

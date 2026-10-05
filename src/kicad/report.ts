@@ -22,6 +22,8 @@ export interface CheckReport {
    * layout), so they are counted and reported, never a violation (#314).
    */
   unrouted?: number;
+  /** DRC only: normalized unconnected items retained for the fab gate. */
+  unconnected?: Violation[];
   /**
    * DRC only: findings whose every item belongs to one footprint (a stock
    * USB-C footprint's pad 0.18 mm from its own peg hole). Placement cannot
@@ -95,8 +97,9 @@ export function normalizeReport(raw: unknown, source: 'erc' | 'drc'): CheckRepor
     else violations.push(n);
   }
   for (const v of r.schematic_parity ?? []) violations.push(normViolation(v));
-  const unrouted = r.unconnected_items?.length ?? 0;
-  return { ok: violations.length === 0, source, violations, ...(source === 'drc' ? { unrouted, intrinsic } : {}) };
+  const unconnected = (r.unconnected_items ?? []).map((v) => normViolation(v));
+  const unrouted = unconnected.length;
+  return { ok: violations.length === 0, source, violations, ...(source === 'drc' ? { unrouted, unconnected, intrinsic } : {}) };
 }
 
 /**

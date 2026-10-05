@@ -35,6 +35,20 @@ describe('entry-point results are byte-identical to the CLI --json output', () =
     }
   }, 120_000);
 
+  it('runCheck fab report matches `check --fab --json` and has stable sections', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, force: false, installHooks: false });
+      const directResult = await runCheck(repo, () => {}, { fab: true });
+      const res = await cli(repo, ['check', '--fab']);
+      expect(res.stdout.trim()).toBe(JSON.stringify(directResult, null, 2).trim());
+      expect(Object.keys(directResult.fab ?? {})).toEqual(['routing', 'bom', 'schPcbMatch', 'outputs', 'docs']);
+      expect(res.exitCode).toBe(1); // fixture has no release outputs or filled Draft quality section
+    } finally {
+      await cleanup();
+    }
+  }, 120_000);
+
   it('syncVerify matches `sync --dry-run --json`', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
