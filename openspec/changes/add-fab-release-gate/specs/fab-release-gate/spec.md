@@ -14,7 +14,7 @@
 - **THEN** the routing-completeness check reports pass
 
 ### Requirement: BOM readiness check
-`check --fab` SHALL fail when any BOM.md row lacks an MPN or a footprint, naming each incomplete row by refdes. Rows flagged `UNVERIFIED` SHALL be reported as warnings by default and SHALL fail the gate only when `--strict` is passed.
+`check --fab` SHALL fail when any BOM.md row lacks a value, footprint, MPN, or rationale, naming each incomplete row by refdes. Rows flagged `UNVERIFIED` SHALL be reported as warnings by default and SHALL fail the gate only when `--strict` is passed. `export_outputs` SHALL always apply strict behavior.
 
 #### Scenario: Missing MPN fails
 - **WHEN** `check --fab` runs and BOM.md has a row for `R3` with an empty MPN column
@@ -29,7 +29,7 @@
 - **THEN** the command exits non-zero citing the `UNVERIFIED` row
 
 ### Requirement: Schematic-to-PCB match check
-`check --fab` SHALL compare refdes and footprint assignments between the `.kicad_sch` and `.kicad_pcb` using the read-only s-expression reader, and SHALL fail naming every component present on only one side or carrying mismatched footprints. The comparison SHALL NOT regenerate or serialize either file.
+`check --fab` SHALL compare refdes, footprint assignments, pad-number sets, and pad-net assignments between the `.kicad_sch` and `.kicad_pcb` using the read-only s-expression reader, and SHALL fail naming every mismatch. Malformed or truncated files SHALL fail closed. The comparison SHALL NOT regenerate or serialize either file.
 
 #### Scenario: Component missing from board
 - **WHEN** the schematic contains `D2` and the board does not
@@ -49,6 +49,17 @@
 #### Scenario: Missing outputs fail
 - **WHEN** no gerber/drill package exists in the configured output path
 - **THEN** `check --fab` exits non-zero reporting the missing package
+
+### Requirement: Export is verification-gated
+`export_outputs` SHALL run fresh ERC and DRC and the strict fabrication checks before creating an output directory or invoking any manufacturing exporter. Provenance SHALL be written only after every exporter succeeds and Gerber and drill files exist.
+
+#### Scenario: Failed preflight writes no outputs
+- **WHEN** ERC, DRC, routing, BOM readiness, or schematic/PCB parity fails
+- **THEN** no exporter is invoked and no new output directory or success provenance is written
+
+#### Scenario: Stage completion requires current provenance
+- **WHEN** the board hash changes or any recorded output disappears
+- **THEN** the outputs stage is incomplete until a complete export regenerates the files and provenance
 
 ### Requirement: Documentation presence check
 `check --fab` SHALL fail when LAYOUT.md lacks a filled `## Draft quality` section, and, for repos produced by `create`, when DEVPLAN.md is absent.

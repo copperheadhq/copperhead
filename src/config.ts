@@ -26,6 +26,12 @@ export interface LegibilityUserConfig {
 export interface CopperheadConfig {
   schematic: string | null;
   board: string | null;
+  /** Successful fabrication export tied to the exact board bytes. */
+  fabOutputs?: {
+    boardSha256: string;
+    files: string[];
+    generatedAt: string;
+  };
   /** Schematic legibility checker thresholds and severity overrides. */
   legibility?: LegibilityUserConfig;
   docs: string;
@@ -152,6 +158,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(typeof raw.baseURL === 'string' && raw.baseURL.trim() ? { baseURL: raw.baseURL.trim() } : {}),
     ...(typeof raw.apiKeyEnv === 'string' && raw.apiKeyEnv.trim() ? { apiKeyEnv: raw.apiKeyEnv.trim() } : {}),
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
+    ...(raw.fabOutputs ? { fabOutputs: raw.fabOutputs } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
   };

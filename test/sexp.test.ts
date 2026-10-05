@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { listSymbols, listNets, pinNets, parseSexp } from '../src/kicad/sexp.js';
+import { listSymbols, listNets, pinNets, parseKicadSexpStrict, parseSexp } from '../src/kicad/sexp.js';
 import { FIXTURE, tempFixtureRepo } from './helpers.js';
 
 const SCH = path.join(FIXTURE, 'hardware', 'open-key.kicad_sch');
@@ -9,6 +9,11 @@ describe('sexp parser', () => {
   it('parses quoted strings with escapes', () => {
     const [node] = parseSexp('(a "b \\"c\\"" d)');
     expect(node).toEqual(['a', 'b "c"', 'd']);
+  });
+
+  it('strict parsing rejects truncated structures and the wrong KiCad root', () => {
+    expect(() => parseKicadSexpStrict('(kicad_sch (symbol)', 'kicad_sch')).toThrow('unbalanced parentheses');
+    expect(() => parseKicadSexpStrict('(kicad_pcb)', 'kicad_sch')).toThrow('expected exactly one');
   });
 
   it('lists real symbols with refdes, value, footprint (AC-1.2 source)', async () => {

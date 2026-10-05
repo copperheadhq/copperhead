@@ -118,6 +118,8 @@ copperhead do "<change request>"     # the core loop: propose, edit, verify, pro
 copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
+copperhead check --fab               # read-only fabrication-readiness report
+copperhead check --fab --strict      # also fail on UNVERIFIED BOM rows
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
 copperhead create --brief brief.md   # brief → full output package
@@ -128,6 +130,14 @@ copperhead mcp                       # EXPERIMENTAL: serve the gated pipeline to
 Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, `skill run`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
 
 `copperhead create` still uses its own hardcoded stages; those are not yet skills.
+
+### Fabrication readiness
+
+`copperhead check --fab` is a deterministic, LLM-free, network-free inspection. In addition to the ordinary checks, it reports routing completeness, BOM readiness, schematic/PCB parity, output freshness, and release-document presence. Its JSON form adds a stable `fab` object with `routing`, `bom`, `schPcbMatch`, `outputs`, and `docs` sections. `UNVERIFIED` BOM rows are warnings during normal inspection and failures with `--strict`; missing values, footprints, MPNs, or rationales always fail.
+
+The `export_outputs` agent tool applies the strict form automatically. Before invoking KiCad exporters or creating a new `outputs/` directory, it requires fresh clean ERC/DRC results, zero unrouted connections, a fully verified BOM, and matching schematic/PCB references, footprint IDs, pad numbers, and pad nets. Truncated or malformed KiCad files fail closed.
+
+After every exporter succeeds and Gerber plus drill files exist, copperhead records the board SHA-256, generated paths, and timestamp in `.copperhead/config.json`. Stage 6 remains complete only while that hash matches the current board and every recorded file still exists. This verifies traceability and mechanical consistency; it does not replace engineer or manufacturer sign-off.
 
 `--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), and `codex` / `codex:<id>` (Codex CLI, saved login). Routing is by prefix; `claude-code` is matched before the `claude` prefix. `compat:<id>` targets any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, or a local Ollama) via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV` - worked examples for each in [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
 
