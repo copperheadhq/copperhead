@@ -12,3 +12,6 @@ demo-runs/
 manual-tests/runs/
 *.tgz
 .npmrc
+*.env
+foundry-shashank.env
+.codex/
