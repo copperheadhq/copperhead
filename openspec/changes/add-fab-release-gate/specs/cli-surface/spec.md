@@ -1,6 +1,6 @@
 # cli-surface — Delta Spec
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: `check` is deterministic and LLM-free
 `copperhead check` SHALL run ERC, DRC, and the doc-drift check, exit non-zero if any violation exists, and make zero LLM/network calls, completing in under 60 seconds on the test fixture. `copperhead verify` SHALL be an alias with identical behavior. With `--fab`, `check` SHALL additionally run the fabrication release gate (routing completeness, BOM readiness, schematic-to-PCB match, output freshness, documentation presence) under the same zero-LLM, zero-network, 60-second contract; `--strict` SHALL escalate fab-gate warnings to failures. Without `--fab`, behavior SHALL be unchanged.

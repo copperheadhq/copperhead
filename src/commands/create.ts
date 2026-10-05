@@ -33,7 +33,7 @@ import { openspecInit } from '../openspec/cli.js';
 import { sweepStaleTempDirs, pruneHistoryDir } from '../util/tmp.js';
 import { bomSymbolDossier } from '../kicad/dossier.js';
 import { symbolSearchDirs } from '../kicad/symlib.js';
-import { isDraftQualityHeading } from '../kicad/fab.js';
+import { checkFabOutputProvenance, isDraftQualityHeading } from '../kicad/fab.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
@@ -301,9 +301,8 @@ export const STAGES: Stage[] = [
   {
     name: 'outputs',
     isComplete: async (root) => {
-      // An empty outputs/ dir (e.g. from a failed export run) must not count
-      // as complete. Require at least one Gerber file (any .gbr variant).
-      return dirHasFiles(path.join(root, 'outputs'), ['.gbr', '.gtl', '.gbl', '.gbs', '.gbo', '.gbp', '.gbd', '.gto', '.gts', '.gml']);
+      const config = await loadConfig(root);
+      return (await checkFabOutputProvenance(root, config)).status === 'pass';
     },
     prompt: () =>
       'Stage 6: outputs package. Export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, SVG renders (export_svg), and an ordering BOM.csv generated from BOM.md (refdes, MPN, qty). Every export must succeed.',

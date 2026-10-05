@@ -23,6 +23,10 @@ describe('copperhead init (AC-1)', () => {
       }
       expect(existsSync(path.join(repo, '.copperhead', 'config.json'))).toBe(true);
       expect(existsSync(path.join(repo, '.copperhead', 'README.md'))).toBe(true);
+      const internalReadme = await readFile(path.join(repo, '.copperhead', 'README.md'), 'utf8');
+      expect(internalReadme).toContain('`fabOutputs`');
+      expect(internalReadme).toContain('`boardSha256`');
+      expect(internalReadme).toContain('`check --fab`');
       expect(existsSync(path.join(repo, '.git', 'hooks', 'pre-commit'))).toBe(true);
       expect(res.refused).toEqual([]);
     } finally {

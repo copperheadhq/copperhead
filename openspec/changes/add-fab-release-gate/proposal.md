@@ -8,13 +8,13 @@ A design that passes ERC/DRC can still be unorderable: unrouted nets, BOM rows w
 
 - **`copperhead check --fab`**: an opt-in superset of `check` that runs the standard ERC + DRC + drift + constraint checks, then a fabrication release gate:
   - **Routing completeness**: zero unconnected items / airwires in the DRC report; explicit failure listing each unrouted net.
-  - **BOM readiness**: every BOM.md row has an MPN and a footprint; rows still flagged `UNVERIFIED` are reported (warning by default, failure with `--strict`).
-  - **Schematic-to-PCB match**: refdes and footprint parity between `.kicad_sch` and `.kicad_pcb`; components present on one side only are named.
+  - **BOM readiness**: every BOM.md row has a value, footprint, MPN, and rationale; rows still flagged `UNVERIFIED` are reported (warning by default, failure with `--strict`).
+  - **Schematic-to-PCB match**: refdes, footprint, pad-number, and pad-net parity between `.kicad_sch` and `.kicad_pcb`; differences are named and malformed files fail closed.
   - **Output freshness**: gerber/drill package exists and is not stale (content hashes of the source `.kicad_pcb` recorded at export time match current state); missing or stale outputs fail with a one-line regeneration hint.
   - **Documentation presence**: LAYOUT.md has a filled `## Draft quality` section and DEVPLAN.md exists when the repo was produced by `create`.
 - The gate is **contractually LLM-free and network-free**, same as the rest of `check` (AC-2.1's network guard extends to `--fab`), so it is safe in CI and pre-commit.
 - `--json` output gains a stable `fab` section with per-check results.
-- No agent-loop changes: this is pure deterministic tooling.
+- `export_outputs` enforces the strict gate before creating output directories or invoking KiCad exporters; `check --fab` remains a read-only inspection surface.
 
 ## Capabilities
 
@@ -32,4 +32,4 @@ A design that passes ERC/DRC can still be unorderable: unrouted nets, BOM rows w
 - **Specs**: SPEC.md `check` section and AC-2 gain fab-gate criteria on archive.
 - **Tests**: fixture variants (unrouted net, MPN-less BOM row, sch/pcb mismatch, stale gerbers) in the offline suite; network guard asserted for `--fab` runs.
 - **Dependencies**: none new; reuses `kicad-cli` DRC JSON and the read-only s-expression parser.
-- **Unchanged contracts**: plain `check` behavior is byte-identical when `--fab` is absent; spec-gating and the agent loop are untouched.
+- **Unchanged contracts**: plain `check` behavior is byte-identical when `--fab` is absent; spec-gating is untouched.

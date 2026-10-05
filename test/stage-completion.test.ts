@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { STAGES } from '../src/commands/create.js';
 
 /** Return the isComplete function for the named stage (throws if not found). */
@@ -36,6 +37,24 @@ async function withTmpDir(fn: (root: string) => Promise<void>): Promise<void> {
 }
 
 const DOCS = 'docs';
+
+async function writeFabState(root: string): Promise<void> {
+  const board = '(kicad_pcb)\n';
+  const files = ['outputs/gerbers/board-F_Cu.gbr', 'outputs/gerbers/board.drl'];
+  await mkdir(path.join(root, '.copperhead'), { recursive: true });
+  await mkdir(path.join(root, 'outputs', 'gerbers'), { recursive: true });
+  await writeFile(path.join(root, 'board.kicad_pcb'), board);
+  await writeFile(path.join(root, files[0]!), 'G04*\n');
+  await writeFile(path.join(root, files[1]!), 'M48\n');
+  await writeFile(path.join(root, '.copperhead', 'config.json'), JSON.stringify({
+    board: 'board.kicad_pcb',
+    fabOutputs: {
+      boardSha256: createHash('sha256').update(board).digest('hex'),
+      files,
+      generatedAt: '2026-10-05T00:00:00.000Z',
+    },
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // Stage 1: spec-seed
@@ -310,27 +329,50 @@ describe('outputs isComplete', () => {
     });
   });
 
-  it('returns true when outputs/ contains at least one Gerber file (.gbr)', async () => {
+  it('returns false when an unrecorded Gerber exists', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 
-  it('returns true when outputs/ contains a .gtl (top copper) Gerber', async () => {
+  it('returns false when an unrecorded .gtl Gerber exists', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'board.gtl'), 'G04*\n', 'utf8');
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('returns false when a nested Gerber has no provenance', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, 'outputs', 'gerbers'), { recursive: true });
+      await writeFile(path.join(root, 'outputs', 'gerbers', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('returns true for current provenance with existing Gerber and drill files', async () => {
+    await withTmpDir(async (root) => {
+      await writeFabState(root);
       expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
     });
   });
 
-  it('returns true when Gerber file is located in a nested subdirectory inside outputs/', async () => {
+  it('returns false after the board changes', async () => {
     await withTmpDir(async (root) => {
-      await mkdir(path.join(root, 'outputs', 'gerbers'), { recursive: true });
-      await writeFile(path.join(root, 'outputs', 'gerbers', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      await writeFabState(root);
+      await writeFile(path.join(root, 'board.kicad_pcb'), '(kicad_pcb (version 2))\n');
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('returns false when any recorded file is missing', async () => {
+    await withTmpDir(async (root) => {
+      await writeFabState(root);
+      await rm(path.join(root, 'outputs', 'gerbers', 'board.drl'));
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 });

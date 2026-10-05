@@ -15,7 +15,14 @@ import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
-import { isEngineAuthoredSchematic } from '../kicad/fab.js';
+import {
+  checkBomReadiness,
+  checkSchematicPcbParity,
+  clearFabOutputProvenance,
+  isEngineAuthoredSchematic,
+  recordFabOutputProvenance,
+  validateFabricationOutputs,
+} from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
 import { corruptionError, markTouched, str } from './helpers.js';
@@ -687,13 +694,43 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'export_outputs',
       description:
-        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Reports per-artifact success/failure.',
+        'Run fresh ERC/DRC fabrication preflight, then export the package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Reports per-artifact success/failure.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: true,
     handler: async (ctx) => {
       if (!ctx.config.board) return 'no board configured';
+      if (ctx.config.schematic) {
+        const erc = await runErc(path.join(ctx.repoRoot, ctx.config.schematic));
+        ctx.lastErc = erc;
+        if (!erc.ok) {
+          return { ok: false, text: `fabrication preflight failed: ERC is not clean\n${formatViolations(erc)}` };
+        }
+      }
+      const drc = await runDrc(path.join(ctx.repoRoot, ctx.config.board));
+      ctx.lastDrc = drc;
+      if (!drc.ok || (drc.unrouted ?? 0) > 0) {
+        const routing = (drc.unrouted ?? 0) > 0 ? `\n${drc.unrouted} unrouted connection(s) remain` : '';
+        return { ok: false, text: `fabrication preflight failed: DRC is not fabrication-clean\n${formatViolations(drc)}${routing}` };
+      }
+      const bomPath = path.join(ctx.repoRoot, ctx.config.docs, 'BOM.md');
+      const bom = checkBomReadiness(existsSync(bomPath) ? await readFile(bomPath, 'utf8') : null);
+      if (bom.status === 'fail') {
+        const detail = bom.violations.map((violation) => `- ${violation.actual}`).join('\n');
+        return { ok: false, text: `fabrication preflight failed: BOM is not release-ready\n${detail}` };
+      }
+      const parity = await checkSchematicPcbParity(
+        ctx.config.schematic ? path.join(ctx.repoRoot, ctx.config.schematic) : null,
+        path.join(ctx.repoRoot, ctx.config.board),
+      );
+      if (parity.status === 'fail') {
+        const detail = parity.violations.map((violation) => `- ${violation.actual}`).join('\n');
+        return { ok: false, text: `fabrication preflight failed: schematic/PCB parity mismatch\n${detail}` };
+      }
       const outDir = path.join(ctx.repoRoot, 'outputs');
+      if (await clearFabOutputProvenance(ctx.repoRoot, ctx.config)) {
+        ctx.filesTouched.add('.copperhead/config.json');
+      }
       await mkdir(outDir, { recursive: true });
       const res = await exportFab(
         path.join(ctx.repoRoot, ctx.config.board),
@@ -703,7 +740,15 @@ export const HANDLERS: HandlerDef[] = [
       ctx.filesTouched.add('outputs/');
       const lines = [`produced: ${res.produced.join(', ') || '(none)'}`];
       for (const f of res.failed) lines.push(`FAILED ${f.artifact}: ${f.reason}`);
-      return { ok: res.failed.length === 0, text: lines.join('\n') };
+      if (res.failed.length) return { ok: false, text: lines.join('\n') };
+      const outputCheck = await validateFabricationOutputs(ctx.repoRoot);
+      if (outputCheck.violations.length) {
+        for (const violation of outputCheck.violations) lines.push(`FAILED outputs: ${violation}`);
+        return { ok: false, text: lines.join('\n') };
+      }
+      await recordFabOutputProvenance(ctx.repoRoot, ctx.config, outputCheck.files);
+      ctx.filesTouched.add('.copperhead/config.json');
+      return { ok: true, text: lines.join('\n') };
     },
   },
   {

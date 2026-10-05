@@ -60,6 +60,37 @@ export function parseSexp(text: string): SexpNode[] {
   return roots;
 }
 
+/**
+ * Validate balanced structure before using the deliberately minimal reader for
+ * a safety gate. The general reader remains tolerant for discovery paths, but
+ * fabrication checks must never interpret a truncated file as a valid subset.
+ */
+export function parseKicadSexpStrict(text: string, expectedRoot: 'kicad_sch' | 'kicad_pcb'): SexpNode[] {
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!;
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') quoted = false;
+      continue;
+    }
+    if (char === '"') quoted = true;
+    else if (char === '(') depth++;
+    else if (char === ')' && --depth < 0) throw new Error('unexpected closing parenthesis');
+  }
+  if (quoted) throw new Error('unterminated quoted string');
+  if (depth !== 0) throw new Error(`unbalanced parentheses (${depth} unclosed)`);
+  const roots = parseSexp(text);
+  const root = roots[0];
+  if (roots.length !== 1 || root === undefined || !isList(root) || root[0] !== expectedRoot) {
+    throw new Error(`expected exactly one (${expectedRoot} ...) root`);
+  }
+  return roots;
+}
+
 export const isList = (n: SexpNode): n is SexpNode[] => Array.isArray(n);
 const tag = (n: SexpNode): string | null => (isList(n) && typeof n[0] === 'string' ? n[0] : null);
 
