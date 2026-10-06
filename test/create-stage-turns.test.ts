@@ -89,8 +89,11 @@ describe('create pipeline per-stage turn budgets (AC-15.18, AC-15.19)', () => {
       const calls = mockRunAgentLoop.mock.calls.map(([opts]) => opts);
       const specSeed = calls.find((o) => o.request.includes('spec-seed'));
       const architecture = calls.find((o) => o.request.includes('architecture'));
+      const schematic = calls.find((o) => o.request.includes('schematic'));
       expect(specSeed?.maxTurns).toBe(60);
       expect(architecture?.maxTurns).toBeUndefined();
+      expect(schematic?.stageGate).toBeTypeOf('function');
+      await expect(schematic!.stageGate!()).resolves.toContain('has no symbols');
     } finally {
       await cleanup();
     }

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dispatchTool, type RunContext } from '../src/agent/tools.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
-import { STAGES } from '../src/commands/create.js';
+import { schematicContractGap, STAGES } from '../src/commands/create.js';
 
 /**
  * Agent-tool and pipeline wiring for the drafting engine: draft_schematic,
@@ -188,6 +188,9 @@ describe('stage-4 drafting contract (AC-16.20)', () => {
       intent.nets.find((n: { name: string }) => n.name === 'SIG_IN').name = 'SIG_A';
       await writeFile(intentPath, JSON.stringify(intent, null, 2), 'utf8');
       expect(await isComplete(repo, 'docs/')).toBe(false);
+      expect(await schematicContractGap(repo)).toContain(
+        'board.kicad_sch does not match the current schematic.intent.json; call draft_schematic',
+      );
 
       // re-draft: complete again
       const res = await draftSchematic({
@@ -198,6 +201,24 @@ describe('stage-4 drafting contract (AC-16.20)', () => {
       });
       expect(res.ok).toBe(true);
       expect(await isComplete(repo, 'docs/')).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  }, 120000);
+
+  it('keeps the draft validator findings as actionable completion guidance (#326)', async () => {
+    const { repo, cleanup } = await draftedRepo();
+    try {
+      const intentPath = path.join(repo, 'schematic.intent.json');
+      const intent = JSON.parse(await readFile(intentPath, 'utf8'));
+      intent.nets.push({ name: 'BROKEN', pins: ['U1.99', 'R1.1'] });
+      await writeFile(intentPath, JSON.stringify(intent, null, 2), 'utf8');
+
+      const gap = await schematicContractGap(repo);
+      expect(gap).toContain('repair schematic.intent.json and call draft_schematic');
+      expect(gap).toContain('U1 has no pin 99');
+      expect(gap).toContain('pin R1.1 appears in more than one net');
+      expect(gap).not.toContain('no usable artifact was produced');
     } finally {
       await cleanup();
     }

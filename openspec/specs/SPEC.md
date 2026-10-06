@@ -666,6 +666,7 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-16.22 (illegible sheet does not complete the stage)** When the stage's run succeeds with symbols present and drift clean but the checker reports error-severity legibility findings, `create` reports the contract as unmet with finding counts by kind, does not advance, and a re-run resumes at the schematic stage.
 - **AC-16.23 (hand edit is redirected to the IR)** An `edit_file` call against an engine-drafted schematic during the schematic stage is refused naming `draft_schematic` as the correct path, and no file changes.
 - **AC-16.24 (`finish` refuses while illegible)** Calling `finish` with outcome "done" while error-severity legibility findings remain lists them as unmet obligations, and the run does not conclude as done.
+- **AC-16.25 (incomplete schematic reports the authoritative cause)** When schematic completion fails, resume detection, the in-run `finish` gate, and post-run recovery use the same deterministic completion diagnostic. An invalid intent reports the draft validator's exact findings and directs the agent to repair the intent and re-draft; a valid intent whose generated sheet is stale explicitly directs the agent to re-draft. Neither case is reduced to a generic missing-artifact message or left for the recovery model to infer.
 
 **CLI surface — legibility never gates `check`**
 
