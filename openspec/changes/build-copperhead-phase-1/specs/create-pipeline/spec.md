@@ -27,6 +27,10 @@ Pipeline state SHALL live in the repo (docs + files + gate results), so a killed
 - **WHEN** `create` is killed after the BOM stage and re-run
 - **THEN** it skips spec/architecture/BOM and resumes at the schematic stage
 
+#### Scenario: Incomplete schematic resumes with its deterministic cause
+- **WHEN** a resumed schematic has an invalid intent or no longer matches a re-draft of its current intent
+- **THEN** the stage's `finish` gate and recovery guidance report the draft validator's exact findings or the stale-draft mismatch, direct the agent to repair the intent and re-draft, and never replace that evidence with a generic missing-artifact message
+
 ### Requirement: First-draft layout with honesty gate
 The layout stage SHALL produce rule-driven placement (real coordinates in the `.kicad_pcb`) and rule-based routing of power/critical nets, with every routed net passing DRC, and SHALL auto-write a `## Draft quality` section in LAYOUT.md listing what is done and what a human or specialist tool should redo.
 
