@@ -27,16 +27,21 @@ const PCB = 'demo-board.kicad_pcb';
 
 type Attempt = (opts: RunOptions) => Promise<'success' | 'failure'>;
 const layout = vi.hoisted(() => ({ attempts: [] as Attempt[], calls: [] as RunOptions[], boards: [] as string[] }));
+const schematicCalls = vi.hoisted(() => [] as RunOptions[]);
 const verdict = vi.hoisted(() => ({ value: 'abort' as 'retry' | 'abort' }));
 
 vi.mock('../src/agent/loop.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   makeProvider: async () => ({ name: 'mock', close: async () => {} }),
   runAgentLoop: vi.fn(async (opts: RunOptions) => {
-    if (!opts.request.includes('layout-draft')) throw new Error(`unexpected stage run: ${opts.request}`);
-    layout.calls.push(opts);
-    layout.boards.push(await readFile(path.join(opts.repoRoot, PCB), 'utf8'));
-    const next = layout.attempts.shift();
+    const isSchematic = opts.request.includes('schematic');
+    if (!isSchematic && !opts.request.includes('layout-draft')) throw new Error(`unexpected stage run: ${opts.request}`);
+    if (isSchematic) schematicCalls.push(opts);
+    else {
+      layout.calls.push(opts);
+      layout.boards.push(await readFile(path.join(opts.repoRoot, PCB), 'utf8'));
+    }
+    const next = isSchematic ? undefined : layout.attempts.shift();
     const outcome = next ? await next(opts) : 'failure';
     return {
       outcome,
@@ -59,7 +64,7 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
 vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: 'mocked' }) }));
 vi.mock('../src/commands/check.js', () => ({ runCheck: async () => ({ ok: true }) }));
 
-import { runCreate, STAGES, layoutDocGap } from '../src/commands/create.js';
+import { runCreate, schematicContractGap, STAGES, layoutDocGap } from '../src/commands/create.js';
 
 /**
  * A git repo whose first four stages are complete: filled SPEC/SUBSYSTEMS/BOM
@@ -113,6 +118,7 @@ describe('create layout-draft around board populate (#314)', () => {
     layout.attempts = [];
     layout.calls = [];
     layout.boards = [];
+    schematicCalls.length = 0;
     verdict.value = 'abort';
   });
   afterEach(() => {
@@ -238,7 +244,14 @@ describe('create layout-draft around board populate (#314)', () => {
       const res = await draftSchematic({ repoRoot: repo, schematic: SCH, intentPath: 'schematic.intent.json', docsDir: path.join(repo, 'docs'), symbolDirs: [SYMLIB] });
       expect(res.ok).toBe(true);
       expect(await schematic.isComplete(repo, 'docs/')).toBe(false);
-      void brief;
+      const gap = await schematicContractGap(repo);
+      expect(gap).toContain('repair schematic.intent.json and call draft_schematic');
+      expect(gap).toContain('pad(s) 3 of footprint Package_TO_SOT_SMD:SOT-23 have no symbol pin');
+      expect(gap).not.toContain('no usable artifact was produced');
+      await run(repo, brief);
+      expect(schematicCalls).toHaveLength(1);
+      expect(schematicCalls[0]!.stagePrompt).toContain('Existing stage completion finding');
+      expect(schematicCalls[0]!.stagePrompt).toContain('pad(s) 3 of footprint Package_TO_SOT_SMD:SOT-23 have no symbol pin');
     } finally {
       await cleanup();
     }

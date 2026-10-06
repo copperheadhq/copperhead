@@ -80,6 +80,74 @@ async function docHasHeading(repoRoot: string, rel: string, word: string): Promi
   return re.test(await readFile(p, 'utf8'));
 }
 
+/**
+ * The authoritative schematic-stage completion check, with the reason kept.
+ * Resume detection, the in-run finish gate, and post-run recovery must all use
+ * this same result: reducing the draft validator to a boolean makes a repairable
+ * IR error invisible to the agent and leaves the recovery supervisor guessing
+ * (#326).
+ */
+export async function schematicContractGap(root: string): Promise<string | null> {
+  const config = await loadConfig(root);
+  if (!config.schematic) return 'the schematic stage contract is not met: no schematic is configured';
+  const p = path.join(root, config.schematic);
+  if (!existsSync(p)) {
+    return `the schematic stage contract is not met: configured schematic ${config.schematic} does not exist`;
+  }
+
+  if (!(await listSymbols(p)).length) {
+    return `the schematic stage contract is not met: ${config.schematic} has no symbols; author schematic.intent.json and call draft_schematic`;
+  }
+
+  const drift = await checkDrift(root, config.docs, config.schematic);
+  if (drift.length) {
+    const details = drift.slice(0, 8).map((m) => `${m.doc}: ${m.claim}; actual: ${m.actual}`).join('; ');
+    const more = drift.length > 8 ? `; and ${drift.length - 8} more` : '';
+    return `the schematic stage contract is not met: ${drift.length} BOM/PINOUT drift mismatch(es): ${details}${more}; reconcile the intent and docs, re-draft, then run check_drift`;
+  }
+
+  const erc = await runErc(p);
+  if (!erc.ok) {
+    return `the schematic stage contract is not met: ERC is failing; repair the intent, re-draft, and run run_erc:\n${formatViolations(erc)}`;
+  }
+
+  const legibility = await checkLegibility(p, {
+    docsDir: path.join(root, config.docs),
+    ...(config.legibility ? { config: config.legibility } : {}),
+  });
+  if (legibility.counts.error > 0) {
+    const byKind = new Map<string, number>();
+    for (const finding of legibility.findings.filter((f) => f.severity === 'error')) {
+      byKind.set(finding.kind, (byKind.get(finding.kind) ?? 0) + 1);
+    }
+    const counts = [...byKind].map(([kind, count]) => `${kind}: ${count}`).join(', ');
+    return `the schematic stage contract is not met: ${legibility.counts.error} error-severity legibility finding(s) remain (${counts}); revise the intent and call draft_schematic`;
+  }
+
+  const intentRel = defaultIntentPath(config.schematic);
+  if (!existsSync(path.join(root, intentRel))) return null;
+
+  let dry;
+  try {
+    dry = await draftSchematicToText({
+      repoRoot: root,
+      schematic: config.schematic,
+      intentPath: intentRel,
+      docsDir: config.docs,
+      footprints: await FootprintResolver.create({ projectDir: path.dirname(p) }),
+    });
+  } catch (error) {
+    return `the schematic stage contract could not validate ${intentRel}: ${(error as Error).message}`;
+  }
+  if (!dry.ok) {
+    return `the schematic stage contract is not met; repair ${intentRel} and call draft_schematic:\n${dry.message}`;
+  }
+  if (dry.text !== (await readFile(p, 'utf8'))) {
+    return `the schematic stage contract is not met: ${config.schematic} does not match the current ${intentRel}; call draft_schematic to regenerate it`;
+  }
+  return null;
+}
+
 export async function writeBriefHash(
   repoRoot: string,
   docsDir: string,
@@ -212,59 +280,7 @@ export const STAGES: Stage[] = [
   },
   {
     name: 'schematic',
-    isComplete: async (root) => {
-      const config = await loadConfig(root);
-      if (!config.schematic) return false;
-      const p = path.join(root, config.schematic);
-      if (!existsSync(p)) return false;
-      // Mere file existence is not completion: bootstrapping leaves a blank
-      // sheet on disk (a hand-scaffolded project, or the future fix for #19),
-      // and skipping this stage over a blank sheet cascades — layout and
-      // outputs then run against nothing. The stage's contract is "build the
-      // schematic from BOM.md", so completion means symbols exist AND the
-      // BOM/PINOUT tables agree with them (drift-clean); anything less keeps
-      // the stage active on the next resume so partial capture continues.
-      if (!(await listSymbols(p)).length) return false;
-      if ((await checkDrift(root, config.docs, config.schematic)).length !== 0) return false;
-      // ERC-clean is part of "done" (F2 / verification-gated-out on the resume
-      // path). Symbols + drift-clean can still hold on a schematic with
-      // unconnected pins — e.g. a run hard-killed mid-capture after BOM/PINOUT
-      // went clean but before ERC passed. Without this check, resume would treat
-      // it as complete and commitResumedStage would commit an ERC-failing
-      // schematic, advancing the pipeline against unverified work. Returning
-      // false here keeps the stage active so it re-runs, fixes ERC, and commits
-      // through the normal finish gate.
-      if (!(await runErc(p)).ok) return false;
-      // Legibility is the one stage-4 output no electrical gate sees (AC-16.22):
-      // an ERC-clean sheet with text over symbol bodies passes everything above
-      // while being unreviewable. Error-severity findings keep the stage active;
-      // advisories never block.
-      const legibility = await checkLegibility(p, {
-        docsDir: path.join(root, config.docs),
-        ...(config.legibility ? { config: config.legibility } : {}),
-      });
-      if (legibility.counts.error !== 0) return false;
-      // Drafting mode: the schematic must match a re-draft of the current IR
-      // (AC-16.20) — an intent edited after the last draft_schematic call means
-      // the sheet on disk no longer reflects the design and the stage stays
-      // active until a re-draft.
-      const intentRel = defaultIntentPath(config.schematic);
-      if (existsSync(path.join(root, intentRel))) {
-        // With a footprint resolver, so the pin/pad checks (#314, #325) run at
-        // completion too: a sheet drafted against a mismatched footprint is sent
-        // back to this stage instead of populating a board with floating pads.
-        const dry = await draftSchematicToText({
-          repoRoot: root,
-          schematic: config.schematic,
-          intentPath: intentRel,
-          docsDir: config.docs,
-          footprints: await FootprintResolver.create({ projectDir: path.dirname(p) }),
-        });
-        if (!dry.ok) return false;
-        if (dry.text !== (await readFile(p, 'utf8'))) return false;
-      }
-      return true;
-    },
+    isComplete: async (root) => (await schematicContractGap(root)) === null,
     prompt: () =>
       'Stage 4: schematic. An empty KiCad project has already been scaffolded and wired into .copperhead/config.json. You author INTENT, never geometry: write the netlist-intent IR and call draft_schematic — the deterministic engine computes every coordinate, wire, label, power symbol, and group box, and the sheet it draws satisfies the drafting standard by construction (captioned group boxes per SUBSYSTEMS.md subsystem, left-to-right flow, rails up and grounds down, net labels between groups, filled title block). The IR (schematic.intent.json) is JSON: {"version": 1, "parts": [{"ref", "libId", "value", "footprint", "group"}], "nets": [{"name", "pins": ["REF.PIN", …], "kind"?}], "noConnect": ["REF.PIN", …], "hints"?: {"groupOrder"?, "paper"?, "date"?}}. Build it from BOM.md (same refdes and values — validation cross-checks and refuses mismatches) and SUBSYSTEMS.md (every non-power part names one subsystem heading as its group). Use exact canonical KiCad lib_ids (e.g. Device:R) and REAL pin numbers from the library: the pin dossier below (when present) already lists every BOM part\'s installed symbol and its real pins — work from it and from symbol_pins rather than reading .kicad_sym files, and validation lists a part\'s actual pins when you name one that does not exist. Name nets as a reader expects: a bus or interface shares a prefix (I2S_BCLK, I2S_DIN, I2S_LRCLK; SPI_…; BTN_…) so the drawing colours the family together, differential pairs end in +/- or P/N, and part values carry their unit (F, H, R). Declare every deliberately unused pin in noConnect; power rails are recognized from pin types automatically (override with "kind" only when the inference is wrong — the draft report lists every net\'s resolved class). Pass the full IR as intent_json to draft_schematic; the report embeds the legibility findings and the score for the fresh sheet. To repair ANY finding (ERC, legibility, validation), fix the IR and call draft_schematic again — edit_file is refused on the drafted sheet. Text-collision findings scale with TEXT LENGTH: a net label, part value, or SUBSYSTEMS heading that is shorter draws a smaller box, so renaming a colliding net (and updating PINOUT.md) or tightening a long heading is a real repair lever; paper size and declaration order are not (placement is grid-derived). When the draft is clean run run_erc and check_drift, update PINOUT.md to match the IR\'s pin assignments, and finish.',
   },
@@ -530,25 +546,7 @@ async function contractGapDetail(stageName: string, root: string, config: Copper
       ? `the layout-draft contract is not met: ${docGap}`
       : 'the layout-draft contract is not met: the board does not pass DRC; run run_drc and fix what it reports before finishing';
   }
-  if (stageName !== 'schematic' || !config.schematic) return generic;
-  const p = path.join(root, config.schematic);
-  if (!existsSync(p)) return generic;
-  try {
-    const report = await checkLegibility(p, {
-      docsDir: path.join(root, config.docs),
-      ...(config.legibility ? { config: config.legibility } : {}),
-    });
-    if (report.counts.error > 0) {
-      const byKind = new Map<string, number>();
-      for (const f of report.findings.filter((f) => f.severity === 'error')) {
-        byKind.set(f.kind, (byKind.get(f.kind) ?? 0) + 1);
-      }
-      const counts = [...byKind].map(([k, n]) => `${k}: ${n}`).join(', ');
-      return `the schematic stage contract is not met: ${report.counts.error} error-severity legibility finding(s) remain (${counts}); resume to reconcile them`;
-    }
-  } catch {
-    // fall through: an unreadable schematic already fails earlier contract steps
-  }
+  if (stageName === 'schematic') return (await schematicContractGap(root)) ?? generic;
   return generic;
 }
 
@@ -1033,6 +1031,18 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // recoverable cases without silently spinning on the dead-end ones.
     const stageTurns = config.stageMaxTurns?.[stage.name];
     const basePrompt = stage.prompt(brief, config.docs);
+    let resumeContext = '';
+    if (stage.name === 'schematic') {
+      const fresh = await loadConfig(opts.repoRoot);
+      const schematicPath = fresh.schematic ? path.join(opts.repoRoot, fresh.schematic) : null;
+      // A populated sheet means this is a repair/resume, not the first empty
+      // scaffold. Tell the first attempt why completion rejected it before the
+      // model spends a turn rerunning checks that cannot expose IR validation.
+      if (schematicPath && existsSync(schematicPath) && (await listSymbols(schematicPath)).length) {
+        const gap = await schematicContractGap(opts.repoRoot);
+        if (gap) resumeContext = `\n\n## Existing stage completion finding (repair this before finishing)\n${gap}`;
+      }
+    }
     let guidance = '';
     let stageDone = false;
     let stageTranscriptDir = '';
@@ -1129,21 +1139,25 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           model: opts.model,
           request: `create pipeline stage: ${stage.name}`,
           stagePrompt: guidance
-            ? `${basePrompt}${dossierBlock}\n\n## Recovery guidance (a previous attempt did not complete this stage — do this differently)\n${guidance}`
-            : `${basePrompt}${dossierBlock}`,
+            ? `${basePrompt}${dossierBlock}${resumeContext}\n\n## Recovery guidance (a previous attempt did not complete this stage — do this differently)\n${guidance}`
+            : `${basePrompt}${dossierBlock}${resumeContext}`,
           interactive: opts.interactive ?? false,
           allowDirty: true, // stages build on each other's uncommitted state within the pipeline
           // the populated board is this stage's mutation too: finish needs a
           // passing DRC on it even when the agent never edits the board
           ...(layoutBoard ? { preTouched: [layoutBoard] } : {}),
-          // #310: in layout-draft, finish checks the stage's own contract, so the agent
-          // hears what is missing while its board still exists, not after the rollback.
-          // Other stages keep ending at the post-run check: their gaps have no specific
-          // message yet, and a generic one would only spend turns.
-          ...(stage.name === 'layout-draft'
+          // #310/#326: finish checks the stages whose deterministic completion
+          // diagnostics can name work the ordinary verification tools do not.
+          // This keeps the real finding inside the active repair loop instead of
+          // asking the post-run recovery model to infer it after rollback.
+          ...(stage.name === 'layout-draft' || stage.name === 'schematic'
             ? {
                 stageGate: async () =>
-                  (await stage.isComplete(opts.repoRoot, config.docs)) ? null : contractGapDetail(stage.name, opts.repoRoot, config),
+                  stage.name === 'schematic'
+                    ? schematicContractGap(opts.repoRoot)
+                    : (await stage.isComplete(opts.repoRoot, config.docs))
+                      ? null
+                      : contractGapDetail(stage.name, opts.repoRoot, config),
               }
             : {}),
           ...(stageTurns !== undefined ? { maxTurns: stageTurns } : {}),
