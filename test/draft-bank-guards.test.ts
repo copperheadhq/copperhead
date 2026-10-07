@@ -200,3 +200,32 @@ describe('the draft report marks the class no pin attests', () => {
     expect(line).toContain('~=inferred');
   });
 });
+
+
+describe('rail-bank trunks: N caps emit single power symbol and chained trunk segments (#233)', () => {
+  it('groups consecutive passives on same net into a single trunk run', () => {
+    interface DummyCandidate { x: number; y: number; dy: number; name: string }
+    const cands: DummyCandidate[] = [
+      { x: 10, y: 20, dy: 1, name: 'C1' },
+      { x: 15, y: 20, dy: 1, name: 'C2' },
+      { x: 20, y: 20, dy: 1, name: 'C3' },
+    ];
+    const stubClear = () => true;
+    const joinClear = (prev: DummyCandidate, c: DummyCandidate) => c.x - prev.x <= 10;
+    const runs = splitBankRuns(cands, stubClear, joinClear);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toHaveLength(3);
+  });
+
+  it('splits bank runs when pitch exceeds BANK_PITCH_MAX or crosses body', () => {
+    interface DummyCandidate { x: number; y: number; dy: number; name: string }
+    const cands: DummyCandidate[] = [
+      { x: 10, y: 20, dy: 1, name: 'C1' },
+      { x: 50, y: 20, dy: 1, name: 'C2' }, // pitch gap > max
+    ];
+    const stubClear = () => true;
+    const joinClear = (prev: DummyCandidate, c: DummyCandidate) => c.x - prev.x <= 10;
+    const runs = splitBankRuns(cands, stubClear, joinClear);
+    expect(runs).toHaveLength(0); // singletons are not banks
+  });
+});
