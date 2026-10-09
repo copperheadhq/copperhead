@@ -10,7 +10,7 @@ Observed `create` runs could commit before discovering missing stage evidence, r
 - Complete the firmware stage with strictly checked non-programmable applicability evidence, while rejecting empty source and unsupported identities.
 - Compare generated power symbols with complete canonical engine definitions, without changing rails or accepting a prefix alone.
 - Inventory fresh, nonempty export files, including directory DXF and multiple SVG pages.
-- **BREAKING**: require current, verified stage-6 package evidence instead of treating a lone Gerber as completion. The explicit initial profile supports KiCad 9 without copper-fill zones and fails honestly elsewhere.
+- **BREAKING**: require current, verified stage-6 package evidence instead of treating a lone Gerber as completion. Generic exports remain the default, including board-only use. The explicit opt-in JLC profile supports KiCad 9 without copper-fill zones and fails honestly elsewhere. Full Stage 6 remains stricter than a partial export.
 - Keep compatibility fixtures, portable test launcher, exact fixed-function identity extension and Markdown-lint alias separately reviewable.
 - Add explicitly gated immutable recorded-response integration coverage with actual tools, checks and commits, plus timeout, empty-schematic and missing-final-stage controls.
 

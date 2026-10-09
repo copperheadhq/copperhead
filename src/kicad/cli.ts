@@ -394,6 +394,8 @@ export interface FabExportResult {
   produced: string[];
   files: FabExportFile[];
   failed: { artifact: string; reason: string }[];
+  /** Optional documents can be incomplete while generic board exports succeed. */
+  warnings?: string[];
 }
 
 /** Inventory only regular, nonempty files, never following an exported symlink. */

@@ -120,3 +120,22 @@ describe('storedZip', () => {
     expect(() => storedZip(['a', 'b', 'c', 'd'].map((name) => ({ name, data })))).toThrow(/ZIP archive exceeds/);
   });
 });
+
+
+describe('generic UTF-8 archive names', () => {
+  it('preserves Unicode/spaces and marks both ZIP headers as UTF-8', () => {
+    const name = '电路 board-F_Cu.gbr';
+    const data = Buffer.from('G04*');
+    const zip = storedZip([{ name, data }], { utf8Names: true });
+    const nameBytes = Buffer.from(name);
+    expect(zip.readUInt16LE(6)).toBe(0x0800);
+    expect(zip.readUInt16LE(26)).toBe(nameBytes.length);
+    expect(zip.subarray(30, 30 + nameBytes.length)).toEqual(nameBytes);
+    const central = 30 + nameBytes.length + data.length;
+    expect(zip.readUInt16LE(central + 8)).toBe(0x0800);
+    expect(() => storedZip([{ name, data }])).toThrow(/Unsafe ZIP basename/);
+  });
+  it.each(['../board.gbr', 'a/b.gbr', 'a\\b.gbr', 'C:board.gbr', '.', '..', 'bad\0.gbr', 'NUL.gbr', '电'.repeat(86)])('still rejects unsafe generic name %j', name => {
+    expect(() => storedZip([{ name, data: Buffer.from('x') }], { utf8Names: true })).toThrow(/Unsafe ZIP basename/);
+  });
+});

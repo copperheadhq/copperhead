@@ -28,7 +28,7 @@ Non-goals:
 2. **Treat firmware N/A as stage evidence.** The exact three-field declaration must be supported by populated, drift-clean, ERC-clean hardware using reviewed exact symbol identities. Unknown/custom/programmable symbols remain unsupported. Empty source does not qualify.
 3. **Verify generated power definitions structurally and completely.** Reuse the engine templates and compare parsed definitions. Preserve distinct net names and ordinary installed-library checks.
 4. **Separate artifact labels from real paths.** Each export job runs in a fresh temporary directory. Inventory nonempty regular files and validate the expected extension before publication. Check all known destination conflicts before copying. Publication is not a transaction against arbitrary disk failure.
-5. **Use bounded package evidence.** Explicit KiCad 9 settings, expected layer/drill metadata, ordering BOM, deterministic bounded ZIP and source/file hashes are required. Copper-fill zones and unsupported major versions fail; unrelated stale outputs are excluded.
+5. **Use profile-bound package evidence.** Generic export is the default and retains prior command arguments, board-only and copper-zone support. Its manifest reports settings and fill as unverified. Explicit `outputProfile: jlcpcb-kicad9-2026-09-24` adds KiCad 9 settings, expected layer/drill metadata and copper-fill rejection, with no fallback. Both modes record current files/source hashes and ZIPs; full Stage 6 additionally requires schematic, ordering BOM and every mechanical/render export. Old projects or profile switches must re-export; probes do not synthesize evidence.
 6. **Keep support fixes separate.** Compatibility fixture edits preserve nondefault semantics; the launcher uses the supported Node import route; the lint alias retains the existing Markdown rules.
 
 ## Specification mapping
@@ -57,3 +57,11 @@ The official CLI discovers no specs from the flat `openspec/specs/SPEC.md`. Pass
 The previously verified public combination passed 1293 tests with 21 skipped, plus typecheck, build and Markdown lint. The authentic recorded-response replay has now been integrated: the combined default suite passed 1296 tests with 23 skipped, and the separate explicitly gated replay job passed all five cases. Its prepared KiCad 9 command and negative controls are documented in reports/create-recorded-e2e.md; no remote CI run is claimed. Final branch checks and official OpenSpec validation are recorded in validation.md when run.
 
 The documented edit sandbox and evidence-based invariant mapping are recorded in reports/manual-test-log.md and reports/invariant-evidence.md. The optional live model-backed do command was not rerun; official-provider, remote-CI and physical testing limits remain disclosed. No stage marker or real design was manually supplied to satisfy these documentation tasks.
+
+## Local compatibility follow-up
+
+The recorded replay harness now explicitly selects the JLC profile because its
+immutable replies inspect that manifest. No historical reply, cache key, source
+hash or historical result is rewritten. Default behavior requires separate
+coverage; historical 5/5 results do not validate this follow-up. See the local
+compatibility review for current executed and blocked checks.

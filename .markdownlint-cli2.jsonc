@@ -1,0 +1,7 @@
+{
+  // These are hash-preserved filtered evidence records, not authored prose.
+  // Keep their original blank lines and verify them with the evidence SHA256SUMS.
+  "ignores": [
+    "reports/evidence/native-500ma-20261009/native-run-summaries/**/summary.filtered.md"
+  ]
+}

@@ -37,7 +37,7 @@ describe('explicit JLC export and existing outputs contract', () => {
  const stage = STAGES.find(x=>x.name==='outputs')!;
  beforeEach(async()=>{
   root=await mkdtemp(path.join(tmpdir(),'jlc-profile-'));
-  const config = { board:'board.kicad_pcb', schematic:'board.kicad_sch',docs:'docs' };
+  const config = { outputProfile:'jlcpcb-kicad9-2026-09-24', board:'board.kicad_pcb', schematic:'board.kicad_sch',docs:'docs' };
   await put(path.join(root,'.copperhead/config.json'),JSON.stringify(config));
   await put(path.join(root,config.board),board);
   await put(path.join(root,config.schematic),'(kicad_sch)');

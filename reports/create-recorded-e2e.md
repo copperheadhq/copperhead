@@ -20,7 +20,11 @@ ERC or DRC results.
 
 The current default CI installs KiCad 10. The intentionally scoped manufacturing
 profile supports KiCad 9; this job must therefore run separately in a prepared
-KiCad 9 environment. Do not remove the version gate or mock exports to make
+KiCad 9 environment. The harness explicitly sets
+`outputProfile: jlcpcb-kicad9-2026-09-24` because the immutable recorded replies
+inspect JLC evidence. This is dedicated profile coverage, not coverage of the
+new generic default. Historical run totals are not new validation of this change.
+Do not remove the version gate or mock exports to make
 this job green on another version.
 
 Required environment: Linux, Node 20 or newer, KiCad CLI 9, installed KiCad 9

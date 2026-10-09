@@ -1,0 +1,75 @@
+stage spec-seed: already complete (resuming past it)
+stage architecture: already complete (resuming past it)
+stage part-selection: already complete (resuming past it)
+stage schematic: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage schematic (4/8) · model experimental-native:native-500ma-schematic-v14-20261008 (experimental-native, via flag) · turns ≤5 · master@171a77f clean
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  [verify_symbols] verify_symbols: 11 symbol(s) match the installed libraries or exact engine power templates. No divergences.
+  [run_erc] ERC: clean
+  [check_legibility] legibility: 0 error, 1 advisory finding(s) across 1 sheet(s):
+  [check_drift] drift: clean
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  [check_drift] drift: clean
+[turn 4/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  [check_drift] drift: clean
+  [finish] all gates satisfied; run will commit
+committed e0ae534f6a (9 file(s))
+done · ERC clean · committed e0ae534f6a · 9m08s · 0 in / 0 out
+stage schematic: rendered 2 SVG artifact(s) into .copperhead/runs/2026-10-08T22-04-18-436Z/artifacts/
+pipeline so far: 4/8 stages · 9m09s · 0 out tokens · 0% cache hits
+stage layout-draft: placed 10 footprint(s) from the schematic on protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.kicad_pcb (13 nets, unrouted; outline grown to 30 x 23 mm to fit)
+stage layout-draft: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage layout-draft (5/8) · model experimental-native:native-500ma-schematic-v14-20261008 (experimental-native, via flag) · turns ≤5 · master@e0ae534 dirty(1)
+[turn 1/5 · 0 in / 0 out]
+stage layout-draft: the run ended as "failure" (provider-error): provider error: EXPERIMENTAL_STAGE_BOUNDARY: layout-draft is outside this trial's bound stage; no request queued; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage            Wall  Turns  Out tok  Cache
+  --------------  -----  -----  -------  -----
+  spec-seed           —      —        —      —
+  architecture        —      —        —      —
+  part-selection      —      —        —      —
+  schematic       9m09s      4        0     0%
+  layout-draft       1s      0        0      —
+  --------------  -----  -----  -------  -----
+  TOTAL           9m10s      4        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

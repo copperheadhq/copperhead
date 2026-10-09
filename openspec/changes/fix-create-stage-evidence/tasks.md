@@ -22,3 +22,11 @@
 - [x] 3.4 Complete the bounded local final diff/scope and seven-invariant review with evidence at stable relative paths; no global formal proof is claimed.
 
 Checked items reflect the directly documented checks only. Unrun live-provider, remote-CI and physical tests remain explicitly outside those results.
+
+## 4. Compatibility follow-up (local candidate)
+
+- [x] 4.1 Restore the generic default user entrypoint and explicit JLC opt-in, retaining complete Stage 6 evidence and board-only export.
+- [x] 4.2 Add default/profile, copper/keepout, old-resume, source/file, profile-switch, failed-export and path-safety regressions.
+- [x] 4.3 Select the historical JLC profile explicitly in the replay harness without changing any recorded reply/hash.
+- [ ] 4.4 Run the available automated checks and report actual version/environment limits; rerun real KiCad checks on a prepared host before publishing a verified update.
+- [ ] 4.5 Receive and reconcile the original cloud live logs, run summaries and design Git; review any redacted publication package before upload.

@@ -65,13 +65,22 @@ The firmware scaffold SHALL compile clean against the vendor toolchain when one 
 - **WHEN** firmware/ contains only zero-byte or whitespace-only source files
 - **THEN** those files SHALL NOT satisfy the firmware artifact requirement
 
-### Requirement: Explicit JLC settings and complete outputs evidence
+### Requirement: Compatible generic exports and optional JLC settings
 
-Stage 6 MUST use the supported explicit KiCad 9 JLC profile and a complete,
-source-bound package. Finish and resume MUST reject missing, empty, stale,
-altered or incomplete artifacts. Failed reruns MUST invalidate prior success.
+Stage 6 MUST default to generic exports and require a complete, source-bound
+Gerber/drill, mechanical/render, ordering BOM and archive package. KiCad 9 JLC
+checks MUST require explicit outputProfile selection. Finish and resume MUST
+reject invalid evidence. Failed reruns MUST invalidate prior success. Existing
+safety gates and generic exportFab compatibility MUST remain enforced.
 Local verification MUST NOT claim manufacturer acceptance or fabrication release.
-Existing safety gates and generic `exportFab` compatibility remain unchanged.
+
+#### Scenario: Board-only or incomplete exports
+
+- GIVEN a successful board-only export or missing, empty, stale, altered or incomplete required artifacts
+- WHEN finish or resume checks Stage 6
+- THEN it MUST remain incomplete with an actionable reason
+- AND ordinary board-only export remains supported
+- AND local verification MUST NOT claim manufacturer acceptance or fabrication release
 
 #### Scenario: A lone Gerber remains after a failed run
 
@@ -81,7 +90,7 @@ Existing safety gates and generic `exportFab` compatibility remain unchanged.
 
 #### Scenario: A supported zero-zone board exports successfully
 
-- GIVEN a KiCad 9 board with no copper-fill zones and a complete ordering BOM
+- GIVEN the JLC profile is explicitly selected on a KiCad 9 board with no copper-fill zones and a complete ordering BOM
 - WHEN all configured exports succeed with the expected local metadata
 - THEN the package records current source/file hashes and a verified ZIP
 - AND it includes all selected manufacturing layers, separate PTH/NPTH drills, ordering BOM, and required mechanical/render exports
@@ -90,12 +99,19 @@ Existing safety gates and generic `exportFab` compatibility remain unchanged.
 #### Scenario: Fill validation is unsupported
 
 - GIVEN a board or footprint contains a copper-fill zone
-- WHEN export_outputs is called
+- WHEN export_outputs is called with the JLC profile explicitly selected
 - THEN it fails before plotting and names the missing fill-validation workflow
 - AND it does not mutate the board, suppress the gate, or claim profile success
 
 #### Scenario: Unsupported major version
 
 - GIVEN an installed KiCad major version other than the supported profile version
-- WHEN export_outputs is called
+- WHEN export_outputs is called with the JLC profile explicitly selected
 - THEN it fails with the unsupported-version reason instead of claiming profile success
+
+#### Scenario: Generic exports and legacy resume
+
+- GIVEN the outputProfile is omitted or generic
+- WHEN all required exports and current source/file evidence pass
+- THEN ordinary KiCad version and copper-zone support remains available without claiming profile or fill verification
+- AND old projects without a manifest or projects switching profiles must re-export before completion; existing artifacts are not relabeled as verified

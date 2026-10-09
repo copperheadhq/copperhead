@@ -688,22 +688,23 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'export_outputs',
       description:
-        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Uses the explicit KiCad 9 JLC settings profile, generates ordering BOM.csv and a verified Gerber/drill ZIP plus source-bound manifest. Copper zones require unsupported fill validation and fail. Reports real file paths; never implies manufacturer acceptance.',
+        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Defaults to generic KiCad exports, including board-only projects. Generates a source-bound manifest and ZIP; BOM.csv when BOM.md exists. Set outputProfile in .copperhead/config.json to jlcpcb-kicad9-2026-09-24 to opt into KiCad 9 JLC settings checks, which reject copper-fill zones and unsupported versions. Generic export does not verify zone fills or manufacturer settings. Reports real file paths; never implies manufacturer acceptance.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: true,
     handler: async (ctx) => {
       if (!ctx.config.board) return 'no board configured';
-      const outDir = path.join(ctx.repoRoot, 'outputs');
-      await mkdir(outDir, { recursive: true });
       const res = await exportOutputsPackage(ctx.repoRoot, ctx.config);
       ctx.filesTouched.add('outputs/');
       const lines = [
         `produced: ${res.produced.join(', ') || '(none)'}`,
         ...res.files.map((file) => `${file.artifact}: outputs/${file.path} (${file.bytes} bytes)`),
-        `JLC KiCad 9 settings/package checks: ${res.failed.length === 0 ? 'passed' : 'incomplete'}`,
+        ctx.config.outputProfile === 'jlcpcb-kicad9-2026-09-24'
+          ? `JLC KiCad 9 settings/package checks: ${res.failed.length === 0 ? 'passed' : 'incomplete'}`
+          : `generic export jobs: ${res.failed.length === 0 ? 'complete' : 'incomplete'}; manufacturer profile and zone fills: not verified`,
         'manufacturer acceptance: not verified; no fabrication release; BOM verification status remains in BOM.md',
       ];
+      for (const warning of res.warnings ?? []) lines.push(`WARNING ${warning}`);
       for (const f of res.failed) lines.push(`FAILED ${f.artifact}: ${f.reason}`);
       return { ok: res.failed.length === 0, text: lines.join('\n') };
     },

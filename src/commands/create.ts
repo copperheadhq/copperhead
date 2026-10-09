@@ -288,7 +288,7 @@ export const STAGES: Stage[] = [
     name: 'outputs',
     isComplete: async (root) => (await outputsPackageGap(root, await loadConfig(root))) === null,
     prompt: () =>
-      'Stage 6: outputs package. Call export_outputs to produce outputs/: the explicit KiCad 9 JLC-profile Gerber/drill ZIP, DXF and STEP outline, SVG renders, ordering BOM.csv from BOM.md, and export-manifest.json. Every export must succeed and current source/file hashes must match. Copper zones cannot pass this profile without a supported fill-validation workflow. These are draft outputs, never manufacturer acceptance or fabrication release.',
+      'Stage 6: outputs package. Call export_outputs to produce outputs/: complete Gerbers/drill and fabrication.zip, DXF and STEP outline, board and schematic SVG renders, ordering BOM.csv from BOM.md, and export-manifest.json. Every export must succeed and current source/file hashes must match. The default outputProfile is generic: profile settings and zone fills are not verified. Only an explicit outputProfile=jlcpcb-kicad9-2026-09-24 selects the KiCad 9 JLC checks and jlcpcb.zip; that profile rejects copper-fill zones and unsupported versions without fallback. Do not change the selected profile to bypass a failure. Missing legacy manifests or a profile change require rerunning export_outputs; do not fabricate evidence. These are draft outputs, never manufacturer acceptance or fabrication release.',
   },
   {
     name: 'firmware',

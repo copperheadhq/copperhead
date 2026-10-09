@@ -715,10 +715,17 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - No Altium/Eagle formats
 - No Windows support guarantees (macOS/Linux only today)
 
-### Stage-6 JLC settings and package integrity
+### Stage-6 generic exports, optional JLC settings and package integrity
 
-`export_outputs` implements the explicit `jlcpcb-kicad9-2026-09-24` settings
-profile, based on the [JLC KiCad 9 guide](https://jlcpcb.com/help/article/how-to-generate-gerber-and-drill-files-in-kicad-9)
+`export_outputs` defaults to generic KiCad exports. Set `outputProfile` in
+`.copperhead/config.json` to `jlcpcb-kicad9-2026-09-24` to opt into the bounded
+JLC settings checks. Omission or `generic` keeps the ordinary export path,
+including board-only projects, copper zones and KiCad 8/9/10 without adding
+version-specific zone flags. Unknown profiles fail instead of selecting a fallback.
+Generic completion records `profileVerification: not-requested` and
+`zoneFill: not-verified`; it does not certify settings, copper fills or a factory.
+
+The explicit `jlcpcb-kicad9-2026-09-24` settings profile is based on the [JLC KiCad 9 guide](https://jlcpcb.com/help/article/how-to-generate-gerber-and-drill-files-in-kicad-9)
 and [KiCad 9 CLI reference](https://docs.kicad.org/9.0/en/cli/cli.html).
 The profile selects every copper layer in stack order, both mask, legend and paste
 layers, and Edge.Cuts. It retains X2, netlist attributes and Protel filenames;
@@ -729,11 +736,11 @@ The initial verified implementation supports KiCad 9 with no copper-fill zones.
 Keepout/rule-area zones do not need filling. Actual copper zones, including those
 inside footprints, fail explicitly because this implementation has no supported
 KiCad 9 CLI fill-validation workflow. Other KiCad major versions fail this
-profile rather than silently claiming verified settings. Generic `exportFab`
-remains available with its prior behavior; the project's general KiCad >= 8
+profile rather than silently claiming verified settings. The default `export_outputs` path calls generic `exportFab`
+with its prior command arguments; the project's general KiCad >= 8
 compatibility requirement is not changed.
 
-Successful outputs include a manufacturing-only `jlcpcb.zip`, an ordering
+Successful JLC outputs include a manufacturing-only `jlcpcb.zip`, an ordering
 `BOM.csv` (one unique refdes and non-placeholder MPN per row, Qty 1), and
 `export-manifest.json`. The ZIP includes exactly the current-run manufacturing
 Gerbers and PTH/NPTH files, excluding unrelated stale files. It uses deterministic
@@ -744,8 +751,28 @@ no-copper-zone evidence and unverified manufacturer acceptance. Failed reruns
 invalidate prior completion evidence. No source or user file is deleted to make
 the checks pass.
 
+Generic exports record a source-bound manifest and `fabrication.zip` of the current
+manufacturing Gerber/drill inventory. The archive selects all actual copper layers
+(including inner layers), mask, silk, paste, board outline and drill files. Technical
+layers (Fab, Courtyard, drawing/comment/user layers), job metadata and drill maps
+remain in the raw output inventory but are excluded from the archive.
+This archive permits UTF-8 basenames and spaces while
+rejecting traversal, separators, controls, duplicate names and device names;
+it retains the same entry/size limits. It makes no JLC metadata claim. BOM.csv is
+emitted when BOM.md is present and has valid ordering rows. Missing or invalid
+BOMs produce an explicit warning without blocking generic board exports. Missing
+schematic/BOM or invalid ordering rows cannot complete Stage 6. Configured inputs must exist and are hashed,
+including child sheets, optional BOM and present project settings.
+
 The outputs finish gate and resume probe require every expected export, matching
-source/file hashes, matching ordering BOM and a verified archive. One Gerber or
+source/file hashes, matching ordering BOM and the selected profile's archive.
+Both profiles require all board manufacturing layers, drill output, DXF, STEP,
+board and schematic SVGs, ordering BOM and the source-bound manifest. Generic
+checks are file inventory/integrity checks, not JLC format or fill validation.
+The manifest profile must match the selected configuration. Changing profiles
+requires a fresh export; a failed explicit profile never falls back to generic.
+Legacy projects without a manifest are incomplete and receive an actionable
+`rerun export_outputs` message. Completion probes never fabricate a manifest. One Gerber or
 an old partial export is insufficient. Existing ERC, DRC, parity, drift,
 rollback, document and later-stage gates remain in force. These checks establish
 settings and package integrity only: BOM.md's verification caveats, draft-routing

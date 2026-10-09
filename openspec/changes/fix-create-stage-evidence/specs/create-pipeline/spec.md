@@ -44,7 +44,13 @@ The firmware stage SHALL retain all eight pipeline stages and accept either none
 
 ### Requirement: Outputs evidence before finish and resume
 
-The outputs finish gate and resume probe SHALL use the same package-integrity contract. Missing, empty, stale, altered or incomplete required evidence SHALL keep the stage incomplete with an actionable reason. Existing ERC, DRC, parity, drift, ledger and rollback behavior SHALL remain enforced.
+Finish and resume SHALL use the same profile-bound package-integrity contract. Generic is the default; JLC is explicit opt-in. Stage 6 SHALL require complete Gerber/drill, mechanical/render, ordering BOM, archive and source/file evidence. Invalid evidence SHALL keep the stage incomplete with an actionable reason. Existing ERC, DRC, parity, drift, ledger and rollback behavior SHALL remain enforced.
+
+#### Scenario: Board-only or incomplete exports
+
+- **WHEN** a board-only export succeeds, or required evidence is missing, empty, stale, altered or incomplete
+- **THEN** neither finish nor resume completes Stage 6
+- **AND** the existing ERC, DRC, parity, drift, ledger and rollback obligations remain enforced
 
 #### Scenario: A leftover Gerber is present
 

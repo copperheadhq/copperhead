@@ -8,7 +8,7 @@ Verify an explicitly bounded local export profile and a current fabrication-file
 
 ### Requirement: Explicit supported export settings
 
-The initial package profile SHALL support KiCad 9 with no copper-fill zones, select the board's copper stack plus mask, legend, outline and paste layers, and explicitly use absolute metric decimal Excellon drilling with alternate oval slots and separate PTH/NPTH. Unsupported versions or fill validation SHALL fail without claiming success.
+The explicit opt-in `jlcpcb-kicad9-2026-09-24` package profile SHALL support KiCad 9 with no copper-fill zones, select the board's copper stack plus mask, legend, outline and paste layers, and explicitly use absolute metric decimal Excellon drilling with alternate oval slots and separate PTH/NPTH. Unsupported versions or fill validation SHALL fail without claiming success.
 
 #### Scenario: Supported board and expected metadata
 
@@ -54,3 +54,34 @@ The manifest SHALL record actual paths, sizes, file/source hashes, profile/versi
 - **WHEN** all local profile, inventory and freshness checks pass
 - **THEN** the result still identifies manufacturer acceptance as unverified
 - **AND** raw DRC findings, routing quality and unperformed hardware tests retain their existing meanings
+
+### Requirement: Compatible default exports
+
+An omitted or `generic` outputProfile SHALL use ordinary KiCad export arguments,
+including board-only projects and boards with copper zones. It SHALL record
+profile verification as not requested and zone fill as unverified. Unknown
+profiles SHALL fail. Explicit JLC failures SHALL NOT fall back to generic.
+
+#### Scenario: Board-only export
+
+- **WHEN** a generic project has a board and no configured schematic or BOM
+- **THEN** the export tool produces its real board exports and integrity inventory
+- **AND** it does not claim complete create Stage 6 or JLC profile success
+
+#### Scenario: Complete generic Stage 6
+
+- **WHEN** all board manufacturing layers, drill, DXF, STEP, board/schematic SVGs, ordering BOM and generic archive exist with matching sources and hashes
+- **THEN** the stage can complete without requiring KiCad 9 JLC settings
+- **AND** profile, fill and manufacturer acceptance remain unverified
+
+#### Scenario: Profile switch or missing legacy manifest
+
+- **WHEN** the configured profile differs from the manifest or the manifest is absent
+- **THEN** finish and resume require export_outputs to be rerun
+- **AND** they never reinterpret or manufacture historical verification
+
+#### Scenario: Technical layers in a generic export
+
+- **WHEN** ordinary Gerber export produces technical layers as well as manufacturing layers
+- **THEN** fabrication.zip contains only the board inventory's copper (including inner layers), mask, silk, paste, outline and drill files
+- **AND** Fab, Courtyard, drawing/comment/user layers, job metadata and drill maps remain on disk and in the raw manifest inventory, outside the ZIP

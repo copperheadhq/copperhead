@@ -111,6 +111,8 @@ async function executeRecordedPipeline(mode: 'complete' | 'missing-final') {
     console.log(`Replay evidence preserved at ${root}`);
     await mkdir(path.join(root, '.copperhead'));
     await writeFile(path.join(root, '.copperhead/config.json'), JSON.stringify({
+      // Recorded replies inspect JLC evidence: preserve that explicit historical contract.
+      outputProfile: 'jlcpcb-kicad9-2026-09-24',
       docs: 'docs/', model: null, maxTurns: 5, maxRepairCycles: 0,
       maxStageRetries: 0, turnTimeoutMs: 30_000, turnMaxMs: 30_000,
       heartbeatMs: 0, llmCache: false,

@@ -26,16 +26,21 @@ function crc32(data: Buffer): number {
  * Names must be portable ASCII basenames of 1–255 characters: start with an
  * alphanumeric, then use alphanumerics, '.', '_', or '-'; no trailing dot or
  * Windows device names. Case-insensitive duplicates are rejected.
+ * Generic exports may opt into UTF-8 basenames (including spaces), still
+ * rejecting separators, traversal, control characters and device names.
  */
-export function storedZip(entries: { name: string; data: Buffer }[]): Buffer {
+export function storedZip(entries: { name: string; data: Buffer }[], options: { utf8Names?: boolean } = {}): Buffer {
   if (entries.length > MAX_ENTRIES) {
     throw new Error(`ZIP supports at most ${MAX_ENTRIES} files`);
   }
   const names = new Set<string>();
   let totalBytes = 22; // End of central directory record.
   const files = entries.map(({ name, data }) => {
-    if (typeof name !== 'string' || name.length > 255
-      || !/^[A-Za-z0-9]/.test(name) || /[^A-Za-z0-9._-]/.test(name) || name.endsWith('.')
+    if (typeof name !== 'string') throw new Error(`Unsafe ZIP basename: ${JSON.stringify(name)}`);
+    const invalidName = options.utf8Names
+      ? !name || name === '.' || name === '..' || /[\\/:\x00-\x1f\x7f]/.test(name) || name.endsWith('.') || name.endsWith(' ') || Buffer.byteLength(name) > 255
+      : !/^[A-Za-z0-9]/.test(name) || /[^A-Za-z0-9._-]/.test(name) || name.endsWith('.');
+    if (name.length > 255 || invalidName
       || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(name)) {
       throw new Error(`Unsafe ZIP basename: ${JSON.stringify(name)}`);
     }
@@ -46,7 +51,7 @@ export function storedZip(entries: { name: string; data: Buffer }[]): Buffer {
     if (data.length > MAX_FILE_BYTES) {
       throw new Error(`ZIP file exceeds ${MAX_FILE_BYTES} bytes: ${name}`);
     }
-    const nameBytes = Buffer.from(name, 'ascii');
+    const nameBytes = Buffer.from(name, options.utf8Names ? 'utf8' : 'ascii');
     totalBytes += 30 + 46 + 2 * nameBytes.length + data.length;
     if (totalBytes > MAX_ARCHIVE_BYTES) {
       throw new Error(`ZIP archive exceeds ${MAX_ARCHIVE_BYTES} bytes`);
@@ -62,6 +67,7 @@ export function storedZip(entries: { name: string; data: Buffer }[]): Buffer {
     const crc = crc32(data);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
+    if (options.utf8Names) local.writeUInt16LE(0x0800, 6);
     local.writeUInt16LE(10, 4); // Version needed: ZIP 1.0 (STORE).
     local.writeUInt16LE(DOS_DATE, 12);
     local.writeUInt32LE(crc, 14);
@@ -72,6 +78,7 @@ export function storedZip(entries: { name: string; data: Buffer }[]): Buffer {
 
     const record = Buffer.alloc(46);
     record.writeUInt32LE(0x02014b50, 0);
+    if (options.utf8Names) record.writeUInt16LE(0x0800, 8);
     record.writeUInt16LE(10, 4); // Made by ZIP 1.0 / MS-DOS.
     record.writeUInt16LE(10, 6);
     record.writeUInt16LE(DOS_DATE, 14);

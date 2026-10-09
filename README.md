@@ -260,3 +260,22 @@ Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and 
 ## License
 
 [Apache-2.0](LICENSE)
+
+### Export profile compatibility
+
+The `export_outputs` tool defaults to generic KiCad exports. It supports a board
+without a schematic/BOM and reports real files, source hashes and a generic
+`fabrication.zip`. Missing or incomplete ordering BOMs are reported separately; this partial export does not complete the full `create` stage.
+Generic output does not verify manufacturer settings or copper-zone fills.
+
+To opt into the bounded KiCad 9 JLC checks, set
+`"outputProfile": "jlcpcb-kicad9-2026-09-24"` in `.copperhead/config.json`.
+That profile requires a schematic and ordering BOM and rejects copper-fill
+zones and other KiCad major versions. Failures never select a generic fallback.
+Omit the key or use `"generic"` for ordinary exports. Unknown values fail.
+
+Stage 6 still requires complete Gerbers/drill, DXF/STEP, board and schematic SVGs,
+ordering BOM, archive and matching source/file hashes. Existing outputs without
+an `export-manifest.json`, or after a profile switch, require a fresh
+`export_outputs` call. Resume never invents prior verification. Both paths are
+draft outputs without manufacturer acceptance or fabrication release.
