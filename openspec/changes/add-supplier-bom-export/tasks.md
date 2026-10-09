@@ -24,3 +24,11 @@
 
 - [x] 4.1 README: ordering section (`export bom` usage, quantity knobs, what gets excluded and why)
 - [x] 4.2 Decide and document the optional `LCSC` column in the BOM.md scaffold (design open question) — decision: keep `init` scaffolding the base columns only; the exporter matches `Manufacturer`/`LCSC` by header when present, documented in the README ordering section. Leaves the scaffold table narrow while letting hand/agent-maintained BOMs opt in.
+
+## Create-stage evidence follow-up
+
+The related completion and export corrections are tracked in
+[fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md), with a
+coherent design, focused delta specs, actual validation results and unchecked
+remaining acceptance tasks. This reference does not mark this change archived
+or assert that unperformed manual tests or invariant reviews are complete.

@@ -134,6 +134,7 @@ describe('library tables (AC-15.30)', () => {
         projectDir: path.join(dir, 'proj'),
         env: { KICAD_CONFIG_HOME: path.join(dir, 'cfg') },
         defaults: { KICAD10_FOOTPRINT_DIR: '/stock' },
+        kicadMajor: 10, // this fixture models KiCad 10, independent of the installed CLI
       });
       expect(rows.get('Mine')?.uri).toBe(path.join(dir, 'proj', 'Mine.pretty')); // project wins the clash
       expect(rows.get('Stock')?.uri).toBe('/stock/Stock.pretty'); // nested table, variable defaulted

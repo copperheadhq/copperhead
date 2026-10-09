@@ -77,3 +77,11 @@ The no-tool-call nudge counter was cumulative over the run, so three sporadic em
 ## Open Questions
 
 (none: all decisions above are settled for this change)
+
+## Create-stage evidence follow-up
+
+The related completion and export corrections are tracked in
+[fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md), with a
+coherent design, focused delta specs, actual validation results and unchecked
+remaining acceptance tasks. This reference does not mark this change archived
+or assert that unperformed manual tests or invariant reviews are complete.

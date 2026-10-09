@@ -39,3 +39,11 @@ Purely additive command; stage 6 gains one extra output file. No rollback concer
 ## Open Questions
 
 - Whether to add a `LCSC` column to the BOM.md scaffold by default (helps JLCPCB flow, widens the table); leaning yes, decided at implementation with the scaffold owner.
+
+## Create-stage evidence follow-up
+
+The related completion and export corrections are tracked in
+[fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md), with a
+coherent design, focused delta specs, actual validation results and unchecked
+remaining acceptance tasks. This reference does not mark this change archived
+or assert that unperformed manual tests or invariant reviews are complete.

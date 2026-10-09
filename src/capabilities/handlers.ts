@@ -1,8 +1,9 @@
+import { exportOutputsPackage } from '../commands/outputs.js';
 import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
-import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
+import { runErc, runDrc, unroutedCount, exportSvg, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
@@ -520,7 +521,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'verify_symbols',
       description:
-        "Cross-check every lib_symbols entry in the schematic against the KiCad symbol library installed on this machine. Reports pins that diverge from the real part (wrong count, name, or electrical type) and lib_ids that do not exist in the current KiCad version (with the closest real names). ERC cannot catch these — a symbol whose lib_id claims to be a canonical part but whose pins are wrong passes ERC while being wrong. Run this after capturing symbols and reconcile every finding.",
+        "Cross-check library parts against the installed KiCad symbols and engine-generated power definitions against their exact generating templates. Reports pins that diverge from the real part (wrong count, name, or electrical type) and lib_ids that do not exist in the current KiCad version (with the closest real names). ERC cannot catch these — a symbol whose lib_id claims to be a canonical part but whose pins are wrong passes ERC while being wrong. Run this after capturing symbols and reconcile every finding.",
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: false,
@@ -531,7 +532,7 @@ export const HANDLERS: HandlerDef[] = [
         path.join(ctx.repoRoot, ctx.config.schematic),
       );
       if (!findings.length) {
-        return { ok: true, text: `verify_symbols: ${checked} symbol(s) match the installed KiCad library. No divergences.` };
+        return { ok: true, text: `verify_symbols: ${checked} symbol(s) match the installed libraries or exact engine power templates. No divergences.` };
       }
       const lines = findings.map((f) => `  - [${f.kind}] ${f.detail}`);
       // 'no-library' is the *unverifiable* bucket (counted in `skipped`), not a
@@ -687,7 +688,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'export_outputs',
       description:
-        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Reports per-artifact success/failure.',
+        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Uses the explicit KiCad 9 JLC settings profile, generates ordering BOM.csv and a verified Gerber/drill ZIP plus source-bound manifest. Copper zones require unsupported fill validation and fail. Reports real file paths; never implies manufacturer acceptance.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: true,
@@ -695,13 +696,14 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.board) return 'no board configured';
       const outDir = path.join(ctx.repoRoot, 'outputs');
       await mkdir(outDir, { recursive: true });
-      const res = await exportFab(
-        path.join(ctx.repoRoot, ctx.config.board),
-        ctx.config.schematic ? path.join(ctx.repoRoot, ctx.config.schematic) : null,
-        outDir,
-      );
+      const res = await exportOutputsPackage(ctx.repoRoot, ctx.config);
       ctx.filesTouched.add('outputs/');
-      const lines = [`produced: ${res.produced.join(', ') || '(none)'}`];
+      const lines = [
+        `produced: ${res.produced.join(', ') || '(none)'}`,
+        ...res.files.map((file) => `${file.artifact}: outputs/${file.path} (${file.bytes} bytes)`),
+        `JLC KiCad 9 settings/package checks: ${res.failed.length === 0 ? 'passed' : 'incomplete'}`,
+        'manufacturer acceptance: not verified; no fabrication release; BOM verification status remains in BOM.md',
+      ];
       for (const f of res.failed) lines.push(`FAILED ${f.artifact}: ${f.reason}`);
       return { ok: res.failed.length === 0, text: lines.join('\n') };
     },

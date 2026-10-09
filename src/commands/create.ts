@@ -1,3 +1,4 @@
+import { outputsPackageGap } from './outputs.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
@@ -37,6 +38,7 @@ import { isDraftQualityHeading } from '../kicad/fab.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
+import { firmwareNotApplicable, hasFirmwareSource, NON_PROGRAMMABLE_SYMBOLS } from './firmware-applicability.js';
 
 /**
  * Mode A (`copperhead create`, SPEC §2.5): staged pipeline, each stage a
@@ -106,58 +108,42 @@ sha256: ${briefMeta.sha256}
   }
 }
 
-/**
- * Returns true when a directory exists and contains at least one file
- * matching the optional glob-style extension list (case-insensitive).
- * No extension list = any file.
- */
-async function dirHasFiles(dirPath: string, exts?: string[]): Promise<boolean> {
-  if (!existsSync(dirPath)) return false;
-  async function walk(dir: string): Promise<boolean> {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        if (await walk(path.join(dir, entry.name))) return true;
-      } else if (!exts || exts.some((e) => entry.name.toLowerCase().endsWith(e))) {
-        return true;
-      }
-    }
-    return false;
-  }
-  return walk(dirPath);
+/** The existing requirements-seed contract, with actionable finish-time feedback. */
+export async function specDocGap(root: string, docs: string): Promise<string | null> {
+  // The init scaffold writes SPEC.md with a "## Budgets" heading and an
+  // HTML comment placeholder — that alone must not count as complete.
+  // Require the heading AND at least one non-comment, non-blank line
+  // of real budget content beneath it (a filled section vs. an empty placeholder).
+  const specDoc = path.posix.join(docs, 'SPEC.md');
+  const p = path.join(root, docs, 'SPEC.md');
+  if (!existsSync(p)) return `${specDoc} is missing; write it with a non-empty "## Budgets" section`;
+  const text = await readFile(p, 'utf8');
+  const heading = /^(#{1,6})\s.*\bBudgets?\b.*$/im.exec(text);
+  if (!heading) return `${specDoc} has no Budget or Budgets heading; add a "## Budgets" section with the actual budget constraints`;
+  // The section runs to the next heading of the SAME OR SHALLOWER depth, not to
+  // the next heading of any depth (I17): a real spec routinely splits its budgets
+  // into subsections — "## 3. Electrical budgets" followed immediately by
+  // "### 3.1 Input and rails" — which leaves the parent's own body empty and read
+  // as an unfilled placeholder. Subheadings are part of the section, not its end.
+  const depth = heading[1]!.length;
+  const afterHeadingLine = text.slice(heading.index + heading[0].length);
+  const nextSection = afterHeadingLine.search(new RegExp(`^#{1,${depth}}\\s`, 'm'));
+  const section = nextSection >= 0 ? afterHeadingLine.slice(0, nextSection) : afterHeadingLine;
+  // Strip HTML comments (single or multi-line); headings inside the section are
+  // structure, not content, so a section of nothing but subheadings still fails.
+  const cleanSection = section.replace(/<!--[\s\S]*?-->/g, '');
+  const realLines = cleanSection
+    .split('\n')
+    .filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
+  return realLines.length > 0 ? null : `${specDoc} has an empty budget section; add real budget content, not only comments or subheadings`;
 }
 
 export const STAGES: Stage[] = [
   {
     name: 'spec-seed',
-    isComplete: async (root, docs) => {
-      // The init scaffold writes SPEC.md with a "## Budgets" heading and an
-      // HTML comment placeholder — that alone must not count as complete.
-      // Require the heading AND at least one non-comment, non-blank line
-      // of real budget content beneath it (a filled section vs. an empty placeholder).
-      const p = path.join(root, docs, 'SPEC.md');
-      if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      const heading = /^(#{1,6})\s.*\bBudgets?\b.*$/im.exec(text);
-      if (!heading) return false;
-      // The section runs to the next heading of the SAME OR SHALLOWER depth, not to
-      // the next heading of any depth (I17): a real spec routinely splits its budgets
-      // into subsections — "## 3. Electrical budgets" followed immediately by
-      // "### 3.1 Input and rails" — which leaves the parent's own body empty and read
-      // as an unfilled placeholder. Subheadings are part of the section, not its end.
-      const depth = heading[1]!.length;
-      const afterHeadingLine = text.slice(heading.index + heading[0].length);
-      const nextSection = afterHeadingLine.search(new RegExp(`^#{1,${depth}}\\s`, 'm'));
-      const section = nextSection >= 0 ? afterHeadingLine.slice(0, nextSection) : afterHeadingLine;
-      // Strip HTML comments (single or multi-line); headings inside the section are
-      // structure, not content, so a section of nothing but subheadings still fails.
-      const cleanSection = section.replace(/<!--[\s\S]*?-->/g, '');
-      const realLines = cleanSection
-        .split('\n')
-        .filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
-      return realLines.length > 0;
-    },
+    isComplete: async (root, docs) => (await specDocGap(root, docs)) === null,
     prompt: (brief) =>
-      `Stage 1 of the create pipeline: seed the requirements. From the product brief below, write docs/SPEC.md (what the device is, top-level constraints and budgets). Every budget you state must also be recorded with record_constraint. Anything the brief does not state: propose a sensible default and flag it ASSUMED. If an openspec/ workspace exists, also seed openspec/specs/ with per-capability requirements using Given/When/Then scenarios.\n\nBrief:\n${brief}`,
+      `Stage 1 of the create pipeline: seed the requirements. From the product brief below, write docs/SPEC.md (what the device is, top-level constraints and budgets). Include a "## Budgets" section with real budget content beneath the heading, not just an empty placeholder. Every budget you state must also be recorded with record_constraint. Anything the brief does not state: propose a sensible default and flag it ASSUMED. If an openspec/ workspace exists, also seed openspec/specs/ with per-capability requirements using Given/When/Then scenarios.\n\nBrief:\n${brief}`,
   },
   {
     name: 'architecture',
@@ -300,22 +286,16 @@ export const STAGES: Stage[] = [
   },
   {
     name: 'outputs',
-    isComplete: async (root) => {
-      // An empty outputs/ dir (e.g. from a failed export run) must not count
-      // as complete. Require at least one Gerber file (any .gbr variant).
-      return dirHasFiles(path.join(root, 'outputs'), ['.gbr', '.gtl', '.gbl', '.gbs', '.gbo', '.gbp', '.gbd', '.gto', '.gts', '.gml']);
-    },
+    isComplete: async (root) => (await outputsPackageGap(root, await loadConfig(root))) === null,
     prompt: () =>
-      'Stage 6: outputs package. Export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, SVG renders (export_svg), and an ordering BOM.csv generated from BOM.md (refdes, MPN, qty). Every export must succeed.',
+      'Stage 6: outputs package. Call export_outputs to produce outputs/: the explicit KiCad 9 JLC-profile Gerber/drill ZIP, DXF and STEP outline, SVG renders, ordering BOM.csv from BOM.md, and export-manifest.json. Every export must succeed and current source/file hashes must match. Copper zones cannot pass this profile without a supported fill-validation workflow. These are draft outputs, never manufacturer acceptance or fabrication release.',
   },
   {
     name: 'firmware',
-    isComplete: async (root) => {
-      // An empty firmware/ dir must not count. Require at least one source file.
-      return dirHasFiles(path.join(root, 'firmware'), ['.c', '.h', '.cpp', '.hpp', '.py', '.rs', '.ino', '.s']);
-    },
-    prompt: () =>
-      'Stage 7: firmware scaffold. Generate firmware/ for the chosen MCU HAL: pins.h generated from PINOUT.md (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md.',
+    isComplete: async (root, docs) =>
+      await hasFirmwareSource(path.join(root, 'firmware')) || await firmwareNotApplicable(root, docs),
+    prompt: (_brief, docs) =>
+      `Stage 7: firmware applicability and scaffold. For a design with a programmable component, generate firmware/ for the chosen MCU HAL: pins.h generated from ${path.posix.join(docs, 'PINOUT.md')} (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md. For a genuinely non-programmable design, do not invent an MCU or dummy source files. Instead, write firmware/README.md with exactly these three nonblank lines: "# Firmware not applicable", "Programmable components: none", and "Reason: <a concrete explanation of the hardware-only operation>". This evidence is accepted only with a nonempty, ERC-clean, BOM/PINOUT-consistent schematic using only these reviewed non-firmware symbols: ${[...NON_PROGRAMMABLE_SYMBOLS].join(", ")}. Unknown/custom symbols and unreviewed ICs are unsupported, not assumed non-programmable. The Reason must be concrete, at least 20 characters, and contain no TODO, TBD or placeholder text. The README records the completed firmware stage; all other stages and checks still apply.`,
   },
   {
     name: 'devplan',
@@ -507,6 +487,11 @@ export async function layoutDocGap(root: string, docs: string): Promise<string |
 
 async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
+  if (stageName === 'outputs') return (await outputsPackageGap(root, await loadConfig(root))) ?? generic;
+  if (stageName === 'spec-seed') {
+    const gap = await specDocGap(root, config.docs);
+    return gap ? `the spec-seed contract is not met: ${gap}` : generic;
+  }
   if (stageName === 'part-selection') {
     const r = await bomFootprintMisses(root, config.docs);
     const fixable = r?.missing.filter(modelFixable) ?? [];
@@ -1135,11 +1120,10 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           // the populated board is this stage's mutation too: finish needs a
           // passing DRC on it even when the agent never edits the board
           ...(layoutBoard ? { preTouched: [layoutBoard] } : {}),
-          // #310: in layout-draft, finish checks the stage's own contract, so the agent
-          // hears what is missing while its board still exists, not after the rollback.
-          // Other stages keep ending at the post-run check: their gaps have no specific
-          // message yet, and a generic one would only spend turns.
-          ...(stage.name === 'layout-draft'
+          // These stages have actionable contract gaps: report them during finish,
+          // before committing, so the agent can repair the artifact in this run.
+          // Other stages retain their post-run checks.
+          ...(stage.name === 'layout-draft' || stage.name === 'spec-seed' || stage.name === 'outputs'
             ? {
                 stageGate: async () =>
                   (await stage.isComplete(opts.repoRoot, config.docs)) ? null : contractGapDetail(stage.name, opts.repoRoot, config),

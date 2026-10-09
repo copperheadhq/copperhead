@@ -151,15 +151,31 @@ Anything unstated → the agent proposes defaults in SPEC.md and flags them `ASS
 | **Board outline / enclosure ref** | .dxf, .step | `kicad-cli pcb export dxf/step` |
 | **Renders** | .svg (sch + pcb), 3D .png | `kicad-cli export svg`, pcb render |
 | **BOM for ordering** | .csv (refdes, MPN, qty, vendor links) | generated from BOM.md |
-| **Firmware scaffold** | src/ (per MCU HAL: ESP-IDF / Zephyr / Arduino) | agent, compiles clean |
-| **Pin map header** | pins.h — generated from PINOUT.md, single source of truth | drift-checked |
+| **Firmware scaffold** | firmware/ (per MCU HAL: ESP-IDF / Zephyr / Arduino), or documented hardware-only applicability | agent, compiles clean when applicable |
+| **Pin map header** | pins.h for programmable designs — generated from PINOUT.md, single source of truth | drift-checked |
 | **Dev plan** | DEVPLAN.md: bring-up steps, test points, what to meter first, risk list, prototype order plan | agent |
+
+The fabrication export result keeps stable artifact labels and separately lists the actual output-relative file paths and byte sizes, including directory-based DXF and every schematic SVG sheet. A command that exits successfully but produces no matching nonempty regular file is an export failure; old output files cannot satisfy a new export. These file checks do not certify a manufacturer-specific profile.
 
 Firmware scope: scaffold + pin definitions + driver stubs + one working happy-path (e.g. key press → BLE HID report). "Compiles clean against the vendor toolchain" is the verification gate — same philosophy as ERC/DRC: nothing is done until the toolchain agrees.
 
+For a genuinely hardware-only design, stage 7 still produces and commits an applicability result; it is not removed from the eight-stage pipeline. It must not invent an MCU or empty source file. Instead, `firmware/README.md` contains exactly three nonblank lines:
+
+```text
+# Firmware not applicable
+Programmable components: none
+Reason: <concrete hardware-only rationale, at least 20 characters>
+```
+
+This declaration is necessary but not sufficient. The configured schematic must be populated and ERC-clean, BOM.md and PINOUT.md must contain real component/pin rows with zero drift, and every non-power symbol across all sheets must use an explicitly reviewed identity in `src/commands/firmware-applicability.ts`. The initial small set covers selected standard resistors, capacitors, discrete diodes/LEDs, fuses, USB-C/2-pin/2x2 connectors, mounting holes, and exactly `Power_Management:MIC2544-2YM`. Microchip [DS20005725B, pages 1 and 10](https://ww1.microchip.com/downloads/en/DeviceDoc/20005725B.pdf) documents that IC's resistor-set current limit and hardware enable/fault pins; its analog current-limit setting needs no firmware. This is not an exemption for the entire Power_Management library. Unknown/custom symbols, other unreviewed ICs, missing or ambiguous evidence, placeholder rationales, empty schematics, drift, or ERC failures do not qualify.
+
+The reviewed fixed-function set also includes exactly `Power_Management:TPS2065CDBV`, documented in TI [SLVSAU6I, pages 3–4](https://www.ti.com/lit/ds/symlink/tps2065c.pdf). Its fixed current limit and hardware enable/fault interface require no firmware. Related TPS2051 symbols, other package/part variants and custom identities remain unsupported unless separately reviewed.
+
+Programmable designs retain the firmware scaffold and toolchain requirements. A recognized source extension must contain non-whitespace content; zero-byte/whitespace dummy files do not satisfy the artifact gate. The source-presence probe alone does not prove a build or the happy path. N/A establishes only firmware applicability, never fabrication readiness or physical validation; all other gates, stage outcomes, costs and commit behavior remain unchanged.
+
 ### The pipeline (Mode A internally)
 
-**Run-to-completion guarantee:** once `create` starts, it always finishes with the complete output package. Gates are *quality checks the agent must satisfy*, not stops that wait for a human. By default the pipeline is fully autonomous: unstated decisions get `ASSUMED` flags, imperfect layout gets the `Draft quality` label, and the run ends with gerbers, firmware, renders, and DEVPLAN.md on disk — an end product, reviewable as a whole. `--interactive` turns the two human gates (spec approval, pre-export review) back on for users who want them.
+**Run-to-completion guarantee:** once `create` starts, it always finishes with the complete output package. Gates are *quality checks the agent must satisfy*, not stops that wait for a human. By default the pipeline is fully autonomous: unstated decisions get `ASSUMED` flags, imperfect layout gets the `Draft quality` label, and the run ends with gerbers, firmware or documented N/A, renders, and DEVPLAN.md on disk — an end product, reviewable as a whole. `--interactive` turns the two human gates (spec approval, pre-export review) back on for users who want them.
 
 **The one stop:** a footprint that is not installed on the machine stops the run for the user (#314). No model turn can install a library, and a substitute package is surrogate geometry on a board that claims to match its schematic. `create` checks every BOM.md footprint before the schematic stage and again when it populates the board, exits non-zero naming each missing part and how to install it, and resumes where it stopped once the library is added. copperhead never downloads parts.
 
@@ -173,11 +189,13 @@ brief.md
   → board populate (deterministic, see below)
   → first-draft layout (see below)             [gate: board matches schematic, DRC]
   → outputs package                            [gate: all exports succeed]
-  → firmware scaffold                          [gate: build passes]
+  → firmware scaffold or documented N/A        [gate: build passes or hardware-only evidence]
   → DEVPLAN.md
 ```
 
 Each stage is a `do`-loop run with a stage-specific prompt. State lives in the repo (docs + files), so `create` is resumable: kill it at any stage, re-run, it continues from the docs.
+
+For `spec-seed`, the prompt names the existing document contract: the configured `SPEC.md` must have a Budget or Budgets heading with non-comment budget content beneath it, including content in subsections. `finish` checks that same contract before committing and reports the missing document, heading, or budget content so the agent can repair it within the current run. Empty scaffold comments or headings alone still do not complete the stage. The post-run completion check remains in place.
 
 ### First-draft layout (explicitly non-optimal, explicitly useful)
 
@@ -637,6 +655,7 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 
 - **AC-16.4 (byte-identical regeneration)** Drafting the same IR, committing, and drafting again leaves `git diff` over the schematic empty.
 - **AC-16.5 (library upgrade is inert)** When the installed KiCad symbol library changes after a symbol was vendored, re-drafting the same IR is byte-identical to the pre-upgrade output, and `verify_symbols` reports the divergence between vendored and installed sources.
+- **Generated power-symbol verification:** `verify_symbols` compares `copperhead_power:` definitions to the engine's exact rail, ground or PWR_FLAG template, including all metadata, graphics and pin details after whitespace-independent parsing. Genuine generated ports preserve their net names and count as verified; a reserved prefix alone never qualifies. Changed or unknown generated definitions are blocking findings, while ordinary symbols retain installed-library pin verification. The check never rewrites a schematic or substitutes a stock rail name.
 - **AC-16.12 (output loads in kicad-cli)** Every golden IR drafted in CI loads in `kicad-cli` without error, and ERC runs to completion.
 - **AC-16.13 (connectivity matches intent)** Parsing a drafted reference IR yields a net list equal to the IR's connection list, with no-connect pins excluded.
 
@@ -695,3 +714,49 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - No auth, no hosting, no billing
 - No Altium/Eagle formats
 - No Windows support guarantees (macOS/Linux only today)
+
+### Stage-6 JLC settings and package integrity
+
+`export_outputs` implements the explicit `jlcpcb-kicad9-2026-09-24` settings
+profile, based on the [JLC KiCad 9 guide](https://jlcpcb.com/help/article/how-to-generate-gerber-and-drill-files-in-kicad-9)
+and [KiCad 9 CLI reference](https://docs.kicad.org/9.0/en/cli/cli.html).
+The profile selects every copper layer in stack order, both mask, legend and paste
+layers, and Edge.Cuts. It retains X2, netlist attributes and Protel filenames;
+Excellon drilling is explicitly absolute, metric, decimal, alternate-slot and
+separate PTH/NPTH. Paste layers support the existing assembly-BOM output.
+
+The initial verified implementation supports KiCad 9 with no copper-fill zones.
+Keepout/rule-area zones do not need filling. Actual copper zones, including those
+inside footprints, fail explicitly because this implementation has no supported
+KiCad 9 CLI fill-validation workflow. Other KiCad major versions fail this
+profile rather than silently claiming verified settings. Generic `exportFab`
+remains available with its prior behavior; the project's general KiCad >= 8
+compatibility requirement is not changed.
+
+Successful outputs include a manufacturing-only `jlcpcb.zip`, an ordering
+`BOM.csv` (one unique refdes and non-placeholder MPN per row, Qty 1), and
+`export-manifest.json`. The ZIP includes exactly the current-run manufacturing
+Gerbers and PTH/NPTH files, excluding unrelated stale files. It uses deterministic
+ZIP STORE with safe ASCII basenames, at most 99 files, 64 MiB per file and 256 MiB
+total. The manifest records real paths, sizes, SHA-256 hashes, source hashes
+(board, root/child schematics, BOM and present project settings), profile/version,
+no-copper-zone evidence and unverified manufacturer acceptance. Failed reruns
+invalidate prior completion evidence. No source or user file is deleted to make
+the checks pass.
+
+The outputs finish gate and resume probe require every expected export, matching
+source/file hashes, matching ordering BOM and a verified archive. One Gerber or
+an old partial export is insufficient. Existing ERC, DRC, parity, drift,
+rollback, document and later-stage gates remain in force. These checks establish
+settings and package integrity only: BOM.md's verification caveats, draft-routing
+status, physical/electrical qualification and manufacturer acceptance remain
+separate. No factory upload, order, release or acceptance is implied.
+
+## Create-stage evidence change record
+
+The coherent follow-up for budget feedback, firmware applicability, generated power
+definitions and complete export evidence is
+[fix-create-stage-evidence](../changes/fix-create-stage-evidence/proposal.md).
+Its design maps the existing active changes and records validation scope. This
+monolithic file remains the project authority; it is not a CLI-discovered
+canonical capability spec. No change is archived by this documentation update.

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { execa } from 'execa';
 import type { RunOptions } from '../src/agent/loop.js';
 import { bootstrapKicadProject } from '../src/kicad/bootstrap.js';
+import { kicadCliVersion } from '../src/kicad/cli.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { boardFootprints, populateBoard, moveFootprint } from '../src/kicad/populate.js';
 import { footprintSearchDirs } from '../src/kicad/footprints.js';
@@ -258,7 +259,11 @@ describe('create layout-draft around board populate (#314)', () => {
     const { repo, brief, cleanup } = await projectAtLayoutDraft();
     const emptyConfig = await mkdtemp(path.join(tmpdir(), 'copperhead-kicadcfg-'));
     try {
-      // no global fp-lib-table: copperhead finds the stock footprints, KiCad does not
+      // An absent table can be auto-seeded by KiCad. An explicitly empty table
+      // preserves the intended missing-library condition without changing DRC.
+      const version = /(\d+\.\d+)/.exec(await kicadCliVersion())![1]!;
+      await mkdir(path.join(emptyConfig, version), { recursive: true });
+      await writeFile(path.join(emptyConfig, version, 'fp-lib-table'), '(fp_lib_table (version 7))\n');
       vi.stubEnv('KICAD_CONFIG_HOME', emptyConfig);
       const before = await readFile(path.join(repo, PCB), 'utf8');
       const lines: string[] = [];

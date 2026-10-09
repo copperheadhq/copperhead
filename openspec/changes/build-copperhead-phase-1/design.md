@@ -130,3 +130,11 @@ Greenfield — no migration. First commit must already contain `.gitignore` with
 - Which exact GPT-5 / Claude model IDs to default to (depends on hackathon key entitlements — resolve at implementation with a config default that's easy to change).
 - Whether the fixture is a trimmed copy of the open-telegraph repo or a purpose-built minimal project (leaning minimal purpose-built for test speed).
 - How much of the layout first-draft (coordinate writing into `.kicad_pcb`) lands in Phase 1 vs. being labeled Draft-quality with placement only — decide after the schematic path is solid.
+
+## Create-stage evidence follow-up
+
+The related completion and export corrections are tracked in
+[fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md), with a
+coherent design, focused delta specs, actual validation results and unchecked
+remaining acceptance tasks. This reference does not mark this change archived
+or assert that unperformed manual tests or invariant reviews are complete.
