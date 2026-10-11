@@ -65,3 +65,14 @@ immutable replies inspect that manifest. No historical reply, cache key, source
 hash or historical result is rewritten. Default behavior requires separate
 coverage; historical 5/5 results do not validate this follow-up. See the local
 compatibility review for current executed and blocked checks.
+
+## Unexpected mutation probe failures
+
+A focused follow-up closes the reproduced bookkeeping gap in edit_file and
+move_footprint. After a write, an unexpected validation exception registers the
+mutation before attempting restoration and clears the corresponding cached
+check. Successful restoration still leaves fresh verification required; failed
+restoration reports both errors and keeps the retained bytes tracked. Existing
+normal rejection and incremental repair paths retain their behavior. This is a
+local handler repair, not an exhaustive guarantee for every I/O failure or tool.
+See reports/mutation-probe-fix.md for the executed scope and skipped checks.

@@ -39,3 +39,24 @@ Fabrication exports SHALL retain stable artifact labels and separately report ac
 - **WHEN** a later destination in a multi-file job is a directory or symbolic link
 - **THEN** all destinations are checked before any existing file in that job is replaced
 - **AND** no claim of transaction atomicity against arbitrary disk failure is made
+
+### Requirement: Track unexpected post-write probe failures
+
+Unexpected post-write loadability validation failures in edit_file and move_footprint SHALL register the affected file and invalidate its cached verification before attempting restoration. The handler SHALL report failure even after successful restoration, preserve existing obligations, and require fresh verification. Restoration failure SHALL report both errors and keep mutation obligations open.
+
+#### Scenario: Probe exception after a write
+
+- **WHEN** a loadability probe throws after a schematic edit, board edit or footprint move
+- **THEN** the handler restores the original bytes where possible and reports failure
+- **AND** the affected file remains tracked with stale verification cleared and outstanding obligations preserved
+
+#### Scenario: Restoration also fails
+
+- **WHEN** restoration fails after a post-write validation exception
+- **THEN** both failures are reported and the possibly retained modification remains tracked
+
+#### Scenario: Normal rejection and incremental repair
+
+- **WHEN** a completed probe normally rejects an edit and restores valid original bytes
+- **THEN** prior verification and obligations remain unchanged
+- **AND** the existing incremental repair behavior for an already-unloadable file is preserved

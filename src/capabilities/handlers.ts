@@ -21,6 +21,22 @@ import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
 import { corruptionError, markTouched, str } from './helpers.js';
 
+/** Unexpected post-write failures must never leave an untracked mutation. */
+async function rollbackMutationError(ctx: RunContext, rel: string, abs: string, before: string, error: unknown): Promise<never> {
+  // Register before attempting restoration: even a failed/partial write must
+  // invalidate the old check and leave verification obligations open. Keep
+  // this conservative state after restoration because the probe did not finish.
+  markTouched(ctx, rel);
+  const reason = error instanceof Error ? error.message : String(error);
+  try {
+    await writeFile(abs, before, 'utf8');
+  } catch (rollbackError) {
+    const rollbackReason = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+    throw new Error(`${rel}: post-write validation failed: ${reason}; rollback failed: ${rollbackReason}. The file may remain modified; the change is tracked and requires verification.`, { cause: error });
+  }
+  throw new Error(`${rel}: post-write validation failed: ${reason}; mutation REVERTED. Verification obligations remain open.`, { cause: error });
+}
+
 /**
  * Findings that say nothing about whether a repair worked: silkscreen text (cosmetic,
  * fixed only by moving text). Unrouted connections are never among the violations:
@@ -291,20 +307,24 @@ export const HANDLERS: HandlerDef[] = [
         args.replace_all === true,
       );
       if (before !== null) {
-        const loadErr = await kicadLoadError(abs);
-        if (loadErr) {
-          const after = await readFile(abs, 'utf8');
-          await writeFile(abs, before, 'utf8');
-          if (await kicadLoadError(abs)) {
-            // The file was already unloadable before this edit. Reverting
-            // would deadlock incremental repair (every partial fix undone
-            // unless one edit fixes the whole file), so keep the edit and
-            // keep the pressure on with the probe output.
-            await writeFile(abs, after, 'utf8');
-            markTouched(ctx, rel);
-            return `${res}\nnote: ${rel} was already unloadable before this edit, so the edit is KEPT. Keep repairing until it loads. kicad-cli says:\n${loadErr}`;
+        try {
+          const loadErr = await kicadLoadError(abs);
+          if (loadErr) {
+            const after = await readFile(abs, 'utf8');
+            await writeFile(abs, before, 'utf8');
+            if (await kicadLoadError(abs)) {
+              // The file was already unloadable before this edit. Reverting
+              // would deadlock incremental repair (every partial fix undone
+              // unless one edit fixes the whole file), so keep the edit and
+              // keep the pressure on with the probe output.
+              await writeFile(abs, after, 'utf8');
+              markTouched(ctx, rel);
+              return `${res}\nnote: ${rel} was already unloadable before this edit, so the edit is KEPT. Keep repairing until it loads. kicad-cli says:\n${loadErr}`;
+            }
+            return `edit REVERTED: it would make ${rel} unloadable in KiCad. kicad-cli says:\n${loadErr}\nRe-read the surrounding file text and make a smaller, syntactically complete edit.`;
           }
-          return `edit REVERTED: it would make ${rel} unloadable in KiCad. kicad-cli says:\n${loadErr}\nRe-read the surrounding file text and make a smaller, syntactically complete edit.`;
+        } catch (error) {
+          return rollbackMutationError(ctx, rel, abs, before, error);
         }
       }
       markTouched(ctx, rel);
@@ -345,10 +365,14 @@ export const HANDLERS: HandlerDef[] = [
         return `not moved: ${(e as Error).message}`;
       }
       await writeFile(abs, after, 'utf8');
-      const loadErr = await kicadLoadError(abs);
-      if (loadErr) {
-        await writeFile(abs, before, 'utf8');
-        return `move REVERTED: the board would not load in KiCad. kicad-cli says:\n${loadErr}`;
+      try {
+        const loadErr = await kicadLoadError(abs);
+        if (loadErr) {
+          await writeFile(abs, before, 'utf8');
+          return `move REVERTED: the board would not load in KiCad. kicad-cli says:\n${loadErr}`;
+        }
+      } catch (error) {
+        return rollbackMutationError(ctx, rel, abs, before, error);
       }
       markTouched(ctx, rel);
       return `moved ${ref} to (${x}, ${y})${rotation === undefined ? '' : ` at ${rotation}°`}; pads and text turned with it. Run run_drc after this batch of moves.`;

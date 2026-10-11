@@ -35,7 +35,7 @@ The agent:
 ### 1.3 Core invariants
 
 1. **Nothing starts without a spec.** The agent cannot touch a KiCad file until a validated OpenSpec proposal exists for the change (`openspec validate --change <id>` passes). The edit tools (`edit_file`, `write_file`) are hard-locked — not prompt-discouraged, but unavailable in the tool list — until the proposal validates. Every edit is therefore traceable to a documented intent.
-2. **Nothing is "done" until the tools agree.** Every mutation of a KiCad file must be followed by an ERC (schematic) or DRC (board) run before the agent reports success. If violations exist, the agent reads the report and fixes them or explains why it cannot.
+2. **Nothing is "done" until the tools agree.** Every mutation of a KiCad file must be followed by an ERC (schematic) or DRC (board) run before the agent reports success. If violations exist, the agent reads the report and fixes them or explains why it cannot. Unexpected post-write loadability-probe exceptions in `edit_file` and `move_footprint` must register the mutation and invalidate its cached verification before attempting restoration. Restored bytes still require fresh verification; failed restoration must report both errors and retain the mutation obligations.
 
 Spec-gated in, verification-gated out: the design can't drift from its requirements, because drift is a build failure.
 
