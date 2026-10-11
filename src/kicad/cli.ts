@@ -1,4 +1,5 @@
 import { execa, ExecaError } from 'execa';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -209,13 +210,70 @@ function fallbackAfterMissing(): string {
   throw new KicadCliMissingError();
 }
 
-async function runKicad(args: string[], opts?: { reject?: boolean }): Promise<Awaited<ReturnType<typeof execa>>> {
+/**
+ * Safely terminate a spawned process tree on Windows.
+ * Strictly scoped to the specified process ID and its descendants.
+ */
+export function killProcessTree(pid: number | undefined): void {
+  if (process.platform !== 'win32' || !pid) return;
+  try {
+    const taskkillBin = process.env.SystemRoot
+      ? path.join(process.env.SystemRoot, 'System32', 'taskkill.exe')
+      : 'taskkill';
+    execFileSync(taskkillBin, ['/F', '/T', '/PID', String(pid)], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+  } catch {
+    // Process may have already exited or taskkill returned non-zero
+  }
+}
+
+/**
+ * Execute a KiCad subprocess with deadline enforcement.
+ * When a timeout is specified, process-tree termination is enforced on Windows
+ * to prevent batch-wrapper descendants from holding inherited stdio descriptors open.
+ */
+export async function execKicadProcess(
+  bin: string,
+  args: string[],
+  timeoutMs?: number,
+): Promise<Awaited<ReturnType<typeof execa>>> {
+  if (!timeoutMs || timeoutMs <= 0) {
+    return execa(bin, args, { reject: false });
+  }
+
+  const controller = new AbortController();
+  const subprocess = execa(bin, args, {
+    reject: false,
+    cancelSignal: controller.signal,
+  });
+
+  let didTimeout = false;
+  const timer = setTimeout(() => {
+    didTimeout = true;
+    killProcessTree(subprocess.pid);
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const res = await subprocess;
+    if (didTimeout) {
+      (res as { timedOut?: boolean }).timedOut = true;
+    }
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runKicad(args: string[], opts?: { reject?: boolean; timeout?: number }): Promise<Awaited<ReturnType<typeof execa>>> {
   let bin = resolveKicadCli();
-  let res = await execa(bin, args, { reject: false });
+  let res = await execKicadProcess(bin, args, opts?.timeout);
   if (res.failed && isNotFoundError(res)) {
     if (bin === 'kicad-cli') {
       bin = fallbackAfterMissing();
-      res = await execa(bin, args, { reject: false });
+      res = await execKicadProcess(bin, args, opts?.timeout);
     } else {
       throw new KicadCliMissingError();
     }
@@ -225,7 +283,7 @@ async function runKicad(args: string[], opts?: { reject?: boolean }): Promise<Aw
   }
   if (opts?.reject === false) return res;
   if (res.failed) {
-    throw Object.assign(new Error(res.stderr || res.stdout || `kicad-cli exited ${res.exitCode}`), res);
+    throw Object.assign(new Error(String(res.stderr || res.stdout || `kicad-cli exited ${res.exitCode}`)), res);
   }
   return res;
 }
@@ -254,8 +312,12 @@ export function setKicadFallbackWinRoots(roots?: readonly string[]): void {
   fallbackBinariesOverride = null;
 }
 
-export async function kicadCliVersion(): Promise<string> {
-  const res = await runKicad(['version']);
+export interface KicadCliVersionOptions {
+  timeout?: number;
+}
+
+export async function kicadCliVersion(opts?: KicadCliVersionOptions): Promise<string> {
+  const res = await runKicad(['version'], opts);
   return String(res.stdout ?? '').trim();
 }
 

@@ -319,6 +319,14 @@ copperhead mcp [--repo <path>]            # EXPERIMENTAL
     server opens no network transport, and LLM calls happen exactly where
     the CLI already makes them.
 
+copperhead capabilities [--json]
+    Versioned protocol and runtime capability discovery (Issue #258 Phase 0).
+    Returns a machine-readable JSON descriptor identifying the protocol major
+    (copperhead-run/1), CLI version, registered commands, active features,
+    and installed tool versions (KiCad CLI, Git, OpenSpec, Node). Softly
+    degrades missing tools to null. Offline, network-free, credential-free,
+    and repository-independent.
+
 copperhead explain <refdes|net|pin>       # stretch
     Answer "why is R7 here?" from docs + schematic context.
 
@@ -671,6 +679,14 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 
 - **AC-16.25 (illegible schematic still exits zero)** `check` on a repo with error-severity legibility findings but clean ERC and DRC prints them under a legibility heading and exits 0.
 - **AC-16.26 (score rides along without gating)** `check --json` on a repo with a drafted schematic and a low composite carries the `score` object with composite and breakdown, and the exit code is unaffected.
+
+### AC-17 · `copperhead capabilities` — versioned protocol handshake (Issue #258 Phase 0)
+
+- **AC-17.1 (protocol identifier)** `capabilities --json` emits a JSON document containing `protocol: "copperhead-run/1"`, `cli` version, lexicographically sorted top-level primary `commands` (excluding aliases and nested subcommands in Phase 0), `features`, and installed `tools` (`kicadCli`, `git`, `openspec`, `node`).
+- **AC-17.2 (truthful feature advertisement)** In Phase 0, `features` is an empty array (`[]`); unimplemented stream capabilities are not advertised.
+- **AC-17.3 (soft probe degradation)** Missing, unparseable, erroring, or timed-out (5000 ms deadline) tool probes degrade to `null` for that tool (e.g. `kicadCli: null`); probe failures never fail the command or leak host paths / subprocess diagnostics.
+- **AC-17.4 (offline and repo-independent)** `capabilities --json` requires no git repository, no KiCad project, no model API credentials, and makes zero network calls. It leaves filesystem state completely unmodified.
+- **AC-17.5 (consumer protocol compatibility)** A consumer expecting major 1 accepts `copperhead-run/1` and refuses unknown majors (e.g. `copperhead-run/2`); unknown JSON fields are ignored for forward compatibility.
 
 ### AC-5 · Viewer (Phase 2 — only if built)
 
