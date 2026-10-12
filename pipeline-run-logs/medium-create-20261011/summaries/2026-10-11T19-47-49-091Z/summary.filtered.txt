@@ -1,0 +1,62 @@
+# Run summary
+
+- **Request:** create pipeline stage: schematic
+- **Outcome:** success
+- **OpenSpec change:** capture-stage4-schematic
+- **Tokens:** 3882555 in / 77926 out
+
+## Environment
+
+- **Run:** 2026-10-11T19-47-49-091Z · create · started 2026-10-11T19:47:49.103Z · autonomous
+- **Stage:** schematic (4/8)
+- **Brief:** external:BRIEF.md (sha256 13aa827a7b68…)
+- **Model:** codex:gpt-6.1-sol (codex, via flag)
+- **copperhead:** v0.11.0 at <HOME>/Documents/Codex/2026-10-09/<TASK>/copperhead-j1-drc
+- **Tooling:** kicad-cli 9.0.9 · node v24.21.0 · linux-x64
+- **Config:** schematic new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch · board new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb · docs docs/ · maxTurns 22 · maxRepairCycles 5 · budgets {}
+- **Repo:** master@a4bbd91b6571f48ef5d0d2efddf46cb89fcc07c1 · clean · pre-commit hook absent
+- **Memory:** 41 open constraint(s) · 9 prior run(s)
+
+## Run stats
+
+- **Exit path:** done
+- **Turns:** 10 / 22
+- **Repair cycles:** 0 / 5
+- **Tokens:** 3882.6k in / 77.9k out
+- **Duration:** 9m45s
+- **Per turn:** 1: 39840/670 · 2: 85336/1092 · 3: 149732/1404 · 4: 224595/2107 · 5: 306071/8129 · 6: 398732/8556 · 7: 498974/12797 · 8: 608888/13481 · 9: 724747/14313 · 10: 845640/15377
+
+## Plan
+
+Plan: capture all 39 BOM parts in schematic.intent.json using the documented subsystem groups, then draft the schematic and synchronize PINOUT.md and design records. Preserve all parts, values, footprints and budgets. Before wiring, resolve U5/U6 manufacturer pin functions and reconfirm the generic connector, switch and diode symbols; startup-current and reset qualification remain explicit risks.
+
+## Files touched
+
+- docs/BOM.md
+- docs/DECISIONS.md
+- schematic.intent.json
+- new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch
+- docs/PINOUT.md
+- docs/SPEC.md
+- docs/SUBSYSTEMS.md
+- docs/CHANGELOG.md
+- openspec/changes/capture-stage4-schematic/tasks.md
+
+## Verification
+
+- ERC: clean
+- DRC: not run
+- legibility: 0 error, 2 advisory
+- score: 75.11/100
+
+## Decisions
+
+- Correct U5 DCU output functions to 1Y=pin6 and 2Y=pin3; adapter receive path is pin2 to pin6, target transmit path pin5 to pin3, with both active-low OEs grounded. | why: TI SCES204Q section5 contradicts the Stage3 swapped output labels; following its DCU pin table prevents cross-coupled UART wiring without changing the selected part.
+- Capture all39 unchanged BOM parts through deterministic intent drafting, with five existing subsystem groups,22 explicit no-connects, generic connector/switch symbols and unidirectional Device:D_Zener; override 3V3 as power and BUCK_SW as signal. Shorten UART_ATX/UART_TX to UART_A/UART_T with documented meanings. | why: Exact package endpoints and topology preserve the design contract; explicit classes avoid misdrawn converter rails, and shorter UART labels repair reported text overlap without changing connectivity.
+- Use U_ as the documented UART net-family prefix after the first shortening attempt retained an error-severity text collision; endpoints remain unchanged. | why: The drafting report identifies label width as the collision source, so consistent shorter intent names repair readability without manual geometry edits.
+- [affects] interface.stage4_capture_contract affects docs/BOM.md: changed: corrected U5 manufacturer output functions, confirmed U6 DRL functions and documented inspected static limits with unchanged application qualification boundaries.
+- [affects] interface.stage4_capture_contract affects docs/SPEC.md: changed: added Stage4 capture status and supersession of historical deferred pin-function claims while preserving every budget and qualification gate.
+- [affects] interface.stage4_capture_contract affects docs/SUBSYSTEMS.md: changed: recorded all39 parts in five existing electrical groups, corrected U5 functions and retained RF/mechanical and current/startup obligations.
+- [affects] interface.stage4_capture_contract affects docs/PINOUT.md: changed: created exact endpoint contract, MCU/header table,22 intentional no-connects, numbered cable policy, shortened U_ UART family and complete qualification boundaries.
+- [affects] interface.stage4_capture_contract affects schematic.intent.json: changed: captured all39 unchanged BOM parts with manufacturer-corrected U5 outputs, U6 channels, explicit unused endpoints and rail/switch-node classification; regenerated exclusively through draft_schematic.
+- Retain the engine-generated A2 sheet after U_ label shortening cleared the error-severity collision; acknowledge two remaining label-overlap notes and two long-wire advisories as presentation limitations. | why: The current draft has zero error-severity findings and complete connectivity; residual advisory geometry is recorded explicitly without manually editing the generated schematic or claiming flawless presentation.

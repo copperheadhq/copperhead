@@ -1,0 +1,54 @@
+# Stage5 first-draft layout
+
+Change: place-route-stage5-layout-draft. This is partial placement/routing for review, not manufacturing or electrical acceptance. All39 schematic parts retain their selected exact footprints, numbered pads and assigned pad nets. Footprints were moved/rotated only through move_footprint; board tracks, vias, outline, thickness and Reference text were edited with unique anchors. Schematic connectivity and BOM Values are unchanged. Rationale: preserve the capture contract while making a draft physical arrangement reviewable.
+
+## Outline and placement
+
+Edge.Cuts spans (100,100) to (145,140),45x40mm; copper layers remain F.Cu/B.Cu only. Nominal thickness is corrected from populated1.6mm to1.00mm; manufacturing tolerance and physical mating remain unqualified. J1 origin(112,136.6) places its illustrated body edge at y140. J2/J3 are accessible on the right edge. Rationale: satisfy the specified base-board envelope and connector-access arrangement without reducing pads/drills.
+
+ASSUMED final coordinates below are board millimetres; all rotations0deg except C2=180deg.
+
+| Parts | Origins (x,y) | Rationale |
+|---|---|---|
+| U1 | (110.7,109.2) | Antenna at top edge, fully inside base board after overhang produced silkscreen edge findings. |
+| J1,U6,D1 | (112,136.6);(112,130.7);(104,130.3) | Cluster input protection near USB; transient return inductance remains unqualified. |
+| U3,C1,C10,R3 | (112,127);(108,127.25);(108,123.8);(116,123) | Group eFuse bypass, slew and current-limit support. |
+| R1,R2,R4 | (116,131);(119.5,135);(119.5,131.5) | Separate CC loads and fault support without connector/pad collisions. |
+| U2,L1,C2,C3 | (124,127);(128.5,126.75);(119,126.75);(128.5,131.2) | Cluster converter power parts; C2 reversed to face VIN. |
+| R5,C11 | (120,122.5);(124,123.5) | Reserve local enable-delay network away from SW. |
+| C4,C5 | (102,109.5);(101.9,106) | Place MCU capacitors beside supply side; bypass loop needs optimization. |
+| R7,C6,R6,R8,R9 | (101.9,113);(105,119.2);(109,119.2);(114,119.2);(118,119.2) | Keep reserved strap/reset support near MCU without courtyard overlap. |
+| SW1,SW2 | (133,113);(133,120) | Accessible manual RESET/BOOT separated from module and support parts. |
+| U5,C8,R12,R14,R15,J2 | (123,109);(125.325,106);(122,113);(125,115);(125,118.5);(142,114) | Group buffered UART interface and local bypass. |
+| U4,C7 | (140,105);(140,108.7) | Upper-right sensing corner separated from MCU and regulator heat. |
+| J3,C9,R13,R10,R11 | (142,124);(136,126.5);(136,130);(136,134);(136,137.5) | Edge OLED cable access with display supply/reset and shared-bus support. |
+
+U4's body is more than20mm from the nearest U1 body edge and more than20mm from U2; this exceeds the10mm geometric separation target, but is not a thermal-error measurement. The U1 library antenna keepout spans approximately x104.1–117.3,y100.9–106.3 on both copper layers and remains unchanged, with no added copper/tracks/vias/components inside it. The SHT40 library copper/track keepout also remains unchanged. Rationale: retain exact library restrictions and separate sensing from main heat sources.
+
+Inspected offline layout guidance: TI SLVSAM2E section11 requests short/wide switched loops, nearby input/output capacitors, output-capacitor VOS sensing and single-point grounding at the exposed pad; SLVSE57C section11 requests nearby bypass/support, adequately sized power paths and an IC ground plane/island; SLLSEG9C section10 requests connector-adjacent protection and straight protected traces. No supplied Espressif hardware-guideline text resolved the additional15mm RF target. Rationale: distinguish inspected guidance from unverified draft performance.
+
+## Routing and constraints
+
+Preliminary routed paths include J1 VBUS contacts to U3/D1/C1, U3 protected output to C2/U2, U2 SW to L1, L1 output/C3 and VOS sensing, part of3V3 distribution to MCU/U5/sensor, connector-to-U6 CC links and selected ground/decoupling paths. Fine-pitch escapes use0.15–0.2mm; main power sections0.6mm, rail distribution0.5mm, signal/local links0.15–0.4mm and ground trunks0.3–0.4mm. Vias use0.6/0.7mm diameter and0.3mm drills. Rationale: create inspectable partial routing; current capacity, copper thickness, neck losses, via capacity and parasitic behavior are not established by these widths.
+
+The attempted B.Cu ground zone had no usable saved fill and produced dangling-via findings; it was removed. Explicit B.Cu ground tracks now connect the selected ground escapes and headers/shell contacts. No filled plane is claimed. Rationale: retain verifiable connectivity rather than count unfilled polygon intent as copper.
+
+ASSUMED Stage5 draft preserves all39 exact footprints and pad nets,45x40mm/two copper layers/nominal1.00mm, unchanged antenna/sensor library keepouts and every electrical budget. Preliminary widths0.15–0.6mm and vias0.6/0.7mm with0.3mm drills require qualification. RF15mm clearance, ground-plane/return optimization, current/thermal/transient performance and cable/enclosure fit remain unresolved; no manufacturing acceptance.
+
+Stage5 unrouted baseline is132 connections; final93 connections remain unrouted. Stage5 must not finish above132; later complete routing is still required. Rationale: avoid breaking an existing connection while permitting an explicitly partial draft.
+
+## Draft quality
+
+Fine for draft review: all39 parts placed with exact footprints/pad nets preserved;45x40mm outline, two copper layers and nominal1.00mm; edge USB and right-edge headers; sensor geometric heat separation; unchanged two-layer antenna and sensor keepouts; partial power/critical routing and corrected Reference labels. Final run_drc is clean with93 connections unrouted,39 fewer than baseline132. Final run_erc and check_drift are clean. Board SVG exported under .copperhead/renders/. No intrinsic single-library-footprint findings were reported by final DRC. No DRC errors or warnings were suppressed and no library pad/drill geometry was changed.
+
+A human or specialist tool must redo/complete:
+
+- Complete the93 remaining connections, including remaining supply/bypass, ground pads, Rd/support, boot/reset, UART, I2C and OLED paths. This board cannot operate as submitted. C5 and C9 bypass wiring and several local support networks remain ratsnest.
+- Replace long ground returns with correctly filled/verified planes, stitching and short local returns; optimize converter input/output loops, PGND/AGND/exposed-pad connection, VOS Kelvin routing and eFuse grounding. Present routed ground tracks do not implement TI's recommended plane/island and optimized switching layout.
+- Optimize USB TVS and CC protection returns and protected-path geometry; CC2 presently uses vias. Review overshoot, ESD coupling and return inductance against an explicitly established test level.
+- Reconcile the additional15mm RF target against Espressif hardware guidance and actual enclosure/cable/metal geometry. Nearby MCU support and UART parts are within15mm of the antenna area; the assumed target is not achieved or waived. Revisit antenna overhang/base-board shape if required.
+- Optimize MCU and sensor decoupling loops, converter capacitor placement and via escapes; review near-pad vias for assembly/stencil process and current/thermal capacity. Draft rail distribution and right-angle routes are not optimized.
+- Add reviewed cable orientation/function labels and inspect access, connector mating, thickness tolerance, shell/cable/enclosure fit and sensor airflow; existing pad1 markers and docs/PINOUT.md are the numbered cable contract. No mounting/enclosure or copper-thickness default is qualified.
+- Qualify unchanged250/450mA input limits including startup/recycle,222/472mA simultaneous rail allocations,82% stronger conversion target, PG-off reset behavior, U5 operating current,U6 leakage and all remaining component/module/source assumptions. The approximately0.49A fault limit and clean DRC prove none of these.
+
+Rationale: label non-optimal placement/routing and unqualified engineering explicitly; Stage5 completion means a verified draft artifact, not a functional, manufacturable or accepted board.

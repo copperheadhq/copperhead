@@ -1,0 +1,65 @@
+[
+  {
+    "attempt": "initial",
+    "startedAt": "2026-10-11T19:07:39.773711+00:00",
+    "finishedAt": "2026-10-11T19:35:12.768878+00:00",
+    "exitCode": 1,
+    "actualProviderCalls": 28,
+    "log": "runtime/initial/pipeline.filtered.log",
+    "terminal": "runtime/initial/terminal.json"
+  },
+  {
+    "attempt": "resume-cli-1",
+    "startedAt": "2026-10-11T19:37:10.142453+00:00",
+    "finishedAt": "2026-10-11T19:43:27.271867+00:00",
+    "exitCode": 1,
+    "actualProviderCalls": 8,
+    "log": "runtime/resume-cli-1/pipeline.filtered.log",
+    "terminal": "runtime/resume-cli-1/terminal.json"
+  },
+  {
+    "attempt": "resume-cli-2",
+    "startedAt": "2026-10-11T19:46:09.542538+00:00",
+    "finishedAt": "2026-10-11T19:46:13.064479+00:00",
+    "exitCode": 1,
+    "actualProviderCalls": 0,
+    "log": "runtime/resume-cli-2/pipeline.filtered.log",
+    "terminal": "runtime/resume-cli-2/terminal.json"
+  },
+  {
+    "attempt": "resume-cli-3",
+    "startedAt": "2026-10-11T19:47:47.785536+00:00",
+    "finishedAt": "2026-10-11T20:24:11.430418+00:00",
+    "exitCode": 1,
+    "actualProviderCalls": 35,
+    "log": "runtime/resume-cli-3/pipeline.filtered.log",
+    "terminal": "runtime/resume-cli-3/terminal.json"
+  },
+  {
+    "attempt": "resume-cli-4",
+    "startedAt": "2026-10-11T21:00:10.888102+00:00",
+    "finishedAt": "2026-10-11T21:09:35.084692+00:00",
+    "exitCode": 0,
+    "actualProviderCalls": 8,
+    "log": "runtime/resume-cli-4/pipeline.filtered.log",
+    "terminal": "runtime/resume-cli-4/terminal.json"
+  },
+  {
+    "attempt": "resume-cli-5-artifact-bookkeeping",
+    "startedAt": "2026-10-11T21:22:08.669677+00:00",
+    "finishedAt": "2026-10-11T21:22:23.203210+00:00",
+    "exitCode": 0,
+    "actualProviderCalls": 0,
+    "log": "runtime/resume-cli-5-artifact-bookkeeping/pipeline.filtered.log",
+    "terminal": "runtime/resume-cli-5-artifact-bookkeeping/terminal.json"
+  },
+  {
+    "attempt": "resume-cli-6-devplan-review",
+    "startedAt": "2026-10-11T21:44:54.021591+00:00",
+    "finishedAt": "2026-10-11T21:51:12.664217+00:00",
+    "exitCode": 0,
+    "actualProviderCalls": 6,
+    "log": "runtime/resume-cli-6-devplan-review/pipeline.filtered.log",
+    "terminal": "runtime/resume-cli-6-devplan-review/terminal.json"
+  }
+]

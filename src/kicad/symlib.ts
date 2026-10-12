@@ -21,6 +21,7 @@
 import { readFile, readdir, access, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parseSexp, children, child, isList, type SexpNode } from './sexp.js';
+import { matchesGeneratedPowerSymbol } from './power-symbols.js';
 
 /** Numeric-aware, case-insensitive pin-number ordering ("2" < "10", "a1" ~ "A1")
  * shared by every pin-table renderer so orderings never diverge. */
@@ -494,22 +495,24 @@ export async function resolveLibrarySymbol(
 
 export interface SymbolFinding {
   libId: string;
-  kind: 'no-library' | 'no-symbol' | 'wrong-library' | 'pin-count' | 'pin-mismatch';
+  kind: 'no-library' | 'no-symbol' | 'wrong-library' | 'pin-count' | 'pin-mismatch' | 'generated-symbol';
   detail: string;
 }
 
 /** A schematic lib_symbols entry: its lib_id and the pins as authored. */
-function schematicLibSymbols(root: SexpNode[]): { libId: string; pins: LibPin[] }[] {
+function schematicLibSymbols(root: SexpNode[]): { libId: string; pins: LibPin[]; node: SexpNode[] }[] {
   const libs = child(root, 'lib_symbols');
   if (!libs) return [];
   return children(libs, 'symbol').map((sym) => ({
     libId: atomAt(sym, 1) ?? '',
     pins: pinsOfSymbolNode(sym),
+    node: sym,
   }));
 }
 
 /**
- * Compare every lib_symbols entry in a schematic against the installed library.
+ * Compare library parts against their installed definitions and engine power
+ * symbols against their exact generating templates (never a prefix exemption).
  * Returns one finding per divergence; an empty array means every resolvable
  * symbol matched. A part whose library is not installed is reported once (so
  * the model knows the check could not run for it) but never treated as a
@@ -528,6 +531,14 @@ export async function verifySchematicSymbols(
   let skipped = 0;
   for (const entry of schematicLibSymbols(root)) {
     if (!entry.libId) continue;
+    if (entry.libId.startsWith('copperhead_power:')) {
+      if (matchesGeneratedPowerSymbol(entry.node)) checked++;
+      else findings.push({
+        libId: entry.libId, kind: 'generated-symbol',
+        detail: `"${entry.libId}" does not match a known engine power-symbol definition after KiCad default normalization; inspect the definition and preserve intentional user edits, rather than blindly re-drafting or substituting a stock rail name`,
+      });
+      continue;
+    }
     const resolved = await resolveLibrarySymbol(entry.libId, dirs);
     if (resolved.status === 'no-library') {
       skipped++;

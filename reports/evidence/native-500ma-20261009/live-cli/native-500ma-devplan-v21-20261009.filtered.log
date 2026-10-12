@@ -1,0 +1,99 @@
+stage spec-seed: already complete (resuming past it)
+stage architecture: already complete (resuming past it)
+stage part-selection: already complete (resuming past it)
+stage schematic: already complete (resuming past it)
+stage layout-draft: already complete (resuming past it)
+stage outputs: already complete (resuming past it)
+stage outputs: emitted outputs/jlcpcb-bom.csv (JLCPCB assembly BOM)
+stage firmware: already complete (resuming past it)
+stage devplan: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage devplan (8/8) · model experimental-native:native-500ma-devplan-v21-20261009 (experimental-native, via flag) · turns ≤5 · master@0c2fb31 clean
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+  [verify_symbols] verify_symbols: 11 symbol(s) match the installed libraries or exact engine power templates. No divergences.
+  [run_erc] ERC: clean
+  [run_drc] DRC: clean
+  [check_drift] drift: clean
+  [check_legibility] legibility: 0 error, 1 advisory finding(s) across 1 sheet(s):
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  … still working — 4m00s elapsed (no output yet)
+  … still working — 4m15s elapsed (no output yet)
+  … still working — 4m30s elapsed (no output yet)
+  … still working — 4m45s elapsed (no output yet)
+  … still working — 5m00s elapsed (no output yet)
+  … still working — 5m15s elapsed (no output yet)
+  … still working — 5m30s elapsed (no output yet)
+  … still working — 5m45s elapsed (no output yet)
+  [check_drift] drift: clean
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  [verify_symbols] verify_symbols: 11 symbol(s) match the installed libraries or exact engine power templates. No divergences.
+  [run_erc] ERC: clean
+  [run_drc] DRC: clean
+  [check_legibility] legibility: 0 error, 1 advisory finding(s) across 1 sheet(s):
+  [check_drift] drift: clean
+  [finish] all gates satisfied; run will commit
+committed f3cee1a1ea (4 file(s))
+done · ERC clean · DRC clean · committed f3cee1a1ea · 11m42s · 0 in / 0 out
+pipeline so far: 8/8 stages · 11m42s · 0 out tokens · 0% cache hits
+ERC ✓
+DRC: clean
+  4 finding(s) inside a single library footprint, not a placement problem: J1 hole_clearance, J1 hole_clearance, J1 hole_clearance, J1 hole_clearance
+drift ✓
+legibility: 0 error, 1 advisory finding(s) across 1 sheet(s):
+  1. [advisory] low-utilization @ / (148.59, 93.35) refs: / — content occupies 0.29 of the usable frame (threshold 0.5); paper "A" would fit this content
+legibility score: 91.38/100
+constraints ✓
+create pipeline complete; all checks green
+Per-stage cost summary
+  Stage             Wall  Turns  Out tok  Cache
+  --------------  ------  -----  -------  -----
+  spec-seed            —      —        —      —
+  architecture         —      —        —      —
+  part-selection       —      —        —      —
+  schematic            —      —        —      —
+  layout-draft         —      —        —      —
+  outputs              —      —        —      —
+  firmware             —      —        —      —
+  devplan         11m42s      3        0     0%
+  --------------  ------  -----  -------  -----
+  TOTAL           11m42s      3        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

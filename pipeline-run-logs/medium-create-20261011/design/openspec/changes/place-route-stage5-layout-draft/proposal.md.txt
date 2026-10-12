@@ -1,0 +1,14 @@
+# Proposal: place-route-stage5-layout-draft
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+Create a reviewable first-draft placement and partial routing from the populated schematic-matched board without altering footprint geometry, pad nets or electrical requirements.
+
+## What Changes
+
+- Move and rotate existing footprints only through move_footprint; preserve all 39 parts and exact pad nets.
+- Resize Edge.Cuts within 45x40mm, retain two layers and manufacturer antenna keepouts, and place connectors, protection and decoupling appropriately.
+- Add anchored power and short critical routing; leave other connections as ratsnest without increasing the baseline unrouted count.
+- Document placement assumptions, rationale, intrinsic library findings and exact final unrouted count in docs/LAYOUT.md under ## Draft quality; synchronize affected design records.

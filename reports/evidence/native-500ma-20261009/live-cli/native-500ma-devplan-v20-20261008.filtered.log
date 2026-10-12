@@ -1,0 +1,28 @@
+stage spec-seed: already complete (resuming past it)
+stage architecture: already complete (resuming past it)
+stage part-selection: already complete (resuming past it)
+stage schematic: already complete (resuming past it)
+stage layout-draft: already complete (resuming past it)
+stage outputs: already complete (resuming past it)
+stage outputs: emitted outputs/jlcpcb-bom.csv (JLCPCB assembly BOM)
+stage firmware: already complete (resuming past it)
+stage devplan: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage devplan (8/8) · model experimental-native:native-500ma-devplan-v20-20261008 (experimental-native, via flag) · turns ≤5 · master@0c2fb31 clean
+[turn 1/5 · 0 in / 0 out]
+stage devplan: the run ended as "failure" (provider-error): provider error: native stage identity is unrecognized; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage           Wall  Turns  Out tok  Cache
+  --------------  ----  -----  -------  -----
+  spec-seed          —      —        —      —
+  architecture       —      —        —      —
+  part-selection     —      —        —      —
+  schematic          —      —        —      —
+  layout-draft       —      —        —      —
+  outputs            —      —        —      —
+  firmware           —      —        —      —
+  devplan           0s      0        0      —
+  --------------  ----  -----  -------  -----
+  TOTAL             0s      0        0      —
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

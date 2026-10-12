@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { execa } from 'execa';
 import type { RunOptions } from '../src/agent/loop.js';
 import { bootstrapKicadProject } from '../src/kicad/bootstrap.js';
+import { kicadCliVersion } from '../src/kicad/cli.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { boardFootprints, populateBoard, moveFootprint } from '../src/kicad/populate.js';
 import { footprintSearchDirs } from '../src/kicad/footprints.js';
@@ -118,6 +119,23 @@ describe('create layout-draft around board populate (#314)', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
+
+  it('clearance is an explicit populate input and survives the normal resume command', async () => {
+    const { repo, brief, cleanup } = await projectAtLayoutDraft();
+    try {
+      const before = await readFile(path.join(repo, PCB), 'utf8');
+      const lines: string[] = [];
+      layout.attempts = [async () => 'failure'];
+      await runCreate({ repoRoot: repo, briefPath: brief, model: 'gpt-5', populateReferences: 'clearance', log: l => lines.push(l) });
+      // Native pre-layout DRC accepted this population before dispatching a turn.
+      expect(layout.calls).toHaveLength(1);
+      expect(layout.boards[0]).not.toContain('(at 0 -1.43 0)');
+      expect(lines.some(l => l.includes('--populate-references clearance'))).toBe(true);
+      expect(await readFile(path.join(repo, PCB), 'utf8')).toBe(before);
+    } finally {
+      await cleanup();
+    }
+  }, 180_000);
 
   it('a failed stage leaves the board byte-identical to the pre-stage board (AC-15.43)', async () => {
     const { repo, brief, cleanup } = await projectAtLayoutDraft();
@@ -258,7 +276,11 @@ describe('create layout-draft around board populate (#314)', () => {
     const { repo, brief, cleanup } = await projectAtLayoutDraft();
     const emptyConfig = await mkdtemp(path.join(tmpdir(), 'copperhead-kicadcfg-'));
     try {
-      // no global fp-lib-table: copperhead finds the stock footprints, KiCad does not
+      // An absent table can be auto-seeded by KiCad. An explicitly empty table
+      // preserves the intended missing-library condition without changing DRC.
+      const version = /(\d+\.\d+)/.exec(await kicadCliVersion())![1]!;
+      await mkdir(path.join(emptyConfig, version), { recursive: true });
+      await writeFile(path.join(emptyConfig, version, 'fp-lib-table'), '(fp_lib_table (version 7))\n');
       vi.stubEnv('KICAD_CONFIG_HOME', emptyConfig);
       const before = await readFile(path.join(repo, PCB), 'utf8');
       const lines: string[] = [];
