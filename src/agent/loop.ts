@@ -33,6 +33,7 @@ import { AnthropicProvider } from './providers/anthropic.js';
 import { CodexProvider } from './providers/codex.js';
 import { ClaudeCodeProvider } from './providers/claude-code.js';
 import { CursorProvider } from './providers/cursor.js';
+import { renderUndispatched } from './providers/tool-protocol.js';
 
 /** What the user sees at the moment they decide whether to keep going. */
 export interface BudgetExhaustedStats {
@@ -662,6 +663,14 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     // After the real results, so the model reads them first and then learns which
     // of its own "results" to disregard (a tool-less turn got this as its nudge).
     if (res.notice) messages.push({ role: 'user', content: res.notice });
+    // #306: calls written next to the ones that ran but never dispatched (a locked
+    // edit tool, a brace short). Checked against the catalog as it is NOW, since a
+    // validate_change in this same reply may have just unlocked them.
+    if (res.undispatched) {
+      const available = new Set(availableTools(ctx).map((t) => t.name));
+      await transcript.event('undispatched-calls', { ...res.undispatched });
+      messages.push({ role: 'user', content: renderUndispatched(res.undispatched, available, ctx.editsUnlocked) });
+    }
 
     // Not when this same turn went on to finish: finish is approved only after
     // the checks passed, so its violations do not persist, whatever the count

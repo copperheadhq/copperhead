@@ -1,4 +1,4 @@
-import type { Msg, ToolCall, ToolSchema } from '../types.js';
+import type { Msg, ToolCall, ToolSchema, UndispatchedCalls } from '../types.js';
 
 export function renderToolProtocol(tools: ToolSchema[]): string {
   if (!tools.length) return '';
@@ -78,6 +78,8 @@ export interface ParsedToolTurn {
   notice?: string;
   /** The discarded tail, verbatim, for the transcript only; never sent back to the model. */
   discarded?: string;
+  /** Calls left in the prose of a reply whose other calls ran (#306). */
+  undispatched?: UndispatchedCalls;
 }
 
 /**
@@ -137,6 +139,68 @@ function detectMalformedCall(text: string, catalog: Set<string>): string | undef
     );
   }
   return undefined;
+}
+
+/**
+ * Find the tool calls left behind in a reply that also dispatched some (#306).
+ * `detectMalformedCall` only speaks when nothing parsed; in a mixed reply the
+ * off-catalog and near-miss calls were dropped to prose with no message, so the
+ * model assumed they ran. `prose` is the reply with the dispatched calls removed,
+ * so a call that did run is never reported. Only a `"tool"` key that opens an
+ * object and names an identifier counts: narration that quotes a call, or an echo
+ * of the protocol template (`"<tool_name>"`), is not a call that failed to run.
+ */
+function detectUndispatched(prose: string, catalog: Set<string>): UndispatchedCalls | undefined {
+  const re = /\{\s*"tool"\s*:\s*"([A-Za-z_][A-Za-z0-9_]*)"/g;
+  const unavailable: string[] = [];
+  const malformed: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(prose)) !== null) {
+    const name = m[1]!;
+    const bucket = catalog.has(name) ? malformed : unavailable;
+    if (!bucket.includes(name)) bucket.push(name);
+  }
+  return unavailable.length || malformed.length ? { unavailable, malformed } : undefined;
+}
+
+/**
+ * The message for the calls `detectUndispatched` found. `available` is the tool
+ * catalog AFTER the reply's calls ran: a `validate_change` in the same reply may
+ * have unlocked the edit tools, and then the steer is to re-send, not to propose.
+ * The edit lock is the only gate on the catalog, so once `editsUnlocked` a name
+ * that is still absent is not locked, it does not exist: say so and print the
+ * catalog, since a second propose_change would open a second change.
+ */
+export function renderUndispatched(calls: UndispatchedCalls, available: Set<string>, editsUnlocked: boolean): string {
+  const quote = (names: string[]) => names.map((n) => `"${n}"`).join(', ');
+  const unlocked = calls.unavailable.filter((n) => available.has(n));
+  const absent = calls.unavailable.filter((n) => !available.has(n));
+  const lines = ['Some tool calls in your last reply did not run, so nothing they describe happened:'];
+  if (unlocked.length) {
+    lines.push(
+      `- ${quote(unlocked)}: not in the tool catalog when you replied. ` +
+        `${unlocked.length > 1 ? 'They are' : 'It is'} available now, so send those calls again.`,
+    );
+  }
+  if (absent.length && editsUnlocked) {
+    lines.push(
+      `- ${quote(absent)}: not ${absent.length > 1 ? 'tools' : 'a tool'} in the catalog. ` +
+        `Use one of the available tools: ${[...available].join(', ')}.`,
+    );
+  } else if (absent.length) {
+    lines.push(
+      `- ${quote(absent)}: not in the tool catalog. Edit and drafting tools are withheld until a ` +
+        'proposal validates: call propose_change, then validate_change, and send those calls in a later reply.',
+    );
+  }
+  if (calls.malformed.length) {
+    lines.push(
+      `- ${quote(calls.malformed)}: a call did not parse as valid JSON (likely unbalanced braces). ` +
+        'Re-emit it as one complete JSON object: {"tool": "...", "args": { ... }}.',
+    );
+  }
+  lines.push('Do not assume a result for any of them.');
+  return lines.join('\n');
 }
 
 /**
@@ -204,12 +268,18 @@ export function parseToolCalls(
     cursor = end;
   }
   prose += text.slice(cursor);
+  const undispatched = detectUndispatched(prose, catalog);
   prose = prose
     .replace(ECHOED_MARKER_LINES, '')
     .replace(/```(?:json)?\s*```/gi, '')
     .replace(/```(?:json)?\s*$/gi, '')
     .trim();
-  return { text: prose.length ? prose : null, toolCalls, ...(notice ? { notice, discarded } : {}) };
+  return {
+    text: prose.length ? prose : null,
+    toolCalls,
+    ...(notice ? { notice, discarded } : {}),
+    ...(undispatched ? { undispatched } : {}),
+  };
 }
 
 /** Every catalog tool call in `text`, with the spans it occupied. */

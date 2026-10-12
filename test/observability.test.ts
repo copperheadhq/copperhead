@@ -233,6 +233,89 @@ describe('a turn cut for fabricated tool results (#320)', () => {
   });
 });
 
+describe('a turn that left tool calls undispatched (#306)', () => {
+  it('names them after the real results and records them in the transcript', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const seen: Msg[][] = [];
+      const turns: Turn[] = [
+        { ...spin('a'), undispatched: { unavailable: ['write_file'], malformed: [] } },
+        finishTurn('refuse', 'stop after one turn'),
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          return turns[Math.min(seen.length - 1, turns.length - 1)]!;
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 3 }));
+      expect(res.outcome).toBe('refused');
+
+      const second = seen[1]!;
+      const toolAt = second.findIndex((m) => m.role === 'tool' && m.toolCallId === 'a');
+      const steerAt = second.findIndex((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('did not run'));
+      expect(toolAt).toBeGreaterThanOrEqual(0);
+      expect(steerAt).toBeGreaterThan(toolAt);
+      // No proposal validated in this run, so write_file is still locked.
+      expect(second[steerAt]!.content).toMatch(/"write_file": not in the tool catalog\. .*propose_change, then validate_change/);
+
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.find((e) => e.type === 'undispatched-calls')?.data).toEqual({ unavailable: ['write_file'], malformed: [] });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('follows the edit lock: re-send after a same-reply unlock, unknown name after that', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const seen: Msg[][] = [];
+      const usage = { inputTokens: 100, outputTokens: 10 };
+      const turns: Turn[] = [
+        {
+          // The #306 reply: propose, validate and the write in one go. The write
+          // was not in the turn's catalog, so the provider left it undispatched.
+          text: null,
+          toolCalls: [
+            { id: 'p', name: 'propose_change', args: { id: 'c1', why: 'w', what_changes: '- x', tasks: '- [ ] t' } },
+            { id: 'v', name: 'validate_change', args: {} },
+          ],
+          usage,
+          undispatched: { unavailable: ['write_file'], malformed: [] },
+        },
+        { ...spin('b'), undispatched: { unavailable: ['edit_files'], malformed: [] } },
+        finishTurn('refuse', 'stop here'),
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          return turns[Math.min(seen.length - 1, turns.length - 1)]!;
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 4 }));
+      expect(res.outcome).toBe('refused');
+
+      const steers = (msgs: Msg[]) =>
+        msgs.filter((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('did not run')).map((m) => m.content as string);
+
+      // validate_change ran in that same reply, so write_file is in the catalog now.
+      expect(steers(seen[1]!)).toHaveLength(1);
+      expect(steers(seen[1]!)[0]).toMatch(/"write_file": not in the tool catalog when you replied\. It is available now/);
+      expect(steers(seen[1]!)[0]).not.toMatch(/propose_change/);
+
+      // Edits are unlocked, so a name still absent is unknown, not locked.
+      const later = steers(seen[2]!);
+      expect(later).toHaveLength(2);
+      expect(later[1]).toMatch(/"edit_files": not a tool in the catalog\. Use one of the available tools: .*write_file/);
+      expect(later[1]).not.toMatch(/withheld until a proposal validates/);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+});
+
 describe('redaction of metadata surfaces (task 6.1)', () => {
   it('an sk- secret in a metadata field is redacted on both surfaces (AC-8.10)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();

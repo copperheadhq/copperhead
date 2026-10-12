@@ -200,6 +200,14 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(turn.toolCalls[0]!.args).toEqual({ path: 'docs/SUBSYSTEMS.md', content: doc });
   });
 
+  it('forwards the calls a mixed reply left undispatched (#306)', async () => {
+    const reply = '{"tool":"read_file","args":{"path":"docs/SPEC.md"}}\n{"tool":"write_file","args":{"path":"a.md","content":"x"}}';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools); // catalog = read_file, finish
+    expect(turn.toolCalls.map((c) => c.name)).toEqual(['read_file']);
+    expect(turn.undispatched).toEqual({ unavailable: ['write_file'], malformed: [] });
+  });
+
   it('nudges on a malformed near-miss tool call instead of silently dropping it (#I10)', async () => {
     // One closing brace short: scanJsonObject never balances the outer object,
     // so zero calls dispatch. The old parser returned no signal; now it detects

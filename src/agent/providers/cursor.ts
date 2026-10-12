@@ -116,6 +116,7 @@ export class CursorProvider implements Provider {
       usage: { inputTokens, outputTokens },
       nudge: parsed.nudge,
       ...(parsed.notice ? { notice: parsed.notice, discarded: parsed.discarded } : {}),
+      ...(parsed.undispatched ? { undispatched: parsed.undispatched } : {}),
     };
   }
 

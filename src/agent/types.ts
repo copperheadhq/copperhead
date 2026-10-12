@@ -39,6 +39,20 @@ export interface Turn {
   notice?: string;
   /** The text that was cut with it, for the transcript only (never sent to the model). */
   discarded?: string;
+  /**
+   * Tool calls the reply wrote next to ones that did run, but that were never
+   * dispatched (#306). The loop names them to the model after the real results.
+   * Text-protocol providers set it; others never do.
+   */
+  undispatched?: UndispatchedCalls;
+}
+
+/** Tool names a reply called without the call running, by the reason it did not run. */
+export interface UndispatchedCalls {
+  /** Well-formed calls naming a tool the turn did not advertise (locked, or invented). */
+  unavailable: string[];
+  /** Calls naming an advertised tool whose JSON did not parse. */
+  malformed: string[];
 }
 
 export interface ChatOpts {
