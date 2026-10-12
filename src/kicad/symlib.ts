@@ -535,7 +535,7 @@ export async function verifySchematicSymbols(
       if (matchesGeneratedPowerSymbol(entry.node)) checked++;
       else findings.push({
         libId: entry.libId, kind: 'generated-symbol',
-        detail: `"${entry.libId}" does not match the engine's power-symbol template; repair the intent and re-draft, rather than substituting a stock rail name`,
+        detail: `"${entry.libId}" does not match a known engine power-symbol definition after KiCad default normalization; inspect the definition and preserve intentional user edits, rather than blindly re-drafting or substituting a stock rail name`,
       });
       continue;
     }

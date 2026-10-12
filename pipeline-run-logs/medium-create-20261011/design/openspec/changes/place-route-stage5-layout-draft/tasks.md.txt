@@ -1,0 +1,8 @@
+# Tasks
+
+- [x] Inspect populated board, baseline DRC and available RF/package placement evidence.
+- [x] Record placement assumptions and constraints without weakening existing budgets.
+- [x] Move footprint batches and resize outline; run DRC after each move batch and reconcile actionable findings.
+- [x] Route power and short critical nets using anchored board edits; preserve footprints, pads and net definitions.
+- [x] Write docs/LAYOUT.md with rationale and explicit Draft quality limitations.
+- [x] Run final DRC, ERC and drift; verify unrouted count does not exceed baseline and complete documentation obligations.

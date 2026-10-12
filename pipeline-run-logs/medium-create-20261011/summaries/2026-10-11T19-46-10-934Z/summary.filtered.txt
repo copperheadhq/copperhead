@@ -1,0 +1,49 @@
+# Run summary
+
+- **Request:** create pipeline stage: schematic
+- **Outcome:** failure
+- **OpenSpec change:** n/a
+- **Tokens:** 0 in / 0 out
+
+## Environment
+
+- **Run:** 2026-10-11T19-46-10-934Z · create · started 2026-10-11T19:46:10.944Z · autonomous
+- **Stage:** schematic (4/8)
+- **Brief:** external:BRIEF.md (sha256 13aa827a7b68…)
+- **Model:** codex:gpt-6.1-sol (codex, via flag)
+- **copperhead:** v0.11.0 at <HOME>/Documents/Codex/2026-10-09/<TASK>/copperhead-j1-drc
+- **Tooling:** kicad-cli 9.0.9 · node v24.21.0 · linux-x64
+- **Config:** schematic new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch · board new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb · docs docs/ · maxTurns 22 · maxRepairCycles 5 · budgets {}
+- **Repo:** master@a4bbd91b6571f48ef5d0d2efddf46cb89fcc07c1 · clean · pre-commit hook absent
+- **Memory:** 41 open constraint(s) · 8 prior run(s)
+
+## Run stats
+
+- **Exit path:** provider-error
+- **Turns:** 0 / 22
+- **Repair cycles:** 0 / 5
+- **Tokens:** 0 in / 0 out
+- **Duration:** 0s
+
+## Plan
+
+(no plan recorded)
+
+## Files touched
+
+(none)
+
+## Verification
+
+- ERC: not run
+- DRC: not run
+- legibility: not run
+- score: not run
+
+## Decisions
+
+(none)
+
+## Detail
+
+provider error: Codex CLI provider failed: spawn <HOME>/Documents/Codex/2026-10-09/<TASK>/bounded-live-20261011/clean-medium-20261011/resume-cli-2/codex-bounded.py EACCES.

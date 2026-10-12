@@ -61,15 +61,23 @@ async function sources(root:string,config:CopperheadConfig,full=true):Promise<Re
   return Object.fromEntries(Object.entries(records).sort(([a],[b])=>a.localeCompare(b)));
 }
 
-function orderingBom(text:string):string {
+function orderingBom(text:string, canonicalRefs = true, warnings: string[] = []):string {
   const rows=parseBom(text);
   if(!rows.length) throw new Error('BOM.md has no component rows for ordering BOM.csv');
   const seen=new Set<string>();
   const quote=(s:string)=>/[",\r\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;
-  return 'Refdes,MPN,Qty\r\n'+rows.map(row=>{
-    if(!/^[A-Za-z]+\d+$/.test(row.refdes) || seen.has(row.refdes)) throw new Error(`ordering BOM requires one unique refdes per row: ${row.refdes}`);
+  const included = rows.filter(row => {
+    if (!row.hasMpn && (/^(?:MountingHole|TestPoint|Fiducial):/i.test(row.footprint) || /^(?:DNP|DNI|do not populate|not fitted)$/i.test(row.value.trim()))) {
+      warnings.push(`Excluded non-purchased/DNP ${row.refdes} from ordering BOM: no purchased part MPN (${row.footprint})`);
+      return false;
+    }
+    return true;
+  });
+  if (!included.length) throw new Error('ordering BOM has no orderable components after excluding fabrication-only rows');
+  return 'Refdes,MPN,Qty\r\n'+included.map(row=>{
+    if(!(canonicalRefs ? /^[A-Za-z]+\d+$/ : /^[\p{L}][\p{L}\p{N}_.:-]*$/u).test(row.refdes) || seen.has(row.refdes)) throw new Error(`ordering BOM requires one unique refdes per row: ${row.refdes}`);
     seen.add(row.refdes);
-    if(!row.hasMpn || /^n\s*\/\s*a$/i.test(row.mpn)) throw new Error(`ordering BOM is missing an MPN for ${row.refdes}`);
+    if(!row.hasMpn || /^n\s*\/\s*a$/i.test(row.mpn)) throw new Error(`ordering BOM is missing an MPN for ${row.refdes}; select a real part number in BOM.md before exporting again`);
     return [row.refdes,row.mpn,'1'].map(quote).join(',')+'\r\n';
   }).join('');
 }
@@ -111,9 +119,11 @@ async function exportJlcOutputsPackage(root:string,config:CopperheadConfig):Prom
     const profile=jlcProfile(await readFile(await safePath(root,config.board!),'utf8'));
     const version=await kicadCliVersion();
     if(!/^9\./.test(version)) throw new Error(`JLC profile is validated only for KiCad 9; found ${version}`);
-    const bom=orderingBom(await readFile(await safePath(root,path.join(config.docs,'BOM.md')),'utf8'));
+    const bomWarnings: string[] = [];
+    const bom=orderingBom(await readFile(await safePath(root,path.join(config.docs,'BOM.md')),'utf8'), true, bomWarnings);
     result=await exportFab(path.join(root,config.board!),path.join(root,config.schematic!),out,profile);
     if(result.failed.length) return result;
+    result.warnings = [...(result.warnings ?? []), ...bomWarnings];
     const entries=await validateManufacturing(out,result.files,profile);
     for(const [artifact,data] of [['BOM.csv',Buffer.from(bom)], [ARCHIVE,storedZip(entries)]] as const) {
       await writeOutput(out,artifact,data);
@@ -241,11 +251,13 @@ async function genericOutputsGap(root: string, config: CopperheadConfig, full: b
       const bytes = await readFile(await safePath(out, file.path));
       if (!bytes.length || bytes.length !== file.bytes || hash(bytes) !== file.sha256) throw new Error(`missing, empty or changed output: ${file.path}`);
     }
+    const needsBom = full || m.files.some(f => f.artifact === 'BOM.csv');
+    const expectedBom = needsBom ? orderingBom(await readFile(await safePath(root, path.join(config.docs, 'BOM.md')), 'utf8'), false) : null;
     const required = [...GENERIC_REQUIRED, ...(config.schematic ? ['schematic.svg'] : []),
       ...(full || m.files.some(f => f.artifact === 'BOM.csv') ? ['BOM.csv'] : [])];
     for (const artifact of required) if (!m.files.some(f => f.artifact === artifact)) throw new Error(`required output missing: ${artifact}`);
     if (required.includes('BOM.csv') && await readFile(await safePath(out, 'BOM.csv'), 'utf8') !==
-        orderingBom(await readFile(await safePath(root, path.join(config.docs, 'BOM.md')), 'utf8'))) throw new Error('ordering BOM differs from BOM.md');
+        expectedBom) throw new Error('ordering BOM differs from BOM.md');
     if (!(await readFile(await safePath(out, GENERIC_ARCHIVE))).equals(await genericArchive(root, config, out, m.files))) throw new Error('generic ZIP differs from its export inventory');
     return null;
   } catch (e) { return `outputs package incomplete: ${(e as Error).message}; rerun export_outputs with the selected outputProfile (legacy files are not verified evidence)`; }
@@ -263,7 +275,11 @@ async function exportGenericOutputs(root: string, config: CopperheadConfig): Pro
     if (result.failed.length) return result;
     const extras: [string, Buffer][] = [[GENERIC_ARCHIVE, await genericArchive(root, config, out, result.files)]];
     if (before[path.join(config.docs, 'BOM.md')]) {
-      try { extras.push(['BOM.csv', Buffer.from(orderingBom(await readFile(await safePath(root, path.join(config.docs, 'BOM.md')), 'utf8')))]); }
+      try {
+        const warnings: string[] = [];
+        extras.push(['BOM.csv', Buffer.from(orderingBom(await readFile(await safePath(root, path.join(config.docs, 'BOM.md')), 'utf8'), false, warnings))]);
+        result.warnings = [...(result.warnings ?? []), ...warnings];
+      }
       catch (e) { result.warnings = [`BOM.csv not exported; create Stage 6 incomplete: ${(e as Error).message}`]; }
     } else result.warnings = ['BOM.csv not exported; create Stage 6 requires an ordering BOM.md'];
     for (const [artifact, bytes] of extras) {

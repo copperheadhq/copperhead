@@ -17,6 +17,8 @@ import {
   boardFootprints,
   boardMatchesNetlist,
   instantiateFootprint,
+  footprintBounds,
+  placeReferenceAboveFootprint,
   MissingFootprintsError,
   moveFootprint,
   PadMismatchError,
@@ -828,6 +830,29 @@ describe('populate edge cases (#314)', () => {
   (pad 2 smd roundrect (at 0.7875 0) (size 0.875 0.95) (layers F.Cu F.Paste F.Mask) (roundrect_rratio 0.25))
 )
 `;
+
+  it('places a visible reference clear of intrinsic copper while preserving every pad and graphic', () => {
+    const colliding = LEGACY.replace('(at 0 -1.43)', '(at 0 0 90)');
+    const prepared = placeReferenceAboveFootprint(colliding);
+    expect(prepared).toMatch(/fp_text reference REF\*\* \(at 0 -[\d.]+\)/);
+    const preserved = (text: string): string[] => childSpans(text, text.indexOf('(module'))
+      .filter(s => ['pad', 'fp_line', 'fp_rect', 'zone'].includes(s.tag))
+      .map(s => text.slice(s.start, s.end));
+    expect(preserved(prepared)).toEqual(preserved(colliding));
+    const withLabel = footprintBounds(prepared, { ref: 'R_UART_RX_OUT', conservativeText: true });
+    const withoutLabel = footprintBounds(prepared, { ref: '', conservativeText: true });
+    expect(withLabel.minY).toBeLessThan(withoutLabel.minY - 0.5);
+    expect(withLabel.maxX - withLabel.minX).toBeGreaterThan(13);
+  });
+
+  it('keeps hidden reference fields unchanged and accounts for rotated visible text', () => {
+    const hidden = LEGACY.replace('(layer F.SilkS)', '(layer F.SilkS) hide');
+    expect(placeReferenceAboveFootprint(hidden)).toBe(hidden);
+    const horizontal = footprintBounds(LEGACY, { ref: 'WWWWWWWWWW', conservativeText: true });
+    const vertical = footprintBounds(LEGACY.replace('(at 0 -1.43)', '(at 0 -1.43 90)'), { ref: 'WWWWWWWWWW', conservativeText: true });
+    expect(horizontal.maxX - horizontal.minX).toBeGreaterThan(vertical.maxX - vertical.minX);
+    expect(vertical.maxY - vertical.minY).toBeGreaterThan(horizontal.maxY - horizontal.minY);
+  });
 
   it('instantiates a KiCad 5 (module …) footprint that KiCad then loads', async () => {
     const fp = instantiateFootprint(LEGACY, {

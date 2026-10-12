@@ -32,7 +32,7 @@ A completed package SHALL include the required mechanical/render exports, orderi
 
 #### Scenario: Placeholder ordering part
 
-- **WHEN** a BOM row lacks an MPN or uses N/A, including spaced or case-varied N/A
+- **WHEN** an orderable component BOM row lacks an MPN or uses N/A, including spaced or case-varied N/A
 - **THEN** the package fails and does not mark the ordering BOM complete
 
 #### Scenario: Archive is changed
@@ -85,3 +85,10 @@ profiles SHALL fail. Explicit JLC failures SHALL NOT fall back to generic.
 - **WHEN** ordinary Gerber export produces technical layers as well as manufacturing layers
 - **THEN** fabrication.zip contains only the board inventory's copper (including inner layers), mask, silk, paste, outline and drill files
 - **AND** Fab, Courtyard, drawing/comment/user layers, job metadata and drill maps remain on disk and in the raw manifest inventory, outside the ZIP
+
+#### Scenario: Fabrication-only and explicitly unpopulated rows
+
+- **WHEN** a missing-MPN row has a MountingHole, TestPoint or Fiducial footprint, or is explicitly marked DNP/DNI/not fitted
+- **THEN** the ordering CSV SHALL exclude it and report its reference as a warning
+- **AND** missing electronic-part MPNs SHALL remain failures with an actionable reference-specific message
+- **AND** a CSV with no orderable components SHALL NOT complete Stage6

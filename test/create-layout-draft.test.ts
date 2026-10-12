@@ -120,6 +120,23 @@ describe('create layout-draft around board populate (#314)', () => {
     vi.unstubAllEnvs();
   });
 
+  it('clearance is an explicit populate input and survives the normal resume command', async () => {
+    const { repo, brief, cleanup } = await projectAtLayoutDraft();
+    try {
+      const before = await readFile(path.join(repo, PCB), 'utf8');
+      const lines: string[] = [];
+      layout.attempts = [async () => 'failure'];
+      await runCreate({ repoRoot: repo, briefPath: brief, model: 'gpt-5', populateReferences: 'clearance', log: l => lines.push(l) });
+      // Native pre-layout DRC accepted this population before dispatching a turn.
+      expect(layout.calls).toHaveLength(1);
+      expect(layout.boards[0]).not.toContain('(at 0 -1.43 0)');
+      expect(lines.some(l => l.includes('--populate-references clearance'))).toBe(true);
+      expect(await readFile(path.join(repo, PCB), 'utf8')).toBe(before);
+    } finally {
+      await cleanup();
+    }
+  }, 180_000);
+
   it('a failed stage leaves the board byte-identical to the pre-stage board (AC-15.43)', async () => {
     const { repo, brief, cleanup } = await projectAtLayoutDraft();
     try {

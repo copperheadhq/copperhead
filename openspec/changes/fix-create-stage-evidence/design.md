@@ -1,5 +1,17 @@
 # Design: verify create stage evidence
 
+## Explicit installed firmware toolchain follow-up
+
+A fresh real create refused Stage7 because the supplied ESP-IDF toolchain was
+available but the model catalog could not execute a build. The normal refusal
+rolled back generated firmware; it is preserved in the original tool records,
+not hand-restored as a successful design. An optional CLI-owned ESP-IDF adapter
+closes that capability gap. It executes only the existing SDK's build in isolated
+source copies, records real logs and source/binary hashes, and gates finish/resume
+on current successful evidence. Explicit reproducibility compares two real
+independent ELF/bin sets. Default catalogs, legacy source detection, recorded
+fixtures, applicability rules and hardware verification gates remain unchanged.
+
 ## Context
 
 This change groups eight separately reviewable patches around evidence for the existing create pipeline. The public runtime and regression suite are independent of the experimental provider used during exploration. The resulting independent 500 mA design completed eight resumed stages, but that result is separate from software tests and does not certify hardware or manufacturer acceptance.
@@ -76,3 +88,56 @@ restoration reports both errors and keeps the retained bytes tracked. Existing
 normal rejection and incremental repair paths retain their behavior. This is a
 local handler repair, not an exhaustive guarantee for every I/O failure or tool.
 See reports/mutation-probe-fix.md for the executed scope and skipped checks.
+
+### Ordering BOM table and reference compatibility
+
+Generic ordering exports accept individual descriptive reference names such as
+`U_MCU` and `R_GO_T5`, while rejecting grouped, duplicate or unsafe references.
+The explicit JLC profile retains its canonical letter-plus-number reference check.
+Every recognized parts table is parsed with its own column headers; supporting
+budget tables, repeated headers and fenced examples are not exported as parts.
+Missing MPNs remain completion failures; existing identities need no renaming.
+
+### Populated reference clearance
+
+Real medium-board population reproduced seven DRC findings before any layout
+turn: underestimated descriptive-reference widths, reference-to-graphic overlap,
+and reference-over-pad defaults. Opt-in `--populate-references clearance`
+positions visible instance
+references above intrinsic footprint bounds and packs their conservative rotated
+stroke-font bounds. This changes text metadata only; pads, graphics and keepouts
+remain original, hidden references remain unchanged, and all DRC findings still
+block entry to layout. It does not pre-place a specific completed design.
+
+The default library mode retains field metadata and packing bytes for existing
+anchored edits and historical recordings. The CLI and runCreate input expose the
+mode explicitly; printed resume commands retain it. No historical reply is edited.
+
+### Part-selection field feedback
+
+The fresh run selected 39 actual parts but obeyed ambiguous prompt wording by
+prefixing every MPN with UNVERIFIED. It committed a successful agent run, then
+failed the existing post-run selection contract. The prompt now specifies that
+MPN holds only the selected identity and the qualification belongs in Rationale.
+The same existing completion predicate is also checked during finish with
+specific field feedback; no placeholder or prefix is newly accepted. Footprint
+installation stops and post-run checks retain their existing scope.
+
+### Earlier candidate development plans
+
+The genuine medium firmware stage wrote DEVPLAN before Stage8; the old file-content
+predicate then skipped final review. Resume now additionally checks the latest
+DEVPLAN file-changing commit subject and exact current bytes. The final stage has
+a finish gate comparing the plan with its entry bytes, so no-op or empty commits
+cannot satisfy it. The normal agent reviews and improves the preserved candidate,
+verifies and commits; no explicit rerun flag, history rewrite or full restart is
+needed. The post-run gate requires the same normal stage commit evidence.
+
+### Publication review follow-up
+
+Ordering export excludes only identified non-purchased or explicit DNP rows,
+reports them, and leaves other missing-MPN rows as actionable failures. Generated
+power verification tolerates observed save defaults and exactly known historical
+graphics, not arbitrary reserved-prefix bodies. Counterfeit pin/geometry tests
+remain active. New normative deltas live only in this change; older proposals
+carry a single cross-reference without duplicate archive requirements.

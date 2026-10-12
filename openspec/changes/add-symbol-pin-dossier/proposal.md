@@ -29,10 +29,4 @@ A related trap costs whole stage-attempts one step later: `search_symbols` prove
 - **Unchanged contracts**: everything here is read-only and network-free, so `check`/`verify` stay LLM-free and network-free; spec-gating of edit tools is unaffected; no config, no new dependency; the dossier changes prompt content only — no gate tightens or loosens.
 - **Not in scope**: enforcing dossier coverage as a stage gate (fuzzy MPN-to-symbol matching would refuse valid BOMs — same reasoning as add-symbol-search-tool); carrying failed work into retries (tracked separately as harness R6).
 
-## Create-stage evidence follow-up
-
-The related completion and export corrections are tracked in
-[fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md), with a
-coherent design, focused delta specs, actual validation results and unchecked
-remaining acceptance tasks. This reference does not mark this change archived
-or assert that unperformed manual tests or invariant reviews are complete.
+Related create completion/export follow-up: [fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md).

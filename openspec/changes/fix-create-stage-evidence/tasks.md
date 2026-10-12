@@ -30,3 +30,11 @@ Checked items reflect the directly documented checks only. Unrun live-provider, 
 - [x] 4.3 Select the historical JLC profile explicitly in the replay harness without changing any recorded reply/hash.
 - [ ] 4.4 Run the available automated checks and report actual version/environment limits; rerun real KiCad checks on a prepared host before publishing a verified update.
 - [ ] 4.5 Receive and reconcile the original cloud live logs, run summaries and design Git; review any redacted publication package before upload.
+
+## 5. Medium programmable sample follow-up
+
+- [x] 5.1 Retain MPN finish feedback and conservative opt-in reference clearance with focused regression coverage.
+- [x] 5.2 Add explicit installed-SDK firmware build evidence and managed compiler bookkeeping with failure/freshness tests.
+- [x] 5.3 Require the final-stage reviewed document commit and retain a genuine Stage8-only normal resume after the earlier candidate-plan skip.
+- [x] 5.4 Prepare bounded redacted medium logs, summaries, stage IDs, source/export/build hashes and exact skipped-case scope without private Git/provider archives.
+- [x] 5.5 Validate the final publication tree on available KiCad runtimes and record actual command outcomes before updating the branch.

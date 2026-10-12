@@ -66,6 +66,52 @@ describe('default and explicit output profiles', () => {
     expect(manifest).toMatchObject({ profile: 'generic', profileVerification: 'not-requested', zoneFill: 'not-verified', kicadVersion: version });
   });
 
+  it('excludes identified fabrication-only and explicit DNP rows with warnings, but retains ordering parts', async () => {
+    await put(path.join(root, 'docs/BOM.md'), bom + '| H1 | MountingHole | MountingHole:MountingHole_2.2mm | — |\n| TP1 | TestPoint | TestPoint:TestPoint_Pad_D1.0mm | — |\n| C1 | DNP | Capacitor_SMD:C_0603 | — |\n');
+    const result = await exported();
+    expect(result).toMatchObject({ ok: true, text: expect.stringContaining('H1') });
+    expect(result.text).toContain('TP1');
+    expect(await readFile(path.join(root, 'outputs/BOM.csv'), 'utf8')).toBe('Refdes,MPN,Qty\r\nR1,RC0603,1\r\n');
+    expect(await outputsPackageGap(root, ctx.config)).toBeNull();
+  });
+
+  it('names a missing electronic MPN in the Stage6 gap instead of requesting an ineffective re-export', async () => {
+    await put(path.join(root, 'docs/BOM.md'), bom.replace('RC0603', '—'));
+    await exported();
+    expect(await outputsPackageGap(root, ctx.config)).toContain('MPN for R1');
+  });
+
+  it('completes generic exports with descriptive references across separate parts tables', async () => {
+    await put(path.join(root, 'docs/BOM.md'), `| Refdes | Value | Footprint | MPN |
+|---|---|---|---|
+| U_MCU | MCU | Module | ESP32-C3-MINI-1-N4X |
+
+| Category | Current |
+|---|---|
+| Support | 10mA |
+
+| MPN | Reference | Package |
+|---|---|---|
+| RC0603FR-0710KL | R_GO_T5 | R_0603 |
+`);
+    expect(await exported()).toMatchObject({ ok: true });
+    expect(await readFile(path.join(root, 'outputs/BOM.csv'), 'utf8')).toBe(
+      'Refdes,MPN,Qty\r\nU_MCU,ESP32-C3-MINI-1-N4X,1\r\nR_GO_T5,RC0603FR-0710KL,1\r\n');
+    expect(await stage.isComplete(root, 'docs')).toBe(true);
+  });
+
+  it.each(['R1,R2', 'R1 R2', '=R1', 'R1\nR2'])('rejects grouped or unsafe ordering reference %s', async ref => {
+    await put(path.join(root, 'docs/BOM.md'), bom.replace('| R1 |', `| ${ref} |`));
+    await exported();
+    expect(await stage.isComplete(root, 'docs')).toBe(false);
+  });
+
+  it('cannot complete an ordering BOM with duplicate descriptive references', async () => {
+    await put(path.join(root, 'docs/BOM.md'), bom.replace('R1', 'U_MCU') + '| U_MCU | MCU | Module | ESP32 |\n');
+    await exported();
+    expect(await stage.isComplete(root, 'docs')).toBe(false);
+  });
+
   it('exports a board-only project without schematic or BOM, but cannot complete Stage 6', async () => {
     await configPatch({ schematic: null }); await rm(path.join(root, 'docs/BOM.md'));
     expect(await exported()).toMatchObject({ ok: true });

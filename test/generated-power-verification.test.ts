@@ -90,6 +90,26 @@ describe('verification of engine-generated power symbols', () => {
     expect(await readFile(schPath)).toEqual(before);
   });
 
+  it('accepts an actual KiCad10 upgrade while remaining read-only and rejecting altered pins', async () => {
+    // Frozen output from real kicad-cli10.0.6 sch upgrade --force, generated
+    // from this repository's draft fixture. It failed with three generated-
+    // symbol findings before save-default normalization.
+    const saved = await readFile(path.join(FIXTURES, 'generated-power/kicad10-upgrade.txt'), 'utf8');
+    await writeFile(schPath, saved);
+    expect(await verifySchematicSymbols(schPath, { KICAD_SYMBOL_DIR: SYMBOLS })).toEqual({ findings: [], checked: 7, skipped: 0 });
+    expect(await readFile(schPath, 'utf8')).toBe(saved);
+    await writeFile(schPath, saved.replace('(pin power_out line', '(pin output line'));
+    expect((await verifySchematicSymbols(schPath, { KICAD_SYMBOL_DIR: SYMBOLS })).findings).toContainEqual(expect.objectContaining({ kind: 'generated-symbol' }));
+  });
+
+  it('accepts the exact pre-71c10ed rail graphics without accepting arbitrary replacements', async () => {
+    const source = embedded(powerSymbolSource('VBUS_RAW', 'rail'));
+    const replaced = source.replace(/\(symbol "VBUS_RAW_0_1"[\s\S]*?(?=\(symbol "VBUS_RAW_1_1")/,
+      '(symbol "VBUS_RAW_0_1" (polyline (pts (xy -1.27 1.27) (xy 1.27 1.27)) (stroke (width 0.254) (type default)) (fill (type none))))\n');
+    expect(await verifyBlocks([replaced])).toEqual({ findings: [], checked: 1, skipped: 0 });
+    expect((await verifyBlocks([replaced.replace('(xy 1.27 1.27)', '(xy 12.7 1.27)')])).findings).toHaveLength(1);
+  });
+
   it('preserves the pre-fix emitted bytes for rail, ground, sanitized names, and PWR_FLAG', () => {
     // Captured before moving the existing templates into their shared module.
     const sources: [Source, string][] = [

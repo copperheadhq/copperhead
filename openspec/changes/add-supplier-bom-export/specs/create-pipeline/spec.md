@@ -7,7 +7,7 @@
 
 #### Scenario: Full run yields the package
 - **WHEN** `create` completes on a valid brief
-- **THEN** `outputs/` contains gerbers+drill zip, DXF/STEP outline, SVG renders, ordering BOM csv, the JLCPCB-format assembly BOM, firmware scaffold and pins.h for programmable designs (or firmware/README.md with verified N/A evidence for supported hardware-only designs), and DEVPLAN.md, and the KiCad files are ERC/DRC clean
+- **THEN** `outputs/` contains gerbers+drill zip, DXF/STEP outline, SVG renders, ordering BOM csv, the JLCPCB-format assembly BOM, firmware scaffold, pins.h, and DEVPLAN.md, and the KiCad files are ERC/DRC clean
 
 #### Scenario: Unstated decisions flagged
 - **WHEN** the brief omits a needed decision (e.g. battery chemistry)

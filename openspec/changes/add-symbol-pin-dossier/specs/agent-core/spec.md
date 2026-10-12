@@ -29,17 +29,3 @@ When the exact symbol is absent from the named library, the result SHALL offer t
 
 - **WHEN** the lib_id's library is installed but the symbol name is not in it, and the symbol exists in another installed library
 - **THEN** the result offers the cross-library lib_ids where the symbol actually lives, plus the guessed library's closest names whenever it has any (a resolver that already ruled the guessed library out has none to offer)
-
-### Requirement: Verify generated power symbols against their own source
-
-The symbol verifier SHALL compare engine-generated `copperhead_power:` definitions against the engine's full canonical templates, not approximate matches in stock libraries. Only an exact parsed definition, including metadata, graphics and pins, qualifies; PWR_FLAG retains its dedicated flag definition. A prefix alone SHALL NOT exempt a symbol, and ordinary symbols SHALL retain installed-library checks.
-
-#### Scenario: Distinct generated rails remain distinct
-- **GIVEN** a valid intent drafts VBUS_RAW and +5V_PROTECTED as separate rails
-- **WHEN** their emitted definitions exactly match the engine's power templates
-- **THEN** verification succeeds without rewriting the schematic or replacing the net names
-
-#### Scenario: Changed or counterfeit generated definition
-- **GIVEN** a reserved-prefix definition has changed pins, metadata, graphics or an arbitrary component body
-- **WHEN** symbol verification runs
-- **THEN** it reports a blocking generated-symbol finding rather than accepting the prefix or skipping an unavailable library

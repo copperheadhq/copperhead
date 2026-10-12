@@ -1,0 +1,14 @@
+# Proposal: export-stage6-draft-outputs
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+Produce a reviewable draft outputs package from the current experimental design without implying manufacturer acceptance or fabrication release.
+
+## What Changes
+
+- Generate outputs/ with complete Gerbers/drill, fabrication.zip, DXF and STEP outline, board and schematic SVG renders, ordering BOM.csv derived from docs/BOM.md, and export-manifest.json through export_outputs.
+- Preserve the selected generic output profile; do not switch profiles to bypass failures.
+- Verify every export succeeds and manifest source/file hashes match current files.
+- Update output documentation, SPEC.md, SUBSYSTEMS.md, CHANGELOG.md and decision/constraint records with actual results and draft limitations; preserve hardware sources and budgets.

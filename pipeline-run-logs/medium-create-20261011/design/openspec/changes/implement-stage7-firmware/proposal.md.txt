@@ -1,0 +1,16 @@
+# Proposal: implement-stage7-firmware
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+The design contains a programmable ESP32-C3 and requires functional firmware plus real reproducible-build evidence using the supplied ESP-IDF SDK/tools cache.
+
+## What Changes
+
+- Create firmware/ for ESP32-C3 using supplied ESP-IDF 5.5.3, supported CONFIG_APP_REPRODUCIBLE_BUILD and fixed PROJECT_VER.
+- Generate pins.h from docs/PINOUT.md as the single source of truth; preserve GPIO4 SDA, GPIO5 SCL, GPIO6 OLED reset and GPIO7 fault input, reserved straps and existing UART mapping.
+- Add HAL/driver interfaces and working SHT40 measurement, both-word CRC validation, heater-off 1Hz acquisition and SSD1306-compatible 128x64 OLED rendering at 2Hz over shared 100kHz I2C.
+- Make invalid measurements explicit on display and UART logs, retry next sample, and document external OLED address/revision assumptions.
+- Update DEVPLAN.md and relevant design documentation, decisions and constraints with implementation, build evidence and remaining hardware qualification boundaries.
+- Preserve all hardware sources, BOM selections, budgets, export sources and unresolved electrical/RF/mechanical requirements.

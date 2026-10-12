@@ -39,6 +39,8 @@ import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
 import { firmwareNotApplicable, hasFirmwareSource, NON_PROGRAMMABLE_SYMBOLS } from './firmware-applicability.js';
+import { firmwareBuildGap, prepareFirmwareBuildArtifacts, type FirmwareToolchain } from './firmware-build.js';
+import { devplanStageCommitted, devplanReviewGap } from './devplan.js';
 
 /**
  * Mode A (`copperhead create`, SPEC §2.5): staged pipeline, each stage a
@@ -138,6 +140,21 @@ export async function specDocGap(root: string, docs: string): Promise<string | n
   return realLines.length > 0 ? null : `${specDoc} has an empty budget section; add real budget content, not only comments or subheadings`;
 }
 
+/** The existing part-selection MPN contract, with actionable column feedback. */
+export async function partSelectionDocGap(root: string, docs: string): Promise<string | null> {
+  const p = path.join(root, docs, 'BOM.md');
+  if (!existsSync(p)) return `${path.posix.join(docs, 'BOM.md')} is missing; write the selected parts table`;
+  const rows = (await readFile(p, 'utf8')).split('\n').filter(
+    l => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
+  );
+  if (!rows.length) return 'BOM.md has no selected component rows';
+  const selected = rows.some(row => {
+    const mpn = row.split('|').map(c => c.trim())[4] ?? '';
+    return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
+  });
+  return selected ? null : 'BOM.md has no selected MPN in its MPN column. Put the actual part number alone in MPN and keep the UNVERIFIED qualification in Rationale; an UNVERIFIED-prefixed MPN is not the required selected-part field.';
+}
+
 export const STAGES: Stage[] = [
   {
     name: 'spec-seed',
@@ -176,25 +193,12 @@ export const STAGES: Stage[] = [
       // init scaffolds BOM.md with a table pre-filled with UNVERIFIED MPNs
       // extracted from the schematic. Require at least one row whose MPN
       // column is NOT the UNVERIFIED placeholder — i.e. a real part was chosen.
-      const p = path.join(root, docs, 'BOM.md');
-      if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      // Find table rows (lines starting with |) that are not the header or separator
-      const rows = text.split('\n').filter(
-        (l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
-      );
-      if (!rows.length) return false;
-      // At least one row must have a non-UNVERIFIED MPN (4th column)
-      return rows.some((row) => {
-        const cols = row.split('|').map((c) => c.trim());
-        const mpn = cols[4] ?? ''; // 0=empty, 1=Refdes, 2=Value, 3=Footprint, 4=MPN
-        return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
-      }) && !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
+      return (await partSelectionDocGap(root, docs)) === null && !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
       // ^ every footprint resolves, except a library the user must install
       // (that stops the run before the schematic stage, #314)
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing.',
+      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. The MPN column holds the actual selected part number alone (for example TPS62162DSGR), never an UNVERIFIED prefix. Flag every introduced MPN as UNVERIFIED in the Rationale column with a datasheet-verifiable justification; this records selection without claiming verification or procurement readiness. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing.',
   },
   {
     name: 'schematic',
@@ -311,8 +315,8 @@ export const STAGES: Stage[] = [
       );
       return contentLines.length > 0;
     },
-    prompt: () =>
-      'Stage 8: DEVPLAN.md. Write docs/DEVPLAN.md: bring-up steps in order, test points and what to meter first, risk list, and the prototype order plan.',
+    prompt: (_brief, docs) =>
+      `Stage 8: development plan. Review the actual committed design, PINOUT, output manifest, firmware/build evidence and remaining risks. Write or substantively improve ${path.posix.join(docs, 'DEVPLAN.md')}: bring-up steps in order, test points and what to meter first, risk list, and the prototype order plan. A candidate written by an earlier stage is input to this review, not evidence that this final stage ran. Preserve accurate draft/compile limitations; do not edit the engineering artifacts to hide risks, add dummy markers or create an empty commit. Finish only after improving the plan; the normal stage commit must record the actual final-stage change.`,
   },
 ];
 
@@ -321,6 +325,10 @@ export interface CreateOptions {
   briefPath: string;
   model: string;
   interactive?: boolean;
+  /** Optional automatic reference clearance; default keeps library placement. */
+  populateReferences?: 'library' | 'clearance';
+  /** Explicit installed-SDK adapter and build evidence gate, absent by default. */
+  firmwareToolchain?: FirmwareToolchain;
   /** Forwarded to each stage's run (attended continue-on-exhaustion prompt). */
   onBudgetExhausted?: (stats: BudgetExhaustedStats) => Promise<number>;
   log: (s: string) => void;
@@ -433,7 +441,9 @@ async function populateStop(opts: CreateOptions): Promise<string | null> {
   const config = await loadConfig(opts.repoRoot);
   if (!config.board || !config.schematic) return 'no board or schematic is configured; the schematic stage did not scaffold one';
   try {
-    const r = await populateBoard({ repoRoot: opts.repoRoot, schematic: config.schematic, board: config.board });
+    const r = await populateBoard({ repoRoot: opts.repoRoot, schematic: config.schematic, board: config.board,
+      ...(opts.populateReferences ? { referencePlacement: opts.populateReferences } : {}),
+    });
     // An already-populated board gets the same DRC: it may be a committed
     // attempt's (verified, and cheap to confirm) or the board of a run killed
     // between the populate write and its DRC, which the resume commit sweeps
@@ -493,6 +503,8 @@ async function contractGapDetail(stageName: string, root: string, config: Copper
     return gap ? `the spec-seed contract is not met: ${gap}` : generic;
   }
   if (stageName === 'part-selection') {
+    const docGap = await partSelectionDocGap(root, config.docs);
+    if (docGap) return `the part-selection contract is not met: ${docGap}`;
     const r = await bomFootprintMisses(root, config.docs);
     const fixable = r?.missing.filter(modelFixable) ?? [];
     if (fixable.length) {
@@ -719,6 +731,11 @@ function resumeCommand(opts: CreateOptions): string {
   // Absolute --brief so the command resolves the same from any cwd; a relative
   // path would break when resumed from a different directory (F6).
   parts.push('create', '--brief', shellQuote(path.resolve(opts.briefPath)), '--model', shellQuote(opts.model));
+  if (opts.populateReferences) parts.push('--populate-references', opts.populateReferences);
+  if (opts.firmwareToolchain) {
+    parts.push('--firmware-idf', shellQuote(opts.firmwareToolchain.idfRoot), '--firmware-tools', shellQuote(opts.firmwareToolchain.toolsRoot));
+    if (opts.firmwareToolchain.reproducible) parts.push('--firmware-reproducible');
+  }
   if (opts.interactive) parts.push('--interactive');
   return parts.join(' ');
 }
@@ -941,6 +958,17 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     sha256: createHash('sha256').update(brief).digest('hex'),
   };
   const config = await loadConfig(opts.repoRoot);
+  const complete = async (stage: Stage): Promise<boolean> =>
+    await stage.isComplete(opts.repoRoot, config.docs) &&
+    !(stage.name === 'firmware' && opts.firmwareToolchain && await hasFirmwareSource(path.join(opts.repoRoot, 'firmware')) &&
+      await firmwareBuildGap(opts.repoRoot, config.docs, opts.firmwareToolchain));
+  const gap = async (stage: Stage): Promise<string> => {
+    if (stage.name === 'firmware' && opts.firmwareToolchain && await hasFirmwareSource(path.join(opts.repoRoot, 'firmware'))) {
+      const buildGap = await firmwareBuildGap(opts.repoRoot, config.docs, opts.firmwareToolchain);
+      if (buildGap) return buildGap;
+    }
+    return contractGapDetail(stage.name, opts.repoRoot, config);
+  };
   // Fail fast on a nearly-full disk (4.1): a create run writes fab outputs and
   // KiCad local history and can otherwise fill the disk mid-stage, failing with
   // an opaque ENOSPC only after doing expensive work. Threshold overridable via
@@ -964,6 +992,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
   // resumed runs whose project predates the marker (bootstrapKicadProject
   // no-ops on those, so it cannot be the only writer).
   await markCreateOrigin(opts.repoRoot);
+  if (opts.firmwareToolchain) await prepareFirmwareBuildArtifacts(opts.repoRoot);
   const completed: string[] = [];
   const stageCosts: StageCost[] = [];
 
@@ -992,7 +1021,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         opts.log(stageLine('schematic', `scaffolded empty KiCad project (${created} + board + project), wired into config`));
       }
     }
-    if (await stage.isComplete(opts.repoRoot, config.docs)) {
+    if (await complete(stage) && (stage.name !== 'devplan' || await devplanStageCommitted(opts.repoRoot, config.docs))) {
       opts.log(stageLine(stage.name, 'already complete (resuming past it)', 'ok'));
       await commitResumedStage(opts, config, stage.name);
       completed.push(stage.name);
@@ -1016,7 +1045,12 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // stops and reports for a human — the loop keeps going by itself for the
     // recoverable cases without silently spinning on the dead-end ones.
     const stageTurns = config.stageMaxTurns?.[stage.name];
-    const basePrompt = stage.prompt(brief, config.docs);
+    const devplanBefore = stage.name === 'devplan'
+      ? await readFile(path.join(opts.repoRoot, config.docs, 'DEVPLAN.md'), 'utf8').catch(() => null)
+      : null;
+    const basePrompt = stage.prompt(brief, config.docs) + (stage.name === 'firmware' && opts.firmwareToolchain
+      ? '\n\nThe operator explicitly supplied an installed ESP-IDF SDK/tools cache. After validating your OpenSpec proposal, use build_firmware to obtain real build evidence before finish. It builds isolated copies of your current firmware and PINOUT and records actual logs and source/binary hashes. No external supervisor receipt is needed. Source/PINOUT changes invalidate the build; call it again. ' + (opts.firmwareToolchain.reproducible ? 'Two independent builds must produce identical ELF/bin files. Use SDK supported CONFIG_APP_REPRODUCIBLE_BUILD and a fixed PROJECT_VER; do not claim reproducibility from version pinning alone.' : 'Successful compilation is required; reproducibility is not claimed.')
+      : '');
     let guidance = '';
     let stageDone = false;
     let stageTranscriptDir = '';
@@ -1123,10 +1157,13 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           // These stages have actionable contract gaps: report them during finish,
           // before committing, so the agent can repair the artifact in this run.
           // Other stages retain their post-run checks.
-          ...(stage.name === 'layout-draft' || stage.name === 'spec-seed' || stage.name === 'outputs'
+          ...(stage.name === 'firmware' && opts.firmwareToolchain ? { firmwareToolchain: opts.firmwareToolchain } : {}),
+          ...(stage.name === 'devplan' || stage.name === 'layout-draft' || stage.name === 'spec-seed' || stage.name === 'outputs' || stage.name === 'part-selection' || (stage.name === 'firmware' && opts.firmwareToolchain)
             ? {
                 stageGate: async () =>
-                  (await stage.isComplete(opts.repoRoot, config.docs)) ? null : contractGapDetail(stage.name, opts.repoRoot, config),
+                  stage.name === 'devplan'
+                    ? devplanReviewGap(opts.repoRoot, config.docs, devplanBefore)
+                    : (await complete(stage)) ? null : gap(stage),
               }
             : {}),
           ...(stageTurns !== undefined ? { maxTurns: stageTurns } : {}),
@@ -1160,9 +1197,11 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         const failure =
           res.outcome !== 'success'
             ? `the run ended as "${res.outcome}" (${res.exitPath})${res.summary ? `: ${res.summary}` : ''}`
-            : !(await stage.isComplete(opts.repoRoot, config.docs))
-              ? await contractGapDetail(stage.name, opts.repoRoot, config)
-              : null;
+            : !(await complete(stage))
+              ? await gap(stage)
+              : stage.name === 'devplan' && !(await devplanStageCommitted(opts.repoRoot, config.docs))
+                ? 'the final development plan has no matching normal devplan-stage commit; resume to review and improve it'
+                : null;
         if (!failure) {
           stageDone = true;
           break;

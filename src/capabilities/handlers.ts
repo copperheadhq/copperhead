@@ -1,4 +1,5 @@
 import { exportOutputsPackage } from '../commands/outputs.js';
+import { buildFirmware } from '../commands/firmware-build.js';
 import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
@@ -121,10 +122,24 @@ export interface HandlerOutcome {
 export interface HandlerDef {
   schema: ToolSchema;
   requiresUnlock: boolean;
+  availableWhen?: (ctx: RunContext) => boolean;
   handler: (ctx: RunContext, args: Record<string, unknown>) => Promise<string | HandlerOutcome>;
 }
 
 export const HANDLERS: HandlerDef[] = [
+  {
+    schema: {
+      name: 'build_firmware',
+      description: 'Build current ESP-IDF firmware with the operator-selected installed SDK. Copies source and PINOUT into isolated repository scratch directories, runs only idf.py build (no install/flash), records real logs and source/binary hashes. When reproducibility was explicitly requested, performs two independent builds and requires identical ELF/bin outputs. Enable CONFIG_APP_REPRODUCIBLE_BUILD and a fixed PROJECT_VER for reproducibility. Repair actual failures and re-run after source/PINOUT edits; source presence or compiler availability is not build proof.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+    requiresUnlock: true,
+    availableWhen: ctx => Boolean(ctx.firmwareToolchain),
+    handler: async (ctx) => {
+      if (!ctx.firmwareToolchain) throw new Error('No operator-selected firmware toolchain; default behavior is unchanged.');
+      return buildFirmware(ctx.repoRoot, ctx.config.docs, ctx.firmwareToolchain);
+    },
+  },
   {
     schema: {
       name: 'read_file',

@@ -173,6 +173,8 @@ The reviewed fixed-function set also includes exactly `Power_Management:TPS2065C
 
 Programmable designs retain the firmware scaffold and toolchain requirements. A recognized source extension must contain non-whitespace content; zero-byte/whitespace dummy files do not satisfy the artifact gate. The source-presence probe alone does not prove a build or the happy path. N/A establishes only firmware applicability, never fabrication readiness or physical validation; all other gates, stage outcomes, costs and commit behavior remain unchanged.
 
+On POSIX hosts, `create --firmware-idf <installed SDK> --firmware-tools <existing tools cache>` explicitly enables `build_firmware` after OpenSpec validation. The operator selects those paths; model tool arguments cannot select executables, install dependencies or flash hardware. The adapter copies current firmware and PINOUT into repository scratch space and runs the installed ESP-IDF build. Successful exit, nonempty application ELF/bin, bootloader and partition binaries, and current input/output hashes are required at finish and resume. Source-only legacy behavior remains unchanged without these flags and never establishes compilation. `--firmware-reproducible` additionally requires two independent builds with identical ELF/bin hashes. A missing/failed/stale receipt or toolchain change requires a real rebuild; no source-presence, version-pinning or unavailable-tool waiver substitutes for the explicitly selected build gate.
+
 ### The pipeline (Mode A internally)
 
 **Run-to-completion guarantee:** once `create` starts, it always finishes with the complete output package. Gates are *quality checks the agent must satisfy*, not stops that wait for a human. By default the pipeline is fully autonomous: unstated decisions get `ASSUMED` flags, imperfect layout gets the `Draft quality` label, and the run ends with gerbers, firmware or documented N/A, renders, and DEVPLAN.md on disk — an end product, reviewable as a whole. `--interactive` turns the two human gates (spec approval, pre-export review) back on for users who want them.
@@ -197,9 +199,13 @@ Each stage is a `do`-loop run with a stage-specific prompt. State lives in the r
 
 For `spec-seed`, the prompt names the existing document contract: the configured `SPEC.md` must have a Budget or Budgets heading with non-comment budget content beneath it, including content in subsections. `finish` checks that same contract before committing and reports the missing document, heading, or budget content so the agent can repair it within the current run. Empty scaffold comments or headings alone still do not complete the stage. The post-run completion check remains in place.
 
+For `part-selection`, the MPN column contains the selected part number alone; the `UNVERIFIED` qualification belongs in Rationale. `finish` checks the existing selected-MPN and resolvable-footprint contract before committing and names the missing or incorrectly prefixed MPN field. Plain `UNVERIFIED` placeholders remain incomplete, and selecting an MPN does not certify its electrical or procurement qualification. The existing post-run and missing-library checks remain active.
+
 ### First-draft layout (explicitly non-optimal, explicitly useful)
 
 The agent produces an **initial placement and routing plan** — correct, not optimal — and says so:
+
+`create --populate-references clearance` opts into automatic placement of visible reference fields above the footprint's intrinsic bounds, outside its pads and graphics, with conservative stroke-font bounds for the actual reference text, including rotated text. This prevents descriptive references and unsafe library-default reference positions from failing DRC before the layout agent can run. The default `library` mode preserves existing field positions and packing, including historical anchored recordings; the resume command retains an explicitly selected mode. Only instance reference placement/font metadata changes in clearance mode; library pad/graphic geometry and keepouts remain intact. Hidden reference fields remain hidden and unchanged. DRC findings are still failures, including intrinsic copper or graphic problems that reference placement cannot repair. This input option does not mark any stage complete or override any verification gate.
 
 - **Populate (deterministic, before the agent):** the schematic's KiCad netlist drives it. Every part's footprint resolves by its exact `Lib:Name` id through the project `fp-lib-table`, the user's global `fp-lib-table`, then the stock install, and never falls back to a similar package. The library `.kicad_mod` is copied onto the board by anchored text edits: refdes, value, uuid, position, schematic link, and pad nets change, and pad geometry stays byte-for-byte. A footprint's own zones (an ESP32 module's antenna keepout), which a board stores in board coordinates, move with it. Parts are packed on a grid inside the outline, which grows (roughly square) if they don't fit; an outline populate cannot resize (not a single rectangle) must hold every packed part inside its real shape, cutouts included, or the run stops. The board is written only after KiCad loads it, and must then pass DRC before the agent's first turn. The populated board is the stage's own mutation: the agent's run counts it as touched, so finishing needs a passing DRC on it, each retry starts from the last verified board (the board an attempt committed when it still matches the schematic, else the pre-stage board, re-populated), and a stage that does not complete puts back the last verified board (the pre-stage board, or the board an attempt committed). The scaffold project allows 0.2 mm holes, so stock QFN thermal vias pass DRC, while a custom rule holds the vias layout adds to a 0.3 mm drill. The agent then moves footprints; it never authors them.
 - **Placement:** rule-driven, from LAYOUT.md intent: connectors on edges, decoupling caps at their IC pins, ESD at connectors, antenna keepout honored, crystal next to MCU, user-facing parts (buttons, LEDs) where the brief puts them. Written as actual coordinates into the .kicad_pcb.
@@ -208,6 +214,109 @@ The agent produces an **initial placement and routing plan** — correct, not op
 - **Positioning:** this makes layout tools *complements, not competitors* — copperhead produces the DRC-clean draft and constraints file they optimize from.
 
 Delta 4 framing: a first-draft board that passes DRC in an hour vs. a blank canvas that takes a specialist a week. Optimization is iteration; the blank canvas was the bottleneck.
+
+### Stage-6 generic exports, optional JLC settings and package integrity
+
+`export_outputs` defaults to generic KiCad exports. Set `outputProfile` in
+`.copperhead/config.json` to `jlcpcb-kicad9-2026-09-24` to opt into the bounded
+JLC settings checks. Omission or `generic` keeps the ordinary export path,
+including board-only projects, copper zones and KiCad 8/9/10 without adding
+version-specific zone flags. Unknown profiles fail instead of selecting a fallback.
+Generic completion records `profileVerification: not-requested` and
+`zoneFill: not-verified`; it does not certify settings, copper fills or a factory.
+
+The explicit `jlcpcb-kicad9-2026-09-24` settings profile is based on the [JLC KiCad 9 guide](https://jlcpcb.com/help/article/how-to-generate-gerber-and-drill-files-in-kicad-9)
+and [KiCad 9 CLI reference](https://docs.kicad.org/9.0/en/cli/cli.html).
+The profile selects every copper layer in stack order, both mask, legend and paste
+layers, and Edge.Cuts. It retains X2, netlist attributes and Protel filenames;
+Excellon drilling is explicitly absolute, metric, decimal, alternate-slot and
+separate PTH/NPTH. Paste layers support the existing assembly-BOM output.
+
+The initial verified implementation supports KiCad 9 with no copper-fill zones.
+Keepout/rule-area zones do not need filling. Actual copper zones, including those
+inside footprints, fail explicitly because this implementation has no supported
+KiCad 9 CLI fill-validation workflow. Other KiCad major versions fail this
+profile rather than silently claiming verified settings. The default `export_outputs` path calls generic `exportFab`
+with its prior command arguments; the project's general KiCad >= 8
+compatibility requirement is not changed.
+
+Successful JLC outputs include a manufacturing-only `jlcpcb.zip`, an ordering
+`BOM.csv` (one unique refdes and non-placeholder MPN per row, Qty 1), and
+`export-manifest.json`. The ZIP includes exactly the current-run manufacturing
+Gerbers and PTH/NPTH files, excluding unrelated stale files. It uses deterministic
+ZIP STORE with safe ASCII basenames, at most 99 files, 64 MiB per file and 256 MiB
+total. The manifest records real paths, sizes, SHA-256 hashes, source hashes
+(board, root/child schematics, BOM and present project settings), profile/version,
+no-copper-zone evidence and unverified manufacturer acceptance. Failed reruns
+invalidate prior completion evidence. No source or user file is deleted to make
+the checks pass.
+
+Generic exports record a source-bound manifest and `fabrication.zip` of the current
+manufacturing Gerber/drill inventory. The archive selects all actual copper layers
+(including inner layers), mask, silk, paste, board outline and drill files. Technical
+layers (Fab, Courtyard, drawing/comment/user layers), job metadata and drill maps
+remain in the raw output inventory but are excluded from the archive.
+This archive permits UTF-8 basenames and spaces while
+rejecting traversal, separators, controls, duplicate names and device names;
+it retains the same entry/size limits. It makes no JLC metadata claim. BOM.csv is
+emitted when BOM.md is present and has valid ordering rows. Missing or invalid
+BOMs produce an explicit warning without blocking generic board exports. Missing
+schematic/BOM or invalid ordering rows cannot complete Stage 6. Configured inputs must exist and are hashed,
+including child sheets, optional BOM and present project settings.
+
+The outputs finish gate and resume probe require every expected export, matching
+source/file hashes, matching ordering BOM and the selected profile's archive.
+Both profiles require all board manufacturing layers, drill output, DXF, STEP,
+board and schematic SVGs, ordering BOM and the source-bound manifest. Generic
+checks are file inventory/integrity checks, not JLC format or fill validation.
+The manifest profile must match the selected configuration. Changing profiles
+requires a fresh export; a failed explicit profile never falls back to generic.
+Legacy projects without a manifest are incomplete and receive an actionable
+`rerun export_outputs` message. Completion probes never fabricate a manifest. One Gerber or
+an old partial export is insufficient. Existing ERC, DRC, parity, drift,
+rollback, document and later-stage gates remain in force. These checks establish
+settings and package integrity only: BOM.md's verification caveats, draft-routing
+status, physical/electrical qualification and manufacturer acceptance remain
+separate. No factory upload, order, release or acceptance is implied.
+
+## Create-stage evidence change record
+
+The coherent follow-up for budget feedback, firmware applicability, generated power
+definitions and complete export evidence is
+[fix-create-stage-evidence](../changes/fix-create-stage-evidence/proposal.md).
+Its design maps the existing active changes and records validation scope. This
+monolithic file remains the project authority; it is not a CLI-discovered
+canonical capability spec. No change is archived by this documentation update.
+
+### Ordering BOM table and reference compatibility
+
+Generic ordering exports accept individual descriptive reference names such as
+`U_MCU` and `R_GO_T5`, while rejecting grouped, duplicate or unsafe references.
+The explicit JLC profile retains its canonical letter-plus-number reference check.
+Every recognized parts table is parsed with its own column headers; supporting
+budget tables, repeated headers and fenced examples are not exported as parts.
+Missing MPNs remain completion failures; existing identities need no renaming.
+
+Explicit SDK build intermediates belong to the ignored `.copperhead/firmware-build/` directory. A normal SDK-enabled create resume untracks existing managed copies without deleting files or rewriting commit history.
+
+### Create final-stage review evidence
+
+An earlier stage may write a candidate DEVPLAN, but create resumes past devplan
+only when the current document matches a normal devplan-stage commit that changed
+that file. Otherwise normal create reviews and improves the existing plan without
+removing it or repeating completed stages. The devplan finish gate rejects an
+unchanged document; normal verification and commit record the final-stage change.
+A later changed document requires another real review, not a synthetic receipt.
+
+### Saved generated symbols and non-purchased ordering rows
+
+Known KiCad default serialization and historical generated-power graphics do not
+constitute electrical drift; the verifier normalizes only these forms read-only,
+retaining full pin/metadata/geometry checks and refusing unknown definitions.
+Ordering CSVs exclude missing-MPN fabrication-only holes/testpoints/fiducials and
+explicit DNP rows with warnings. Other missing MPNs name the failing reference;
+no orderable rows cannot complete Stage6. The original BOM and KiCad source stay
+unchanged.
 
 ## 2.6 OpenSpec integration — the documentation layer
 
@@ -426,7 +535,7 @@ interface Provider {
 - On any unrecoverable failure: preserve the touched work as a git stash entry named `copperhead failed run <run-id>`, restore the snapshot, print the stash ref and transcript path, exit 1
 - Rate-limit (429): exponential backoff ×3, then fail over to the other **keyed** provider (`openai` ↔ `anthropic`) if a key exists; saved-login providers (`codex`, `claude-code`, `cursor`) never fail over to a keyed or alternate provider
 - Provider turn watchdog: a turn that goes `turnTimeoutMs` without a response or streamed progress is treated as hung, aborted, and retried up to 3 times before failing as above. A streaming provider's progress restarts that deadline, so a long turn that keeps producing output is not killed; a provider that reports no progress gets `turnTimeoutMs` as a whole-turn deadline. `turnMaxMs` caps a turn that is producing output, however much it streams, and is never shorter than `turnTimeoutMs`: a turn that reaches it is too large rather than hung, so it fails as above without a retry. A turn that has reported no progress is judged by `turnTimeoutMs` alone.
-- Nested skill provider turns use the same bounded timeout (inactivity deadline and hard cap) and 429 backoff policy. A provider error inside a skill becomes a failed tool envelope, so it cannot escape the parent loop and bypass its failure/rollback path.
+- Nested skill provider turns use the same bounded timeout (inactivity deadline and hard cap) and 429 backoff policy. A provider error inside a skill becomes a failed tool envelope, so it cannot escape the parent loop and bypass its failure/rollback path. Codex SDK streams SHALL report only newly produced agent text or reasoning-summary text as progress; lifecycle notifications, duplicate text and elapsed-time heartbeats SHALL NOT reset the idle deadline. Final replies still require structured validation and turn.completed, and cancellation retains the SDK AbortSignal.
 - The Anthropic provider marks `cache_control` breakpoints (system prompt, last tool, last message block) so the resent conversation prefix is cached; reported input tokens include cache reads/writes
 
 ---
@@ -714,76 +823,3 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - No auth, no hosting, no billing
 - No Altium/Eagle formats
 - No Windows support guarantees (macOS/Linux only today)
-
-### Stage-6 generic exports, optional JLC settings and package integrity
-
-`export_outputs` defaults to generic KiCad exports. Set `outputProfile` in
-`.copperhead/config.json` to `jlcpcb-kicad9-2026-09-24` to opt into the bounded
-JLC settings checks. Omission or `generic` keeps the ordinary export path,
-including board-only projects, copper zones and KiCad 8/9/10 without adding
-version-specific zone flags. Unknown profiles fail instead of selecting a fallback.
-Generic completion records `profileVerification: not-requested` and
-`zoneFill: not-verified`; it does not certify settings, copper fills or a factory.
-
-The explicit `jlcpcb-kicad9-2026-09-24` settings profile is based on the [JLC KiCad 9 guide](https://jlcpcb.com/help/article/how-to-generate-gerber-and-drill-files-in-kicad-9)
-and [KiCad 9 CLI reference](https://docs.kicad.org/9.0/en/cli/cli.html).
-The profile selects every copper layer in stack order, both mask, legend and paste
-layers, and Edge.Cuts. It retains X2, netlist attributes and Protel filenames;
-Excellon drilling is explicitly absolute, metric, decimal, alternate-slot and
-separate PTH/NPTH. Paste layers support the existing assembly-BOM output.
-
-The initial verified implementation supports KiCad 9 with no copper-fill zones.
-Keepout/rule-area zones do not need filling. Actual copper zones, including those
-inside footprints, fail explicitly because this implementation has no supported
-KiCad 9 CLI fill-validation workflow. Other KiCad major versions fail this
-profile rather than silently claiming verified settings. The default `export_outputs` path calls generic `exportFab`
-with its prior command arguments; the project's general KiCad >= 8
-compatibility requirement is not changed.
-
-Successful JLC outputs include a manufacturing-only `jlcpcb.zip`, an ordering
-`BOM.csv` (one unique refdes and non-placeholder MPN per row, Qty 1), and
-`export-manifest.json`. The ZIP includes exactly the current-run manufacturing
-Gerbers and PTH/NPTH files, excluding unrelated stale files. It uses deterministic
-ZIP STORE with safe ASCII basenames, at most 99 files, 64 MiB per file and 256 MiB
-total. The manifest records real paths, sizes, SHA-256 hashes, source hashes
-(board, root/child schematics, BOM and present project settings), profile/version,
-no-copper-zone evidence and unverified manufacturer acceptance. Failed reruns
-invalidate prior completion evidence. No source or user file is deleted to make
-the checks pass.
-
-Generic exports record a source-bound manifest and `fabrication.zip` of the current
-manufacturing Gerber/drill inventory. The archive selects all actual copper layers
-(including inner layers), mask, silk, paste, board outline and drill files. Technical
-layers (Fab, Courtyard, drawing/comment/user layers), job metadata and drill maps
-remain in the raw output inventory but are excluded from the archive.
-This archive permits UTF-8 basenames and spaces while
-rejecting traversal, separators, controls, duplicate names and device names;
-it retains the same entry/size limits. It makes no JLC metadata claim. BOM.csv is
-emitted when BOM.md is present and has valid ordering rows. Missing or invalid
-BOMs produce an explicit warning without blocking generic board exports. Missing
-schematic/BOM or invalid ordering rows cannot complete Stage 6. Configured inputs must exist and are hashed,
-including child sheets, optional BOM and present project settings.
-
-The outputs finish gate and resume probe require every expected export, matching
-source/file hashes, matching ordering BOM and the selected profile's archive.
-Both profiles require all board manufacturing layers, drill output, DXF, STEP,
-board and schematic SVGs, ordering BOM and the source-bound manifest. Generic
-checks are file inventory/integrity checks, not JLC format or fill validation.
-The manifest profile must match the selected configuration. Changing profiles
-requires a fresh export; a failed explicit profile never falls back to generic.
-Legacy projects without a manifest are incomplete and receive an actionable
-`rerun export_outputs` message. Completion probes never fabricate a manifest. One Gerber or
-an old partial export is insufficient. Existing ERC, DRC, parity, drift,
-rollback, document and later-stage gates remain in force. These checks establish
-settings and package integrity only: BOM.md's verification caveats, draft-routing
-status, physical/electrical qualification and manufacturer acceptance remain
-separate. No factory upload, order, release or acceptance is implied.
-
-## Create-stage evidence change record
-
-The coherent follow-up for budget feedback, firmware applicability, generated power
-definitions and complete export evidence is
-[fix-create-stage-evidence](../changes/fix-create-stage-evidence/proposal.md).
-Its design maps the existing active changes and records validation scope. This
-monolithic file remains the project authority; it is not a CLI-discovered
-canonical capability spec. No change is archived by this documentation update.

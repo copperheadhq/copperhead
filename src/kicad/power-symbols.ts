@@ -95,7 +95,9 @@ export function pwrFlagSource(): { libId: string; sourceText: string } {
  * A reserved name is not proof that a symbol is engine-generated. Compare its
  * entire parsed definition with the very templates used by the emitter: power
  * flags, metadata, one pin, its electrical type/name/number, and geometry.
- * Whitespace is irrelevant; unknown bodies and edited copies fail closed.
+ * Known KiCad save defaults and child ordering are irrelevant; unknown bodies
+ * and edited electrical definitions fail closed. Known historical graphics
+ * remain supported without accepting arbitrary bodies under a reserved name.
  */
 export function matchesGeneratedPowerSymbol(symbol: SexpNode[]): boolean {
   const libId = symbol[1];
@@ -106,8 +108,59 @@ export function matchesGeneratedPowerSymbol(symbol: SexpNode[]): boolean {
   const candidates = libId === 'copperhead_power:PWR_FLAG'
     ? [pwrFlagSource()]
     : [powerSymbolSource(value, 'rail'), powerSymbolSource(value, 'ground')];
-  return candidates.some((candidate) =>
-    candidate.libId === libId &&
-    JSON.stringify(parseSexp(renameSymbolBlock(candidate.sourceText, candidate.libId))[0]) === JSON.stringify(symbol),
-  );
+  return candidates.some((candidate) => {
+    if (candidate.libId !== libId) return false;
+    const expected = parseSexp(renameSymbolBlock(candidate.sourceText, candidate.libId))[0] as SexpNode[];
+    const variants = [expected];
+    if (libId !== 'copperhead_power:PWR_FLAG') variants.push(legacyPowerGraphics(expected));
+    return variants.some(v => JSON.stringify(normalizePowerDefinition(v)) === JSON.stringify(normalizePowerDefinition(symbol)));
+  });
+}
+
+/** Normalize only observed nonsemantic KiCad9/10 save defaults, read-only. */
+function normalizePowerDefinition(node: SexpNode): SexpNode {
+  if (!Array.isArray(node)) return node;
+  const tag = node[0];
+  if (tag === 'power' && node.length === 2 && node[1] === 'global') return ['power'];
+  const result: SexpNode[] = [];
+  let hiddenInEffects = false;
+  for (const item of node) {
+    if (Array.isArray(item)) {
+      if ((item[0] === 'in_pos_files' && item[1] === 'yes') ||
+          (item[0] === 'duplicate_pin_numbers_are_jumpers' && item[1] === 'no') ||
+          (item[0] === 'embedded_fonts' && item[1] === 'no') ||
+          (tag === 'property' && ['show_name', 'do_not_autoplace'].includes(String(item[0])) && item[1] === 'no')) continue;
+      if (item[0] === 'property' && ['Footprint', 'Datasheet', 'Description'].includes(String(item[1])) && item[2] === '') continue;
+      if (tag === 'property' && item[0] === 'effects' && item.includes('hide')) {
+        hiddenInEffects = true;
+        result.push(normalizePowerDefinition(item.filter(v => v !== 'hide')));
+        continue;
+      }
+    }
+    result.push(item === 'hide' && ['pin', 'effects'].includes(String(tag)) ? ['hide', 'yes'] : normalizePowerDefinition(item));
+  }
+  if (hiddenInEffects) result.push(['hide', 'yes']);
+  // Keep points and positional atoms ordered; only unordered attribute/shape
+  // collections are sorted. Full geometry and pin metadata remain compared.
+  if (['symbol', 'property', 'effects', 'font', 'pin', 'stroke', 'fill'].includes(String(tag))) {
+    const atoms = result.filter(v => !Array.isArray(v));
+    const lists = result.filter(Array.isArray).sort((a,b) => {
+      const x=JSON.stringify(a), y=JSON.stringify(b); return x<y?-1:x>y?1:0;
+    });
+    return [...atoms,...lists];
+  }
+  return result;
+}
+
+/** Exact pre-71c10ed graphics; electrical metadata is the current same source. */
+function legacyPowerGraphics(expected: SexpNode[]): SexpNode[] {
+  const name=String(expected[1]).replace(/^copperhead_power:/,'');
+  const pin = children(expected,'symbol').flatMap(s => children(s,'pin'))[0]!;
+  const ground = children(pin,'at')[0]?.[3] === '270';
+  const points = ground
+    ? [[-1.27,-1.27,1.27,-1.27],[-0.762,-1.778,0.762,-1.778],[-0.254,-2.286,0.254,-2.286]]
+    : [[-1.27,1.27,1.27,1.27]];
+  const graphics = parseSexp(`(symbol "${name}_0_1" ${points.map(([x,y,u,v]) =>
+    `(polyline (pts (xy ${x} ${y}) (xy ${u} ${v})) (stroke (width 0.254) (type default)) (fill (type none)))`).join(' ')})`)[0];
+  return expected.map(v => Array.isArray(v) && v[0] === 'symbol' && v[1] === `${name}_0_1` ? graphics! : v);
 }

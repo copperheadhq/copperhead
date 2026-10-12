@@ -248,20 +248,7 @@ The entire tool (agent core, prompts, tools) is public under Apache-2.0, built o
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and workflow. Note that your first pull request requires signing the [Contributor License Agreement](.github/cla/CLA.md); a bot posts instructions on the PR and signing is a one-time comment.
 
-## Project layout
-
-- [`AGENTS.md`](AGENTS.md): repository instructions loaded automatically by Codex and compatible coding agents; [`CLAUDE.md`](CLAUDE.md) provides the corresponding Claude Code guidance
-- [`src/`](src/): CLI ([`cli.ts`](src/cli.ts), [`commands/`](src/commands/)), the provider-agnostic agent loop ([`agent/`](src/agent/)), the `kicad-cli` wrapper and s-expression reader ([`kicad/`](src/kicad/)), and doc/constraint memory ([`memory/`](src/memory/))
-- [`integrations/`](integrations/README.md): MCP host configuration and the companion Claude Code skill
-- [`test/`](test/): offline suite plus [`fixtures/`](test/fixtures/), a tiny known-good KiCad project
-- [`openspec/specs/SPEC.md`](openspec/specs/SPEC.md): the full technical specification, including binary acceptance criteria
-- [`openspec/changes/build-copperhead-phase-1/`](openspec/changes/build-copperhead-phase-1/): the implementation plan with proposal, design decisions, capability specs, and task checklist
-
-## License
-
-[Apache-2.0](LICENSE)
-
-### Export profile compatibility
+## Export profile compatibility
 
 The `export_outputs` tool defaults to generic KiCad exports. It supports a board
 without a schematic/BOM and reports real files, source hashes and a generic
@@ -279,3 +266,16 @@ ordering BOM, archive and matching source/file hashes. Existing outputs without
 an `export-manifest.json`, or after a profile switch, require a fresh
 `export_outputs` call. Resume never invents prior verification. Both paths are
 draft outputs without manufacturer acceptance or fabrication release.
+
+## Project layout
+
+- [`AGENTS.md`](AGENTS.md): repository instructions loaded automatically by Codex and compatible coding agents; [`CLAUDE.md`](CLAUDE.md) provides the corresponding Claude Code guidance
+- [`src/`](src/): CLI ([`cli.ts`](src/cli.ts), [`commands/`](src/commands/)), the provider-agnostic agent loop ([`agent/`](src/agent/)), the `kicad-cli` wrapper and s-expression reader ([`kicad/`](src/kicad/)), and doc/constraint memory ([`memory/`](src/memory/))
+- [`integrations/`](integrations/README.md): MCP host configuration and the companion Claude Code skill
+- [`test/`](test/): offline suite plus [`fixtures/`](test/fixtures/), a tiny known-good KiCad project
+- [`openspec/specs/SPEC.md`](openspec/specs/SPEC.md): the full technical specification, including binary acceptance criteria
+- [`openspec/changes/build-copperhead-phase-1/`](openspec/changes/build-copperhead-phase-1/): the implementation plan with proposal, design decisions, capability specs, and task checklist
+
+## License
+
+[Apache-2.0](LICENSE)

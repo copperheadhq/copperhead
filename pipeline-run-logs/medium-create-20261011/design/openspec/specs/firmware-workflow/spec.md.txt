@@ -1,0 +1,19 @@
+# Firmware and create workflow
+## Requirements
+All eight create stages through real firmware and devplan SHALL remain required; spec-seed SHALL NOT imply later acceptance. Real KiCad 9.0.9, generic outputs and existing-login Codex sol/medium SHALL be used. Candidate replacements SHALL preserve requirements with explicit verified compatibility rationale. No invented availability/prices/SKUs or manufacturing/physical claims.
+### Scenario: Firmware implementation
+- **Given** the supplied official ESP-IDF 5.5.3/GCC 14.2.0 environment
+- **When** firmware is authored
+- **Then** ASSUMED initial framework is this ESP-IDF; real SHT40 measurement/CRC/error handling and OLED rendering SHALL retain heater-off 1Hz sampling/2Hz display, supported reproducible configuration, fixed explicit project version and driver/GPIO/esp_timer dependencies. Cache paths are in docs/SPEC.md.
+### Scenario: Build acceptance
+- **Given** generated firmware sources
+- **When** an ordinary reproducible build is run without source edits
+- **Then** only actual successful build results SHALL support compiled-success claims; compiler availability and hardware N/A SHALL NOT substitute for implementation/build.
+### Scenario: Stage verification
+- **Given** later schematic or board edits
+- **When** their stage is completed
+- **Then** real symbol/footprint checks, ERC, error-free legibility, applicable DRC, drift and docs synchronization SHALL pass without severity suppression.
+### Scenario: Run limits
+- **Given** supplied authorization ending 2026-10-12T00:00Z, idle timeout 600s and turn hard cap 900s
+- **When** authorized workflow executes
+- **Then** limits and repair/recovery logging SHALL be retained; no generated-artifact hand edits, synthetic replies, precompleted boards, PR publication, credentials, new provider, paid API or physical flash/measured claim.

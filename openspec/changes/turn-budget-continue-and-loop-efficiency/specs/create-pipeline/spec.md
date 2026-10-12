@@ -29,18 +29,3 @@ Stage completion SHALL be judged by repo state, not artifact existence alone: th
 
 - **WHEN** any stage's agent run returns success without satisfying that stage's completion contract
 - **THEN** `runCreate` returns not-ok with the completed-stage list so far, and later stages do not run
-
-### Requirement: Requirements-seed contract feedback before commit
-
-The `spec-seed` prompt SHALL name the required non-empty Budget or Budgets section in the configured `SPEC.md`. Its `finish` gate SHALL evaluate the same document predicate as stage completion, before committing, and SHALL identify a missing document, missing budget heading, or empty budget section. This SHALL NOT weaken the existing predicate or replace the post-run completion check.
-
-#### Scenario: Constraints without the budget heading are repairable in the same run
-- **GIVEN** the agent has written budget constraints beneath a heading that does not contain Budget or Budgets
-- **WHEN** it calls `finish` with outcome done
-- **THEN** finish reports the configured document and missing heading, does not commit, and leaves the agent able to repair the document within its remaining turn budget
-
-#### Scenario: A filled budget section satisfies the unchanged document contract
-- **GIVEN** the agent supplies the required budget heading with actual non-comment budget content, directly or in subsections
-- **WHEN** it calls `finish` after satisfying all other obligations
-- **THEN** the requirements-seed document gate permits completion and the normal commit path can run
-- **AND** an empty or comment-only budget section still fails

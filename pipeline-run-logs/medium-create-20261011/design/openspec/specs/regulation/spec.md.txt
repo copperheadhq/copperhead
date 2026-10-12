@@ -1,0 +1,11 @@
+# 3.3V regulation
+## Requirements
+The buck SHALL be rated >=600mA and maintain nominal 3.3V within 3.0–3.6V. All allocations, derived sums and ASSUMED >=75% efficiency floor in docs/SPEC.md Budgets SHALL remain active.
+### Scenario: Burst load
+- **Given** 4.75–5.25V input and startup/radio/display loads
+- **When** performance is evaluated
+- **Then** MCU <=150mA continuous/400mA transient, OLED <=50mA, heater-off sensor <=2mA and other rail loads <=20mA SHALL be checked against actual modes and limits; preliminary sums are 222mA continuous/472mA peak.
+### Scenario: Input margin
+- **Given** 472mA at 3.3V, 4.75V input and ASSUMED 75% efficiency
+- **When** input current is reconciled
+- **Then** the 437.2mA conversion estimate and about 12.8mA remaining margin SHALL include protection losses, quiescent/leakage, tolerances, thermal conditions and inrush before acceptance; any contradiction SHALL be reported without reducing requirements.

@@ -40,10 +40,4 @@ Two consecutive `copperhead create` spec-seed runs exhausted the 40-turn budget 
 - `src/cli.ts`: TTY continue-prompt wiring for `do` and `create`.
 - Tests: unit tests for all of the above in `test/`; no live-LLM tests required.
 
-## Create-stage evidence follow-up
-
-The related completion and export corrections are tracked in
-[fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md), with a
-coherent design, focused delta specs, actual validation results and unchecked
-remaining acceptance tasks. This reference does not mark this change archived
-or assert that unperformed manual tests or invariant reviews are complete.
+Related create completion/export follow-up: [fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md).
