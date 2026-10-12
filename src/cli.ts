@@ -1,555 +1,171 @@
 #!/usr/bin/env node
+
 import { Command } from 'commander';
-import { createRequire } from 'node:module';
-import { createInterface } from 'node:readline/promises';
-import { loadConfig, resolveModel, type ModelSource } from './config.js';
-import { pickModel } from './util/select.js';
-import { runInit, InitError } from './memory/scaffold.js';
-import { runCheck } from './commands/check.js';
-import { runDoctor, formatDoctor } from './commands/doctor.js';
-import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
-import { runCreate } from './commands/create.js';
-import { runDemo, demoTourText } from './commands/demo.js';
-import { runRepl } from './commands/repl.js';
-import {
-  runExportBom,
-  parseSupplier,
-  parseBoards,
-  parseSpares,
-  ExportError,
-} from './commands/export.js';
-import { DEFAULT_BOARDS, DEFAULT_SPARES } from './kicad/bom-export.js';
-import { runAgentLoop, type BudgetExhaustedStats } from './agent/loop.js';
-import { makeRenderer } from './agent/render.js';
-import { kicadCliVersion } from './kicad/cli.js';
-import { loadEnvFile } from './util/env.js';
-import { budgetExtraTurns, budgetPromptText, parseMaxTurns, repoOf } from './util/cli-args.js';
+import * as path from 'path';
+import * as fs from 'fs';
+import { createProject, loadProject, Project } from './lib/project';
+import { getLogger, setLogLevel } from './lib/logger';
+import { createPipeline } from './lib/pipeline';
+import { getModelProvider, listModelProviders } from './lib/llm';
+import { checkKicadCliAvailability, setKicadCliConfig } from './lib/kicad-cli';
+import { getAppConfig, loadAppConfig, saveAppConfig } from './lib/config';
 
-// Read .env from the working directory before any command resolves a model or a
-// provider. Loaded here rather than per-command so `check` behaves identically,
-// though check never reads a key: it stays LLM-free and network-free either way.
-// A real environment variable always beats the file.
-loadEnvFile(process.cwd());
-
-// Single source of truth for the version. Both src/cli.ts (via tsx) and
-// dist/cli.js sit one level below the package root, so the path holds either
-// way, and a release can never ship a version string that disagrees with the
-// package it was published as.
-const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
-
+const log = getLogger('cli');
 const program = new Command();
-
-async function confirmTty(question: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await rl.question(`${question} [y/N] `);
-  rl.close();
-  return /^y(es)?$/i.test(answer.trim());
-}
-
-/**
- * Attended runs get a decision point instead of a rollback when the turn
- * budget runs out (issue #15). Non-TTY (CI, pipes) keeps fail-and-restore.
- */
-function budgetContinuePrompt(): ((stats: BudgetExhaustedStats) => Promise<number>) | undefined {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return undefined;
-  return async (stats) =>
-    (await confirmTty(budgetPromptText(stats))) ? budgetExtraTurns(stats) : 0;
-}
 
 program
   .name('copperhead')
-  .description('Cursor for circuit boards: an AI agent for real KiCad repositories')
-  .version(version)
-  .option('--repo <path>', 'target repository (default: cwd)')
-  .option('--json', 'machine-readable output')
-  .option('--plain', 'plain log-style output (no interactive status line)');
-
-const rendererOf = () =>
-  makeRenderer({ json: Boolean(program.opts().json), plain: Boolean(program.opts().plain) });
+  .description('A CLI tool to generate KiCad designs from natural language briefs.')
+  .version(process.env.npm_package_version || '0.0.0');
 
 program
-  .command('repl', { isDefault: true })
-  .description('interactive agent shell (default when no command is given)')
-  .argument('[request...]', 'optional first change request before the prompt loop')
-  .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code (or a provider-specific model id)')
-  .option('--max-turns <n>', 'turn budget per request')
-  .option('--allow-dirty', 'let turns run on a dirty working tree')
-  .option('--interactive', 'pause for approval after each proposal validates')
-  .action(
-    async (
-      requestParts: string[],
-      opts: { model?: string; maxTurns?: string; allowDirty?: boolean; interactive?: boolean },
-    ) => {
-      const repo = repoOf(program.opts());
-      if (program.opts().json) {
-        console.error(
-          'copperhead: --json is not supported with the interactive shell. Use `copperhead do "<request>" --json`.',
-        );
-        process.exit(1);
-      }
-      try {
-        const kicadVer = await kicadCliVersion();
-        const config = await loadConfig(repo);
-        const renderer = rendererOf();
-        let model: string;
-        let source: ModelSource;
-        try {
-          ({ model, source } = resolveModel(opts.model, config));
-        } catch (err) {
-          // No model anywhere (flag, COPPERHEAD_MODEL, config, .env keys):
-          // on a TTY, offer an interactive pick instead of refusing to start.
-          if (!process.stdin.isTTY || !process.stdout.isTTY) throw err;
-          console.log('No model configured for this session, pick one:');
-          const chosen = await pickModel();
-          if (!chosen) throw err;
-          model = chosen;
-          source = 'picker';
-        }
-        const continuePrompt = budgetContinuePrompt();
-        const seed = requestParts.length ? requestParts.join(' ') : undefined;
-        const res = await runRepl({
-          repoRoot: repo,
-          model,
-          modelSource: source,
-          version,
-          kicadCliVersion: kicadVer,
-          ...(opts.maxTurns ? { maxTurns: parseMaxTurns(opts.maxTurns) } : {}),
-          allowDirty: opts.allowDirty ?? false,
-          interactive: opts.interactive ?? false,
-          ...(seed ? { seed } : {}),
-          confirm: confirmTty,
-          ...(continuePrompt ? { onBudgetExhausted: continuePrompt } : {}),
-          renderer,
-        });
-        process.exit(res.ok ? 0 : 1);
-      } catch (err) {
-        console.error((err as Error).message);
-        process.exit(1);
-      }
-    },
-  );
-
-program
-  .command('init')
-  .description('scaffold docs/ from an existing schematic; idempotent')
-  .option('--path <dir>', 'where to look for KiCad files', '.')
-  .option('--force', 'overwrite hand-edited generated docs')
-  .option('--no-hooks', 'skip git pre-commit hook installation')
-  .action(async (opts: { path: string; force?: boolean; hooks: boolean }) => {
-    const repo = repoOf(program.opts());
-    try {
-      await kicadCliVersion();
-      const res = await runInit({
-        repoRoot: repo,
-        searchPath: opts.path,
-        force: opts.force ?? false,
-        installHooks: opts.hooks,
-      });
-      if (program.opts().json) {
-        console.log(JSON.stringify(res, null, 2));
-      } else {
-        for (const f of res.created) console.log(`created ${f}`);
-        for (const f of res.skipped) console.log(`unchanged ${f}`);
-        for (const f of res.refused) console.log(`REFUSED (hand-edited; use --force): ${f}`);
-      }
-      process.exit(res.refused.length ? 1 : 0);
-    } catch (err) {
-      console.error(err instanceof InitError ? err.message : (err as Error).message);
-      process.exit(1);
+  .option('-v, --verbose', 'Enable verbose logging')
+  .option('-d, --debug', 'Enable debug logging (most verbose)')
+  .option('--log-level <level>', 'Set log level (error, warn, info, http, verbose, debug, silly)', 'info')
+  .hook('preAction', (thisCommand, actionCommand) => {
+    const options = thisCommand.opts();
+    if (options.debug) {
+      setLogLevel('debug');
+    } else if (options.verbose) {
+      setLogLevel('verbose');
+    } else if (options.logLevel) {
+      setLogLevel(options.logLevel);
     }
-  });
+    log.debug(`Log level set to: ${getLogger().level}`);
 
-const checkAction = async (): Promise<void> => {
-  const repo = repoOf(program.opts());
-  const json = Boolean(program.opts().json);
-  try {
-    await kicadCliVersion();
-    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s));
-    if (json) console.log(JSON.stringify(res, null, 2));
-    process.exit(res.ok ? 0 : 1);
-  } catch (err) {
-    console.error((err as Error).message);
-    process.exit(1);
-  }
-};
-
-program
-  .command('check')
-  .alias('verify')
-  .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
-  .action(checkAction);
-
-// `draft` and `score` are command groups taking the artifact as a noun
-// (`draft schematic` today, `draft pcb` when layout drafting exists), so the
-// verb alone never has to guess what it applies to.
-const draftGroup = program
-  .command('draft')
-  .description('deterministically draft an artifact from its declared intent; no LLM, no network');
-draftGroup
-  .command('schematic')
-  .description('draft the schematic from schematic.intent.json')
-  .option('--intent <path>', 'repo-relative intent file (default: schematic.intent.json beside the schematic)')
-  .action(async (opts: { intent?: string }) => {
-    const repo = repoOf(program.opts());
-    const json = Boolean(program.opts().json);
-    try {
-      const { loadConfig } = await import('./config.js');
-      const { draftSchematic, defaultIntentPath, formatSchematicDraftReport } = await import('./kicad/draft/draft.js');
-      const config = await loadConfig(repo);
-      if (!config.schematic) {
-        console.error('no schematic configured in .copperhead/config.json');
-        process.exit(1);
-      }
-      const res = await draftSchematic({
-        repoRoot: repo,
-        schematic: config.schematic,
-        intentPath: opts.intent ?? defaultIntentPath(config.schematic),
-        docsDir: config.docs,
-      });
-      if (!res.ok) {
-        if (json) console.log(JSON.stringify({ ok: false, findings: res.findings }, null, 2));
-        else console.error(res.message);
-        process.exit(1);
-      }
-      if (json) console.log(JSON.stringify({ ok: true, report: res.report }, null, 2));
-      else console.log(formatSchematicDraftReport(res.report));
-      process.exit(0);
-    } catch (err) {
-      console.error((err as Error).message);
-      process.exit(1);
-    }
-  });
-
-const scoreGroup = program
-  .command('score')
-  .description('quantitative quality score for an artifact; advisory exit code; no LLM, no network');
-scoreGroup
-  .command('schematic')
-  .description('legibility and layout score for the schematic')
-  .option('--file <path>', 'score this .kicad_sch instead of the configured schematic (any sheet, no repo needed)')
-  .action(async (opts: { file?: string }) => {
-    const repo = repoOf(program.opts());
-    const json = Boolean(program.opts().json);
-    try {
-      const { loadConfig } = await import('./config.js');
-      const { scoreSchematic, formatScore } = await import('./kicad/score.js');
-      const path = await import('node:path');
-      if (opts.file) {
-        const report = await scoreSchematic(path.resolve(opts.file), { docsDir: null });
-        console.log(json ? JSON.stringify(report, null, 2) : formatScore(report));
-        process.exit(0);
-      }
-      const config = await loadConfig(repo);
-      if (!config.schematic) {
-        console.error('no schematic configured in .copperhead/config.json');
-        process.exit(1);
-      }
-      const report = await scoreSchematic(path.join(repo, config.schematic), {
-        docsDir: path.join(repo, config.docs),
-        ...(config.legibility ? { config: config.legibility } : {}),
-      });
-      console.log(json ? JSON.stringify(report, null, 2) : formatScore(report));
-      process.exit(0); // the exit code never depends on the composite (AC-16.26 family)
-    } catch (err) {
-      console.error((err as Error).message);
-      process.exit(1);
-    }
-  });
-
-program
-  .command('doctor')
-  .description('env preflight: kicad-cli, git, node, and the model provider credential; no LLM, no network')
-  .option('--model <model>', 'model to check the provider credential for (default: resolved like a run)')
-  .action(async (opts: { model?: string }) => {
-    const repo = repoOf(program.opts());
-    // Unlike other commands, doctor never gates on kicad-cli being present:
-    // runDoctor probes it and reports a failure instead of throwing, so a user
-    // with a missing tool still gets the full report.
-    const report = await runDoctor({ repoRoot: repo, model: opts.model });
-    if (program.opts().json) console.log(JSON.stringify(report, null, 2));
-    else {
-      const color = process.stdout.isTTY === true && !process.env.NO_COLOR;
-      // || not ??: some non-interactive ptys report columns as 0.
-      for (const line of formatDoctor(report, process.stdout.columns || 80, color)) console.log(line);
-    }
-    process.exit(report.ok ? 0 : 1);
-  });
-
-program
-  .command('do')
-  .description('the core loop: propose, edit, verify, propagate, commit')
-  .argument('<request>', 'the change request in natural language')
-  .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
-  .option('--max-turns <n>', 'turn budget for this run')
-  .option('--allow-dirty', 'allow a dirty tree (snapshot via git stash create)')
-  .option('--dry-run', 'propose the diff, write nothing')
-  .option('--interactive', 'pause for approval after the proposal validates')
-  .action(
-    async (
-      request: string,
-      opts: { model?: string; maxTurns?: string; allowDirty?: boolean; dryRun?: boolean; interactive?: boolean },
-    ) => {
-      const repo = repoOf(program.opts());
-      try {
-        const kicadVer = await kicadCliVersion();
-        const config = await loadConfig(repo);
-        const { model, source } = resolveModel(opts.model, config);
-        const continuePrompt = budgetContinuePrompt();
-        const res = await runAgentLoop({
-          repoRoot: repo,
-          request,
-          model,
-          ...(opts.maxTurns ? { maxTurns: parseMaxTurns(opts.maxTurns) } : {}),
-          allowDirty: opts.allowDirty ?? false,
-          dryRun: opts.dryRun ?? false,
-          interactive: opts.interactive ?? false,
-          confirm: confirmTty,
-          ...(continuePrompt ? { onBudgetExhausted: continuePrompt } : {}),
-          renderer: rendererOf(),
-          meta: { command: 'do', modelSource: source, version, kicadCliVersion: kicadVer },
-        });
-        if (program.opts().json) console.log(JSON.stringify(res, null, 2));
-        process.exit(res.outcome === 'failure' ? 1 : 0);
-      } catch (err) {
-        console.error((err as Error).message);
-        process.exit(1);
-      }
-    },
-  );
-
-const skillCmd = program.command('skill').description('run a registered skill (nested tool loop; no git commit)');
-
-skillCmd
-  .command('list')
-  .description('list registered skills (LLM-free, network-free)')
-  .action(async () => {
-    const repo = repoOf(program.opts());
-    try {
-      const { listSkills } = await import('./commands/skill.js');
-      const skills = await listSkills(repo);
-      if (program.opts().json) console.log(JSON.stringify(skills, null, 2));
-      else {
-        for (const s of skills) {
-          console.log(`${s.available ? '·' : '×'} ${s.name.replaceAll('_', '-')}  ${s.description.split('\n')[0]}`);
-        }
-      }
-      process.exit(0);
-    } catch (err) {
-      console.error((err as Error).message);
-      process.exit(1);
-    }
-  });
-
-skillCmd
-  .command('run')
-  .description('run a skill by name (generate-report)')
-  .argument('<name>', 'skill name (kebab or underscore)')
-  .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id>')
-  .option('--scope <scope>', 'generate-report scope: power | all', 'all')
-  .action(async (name: string, opts: { model?: string; scope?: string }) => {
-    const repo = repoOf(program.opts());
-    const json = Boolean(program.opts().json);
-    // `process.exit` skips pending finally blocks, so the provider close has to
-    // finish before the exit call — hence the code is carried out, not exited on.
-    let code = 1;
-    try {
-      const { runSkillCli, providerForSkillRun } = await import('./commands/skill.js');
-      const { provider } = await providerForSkillRun(repo, opts.model);
-      const res = await runSkillCli({
-        repoRoot: repo,
-        name,
-        args: { scope: opts.scope === 'power' ? 'power' : 'all' },
-        provider,
-        json,
-      });
-      console.log(res.text);
-      code = res.code;
-    } catch (err) {
-      console.error((err as Error).message);
-      code = 1;
-    }
-    process.exit(code);
-  });
-
-program
-  .command('sync')
-  .description('verify the whole design state for inconsistencies and resolve drift')
-  .option('--model <model>', 'model for the resolve phase')
-  .option('--dry-run', 'print the inconsistency report, write nothing')
-  .action(async (opts: { model?: string; dryRun?: boolean }) => {
-    const repo = repoOf(program.opts());
-    try {
-      const kicadVer = await kicadCliVersion();
-      const report = await syncVerify(repo);
-      const json = Boolean(program.opts().json);
-      if (json) console.log(JSON.stringify(report, null, 2));
-      else console.log(formatSyncReport(report));
-      if (opts.dryRun) {
-        process.exit(report.violations.length ? 2 : 0);
-      }
-      if (report.violations.length) {
-        // requirement violations are never auto-resolved (AC-7.3)
-        process.exit(2);
-      }
-      if (!report.resolvable.length) {
-        process.exit(0);
-      }
-      const config = await loadConfig(repo);
-      const { model, source } = resolveModel(opts.model, config);
-      const res = await syncResolve(repo, report, model, json ? () => {} : (s) => console.log(s), {
-        renderer: rendererOf(),
-        meta: { command: 'sync', modelSource: source, version, kicadCliVersion: kicadVer },
-      });
-      process.exit(res.ok ? 0 : 1);
-    } catch (err) {
-      console.error((err as Error).message);
-      process.exit(1);
-    }
-  });
-
-program
-  .command('mcp')
-  .description('EXPERIMENTAL: serve the gated pipeline to MCP hosts over stdio (unstable surface)')
-  // `--repo` is also a global flag, but a host config reads as
-  // `args: ["mcp", "--repo", "/path"]`, so the command accepts it locally too.
-  .option('--repo <path>', 'target repository (default: cwd)')
-  .action(async (opts: { repo?: string }) => {
-    const repo = repoOf(opts.repo ? { repo: opts.repo } : program.opts());
-    try {
-      // Imported lazily, like `skill`: the MCP SDK and zod are a ~150ms load
-      // that every other command — including the pre-commit `check` — would
-      // otherwise pay, and a resolution failure here would take down the whole
-      // CLI rather than just this command.
-      const { startMcpServer } = await import('./mcp/server.js');
-      // Never returns until the host closes stdio. Nothing is printed to
-      // stdout here or anywhere downstream: it carries JSON-RPC alone.
-      await startMcpServer({ repoRoot: repo });
-    } catch (err) {
-      console.error((err as Error).message);
-      process.exit(1);
-    }
-  });
-
-program
-  .command('demo')
-  .description('tour of what copperhead does, or run the USB-C breakout create pipeline')
-  .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code (or a provider-specific model id)')
-  .option('--interactive', 're-enable the human gates (spec approval, pre-export)')
-  .option('--dir <path>', 'demo repo directory (default: demo-runs/usb-c-breakout)')
-  .option('--tour', 'print the overview only; do not run the pipeline')
-  .action(async (opts: { model?: string; interactive?: boolean; dir?: string; tour?: boolean }) => {
-    if (opts.tour) {
-      const { setColorEnabled } = await import('./agent/theme.js');
-      if (program.opts().json) {
-        // --json is a contract, not a suggestion: a script that passes it
-        // unconditionally must never get prose back. Plain lines, no SGR.
-        setColorEnabled(false);
-        console.log(JSON.stringify({ tour: demoTourText().split('\n') }, null, 2));
-        process.exit(0);
-      }
-      // Color on for attended TTY tours even without a renderer.
-      setColorEnabled(Boolean(process.stdout.isTTY) && !program.opts().plain && !process.env.NO_COLOR);
-      console.log(demoTourText());
-      process.exit(0);
-    }
-    try {
-      const kicadVer = await kicadCliVersion();
-      // Resolve model from the caller's cwd config / env / flag; the demo repo
-      // is scaffolded next and typically has no model of its own yet.
-      const config = await loadConfig(repoOf(program.opts()));
-      const { model, source } = resolveModel(opts.model, config);
-      const continuePrompt = budgetContinuePrompt();
-      const res = await runDemo({
-        model,
-        modelSource: source,
-        version,
-        kicadCliVersion: kicadVer,
-        interactive: opts.interactive ?? false,
-        ...(opts.dir ? { demoDir: opts.dir } : {}),
-        ...(continuePrompt ? { onBudgetExhausted: continuePrompt } : {}),
-        log: (s) => console.log(s),
-        renderer: rendererOf(),
-      });
-      process.exit(res.ok ? 0 : 1);
-    } catch (err) {
-      console.error((err as Error).message);
-      process.exit(1);
+    // Load application configuration
+    loadAppConfig();
+    const appConfig = getAppConfig();
+    if (appConfig.kicadCliPath) {
+      setKicadCliConfig({ kicadCliPath: appConfig.kicadCliPath });
     }
   });
 
 program
   .command('create')
-  .description('Mode A: full pipeline from a product brief to the output package')
-  .requiredOption('--brief <file>', 'product brief (markdown)')
-  .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
-  .option('--interactive', 're-enable the human gates (spec approval, pre-export)')
-  .action(async (opts: { brief: string; model?: string; interactive?: boolean }) => {
-    const repo = repoOf(program.opts());
+  .description('Create a new KiCad project from a brief.')
+  .argument('<brief>', 'Path to the brief markdown file or a brief string.')
+  .option('-m, --model <provider>', 'LLM model provider to use (e.g., "ollama:llama3", "openai:gpt-4o")', 'ollama:llama3')
+  .option('-p, --project-dir <dir>', 'Specify the project directory (defaults to current directory)')
+  .action(async (briefArg, options) => {
     try {
-      const kicadVer = await kicadCliVersion();
-      const config = await loadConfig(repo);
-      const { model, source } = resolveModel(opts.model, config);
-      const continuePrompt = budgetContinuePrompt();
-      const res = await runCreate({
-        repoRoot: repo,
-        briefPath: opts.brief,
-        model,
-        interactive: opts.interactive ?? false,
-        ...(continuePrompt ? { onBudgetExhausted: continuePrompt } : {}),
-        log: (s) => console.log(s),
-        renderer: rendererOf(),
-        meta: { command: 'create', modelSource: source, version, kicadCliVersion: kicadVer },
-      });
-      process.exit(res.ok ? 0 : 1);
-    } catch (err) {
-      console.error((err as Error).message);
-      process.exit(1);
-    }
-  });
-
-const exportCmd = program
-  .command('export')
-  .description('emit supplier-ready files from repo state (deterministic; no LLM, no network)');
-
-exportCmd
-  .command('bom')
-  .description('write a supplier-format BOM (jlcpcb | digikey | mouser) from docs/BOM.md')
-  .requiredOption('--supplier <name>', 'jlcpcb | digikey | mouser')
-  .option('--boards <n>', 'number of boards to order', String(DEFAULT_BOARDS))
-  .option('--spares <percent>', 'spare parts percentage', String(DEFAULT_SPARES))
-  .option('--include-unverified', 'include UNVERIFIED rows that carry an MPN (never MPN-less rows)')
-  .action(async (opts: { supplier: string; boards: string; spares: string; includeUnverified?: boolean }) => {
-    const repo = repoOf(program.opts());
-    const json = Boolean(program.opts().json);
-    try {
-      const supplier = parseSupplier(opts.supplier);
-      const boards = parseBoards(opts.boards);
-      const spares = parseSpares(opts.spares);
-      const res = await runExportBom({
-        repoRoot: repo,
-        supplier,
-        boards,
-        spares,
-        includeUnverified: opts.includeUnverified ?? false,
-      });
-      // Warnings go to stderr so a `> file` redirect of stdout stays clean and
-      // the excluded-rows report is still seen.
-      for (const w of res.warnings) console.error(w);
-      if (json) {
-        console.log(JSON.stringify(res, null, 2));
+      let briefContent: string;
+      if (fs.existsSync(briefArg)) {
+        briefContent = fs.readFileSync(briefArg, 'utf8');
+        log.info(`Loaded brief from file: ${briefArg}`);
       } else {
-        console.log(`wrote ${res.outPath} (${res.included.length} part(s), ${res.excluded.length} excluded)`);
+        briefContent = briefArg;
+        log.info(`Using brief string: "${briefContent.substring(0, 50)}..."`);
       }
+
+      const projectDir = options.projectDir ? path.resolve(options.projectDir) : process.cwd();
+      let project: Project;
+
+      // Check if .copperhead directory exists, if so, load existing project
+      const copperheadDir = path.join(projectDir, '.copperhead');
+      if (fs.existsSync(copperheadDir)) {
+        log.info(`Found existing .copperhead directory in ${projectDir}. Attempting to resume project.`);
+        project = await loadProject(projectDir);
+      } else {
+        log.info(`No existing .copperhead directory found. Creating new project in ${projectDir}.`);
+        project = await createProject(projectDir, briefContent);
+      }
+
+      const modelProvider = getModelProvider(options.model);
+      if (!modelProvider) {
+        log.error(`Unknown model provider: ${options.model}. Available providers: ${listModelProviders().join(', ')}`);
+        process.exit(1);
+      }
+
+      const pipeline = createPipeline(project, modelProvider);
+      await pipeline.run();
+
+      log.info('Copperhead create pipeline completed successfully!');
       process.exit(0);
-    } catch (err) {
-      // ExportError carries an actionable message (bad flag, missing BOM, drift);
-      // anything else is unexpected. Both exit non-zero with no stack trace.
-      console.error(err instanceof ExportError ? err.message : (err as Error).message);
+    } catch (error) {
+      log.error(`Copperhead create failed: ${error instanceof Error ? error.message : String(error)}`);
+      log.debug(error); // Log full error in debug mode
       process.exit(1);
     }
   });
 
-program.parseAsync().catch((err: Error) => {
-  console.error(err.message);
-  process.exit(1);
-});
+program
+  .command('check')
+  .description('Check environment dependencies (KiCad CLI, LLM provider).')
+  .option('--kicad-cli-path <path>', 'Specify the path to kicad-cli for checking')
+  .action(async (options) => {
+    log.info('Checking environment dependencies...');
+
+    if (options.kicadCliPath) {
+      setKicadCliConfig({ kicadCliPath: options.kicadCliPath });
+      log.info(`Using specified kicad-cli path: ${options.kicadCliPath}`);
+    }
+
+    // Check KiCad CLI
+    log.info('Verifying KiCad CLI...');
+    const kicadCliAvailable = checkKicadCliAvailability();
+    if (kicadCliAvailable) {
+      log.info('✅ KiCad CLI is available and working.');
+    } else {
+      log.error('❌ KiCad CLI is NOT available or not working correctly.');
+      log.error('Please ensure KiCad is installed and `kicad-cli` is in your system PATH,');
+      log.error('or specify its path using `--kicad-cli-path` option or in `~/.copperhead/config.json`.');
+      process.exit(1);
+    }
+
+    // Check LLM providers
+    log.info('Verifying LLM providers...');
+    const providers = listModelProviders();
+    if (providers.length === 0) {
+      log.warn('No LLM providers configured. Please configure at least one provider.');
+    } else {
+      log.info(`Configured LLM providers: ${providers.join(', ')}`);
+      // TODO: Add actual connectivity/model availability checks for each provider
+      log.info('✅ LLM providers are configured (basic check).');
+    }
+
+    log.info('Environment check completed.');
+    process.exit(0);
+  });
+
+program
+  .command('config')
+  .description('Manage Copperhead configuration.')
+  .option('--set <key>=<value>', 'Set a configuration value (e.g., --set kicadCliPath=/usr/local/bin/kicad-cli)')
+  .option('--get <key>', 'Get a configuration value')
+  .option('--list', 'List all configuration values')
+  .action((options) => {
+    const appConfig = getAppConfig();
+
+    if (options.set) {
+      const [key, value] = options.set.split('=');
+      if (!key || value === undefined) {
+        log.error('Invalid --set format. Use --set <key>=<value>.');
+        process.exit(1);
+      }
+      (appConfig as any)[key] = value; // Type assertion for dynamic key
+      saveAppConfig(appConfig);
+      log.info(`Configuration updated: ${key} = ${value}`);
+    } else if (options.get) {
+      const value = (appConfig as any)[options.get];
+      if (value !== undefined) {
+        log.info(`${options.get} = ${value}`);
+      } else {
+        log.warn(`Configuration key '${options.get}' not found.`);
+      }
+    } else if (options.list) {
+      log.info('Current Copperhead Configuration:');
+      if (Object.keys(appConfig).length === 0) {
+        log.info('  (No custom configuration set)');
+      } else {
+        for (const key in appConfig) {
+          log.info(`  ${key} = ${(appConfig as any)[key]}`);
+        }
+      }
+    } else {
+      program.help();
+    }
+  });
+
+
+program.parse(process.argv);
