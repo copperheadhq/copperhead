@@ -4,7 +4,8 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveInRepo, SandboxError, isKicadFile } from '../src/util/paths.js';
-import { redactSecrets } from '../src/util/redact.js';
+import { redactSecrets, sanitizeEndpoint } from '../src/util/redact.js';
+import { formatCliError } from '../src/util/cli-error.js';
 import { withRetry } from '../src/util/retry.js';
 import { toolWriteFile, toolEditFile, toolSearch } from '../src/agent/filetools.js';
 import { Transcript } from '../src/agent/transcript.js';
@@ -157,6 +158,39 @@ describe('secret redaction (AC-4.1)', () => {
 
     expect(await readFile(t.jsonlPath, 'utf8')).toContain('run-failed');
     expect(await readFile(summaryPath, 'utf8')).toContain('# Run summary');
+  });
+
+  it('sanitizeEndpoint drops a query-embedded credential of any shape', () => {
+    // Gemini's compat endpoint puts the key in the URL as ?key=...; it is a
+    // real AIza-shaped key elsewhere, but the point of sanitizeEndpoint is
+    // that it does not need a recognized shape to be dropped.
+    const out = sanitizeEndpoint('https://example.com/v1beta/openai?key=anyShapeAtAllShouldNotLeak');
+    expect(out).toBe('https://example.com/v1beta/openai');
+    expect(out).not.toContain('anyShapeAtAllShouldNotLeak');
+  });
+
+  it('sanitizeEndpoint drops userinfo too', () => {
+    const out = sanitizeEndpoint('https://user:secretpassword@example.com/v1');
+    expect(out).toBe('https://example.com/v1');
+    expect(out).not.toContain('secretpassword');
+  });
+
+  it('sanitizeEndpoint falls back to pattern redaction for an unparseable URL', () => {
+    const out = sanitizeEndpoint('not a url sk-abc123DEF456ghi789jkl012');
+    expect(out).toBe('not a url [REDACTED]');
+  });
+
+  it('sanitizeEndpoint reports a missing endpoint plainly', () => {
+    expect(sanitizeEndpoint(undefined)).toBe('(no endpoint configured)');
+  });
+
+  it('formatCliError redacts a key-shaped string reaching an error message', () => {
+    const out = formatCliError(new Error('upstream rejected key sk-abc123DEF456ghi789jkl012'));
+    expect(out).toBe('upstream rejected key [REDACTED]');
+  });
+
+  it('formatCliError handles a thrown non-Error value', () => {
+    expect(formatCliError('sk-abc123DEF456ghi789jkl012')).toBe('[REDACTED]');
   });
 });
 
