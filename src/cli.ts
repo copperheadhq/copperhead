@@ -4,26 +4,21 @@ import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
 import { loadConfig, resolveModel, type ModelSource } from './config.js';
 import { pickModel } from './util/select.js';
-import { runInit, InitError } from './memory/scaffold.js';
+import { runInit } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
 import { runCreate } from './commands/create.js';
 import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
-import {
-  runExportBom,
-  parseSupplier,
-  parseBoards,
-  parseSpares,
-  ExportError,
-} from './commands/export.js';
+import { runExportBom, parseSupplier, parseBoards, parseSpares } from './commands/export.js';
 import { DEFAULT_BOARDS, DEFAULT_SPARES } from './kicad/bom-export.js';
 import { runAgentLoop, type BudgetExhaustedStats } from './agent/loop.js';
 import { makeRenderer } from './agent/render.js';
 import { kicadCliVersion } from './kicad/cli.js';
 import { loadEnvFile } from './util/env.js';
 import { budgetExtraTurns, budgetPromptText, parseMaxTurns, repoOf } from './util/cli-args.js';
+import { formatCliError } from './util/cli-error.js';
 
 // Read .env from the working directory before any command resolves a model or a
 // provider. Loaded here rather than per-command so `check` behaves identically,
@@ -123,7 +118,7 @@ program
         });
         process.exit(res.ok ? 0 : 1);
       } catch (err) {
-        console.error((err as Error).message);
+        console.error(formatCliError(err));
         process.exit(1);
       }
     },
@@ -154,7 +149,7 @@ program
       }
       process.exit(res.refused.length ? 1 : 0);
     } catch (err) {
-      console.error(err instanceof InitError ? err.message : (err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
@@ -168,7 +163,7 @@ const checkAction = async (): Promise<void> => {
     if (json) console.log(JSON.stringify(res, null, 2));
     process.exit(res.ok ? 0 : 1);
   } catch (err) {
-    console.error((err as Error).message);
+    console.error(formatCliError(err));
     process.exit(1);
   }
 };
@@ -215,7 +210,7 @@ draftGroup
       else console.log(formatSchematicDraftReport(res.report));
       process.exit(0);
     } catch (err) {
-      console.error((err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
@@ -251,7 +246,7 @@ scoreGroup
       console.log(json ? JSON.stringify(report, null, 2) : formatScore(report));
       process.exit(0); // the exit code never depends on the composite (AC-16.26 family)
     } catch (err) {
-      console.error((err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
@@ -311,7 +306,7 @@ program
         if (program.opts().json) console.log(JSON.stringify(res, null, 2));
         process.exit(res.outcome === 'failure' ? 1 : 0);
       } catch (err) {
-        console.error((err as Error).message);
+        console.error(formatCliError(err));
         process.exit(1);
       }
     },
@@ -335,7 +330,7 @@ skillCmd
       }
       process.exit(0);
     } catch (err) {
-      console.error((err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
@@ -365,7 +360,7 @@ skillCmd
       console.log(res.text);
       code = res.code;
     } catch (err) {
-      console.error((err as Error).message);
+      console.error(formatCliError(err));
       code = 1;
     }
     process.exit(code);
@@ -402,7 +397,7 @@ program
       });
       process.exit(res.ok ? 0 : 1);
     } catch (err) {
-      console.error((err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
@@ -425,7 +420,7 @@ program
       // stdout here or anywhere downstream: it carries JSON-RPC alone.
       await startMcpServer({ repoRoot: repo });
     } catch (err) {
-      console.error((err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
@@ -472,7 +467,7 @@ program
       });
       process.exit(res.ok ? 0 : 1);
     } catch (err) {
-      console.error((err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
@@ -502,7 +497,7 @@ program
       });
       process.exit(res.ok ? 0 : 1);
     } catch (err) {
-      console.error((err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
@@ -544,12 +539,12 @@ exportCmd
     } catch (err) {
       // ExportError carries an actionable message (bad flag, missing BOM, drift);
       // anything else is unexpected. Both exit non-zero with no stack trace.
-      console.error(err instanceof ExportError ? err.message : (err as Error).message);
+      console.error(formatCliError(err));
       process.exit(1);
     }
   });
 
 program.parseAsync().catch((err: Error) => {
-  console.error(err.message);
+  console.error(formatCliError(err));
   process.exit(1);
 });
