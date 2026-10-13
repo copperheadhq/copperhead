@@ -41,6 +41,8 @@ export type CanUseToolLike = (
   input: Record<string, unknown>,
 ) => Promise<DenyResult | AllowResult>;
 
+export type ThinkingEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
 export interface QueryOptions {
   systemPrompt?: string;
   model?: string;
@@ -52,6 +54,16 @@ export interface QueryOptions {
   cwd?: string;
   env?: Record<string, string | undefined>;
   maxTurns?: number;
+  /**
+   * Effort level for model reasoning/thinking ('low' | 'medium' | 'high' | 'xhigh' | 'max').
+   * Passed to query options or thinking configuration.
+   */
+  effort?: ThinkingEffort;
+  thinking?: {
+    type?: string;
+    display?: string;
+    effort?: ThinkingEffort;
+  };
   /** Aborting this controller stops the query and tears down the `claude`
    * subprocess it spawned (Agent SDK `Options.abortController`). Used so the
    * watchdog's `close()` on a hung turn kills the process instead of orphaning
@@ -108,6 +120,19 @@ const DISALLOWED_BUILTINS = [
   'TodoWrite',
 ];
 
+export const VALID_THINKING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+export function parseThinkingEffort(raw?: string): ThinkingEffort | undefined {
+  if (!raw || raw.trim() === '') return undefined;
+  const val = raw.trim().toLowerCase();
+  if ((VALID_THINKING_EFFORTS as readonly string[]).includes(val)) {
+    return val as ThinkingEffort;
+  }
+  throw new Error(
+    `Invalid COPPERHEAD_CC_EFFORT "${raw}". Valid values are: ${VALID_THINKING_EFFORTS.join(', ')}`,
+  );
+}
+
 export class ClaudeCodeProvider implements Provider {
   readonly name = 'claude-code';
   private callSeq = 0;
@@ -120,6 +145,7 @@ export class ClaudeCodeProvider implements Provider {
    * turn sends only the delta. Unused unless `sessionResume` is on. */
   private sessionId?: string;
   private sentCount = 0;
+  private readonly effort?: ThinkingEffort;
 
   constructor(
     private readonly model?: string,
@@ -134,7 +160,10 @@ export class ClaudeCodeProvider implements Provider {
      * desync the session. `makeProvider` enables it only when the cache is off.
      */
     private readonly sessionResume = false,
-  ) {}
+    effort?: ThinkingEffort,
+  ) {
+    this.effort = effort ?? parseThinkingEffort(process.env.COPPERHEAD_CC_EFFORT);
+  }
 
   // `opts.maxTokens` is intentionally ignored: the Agent SDK drives the Claude
   // Code subprocess and exposes no per-call max-tokens knob. `opts.onStream` is
@@ -187,6 +216,12 @@ export class ClaudeCodeProvider implements Provider {
           //     emitted anyway. Any single layer failing is caught by the next.
           tools: [],
           ...(resume ? { resume } : {}),
+          ...(this.effort
+            ? {
+                effort: this.effort,
+                thinking: { type: 'adaptive', effort: this.effort },
+              }
+            : {}),
           disallowedTools: DISALLOWED_BUILTINS,
           canUseTool: async (toolName) => ({
             behavior: 'deny',

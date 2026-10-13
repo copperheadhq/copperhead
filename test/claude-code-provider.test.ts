@@ -126,6 +126,50 @@ describe('ClaudeCodeProvider — routing', () => {
     await noId.chat(messages, tools);
     expect(hasModelKey).toBe(false);
   });
+
+  it('honours COPPERHEAD_CC_EFFORT and passes effort to query options', async () => {
+    const saved = process.env.COPPERHEAD_CC_EFFORT;
+    try {
+      process.env.COPPERHEAD_CC_EFFORT = 'medium';
+      let capturedEffort: unknown;
+      let capturedThinking: unknown;
+      const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('hi'), result()], (a) => {
+        capturedEffort = (a.options ?? {}).effort;
+        capturedThinking = (a.options ?? {}).thinking;
+      }));
+      await provider.chat(messages, tools);
+      expect(capturedEffort).toBe('medium');
+      expect(capturedThinking).toEqual({ type: 'adaptive', effort: 'medium' });
+
+      // Explicit constructor override
+      let overrideEffort: unknown;
+      const lowProvider = new ClaudeCodeProvider(
+        undefined,
+        fakeQuery([assistant('hi'), result()], (a) => {
+          overrideEffort = (a.options ?? {}).effort;
+        }),
+        undefined,
+        false,
+        'low',
+      );
+      await lowProvider.chat(messages, tools);
+      expect(overrideEffort).toBe('low');
+    } finally {
+      if (saved === undefined) delete process.env.COPPERHEAD_CC_EFFORT;
+      else process.env.COPPERHEAD_CC_EFFORT = saved;
+    }
+  });
+
+  it('fails loudly when COPPERHEAD_CC_EFFORT contains an invalid value', () => {
+    const saved = process.env.COPPERHEAD_CC_EFFORT;
+    try {
+      process.env.COPPERHEAD_CC_EFFORT = 'invalid_effort';
+      expect(() => new ClaudeCodeProvider()).toThrowError(/Invalid COPPERHEAD_CC_EFFORT/);
+    } finally {
+      if (saved === undefined) delete process.env.COPPERHEAD_CC_EFFORT;
+      else process.env.COPPERHEAD_CC_EFFORT = saved;
+    }
+  });
 });
 
 describe('ClaudeCodeProvider — tool protocol', () => {
