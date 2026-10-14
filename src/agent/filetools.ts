@@ -49,13 +49,16 @@ export async function toolEditFile(
 ): Promise<string> {
   const abs = resolveInRepo(repoRoot, p);
   const text = await readFile(abs, 'utf8');
-  const first = text.indexOf(oldString);
+  const crlf = text.includes('\r\n');
+  const anchor = crlf && oldString.includes('\n') && !oldString.includes('\r\n') ? oldString.replace(/\n/g, '\r\n') : oldString;
+  const replacement = crlf && newString.includes('\n') && !newString.includes('\r\n') ? newString.replace(/\n/g, '\r\n') : newString;
+  const first = text.indexOf(anchor);
   if (first === -1) {
     throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
   }
-  const count = text.split(oldString).length - 1;
+  const count = text.split(anchor).length - 1;
   if (replaceAll) {
-    await writeFile(abs, text.split(oldString).join(newString), 'utf8');
+    await writeFile(abs, text.split(anchor).join(replacement), 'utf8');
     return `edited ${p} (${count} occurrence(s) replaced)`;
   }
   if (count > 1) {
@@ -63,7 +66,7 @@ export async function toolEditFile(
       `edit_file: anchor matched ${count} times in ${p}; widen the anchor with surrounding lines until it is unique, or pass replace_all: true to replace every occurrence`,
     );
   }
-  await writeFile(abs, text.slice(0, first) + newString + text.slice(first + oldString.length), 'utf8');
+  await writeFile(abs, text.slice(0, first) + replacement + text.slice(first + anchor.length), 'utf8');
   return `edited ${p}`;
 }
 

@@ -177,6 +177,14 @@ describe('file tools', () => {
     expect(await readFile(path.join(dir, 'f.txt'), 'utf8')).toBe('aaa\nccc\naaa\n');
   });
 
+  it('edit_file matches LF multi-line anchors in CRLF files and preserves CRLF', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'before\r\n  first\r\n  second\r\nafter\r\n');
+    await toolEditFile(dir, 'f.txt', '  first\n  second', '  changed\n  line');
+    expect(await readFile(file, 'utf8')).toBe('before\r\n  changed\r\n  line\r\nafter\r\n');
+  });
+  
   it('search finds regex matches with glob filtering', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     await writeFile(path.join(dir, 'a.md'), 'KEY_DAH here');
