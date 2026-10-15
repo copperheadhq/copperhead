@@ -321,18 +321,18 @@ export const STAGES: Stage[] = [
     name: 'devplan',
     isComplete: async (root, docs) => {
       // init does NOT scaffold DEVPLAN.md, but a blank file must not count.
-      // Require at least one ## section heading AND at least one content line.
+      // Require a bring-up section heading and at least one content line.
       const p = path.join(root, docs, 'DEVPLAN.md');
       if (!existsSync(p)) return false;
       const text = await readFile(p, 'utf8');
-      if (!/^#{1,6}\s/m.test(text)) return false;
+      if (!/^#{1,6}[ \t]+.*\bbring[- ]?up\b/im.test(text)) return false;
       const contentLines = text.split('\n').filter(
         (l) => l.trim() && !l.trim().startsWith('#'),
       );
       return contentLines.length > 0;
     },
     prompt: () =>
-      'Stage 8: DEVPLAN.md. Write docs/DEVPLAN.md: bring-up steps in order, test points and what to meter first, risk list, and the prototype order plan.',
+      'Stage 8: DEVPLAN.md. Write docs/DEVPLAN.md with a "Bring-up" section (steps in order, test points and what to meter first), a risk list, and the prototype order plan.',
   },
 ];
 

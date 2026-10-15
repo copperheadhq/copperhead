@@ -400,6 +400,42 @@ describe('devplan isComplete', () => {
     });
   });
 
+  it('returns false when DEVPLAN.md contains only the stage-7 firmware note', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'DEVPLAN.md'),
+        '# DEVPLAN\n\n## Firmware: none, by design\n\nThe schematic has no programmable part.\n',
+        'utf8',
+      );
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('returns true when the stage-7 note is followed by a bring-up section', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'DEVPLAN.md'),
+        '# DEVPLAN\n\n## Firmware: none, by design\n\nThe schematic has no programmable part.\n\n## Bring-up steps\n\n1. Power on and measure the 3.3 V rail.\n',
+        'utf8',
+      );
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+    });
+  });
+
+  it('detects a bring-up section with CRLF line endings', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'DEVPLAN.md'),
+        '# DEVPLAN\r\n\r\n## Firmware: none, by design\r\n\r\nThe schematic has no programmable part.\r\n\r\n## Bring up\r\n\r\n1. Power on and measure the 3.3 V rail.\r\n',
+        'utf8',
+      );
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+    });
+  });
+
   it('returns true when DEVPLAN.md has at least one section with content', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, DOCS), { recursive: true });
