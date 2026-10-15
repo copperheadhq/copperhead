@@ -454,7 +454,7 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 - `.env` in `.gitignore` from first commit; keys only via env vars — never written to any file, transcript, or commit
 - Transcripts in `.copperhead/runs/` redact anything matching `sk-[A-Za-z0-9_-]+`
 - The Codex CLI's native read access and `~/.codex/sessions/` logs are outside Copperhead's enforcement/redaction boundary; the Codex path documents this host-local exposure explicitly
-- The agent never invents MPNs: any new part must come with a datasheet-verifiable justification in BOM.md, flagged `UNVERIFIED` for human review
+- The agent never invents MPNs: any new part must come with a datasheet-verifiable justification in BOM.md, flagged `UNVERIFIED` for human review at the start of its Rationale cell; the MPN cell holds the part number alone, since supplier exports copy it as written, and part selection does not count an MPN cell that starts with `UNVERIFIED` as a chosen part
 
 ## 8. Phase 3 — Integrations (post-hackathon roadmap; document, don't build)
 

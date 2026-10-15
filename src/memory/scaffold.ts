@@ -68,7 +68,9 @@ What the device is, top-level constraints and budgets.
     'BOM.md': `# Bill of Materials
 
 Every part: refdes, MPN, value, package, and WHY it was chosen. MPNs the agent
-introduces without a datasheet check are flagged UNVERIFIED.
+introduces without a datasheet check are flagged UNVERIFIED at the start of the
+Rationale cell ("UNVERIFIED: ..."); the MPN cell holds the part number alone,
+since supplier exports copy it as written.
 
 Value holds the component value only ("4.7uF", "1M", "500mAh Li-Po") — the
 schematic stage draws it as the symbol's Value field, so a description there

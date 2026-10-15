@@ -130,34 +130,11 @@ export const STAGES: Stage[] = [
   {
     name: 'spec-seed',
     isComplete: async (root, docs) => {
-      // The init scaffold writes SPEC.md with a "## Budgets" heading and an
-      // HTML comment placeholder — that alone must not count as complete.
-      // Require the heading AND at least one non-comment, non-blank line
-      // of real budget content beneath it (a filled section vs. an empty placeholder).
       const p = path.join(root, docs, 'SPEC.md');
-      if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      const heading = /^(#{1,6})\s.*\bBudgets?\b.*$/im.exec(text);
-      if (!heading) return false;
-      // The section runs to the next heading of the SAME OR SHALLOWER depth, not to
-      // the next heading of any depth (I17): a real spec routinely splits its budgets
-      // into subsections — "## 3. Electrical budgets" followed immediately by
-      // "### 3.1 Input and rails" — which leaves the parent's own body empty and read
-      // as an unfilled placeholder. Subheadings are part of the section, not its end.
-      const depth = heading[1]!.length;
-      const afterHeadingLine = text.slice(heading.index + heading[0].length);
-      const nextSection = afterHeadingLine.search(new RegExp(`^#{1,${depth}}\\s`, 'm'));
-      const section = nextSection >= 0 ? afterHeadingLine.slice(0, nextSection) : afterHeadingLine;
-      // Strip HTML comments (single or multi-line); headings inside the section are
-      // structure, not content, so a section of nothing but subheadings still fails.
-      const cleanSection = section.replace(/<!--[\s\S]*?-->/g, '');
-      const realLines = cleanSection
-        .split('\n')
-        .filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
-      return realLines.length > 0;
+      return existsSync(p) && !specBudgetsGap(await readFile(p, 'utf8'));
     },
     prompt: (brief) =>
-      `Stage 1 of the create pipeline: seed the requirements. From the product brief below, write docs/SPEC.md (what the device is, top-level constraints and budgets). Every budget you state must also be recorded with record_constraint. Anything the brief does not state: propose a sensible default and flag it ASSUMED. If an openspec/ workspace exists, also seed openspec/specs/ with per-capability requirements using Given/When/Then scenarios.\n\nBrief:\n${brief}`,
+      `Stage 1 of the create pipeline: seed the requirements. From the product brief below, write docs/SPEC.md (what the device is, top-level constraints, and a section headed "Budgets" that lists each budget; the stage is complete only when that heading has budgets under it). Every budget you state must also be recorded with record_constraint. Anything the brief does not state: propose a sensible default and flag it ASSUMED. If an openspec/ workspace exists, also seed openspec/specs/ with per-capability requirements using Given/When/Then scenarios.\n\nBrief:\n${brief}`,
   },
   {
     name: 'architecture',
@@ -187,28 +164,15 @@ export const STAGES: Stage[] = [
   {
     name: 'part-selection',
     isComplete: async (root, docs) => {
-      // init scaffolds BOM.md with a table pre-filled with UNVERIFIED MPNs
-      // extracted from the schematic. Require at least one row whose MPN
-      // column is NOT the UNVERIFIED placeholder — i.e. a real part was chosen.
       const p = path.join(root, docs, 'BOM.md');
       if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      // Find table rows (lines starting with |) that are not the header or separator
-      const rows = text.split('\n').filter(
-        (l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
-      );
-      if (!rows.length) return false;
-      // At least one row must have a non-UNVERIFIED MPN (4th column)
-      return rows.some((row) => {
-        const cols = row.split('|').map((c) => c.trim());
-        const mpn = cols[4] ?? ''; // 0=empty, 1=Refdes, 2=Value, 3=Footprint, 4=MPN
-        return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
-      }) && !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
+      if (bomPartGap(await readFile(p, 'utf8'))) return false;
+      return !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
       // ^ every footprint resolves, except a library the user must install
       // (that stops the run before the schematic stage, #314)
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing.',
+      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). There is no schematic yet and none is needed: stage 4 draws it from this BOM, so the parts come from docs/SPEC.md and docs/SUBSYSTEMS.md and you assign each part its refdes here (U1, C1, J1, …). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification, and the flag goes in the Rationale cell ("UNVERIFIED: <why it fits, what to check in the datasheet>"): the MPN cell holds the part number alone, because `export bom` writes that cell to the supplier file and an MPN cell that starts with UNVERIFIED names no part. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing.',
   },
   {
     name: 'schematic',
@@ -505,9 +469,68 @@ export async function layoutDocGap(root: string, docs: string): Promise<string |
   );
 }
 
+/**
+ * Why SPEC.md has no filled Budgets section, or null when it has one. The init
+ * scaffold writes SPEC.md with a "## Budgets" heading and an HTML comment
+ * placeholder, and that alone must not count: the heading needs at least one
+ * non-comment, non-blank line of real budget content beneath it. A model that
+ * rewrites the scaffold tends to retitle the section ("Budgeted Constraints"),
+ * which no longer names it, so the reason says the heading is what is looked for.
+ */
+export function specBudgetsGap(md: string): string | null {
+  const heading = /^(#{1,6})\s.*\bBudgets?\b.*$/im.exec(md);
+  if (!heading) return 'SPEC.md has no Budgets section; keep a heading named "Budgets" (as in "## Budgets") and list each budget under it';
+  // The section runs to the next heading of the SAME OR SHALLOWER depth, not to
+  // the next heading of any depth (I17): a real spec routinely splits its budgets
+  // into subsections — "## 3. Electrical budgets" followed immediately by
+  // "### 3.1 Input and rails" — which leaves the parent's own body empty and read
+  // as an unfilled placeholder. Subheadings are part of the section, not its end.
+  const depth = heading[1]!.length;
+  const afterHeadingLine = md.slice(heading.index + heading[0].length);
+  const nextSection = afterHeadingLine.search(new RegExp(`^#{1,${depth}}\\s`, 'm'));
+  const section = nextSection >= 0 ? afterHeadingLine.slice(0, nextSection) : afterHeadingLine;
+  // Strip HTML comments (single or multi-line); headings inside the section are
+  // structure, not content, so a section of nothing but subheadings still fails.
+  const cleanSection = section.replace(/<!--[\s\S]*?-->/g, '');
+  const realLines = cleanSection.split('\n').filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
+  return realLines.length > 0 ? null : `SPEC.md's Budgets section ("${heading[0].trim()}") holds no budgets; list each budget under it`;
+}
+
+/**
+ * Why a BOM.md names no chosen part, or null when one row names one. `init`
+ * scaffolds the table with UNVERIFIED in every MPN cell, so a part is chosen
+ * when an MPN cell holds anything else. The flag for a part not yet checked
+ * against a datasheet belongs in the Rationale cell: `export bom` reads it from
+ * any cell but writes the MPN cell to the supplier file as it stands. A model
+ * told to flag every MPN it introduces tends to write the flag into the MPN
+ * cell itself, so that case is named, with where the flag goes. Table rows are
+ * the lines that start with `|`, less the header and separator.
+ */
+export function bomPartGap(md: string): string | null {
+  const rows = md.split('\n').filter((l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'));
+  if (!rows.length) return 'BOM.md has no table rows; write the fixed table, one row per refdes';
+  // 0=empty, 1=Refdes, 2=Value, 3=Footprint, 4=MPN
+  const mpns = rows.map((row) => (row.split('|')[4] ?? '').trim());
+  if (mpns.some((m) => m && !m.toUpperCase().startsWith('UNVERIFIED'))) return null;
+  const flagged = mpns.filter((m) => /^UNVERIFIED\b[\s:\u2013\u2014-]*[^\s:\u2013\u2014-]/i.test(m)).length;
+  return flagged
+    ? `BOM.md names no part: ${flagged} MPN cell(s) hold the UNVERIFIED flag with the part number; put each part number alone in its MPN cell and the flag at the start of its Rationale cell ("UNVERIFIED: ...")`
+    : 'BOM.md names no part: every MPN cell is empty or the bare UNVERIFIED placeholder; write each chosen part number alone in its MPN cell, flagged "UNVERIFIED: ..." in its Rationale cell until it is checked against a datasheet';
+}
+
 async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
+  if (stageName === 'spec-seed') {
+    const spec = path.join(root, config.docs, 'SPEC.md');
+    if (!existsSync(spec)) return `the spec-seed contract is not met: ${path.join(config.docs, 'SPEC.md')} was not written`;
+    const gap = specBudgetsGap(await readFile(spec, 'utf8'));
+    if (gap) return `the spec-seed contract is not met: ${gap}`;
+  }
   if (stageName === 'part-selection') {
+    const bom = path.join(root, config.docs, 'BOM.md');
+    if (!existsSync(bom)) return `the part-selection contract is not met: ${path.join(config.docs, 'BOM.md')} was not written`;
+    const gap = bomPartGap(await readFile(bom, 'utf8'));
+    if (gap) return `the part-selection contract is not met: ${gap}`;
     const r = await bomFootprintMisses(root, config.docs);
     const fixable = r?.missing.filter(modelFixable) ?? [];
     if (fixable.length) {

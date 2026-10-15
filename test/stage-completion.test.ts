@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
-import { STAGES } from '../src/commands/create.js';
+import { STAGES, bomPartGap, specBudgetsGap } from '../src/commands/create.js';
 
 /** Return the isComplete function for the named stage (throws if not found). */
 function stageNamed(name: string) {
@@ -146,6 +146,20 @@ describe('spec-seed isComplete', () => {
   });
 });
 
+describe('specBudgetsGap names what SPEC.md is missing', () => {
+  it('a retitled section no longer names Budgets, and the reason says so', () => {
+    // what a run on a small hosted model wrote over the scaffold
+    const gap = specBudgetsGap('# Specification\n\n## Device\nA breakout.\n\n## Budgeted Constraints\n- Board layers: 2.\n');
+    expect(gap).toContain('no Budgets section');
+    expect(gap).toContain('"## Budgets"');
+  });
+
+  it("the scaffold's placeholder is an empty section, and a filled one is complete", () => {
+    expect(specBudgetsGap('# Spec\n\n## Budgets\n\n<!-- Add hard budgets here -->\n\n## Assumptions\n')).toContain('holds no budgets');
+    expect(specBudgetsGap('# Spec\n\n## Budgets\n\n- sleep_current_uA: 25\n')).toBeNull();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Stage 2: architecture
 // ---------------------------------------------------------------------------
@@ -274,6 +288,53 @@ describe('part-selection isComplete', () => {
       );
       expect(await stageNamed('part-selection')(root, DOCS)).toBe(true);
     });
+  });
+
+  it('returns true when every part is flagged UNVERIFIED in its Rationale, the form the stage prompt asks for', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'BOM.md'),
+        `# Bill of Materials\n\n| Refdes | Value | Footprint | MPN | Rationale |\n|---|---|---|---|---|\n| R1 | 10k | Resistor_SMD:R_0603_1608Metric | RC0603FR-0710KL | UNVERIFIED: standard 1% bias |\n| U1 | ESP32 | RF_Module:ESP32-S3-WROOM-1 | ESP32-S3-WROOM-1-N8 | UNVERIFIED: BLE + Wi-Fi module |\n`,
+        'utf8',
+      );
+      expect(await stageNamed('part-selection')(root, DOCS)).toBe(true);
+    });
+  });
+
+  it('returns false when the UNVERIFIED flag is written into the MPN cells, which export would copy to the supplier file', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'BOM.md'),
+        `# Bill of Materials\n\n| Refdes | Value | Footprint | MPN | Rationale |\n|---|---|---|---|---|\n| R1 | 10k | Resistor_SMD:R_0603_1608Metric | UNVERIFIED RC0603FR-0710KL | standard 1% bias |\n`,
+        'utf8',
+      );
+      expect(await stageNamed('part-selection')(root, DOCS)).toBe(false);
+    });
+  });
+});
+
+describe('bomPartGap names what a BOM is missing', () => {
+  const table = (mpns: string[]): string =>
+    `| Refdes | Value | Footprint | MPN | Rationale |\n|---|---|---|---|---|\n${mpns.map((m, i) => `| R${i + 1} | 10k | Resistor_SMD:R_0603_1608Metric | ${m} | bias |`).join('\n')}\n`;
+
+  it('one MPN cell holding a part number is enough', () => {
+    expect(bomPartGap(table(['RC0603FR-0710KL']))).toBeNull();
+    expect(bomPartGap(table(['UNVERIFIED', 'RC0603FR-0710KL']))).toBeNull();
+  });
+
+  it('a flag written into the MPN cells is named, with where it goes', () => {
+    const gap = bomPartGap(table(['UNVERIFIED RC0603FR-0710KL', 'unverified: RC0603FR-0710KL', 'UNVERIFIED']));
+    expect(gap).toContain('2 MPN cell(s) hold the UNVERIFIED flag with the part number');
+    expect(gap).toContain('Rationale cell');
+  });
+
+  it("init's placeholder and empty cells name no part, and the message says how to write one", () => {
+    const gap = bomPartGap(table(['UNVERIFIED', '', 'UNVERIFIED:']));
+    expect(gap).toContain('every MPN cell is empty or the bare UNVERIFIED placeholder');
+    expect(gap).toContain('alone in its MPN cell');
+    expect(bomPartGap('# Bill of Materials\n\nEmpty.\n')).toContain('no table rows');
   });
 });
 
