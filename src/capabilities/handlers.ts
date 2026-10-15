@@ -266,7 +266,7 @@ export const HANDLERS: HandlerDef[] = [
       const abs = resolveInRepo(ctx.repoRoot, rel);
       // Engine-drafted sheets are regenerated wholesale from the IR: a hand
       // edit would be destroyed by the next re-draft and would break the
-      // byte-identical staleness check. Geometry repairs go through the IR
+      // staleness check (line endings normalized to the file's own). Geometry repairs go through the IR
       // (design D5). Hand-drawn schematics never carry the draft generator
       // marker, so `do` on existing repos is untouched by this guard.
       if (rel.endsWith('.kicad_sch') && existsSync(abs)) {

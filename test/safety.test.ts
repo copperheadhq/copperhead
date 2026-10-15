@@ -183,6 +183,14 @@ describe('file tools', () => {
     await writeFile(file, 'before\r\n  first\r\n  second\r\nafter\r\n');
     await toolEditFile(dir, 'f.txt', '  first\n  second', '  changed\n  line');
     expect(await readFile(file, 'utf8')).toBe('before\r\n  changed\r\n  line\r\nafter\r\n');
+    
+    await writeFile(file, 'n1\r\nn1\r\n');
+    await toolEditFile(dir, 'f.txt', 'n1', 'n1\nadded', true);
+    expect(await readFile(file, 'utf8')).toBe('n1\r\nadded\r\nn1\r\nadded\r\n');
+
+    await writeFile(file, 'hdr\r\n(a\n  b)\n');
+    await toolEditFile(dir, 'f.txt', '(a\n  b)', '(a\n  c)');
+    expect(await readFile(file, 'utf8')).toBe('hdr\r\n(a\n  c)\n');
   });
   
   it('search finds regex matches with glob filtering', async () => {

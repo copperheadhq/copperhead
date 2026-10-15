@@ -361,7 +361,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | Tool | Signature | Notes |
 |---|---|---|
 | `read_file` | (path) → text | Repo-relative, sandboxed to repo root |
-| `edit_file` | (path, old_string, new_string) → ok | Exact-match anchored replace; fails if not unique |
+| `edit_file` | (path, old_string, new_string) → ok | Exact-match anchored replace (line endings normalized to the file's own); fails if not unique |
 | `write_file` | (path, content) → ok | New files only (docs); refuses to overwrite .kicad_* |
 | `search` | (regex, glob?) → matches | ripgrep-style over repo |
 | `list_symbols` | (sch_path) → [{ref, value, footprint, sheet}] | From s-expression parse |

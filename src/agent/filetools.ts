@@ -49,9 +49,10 @@ export async function toolEditFile(
 ): Promise<string> {
   const abs = resolveInRepo(repoRoot, p);
   const text = await readFile(abs, 'utf8');
-  const crlf = text.includes('\r\n');
-  const anchor = crlf && oldString.includes('\n') && !oldString.includes('\r\n') ? oldString.replace(/\n/g, '\r\n') : oldString;
-  const replacement = crlf && newString.includes('\n') && !newString.includes('\r\n') ? newString.replace(/\n/g, '\r\n') : newString;
+  const toCrlf = (s: string) => s.replace(/\r?\n/g, '\r\n');
+  const useCrlf = !text.includes(oldString) && oldString.includes('\n') && text.includes(toCrlf(oldString));
+  const anchor = useCrlf ? toCrlf(oldString) : oldString;
+  const replacement = (useCrlf || (!oldString.includes('\n') && text.includes('\r\n'))) && newString.includes('\n') ? toCrlf(newString) : newString;
   const first = text.indexOf(anchor);
   if (first === -1) {
     throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
