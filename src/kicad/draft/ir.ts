@@ -280,10 +280,19 @@ export async function validateIntent(
       // in the draft report for the reader, not refused, since there is no
       // footprint to change to.
       const variant = unpinned.length && !pins.length ? await footprints.variantCovering(p.footprint, symPins) : null;
+      // a pin with no pad is as often the footprint's fault as the symbol's: the
+      // symbol's own footprints with a pad for every pin are the other way out
+      // (a TPS62162DSG on a SOT-23-6 is told about its WSON-8, not only to
+      // change the symbol, which a model reads as no way out and refuses)
+      const own = pins.length ? await footprints.symbolFootprintsCovering(p.libId, symPins) : [];
       const mismatch = formatPadMismatch({ ref: p.ref, footprint: p.footprint, pins, pads: [...pads].sort(byNum), ...(unpinned.length ? { unpinned } : {}) });
       if (pins.length || variant) {
         const advice = [
-          pins.length ? `use a symbol whose pin numbers match the footprint's pads` : '',
+          pins.length
+            ? own.length
+              ? `use a footprint with a pad for every pin of the symbol (the symbol's own footprint, ${own.join(', ')}, has one), or a symbol whose pin numbers match the footprint's pads`
+              : `use a symbol whose pin numbers match the footprint's pads`
+            : '',
           unpinned.length
             ? `use a footprint whose electrical pads are all pins of the symbol (${variant ? `${variant} in the same library matches` : 'KiCad often ships a variant with the matching contact count'})`
             : '',

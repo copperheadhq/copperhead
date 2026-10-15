@@ -3,7 +3,7 @@ import path from 'node:path';
 import { libTableRows } from './libtable.js';
 import { kicadMajorVersion } from './cli.js';
 import { parseSexp, children, isList } from './sexp.js';
-import { symbolSearchDirs } from './symlib.js';
+import { symbolFootprintHints, symbolSearchDirs } from './symlib.js';
 
 /**
  * Exact footprint resolution for the board (#314). A `Lib:Name` id resolves to
@@ -103,6 +103,40 @@ export function closestFootprints(names: Iterable<string>, query: string, cap = 
   return scored.slice(0, cap).map((s) => s.name);
 }
 
+/**
+ * A `ki_fp_filters` pattern as KiCad applies it: `*` and `?` wildcards over
+ * the whole footprint name, ignoring case; a pattern with a colon in it is
+ * matched against the whole `Lib:Name`.
+ */
+function fpFilter(pattern: string): (lib: string, name: string) => boolean {
+  const re = new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i');
+  return pattern.includes(':') ? (lib, name) => re.test(`${lib}:${name}`) : (_lib, name) => re.test(name);
+}
+
+/**
+ * Footprint ids a symbol's filters matched, nearest the symbol's name first:
+ * shared name tokens, then the longer common prefix (`TestPoint_2Pads` for
+ * `TestPoint_2Pole`, before the single pads), then edit distance. No cutoff,
+ * since every id here is already one the symbol accepts.
+ */
+function rankBySymbolName(ids: string[], symbolName: string): string[] {
+  const q = tokens(symbolName);
+  const ql = symbolName.toLowerCase();
+  const prefix = (a: string): number => {
+    let n = 0;
+    while (n < a.length && n < ql.length && a[n] === ql[n]) n++;
+    return n;
+  };
+  return ids
+    .map((id) => {
+      const name = id.slice(id.indexOf(':') + 1);
+      const t = new Set(tokens(name));
+      return { id, shared: q.filter((x) => t.has(x)).length, prefix: prefix(name.toLowerCase()), dist: editDistance(ql, name.toLowerCase()) };
+    })
+    .sort((a, b) => b.shared - a.shared || b.prefix - a.prefix || a.dist - b.dist || a.id.localeCompare(b.id))
+    .map((s) => s.id);
+}
+
 export type FootprintLookup =
   | { ok: true; file: string; library: string }
   | {
@@ -116,6 +150,12 @@ export type FootprintLookup =
        * model can fix: an uninstalled vendor library still stops the run.
        */
       fuzzy?: true;
+      /**
+       * The id is an installed symbol's lib_id written where a footprint id
+       * belongs, always the model's to fix; `near` then holds footprints the
+       * symbol accepts.
+       */
+      symbol?: true;
     };
 
 export interface FootprintResolverOptions {
@@ -128,6 +168,8 @@ export interface FootprintResolverOptions {
   global?: boolean;
   /** The running KiCad's major version (defaults to `kicad-cli`'s; null: newest install). */
   kicadMajor?: number | null;
+  /** Override the symbol dirs a symbol id is recognised from (tests); defaults to `symbolSearchDirs(env)`. */
+  symbolDirs?: string[];
 }
 
 export class FootprintResolver {
@@ -135,7 +177,14 @@ export class FootprintResolver {
     private readonly libs: Map<string, { dir: string; source: string }>,
     /** Human-readable list of what was searched, for the stop message. */
     readonly searched: string[],
+    private readonly symbolDirs: string[],
   ) {}
+
+  /** Every installed footprint name and the libraries holding it, read once per resolver. */
+  private owners: Promise<Map<string, string[]>> | null = null;
+
+  /** What each symbol id met in a Footprint cell says about its footprint, read once per resolver. */
+  private readonly symbolHints = new Map<string, Promise<{ footprint: string; filters: string[] } | null>>();
 
   /** Pad sets of every footprint in a library dir, read once per resolver. */
   private readonly padSets = new Map<string, Map<string, FootprintPads>>();
@@ -173,7 +222,30 @@ export class FootprintResolver {
       }
     }
     if (stock.length) searched.push(`stock footprints (${stock.length} dir${stock.length > 1 ? 's' : ''})`);
-    return new FootprintResolver(libs, searched);
+    return new FootprintResolver(libs, searched, opts.symbolDirs ?? (await symbolSearchDirs(env)));
+  }
+
+  private installed(): Promise<Map<string, string[]>> {
+    this.owners ??= (async () => {
+      const owners = new Map<string, string[]>();
+      for (const [other, e] of this.libs) {
+        let files: string[] = [];
+        try {
+          files = await readdir(e.dir);
+        } catch {
+          // library dir listed in a table but missing on disk
+        }
+        for (const f of files) {
+          if (!f.endsWith('.kicad_mod')) continue;
+          const n = f.slice(0, -'.kicad_mod'.length);
+          const libs = owners.get(n);
+          if (libs) libs.push(other);
+          else owners.set(n, [other]);
+        }
+      }
+      return owners;
+    })();
+    return this.owners;
   }
 
   /**
@@ -217,6 +289,82 @@ export class FootprintResolver {
   }
 
   async resolve(fpId: string): Promise<FootprintLookup> {
+    const r = await this.lookup(fpId);
+    if (r.ok || r.why === 'bad-id') return r;
+    return (await this.symbolMiss(fpId, r.why)) ?? r;
+  }
+
+  /**
+   * A symbol's lib_id in a Footprint cell (`Connector:TestPoint_2Pole` for a
+   * test point) is a smaller model's commonest slip in part selection, and a
+   * footprint search on the symbol's name finds nothing like it, so the model
+   * retries the same id. When the id names an installed symbol, the miss says
+   * so and offers the installed footprints the symbol accepts: its own
+   * Footprint property, then what its `ki_fp_filters` match. Null when the id
+   * names no installed symbol.
+   */
+  private async symbolMiss(fpId: string, why: FootprintMiss): Promise<FootprintLookup | null> {
+    const near = await this.symbolAccepts(fpId);
+    return near ? { ok: false, why, near: near.slice(0, 5), symbol: true } : null;
+  }
+
+  /**
+   * The installed footprints a symbol accepts, best first: its own Footprint
+   * property, then what its `ki_fp_filters` match, nearest its name first.
+   * Null when `libId` names no installed symbol.
+   */
+  private async symbolAccepts(libId: string): Promise<string[] | null> {
+    let pending = this.symbolHints.get(libId);
+    if (!pending) {
+      pending = symbolFootprintHints(libId, this.symbolDirs).catch(() => null);
+      this.symbolHints.set(libId, pending);
+    }
+    const hints = await pending;
+    if (!hints) return null;
+    const out: string[] = [];
+    if (hints.footprint && (await this.lookup(hints.footprint)).ok) out.push(hints.footprint);
+    if (hints.filters.length) {
+      const filters = hints.filters.map(fpFilter);
+      const matched: string[] = [];
+      for (const [name, libs] of await this.installed()) {
+        for (const lib of libs) if (filters.some((f) => f(lib, name))) matched.push(`${lib}:${name}`);
+      }
+      for (const id of rankBySymbolName(matched, libId.slice(libId.indexOf(':') + 1))) if (!out.includes(id)) out.push(id);
+    }
+    return out;
+  }
+
+  /**
+   * The symbol's own footprint, from its Footprint property, when it is
+   * installed and has a pad for every one of the symbol's pins: what a part can
+   * change to when its footprint lacks pads for some pins (a TPS62162DSG, whose
+   * own footprint is a WSON-8 with its exposed pad, drawn on a SOT-23-6). Only
+   * the property, not what the symbol's filters match: when the symbol itself
+   * is the wrong one (a 16-pin part drawn for a test point), its filters offer
+   * packages for that part (DIP-16), which is worse than no advice.
+   */
+  async symbolFootprintsCovering(libId: string, symbolPins: ReadonlySet<string>): Promise<string[]> {
+    let pending = this.symbolHints.get(libId);
+    if (!pending) {
+      pending = symbolFootprintHints(libId, this.symbolDirs).catch(() => null);
+      this.symbolHints.set(libId, pending);
+    }
+    const own = (await pending)?.footprint;
+    const out: string[] = [];
+    for (const id of own ? [own] : []) {
+      const hit = await this.lookup(id);
+      if (!hit.ok) continue;
+      try {
+        const { numbers } = await readFootprintPads(hit.file);
+        if ([...symbolPins].every((n) => numbers.has(n))) out.push(id);
+      } catch {
+        // unreadable or malformed: not a candidate
+      }
+    }
+    return out;
+  }
+
+  private async lookup(fpId: string): Promise<FootprintLookup> {
     const i = fpId.indexOf(':');
     const lib = i > 0 ? fpId.slice(0, i) : '';
     const name = i > 0 ? fpId.slice(i + 1) : '';
@@ -240,22 +388,7 @@ export class FootprintResolver {
       // of the id still shows the installed id that was meant. Flagged fuzzy,
       // because a near-miss across libraries is weak evidence (ESP32-C6 is one
       // edit from ESP32-C3): the id is shown, the classification stays.
-      const owners = new Map<string, string[]>();
-      for (const [other, e] of this.libs) {
-        let files: string[] = [];
-        try {
-          files = await readdir(e.dir);
-        } catch {
-          // library dir listed in a table but missing on disk
-        }
-        for (const f of files) {
-          if (!f.endsWith('.kicad_mod')) continue;
-          const n = f.slice(0, -'.kicad_mod'.length);
-          const libs = owners.get(n);
-          if (libs) libs.push(other);
-          else owners.set(n, [other]);
-        }
-      }
+      const owners = await this.installed();
       for (const n of closestFootprints(owners.keys(), name, 5)) {
         for (const other of owners.get(n) ?? []) {
           if (near.length >= 5) break;
@@ -287,6 +420,8 @@ export interface MissingFootprint {
   near: string[];
   /** `near` is ranked guesses, not an exact name found in another library. */
   fuzzy?: true;
+  /** The cell holds an installed symbol's lib_id; `near` is footprints it accepts. */
+  symbol?: true;
 }
 
 /** Resolve every (ref, footprint) pair; the misses, in ref order. */
@@ -301,7 +436,9 @@ export async function missingFootprints(
       continue;
     }
     const r = await resolver.resolve(p.footprint);
-    if (!r.ok) out.push({ ref: p.ref, footprint: p.footprint, why: r.why, near: r.near, ...(r.fuzzy ? { fuzzy: true } : {}) });
+    if (!r.ok) {
+      out.push({ ref: p.ref, footprint: p.footprint, why: r.why, near: r.near, ...(r.fuzzy ? { fuzzy: true } : {}), ...(r.symbol ? { symbol: true } : {}) });
+    }
   }
   return out.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
 }
@@ -316,18 +453,21 @@ export function formatMissingFootprints(missing: MissingFootprint[], searched: s
   const fpW = Math.max(...missing.map((m) => (m.footprint || '(none)').length));
   const lines = missing.map((m) => {
     const lib = m.footprint.slice(0, m.footprint.indexOf(':'));
-    const why =
-      m.why === 'none'
+    const why = m.symbol
+      ? 'a symbol id, not a footprint id'
+      : m.why === 'none'
         ? 'no footprint assigned in BOM.md'
         : m.why === 'bad-id'
           ? 'not a Library:Footprint id'
           : m.why === 'no-library'
             ? `no library named "${lib}"`
             : `library "${lib}" has no footprint "${m.footprint.slice(lib.length + 1)}"`;
-    const near = m.near.length ? `\n  ${' '.repeat(refW)}  ${m.fuzzy ? 'closest installed' : 'installed'}: ${m.near.join(', ')}` : '';
+    const near = m.near.length
+      ? `\n  ${' '.repeat(refW)}  ${m.symbol ? 'footprints the symbol accepts' : m.fuzzy ? 'closest installed' : 'installed'}: ${m.near.join(', ')}`
+      : '';
     return `  ${m.ref.padEnd(refW)}  ${(m.footprint || '(none)').padEnd(fpW)}  ${why}${near}`;
   });
-  const libs = [...new Set(missing.filter((m) => m.why === 'no-library').map((m) => m.footprint.slice(0, m.footprint.indexOf(':'))))];
+  const libs = [...new Set(missing.filter((m) => m.why === 'no-library' && !m.symbol).map((m) => m.footprint.slice(0, m.footprint.indexOf(':'))))];
   const example = libs[0] ?? 'MyLib';
   return [
     `${missing.length} footprint${missing.length > 1 ? 's are' : ' is'} not installed on this machine`,

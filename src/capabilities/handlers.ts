@@ -462,6 +462,13 @@ export const HANDLERS: HandlerDef[] = [
           continue;
         }
         const lib = id.includes(':') ? id.slice(0, id.indexOf(':')) : '';
+        if (r.symbol) {
+          lines.push(
+            `MISS ${id}: that is a symbol id, not a footprint id; ` +
+              (r.near.length ? `footprints the symbol accepts: ${r.near.join(', ')}` : 'choose a footprint for the part and check it here'),
+          );
+          continue;
+        }
         const why =
           r.why === 'bad-id' ? 'not a Lib:Name id' : r.why === 'no-library' ? `no library named "${lib}" is installed` : `library "${lib}" has no such footprint`;
         lines.push(`MISS ${id}: ${why}${r.near.length ? `; ${r.fuzzy ? 'closest installed' : 'installed'}: ${r.near.join(', ')}` : ''}`);

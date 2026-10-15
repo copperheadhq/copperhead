@@ -276,6 +276,40 @@ describe('exact footprint resolution (AC-15.29, AC-15.30, AC-15.33)', () => {
     expect(formatMissingFootprints(missing, r.searched, 'x')).toContain('closest installed: Resistor_SMD:R_0603_1608Metric');
   });
 
+  it("a symbol id in a Footprint cell says so and offers the footprints the symbol accepts", async () => {
+    const r = await FootprintResolver.create({ projectDir: emptyConfig, env: hermetic(), global: false });
+    // the slip a run on a small model repeated three times: Connector is a footprint library too, and holds nothing like it
+    const tp = await r.resolve('Connector:TestPoint_2Pole');
+    expect(tp).toMatchObject({ ok: false, why: 'no-footprint', symbol: true });
+    expect(tp.ok ? '' : tp.near[0]).toMatch(/^TestPoint:TestPoint_2Pads_/);
+    const usb = await r.resolve('Connector:USB_C_Receptacle_PowerOnly_6P');
+    expect(usb.ok ? [] : usb.near.slice(0, 3)).toEqual(expect.arrayContaining([expect.stringMatching(/^Connector_USB:USB_C_Receptacle_GCT_.*_6P_/)]));
+    // the symbol's own Footprint property comes first
+    const reg = await r.resolve('Regulator_Linear:AMS1117-3.3');
+    expect(reg.ok ? '' : reg.near[0]).toBe('Package_TO_SOT_SMD:SOT-223-3_TabPin2');
+    // a footprint id that is no symbol is the miss it always was
+    expect(await r.resolve('Resistor_SMD:R_0603_1608Metrc')).not.toHaveProperty('symbol');
+    // a symbol library that is no footprint library: the stop names no library to install
+    const missing = await missingFootprints([{ ref: 'R1', footprint: 'Device:R' }], r);
+    expect(missing[0]).toMatchObject({ why: 'no-library', symbol: true });
+    expect(missing[0]!.near[0]).toMatch(/^Resistor_[A-Za-z]+:R_/);
+    const msg = formatMissingFootprints(missing, r.searched, 'x');
+    expect(msg).toContain('a symbol id, not a footprint id');
+    expect(msg).toContain('footprints the symbol accepts: Resistor_');
+    expect(msg).not.toContain('(name "Device")');
+  });
+
+  it("a symbol's own footprint with a pad for every pin, for a part drawn on a package that lacks some", async () => {
+    const r = await FootprintResolver.create({ projectDir: emptyConfig, env: hermetic(), global: false });
+    // the platform run's U1: a TPS62162DSG (8 pins and its exposed pad, 9) on a SOT-23-6
+    const pins = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+    expect(await r.symbolFootprintsCovering('Regulator_Switching:TPS62162DSG', pins)).toEqual(['Package_SON:WSON-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm_ThermalVias']);
+    // a symbol with no Footprint property of its own offers nothing, not what its filters match
+    expect(await r.symbolFootprintsCovering('Device:C', new Set(['1', '2']))).toEqual([]);
+    // a lib_id that names no installed symbol offers nothing
+    expect(await r.symbolFootprintsCovering('Nowhere:Nothing', pins)).toEqual([]);
+  });
+
   it('the stop message names every part, the fix, and no absolute path', async () => {
     const r = await FootprintResolver.create({ projectDir: emptyConfig, env: hermetic(), global: false });
     const missing = await missingFootprints(
@@ -745,6 +779,8 @@ describe('part selection verifies footprints (#314)', () => {
     );
     expect(out).toContain('OK  Fuse:Fuse_2920_7451Metric');
     expect(out).toContain('MISS Fuse:Fuse_2920_7351Metric: library \\"Fuse\\" has no such footprint; installed: Fuse:Fuse_2920_7451Metric');
+    const symbolOut = JSON.stringify(await dispatchTool(ctx, 'check_footprints', { footprints: ['Connector:TestPoint_2Pole'] }));
+    expect(symbolOut).toContain('MISS Connector:TestPoint_2Pole: that is a symbol id, not a footprint id; footprints the symbol accepts: TestPoint:TestPoint_2Pads_');
   });
 
   it('a made-up footprint keeps part selection open for the model; an uninstalled library is left to the stop', async () => {
@@ -758,6 +794,8 @@ describe('part selection verifies footprints (#314)', () => {
       expect(await partSelection.isComplete(repo, 'docs/')).toBe(true);
       await writeFile(path.join(repo, 'docs', 'BOM.md'), BOM('Espressif:ESP32-C3-MINI-1'), 'utf8');
       expect(await partSelection.isComplete(repo, 'docs/')).toBe(true); // not installed: the run stops for the user next
+      await writeFile(path.join(repo, 'docs', 'BOM.md'), BOM('Device:Fuse'), 'utf8');
+      expect(await partSelection.isComplete(repo, 'docs/')).toBe(false); // a symbol id, though Device is no footprint library: the model fixes it
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

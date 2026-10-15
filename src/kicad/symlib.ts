@@ -492,6 +492,35 @@ export async function resolveLibrarySymbol(
   return { status: 'no-symbol', candidates };
 }
 
+/**
+ * What an installed symbol says about its footprint: its own `Footprint`
+ * property and its `ki_fp_filters` patterns, taking either one it leaves empty
+ * from the symbol it `extends`. Null when `libId` names no installed symbol,
+ * which is how a footprint check tells a symbol id written in a Footprint
+ * cell (`Connector:TestPoint_2Pole`) from a footprint that is not installed.
+ */
+export async function symbolFootprintHints(libId: string, dirs: string[]): Promise<{ footprint: string; filters: string[] } | null> {
+  const i = libId.indexOf(':');
+  if (i <= 0) return null;
+  const file = await findLibraryFile(libId.slice(0, i), dirs);
+  if (!file) return null;
+  const root = parseSexp(await readFile(file, 'utf8'))[0];
+  if (root === undefined || !isList(root)) return null;
+  const symbols = librarySymbols(root);
+  const sym = symbols.get(libId.slice(i + 1));
+  if (!sym) return null;
+  const prop = (s: SexpNode[] | undefined, key: string): string =>
+    atomAt(
+      children(s ?? [], 'property').find((p) => atomAt(p, 1) === key),
+      2,
+    ) ?? '';
+  const base = atomAt(child(sym, 'extends'), 1);
+  const parent = base ? symbols.get(base) : undefined;
+  const footprint = prop(sym, 'Footprint') || prop(parent, 'Footprint');
+  const filters = prop(sym, 'ki_fp_filters') || prop(parent, 'ki_fp_filters');
+  return { footprint, filters: filters.split(/\s+/).filter(Boolean) };
+}
+
 export interface SymbolFinding {
   libId: string;
   kind: 'no-library' | 'no-symbol' | 'wrong-library' | 'pin-count' | 'pin-mismatch';
