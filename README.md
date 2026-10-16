@@ -250,6 +250,7 @@ Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and 
 
 ## Project layout
 
+- [`ONBOARDING.md`](ONBOARDING.md): the guide for new team members: hardware basics, how a run works, where the code lives, and how to ship a first PR
 - [`AGENTS.md`](AGENTS.md): repository instructions loaded automatically by Codex and compatible coding agents; [`CLAUDE.md`](CLAUDE.md) provides the corresponding Claude Code guidance
 - [`src/`](src/): CLI ([`cli.ts`](src/cli.ts), [`commands/`](src/commands/)), the provider-agnostic agent loop ([`agent/`](src/agent/)), the `kicad-cli` wrapper and s-expression reader ([`kicad/`](src/kicad/)), and doc/constraint memory ([`memory/`](src/memory/))
 - [`integrations/`](integrations/README.md): MCP host configuration and the companion Claude Code skill
