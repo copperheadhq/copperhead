@@ -465,6 +465,7 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 
 - Refuse to run `do` or `repl` on a dirty git tree (offer `--allow-dirty`, whose snapshot pairs a `git stash create` object for tracked changes with a tree object for untracked files, so the rollback restores both rather than letting `git clean` delete what the stash never captured). An untracked file that exists but cannot be read refuses the run by name: it cannot be snapshotted, and the rollback would delete it regardless, so proceeding would break exactly the promise `--allow-dirty` makes. Untracked paths that vanish before the snapshot is taken are skipped rather than refused
 - All file tools sandboxed to repo root; no network tools in Phase 1
+- `search` evaluates the pattern on a worker thread under a hard time budget (default 2,000 ms) with a 1,000-character pattern cap. A pattern that exceeds the budget, is over the cap, or does not compile fails closed with a typed error naming the reason, is never retried, and can never block the agent or an MCP host: the exceeding worker thread is terminated
 - Every rail above applies identically to the MCP entry point (`copperhead mcp`), which is a transport adapter over the same command entry points and adds no privileges of its own. Any path a host supplies is contained to the repo root by `resolveInRepo` before use, exactly as a CLI-supplied path is
 - `.env` in `.gitignore` from first commit; keys only via env vars — never written to any file, transcript, or commit
 - Transcripts in `.copperhead/runs/` redact anything matching `sk-[A-Za-z0-9_-]+`
@@ -529,6 +530,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-4.1** No file in the repo, transcript, or any commit ever contains a string matching `sk-[A-Za-z0-9_-]{20,}` (grep the whole tree + `.copperhead/runs/` after all tests).
 - **AC-4.2** A tool call with a path outside the repo root (e.g. `../../etc/hosts`) is rejected.
 - **AC-4.3** `.gitignore` includes `.env` and `.copperhead/runs/` in the very first commit of the repo.
+- **AC-4.4 (bounded search)** A `search` whose pattern exceeds 1000 characters, is an invalid regex, or takes longer than the 2,000 ms evaluation budget returns a `validation` envelope naming the reason (never a hang and never a retry), while ordinary patterns keep matching exactly as before.
 
 ### AC-7 · `copperhead sync` — full-state consistency
 

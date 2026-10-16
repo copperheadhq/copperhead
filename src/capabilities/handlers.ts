@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
-import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
+import { toolReadFile, toolWriteFile, toolEditFile, toolSearch, SearchError } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
 import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
@@ -147,9 +147,17 @@ export const HANDLERS: HandlerDef[] = [
       if (typeof pattern !== 'string' || pattern.trim() === '') {
         return 'error: search requires a non-empty regex in "pattern" (narrow by file with "glob", e.g. {"pattern": "GPIO", "glob": "**/*.md"}); to list files, use a broad pattern like "." with a glob';
       }
-      const matches = await toolSearch(ctx.repoRoot, pattern, args.glob as string | undefined);
-      if (!matches.length) return 'no matches';
-      return matches.map((m) => `${m.file}:${m.line}: ${m.text}`).join('\n');
+      try {
+        const matches = await toolSearch(ctx.repoRoot, pattern, args.glob as string | undefined);
+        if (!matches.length) return 'no matches';
+        return matches.map((m) => `${m.file}:${m.line}: ${m.text}`).join('\n');
+      } catch (err) {
+        // A SearchError is a bounded, non-transient outcome (bad pattern,
+        // over-length pattern, or budget exceeded); surface it as a typed
+        // validation failure so the loop does not retry it.
+        if (err instanceof SearchError) return `error: ${err.message}`;
+        throw err;
+      }
     },
   },
   {
