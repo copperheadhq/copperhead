@@ -183,7 +183,7 @@ function otherProvider(current: Provider): Provider | null {
   return null;
 }
 
-async function appendChangelog(
+export async function appendChangelog(
   repoRoot: string,
   config: CopperheadConfig,
   entry: { changeId: string | null; request: string; files: string[]; verification: string },
@@ -213,7 +213,22 @@ async function appendChangelog(
       break;
     }
   }
-  lines.splice(insertAt, 0, ...block.split('\n').slice(1), '');
+  // The agent often writes its own entry for the run under the same heading
+  // (seen live: two "## <date> — <request>" entries for one run). Fold the gate's
+  // facts into that entry instead of stacking a second one above it.
+  const heading = `## ${date} — ${entry.request}`;
+  if (lines[insertAt] === heading) {
+    let end = insertAt + 1;
+    while (end < lines.length && !lines[end]!.startsWith('## ')) end++;
+    while (end > insertAt + 1 && lines[end - 1]!.trim() === '') end--;
+    lines.splice(
+      end,
+      0,
+      `- Gate (copperhead): ${entry.verification}; change ${entry.changeId ?? 'n/a'}; files ${entry.files.join(', ') || '(none)'}`,
+    );
+  } else {
+    lines.splice(insertAt, 0, ...block.split('\n').slice(1), '');
+  }
   await writeFile(p, lines.join('\n'), 'utf8');
 }
 
