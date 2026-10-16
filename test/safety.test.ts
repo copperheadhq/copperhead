@@ -184,6 +184,34 @@ describe('file tools', () => {
     expect(await readFile(path.join(dir, 'f.txt'), 'utf8')).toBe('aaa\nccc\naaa\n');
   });
 
+  it('edit_file matches LF multi-line anchors in CRLF files and preserves CRLF', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'before\r\n  first\r\n  second\r\nafter\r\n');
+    await toolEditFile(dir, 'f.txt', '  first\n  second', '  changed\n  line');
+    expect(await readFile(file, 'utf8')).toBe('before\r\n  changed\r\n  line\r\nafter\r\n');
+
+    await writeFile(file, 'n1\r\nn1\r\n');
+    await toolEditFile(dir, 'f.txt', 'n1', 'n1\nadded', true);
+    expect(await readFile(file, 'utf8')).toBe('n1\r\nadded\r\nn1\r\nadded\r\n');
+
+    await writeFile(file, 'hdr\r\n(a\n  b)\n');
+    await toolEditFile(dir, 'f.txt', '(a\n  b)', '(a\n  c)');
+    expect(await readFile(file, 'utf8')).toBe('hdr\r\n(a\n  c)\n');
+
+    await writeFile(path.join(dir, 'cr.txt'), 'x\ry\rz\r', 'utf8');
+    await toolEditFile(dir, 'cr.txt', 'x\ny', 'a\nb');
+    expect(await readFile(path.join(dir, 'cr.txt'), 'utf8')).toBe('a\rb\rz\r');
+
+    await writeFile(path.join(dir, 'mixed-one.txt'), 'hdr\r\nfoo\nbar\n', 'utf8');
+    await toolEditFile(dir, 'mixed-one.txt', 'foo', 'foo\nadded');
+    expect(await readFile(path.join(dir, 'mixed-one.txt'), 'utf8')).toBe('hdr\r\nfoo\nadded\nbar\n');
+
+    await writeFile(path.join(dir, 'mixed-all.txt'), 'x\r\ny\r\n---\nx\ny\n', 'utf8');
+    await toolEditFile(dir, 'mixed-all.txt', 'x\ny', 'a\nb', true);
+    expect(await readFile(path.join(dir, 'mixed-all.txt'), 'utf8')).toBe('a\r\nb\r\n---\na\nb\n');
+  });
+
   it('search finds regex matches with glob filtering', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     await writeFile(path.join(dir, 'a.md'), 'KEY_DAH here');
