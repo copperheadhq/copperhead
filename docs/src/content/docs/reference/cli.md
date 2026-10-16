@@ -111,6 +111,7 @@ Alias: `copperhead verify`.
 
 ```bash
 copperhead check
+copperhead check --spice
 ```
 
 Runs ERC, DRC, doc-drift detection, constraint checks, and OpenSpec validation. Makes **no LLM calls and no network requests**, which is a contract, not a tendency: this is what makes it safe to run in CI and in a pre-commit hook.
@@ -123,6 +124,58 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
 With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+
+`--spice` adds a read-only DC operating-point check for three-terminal linear
+regulators. It requires a local `ngspice` executable (or `COPPERHEAD_NGSPICE`),
+an output-voltage constraint with numeric `value`, `min`, and `max` affecting
+both the regulator refdes and output net, and an `op` `## Simulation` block in
+`docs/SUBSYSTEMS.md` declaring the input voltage. The regulator must have a
+three-pin local subcircuit assigned through KiCad's `Sim.Library`, `Sim.Name`,
+and `Sim.Pins` fields. For example:
+
+```json
+"power.3V3.output_voltage_V": {
+  "value": 3.3, "min": 3.2, "max": 3.4,
+  "source": "docs/SPEC.md#power", "affects": ["U1", "3V3"]
+}
+```
+
+In the placed U1 symbol, a model whose port order is input, ground, output
+uses a `Sim.Pins` mapping such as `1=2 2=3 3=1` for a schematic whose pins are
+1=ground, 2=output, 3=input. The model path is resolved next to the schematic
+and must stay inside the repository. The Simulation block then provides the
+operating condition:
+
+```text
+scope: nets VIN, 3V3, GND
+analysis: op
+source: VIN=5V
+assert: V(3V3) between 3.2 and 3.4
+```
+
+The assertion must match the constraint registry's bounds; the check uses those
+bounds for the result. Text output names each regulator, simulated
+voltage, target, and tolerance. `--json` adds `spice: { ok, circuits }` with a
+status and reason for each regulator. A regulator without a matching constraint
+is reported `not_checked`. Missing models, missing ngspice, and simulations
+that fail or do not converge make the explicit check fail. The check is local
+and does not fetch models. This first slice does not perform transient analysis
+or simulate other circuit types.
+
+## `copperhead diff`
+
+```bash
+copperhead diff --base HEAD~1
+copperhead --json diff --base main
+```
+
+Compares the configured working schematic with the same root at a local Git revision (default `HEAD~1`). Reports component values and footprints, pin-to-net changes, and named nets added, removed, or renamed. Renames require a unique identical nonempty pin set. Results sort deterministically; the header names the base and JSON includes its resolved commit.
+
+Each revision includes all referenced child sheets. Windows separators work in config and sheet paths. A missing baseline root means a new design; a missing child or invalid revision exits 1 with a clear error. Successful comparison exits 0 even when changes exist. Project files and the Git index are unchanged; isolated temporary sheet copies are cleaned up. No KiCad executable, model, credential, or network is required.
+
+The command uses the existing named-net reader. Reference renumbering remains visible; the report is not a complete connectivity solver and does not run ERC/DRC or evaluate constraints. Use `check` for verification. MCP clients can call `copperhead_diff` with optional `base` and receive the same report in the result envelope's `data` field.
+
+`do --dry-run` prints an electrical preview after verification and before rollback, includes it in its JSON result and redacted run summary, and compares against the actual pre-run design when `--allow-dirty` is used.
 
 ## `copperhead draft schematic`
 

@@ -9,6 +9,7 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { formatRegulatorOpReport, runRegulatorOpCheck, type RegulatorOpReport } from '../kicad/regulator-op.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -21,6 +22,8 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  /** Present only for the explicit --spice check. */
+  spice?: RegulatorOpReport;
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -37,7 +40,9 @@ export interface CheckResult {
   };
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+export async function runCheck(
+  repoRoot: string, log: (s: string) => void, opts: { spice?: boolean } = {},
+): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
@@ -109,8 +114,9 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   }
 
   let constraintViolations: ConstraintViolation[] = [];
+  let registry = {} as Awaited<ReturnType<typeof loadConstraints>>;
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    const registry = await loadConstraints(repoRoot);
+    registry = await loadConstraints(repoRoot);
     const pins = await pinNets(path.join(repoRoot, config.schematic));
     constraintViolations = checkForbiddenPins(registry, pins);
     if (Object.keys(registry).length) {
@@ -122,12 +128,25 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let spice: RegulatorOpReport | undefined;
+  if (opts.spice) {
+    if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
+      spice = await runRegulatorOpCheck(repoRoot, path.join(repoRoot, config.schematic), config.docs, registry);
+      log(formatRegulatorOpReport(spice));
+    } else {
+      spice = { ok: false, circuits: [{ ref: '(schematic)', output: null, status: 'fail',
+        reason: 'unsupported_circuit', detail: 'no schematic configured for SPICE check' }] };
+      log(formatRegulatorOpReport(spice));
+    }
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (spice?.ok ?? true);
 
   return {
     ok,
@@ -136,6 +155,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    ...(spice ? { spice } : {}),
     legibility,
   };
 }

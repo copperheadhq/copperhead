@@ -18,6 +18,9 @@ import { runCheck } from '../src/commands/check.js';
 import { runInit } from '../src/memory/scaffold.js';
 import { runDoctor } from '../src/commands/doctor.js';
 import { tempFixtureRepo } from './helpers.js';
+import { electricalFixture, SCHEMATIC } from './support/electrical-diff.js';
+import { readFile, writeFile } from 'node:fs/promises';
+import { runElectricalDiff } from '../src/commands/diff.js';
 
 /** Connect an in-process client to a server bound to `repo`. */
 async function connect(repo: string): Promise<{ client: Client; close: () => Promise<void> }> {
@@ -156,6 +159,35 @@ describe('copperhead_check', () => {
       if (saved.o !== undefined) process.env.OPENAI_API_KEY = saved.o;
       if (saved.a !== undefined) process.env.ANTHROPIC_API_KEY = saved.a;
     }
+  });
+});
+
+describe('copperhead_diff', () => {
+  it('returns the same electrical report as the command with a read-only annotation', async () => {
+    const { repo, cleanup } = await electricalFixture();
+    cleanups.push(cleanup);
+    const file = path.join(repo, SCHEMATIC);
+    await writeFile(file, (await readFile(file, 'utf8')).replaceAll('KEY_DAH', 'KEY_DASH'));
+    const { client, close } = await connect(repo);
+    cleanups.push(close);
+    const tools = await client.listTools();
+    expect(tools.tools.find((tool) => tool.name === 'copperhead_diff')?.annotations?.readOnlyHint).toBe(true);
+    const direct = await runElectricalDiff(repo, 'HEAD');
+    const response = envelopeOf(await client.callTool({ name: 'copperhead_diff', arguments: { base: 'HEAD' } }));
+    expect(response.ok).toBe(true);
+    expect(response.data).toEqual(direct);
+    expect(existsSync(path.join(repo, '.copperhead/runs'))).toBe(false);
+  });
+
+  it('returns an actionable validation error for an invalid baseline', async () => {
+    const { repo, cleanup } = await electricalFixture();
+    cleanups.push(cleanup);
+    const { client, close } = await connect(repo);
+    cleanups.push(close);
+    const response = envelopeOf(await client.callTool({ name: 'copperhead_diff', arguments: { base: 'unknown-base' } }));
+    expect(response.ok).toBe(false);
+    expect(response.error?.kind).toBe('validation');
+    expect(response.error?.message).toContain('cannot resolve base revision "unknown-base"');
   });
 });
 
