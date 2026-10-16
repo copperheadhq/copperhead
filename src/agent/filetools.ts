@@ -48,25 +48,47 @@ export async function toolEditFile(
   replaceAll = false,
 ): Promise<string> {
   const abs = resolveInRepo(repoRoot, p);
-  const text = await readFile(abs, 'utf8');
-  const toCrlf = (s: string) => s.replace(/\r?\n/g, '\r\n');
-  const useCrlf = !text.includes(oldString) && oldString.includes('\n') && text.includes(toCrlf(oldString));
-  const anchor = useCrlf ? toCrlf(oldString) : oldString;
-  const replacement = (useCrlf || (!oldString.includes('\n') && text.includes('\r\n'))) && newString.includes('\n') ? toCrlf(newString) : newString;
-  const first = text.indexOf(anchor);
-  if (first === -1) {
-    throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+  let text = await readFile(abs, 'utf8');
+
+  const l0 = oldString.split(/\r?\n|\r/);
+  const l1 = newString.split(/\r?\n|\r/);
+  let anchor = oldString;
+
+  if (!text.includes(anchor) && l0.length > 1) {
+    const idx = text.indexOf(l0[0]!);
+    const gap = idx !== -1 ? text.slice(idx + l0[0]!.length).match(/^(\r?\n|\r)/)?.[0] : null;
+    if (gap && text.startsWith(l0[1]!, idx + l0[0]!.length + gap.length)) {
+      anchor = l0.join(gap);
+    }
   }
-  const count = text.split(anchor).length - 1;
+
   if (replaceAll) {
-    await writeFile(abs, text.split(anchor).join(replacement), 'utf8');
+    let count = 0;
+    const eols = l0.length > 1 ? ['\n', '\r\n', '\r'].filter(e => text.includes(l0.join(e))) : [null];
+    if (eols.length === 0) throw new Error(`edit_file: anchor not found in ${p}`);
+
+    for (const eol of eols) {
+      const cand = eol ? l0.join(eol) : anchor;
+      if (text.includes(cand)) {
+        count += text.split(cand).length - 1;
+        const repEol = eol ?? (text.match(/\r?\n|\r/)?.[0] ?? '\n');
+        text = text.split(cand).join(l1.join(repEol));
+      }
+    }
+    await writeFile(abs, text, 'utf8');
     return `edited ${p} (${count} occurrence(s) replaced)`;
   }
-  if (count > 1) {
-    throw new Error(
-      `edit_file: anchor matched ${count} times in ${p}; widen the anchor with surrounding lines until it is unique, or pass replace_all: true to replace every occurrence`,
-    );
-  }
+
+  const first = text.indexOf(anchor);
+  if (first === -1) throw new Error(`edit_file: anchor not found in ${p}`);
+  const count = text.split(anchor).length - 1;
+  if (count > 1) throw new Error(`edit_file: anchor matched ${count} times in ${p}`);
+
+  const localEol = l0.length === 1
+    ? (text.slice(first + anchor.length).match(/^(\r?\n|\r)/)?.[0] ?? '\n')
+    : (anchor.match(/\r?\n|\r/)?.[0] ?? '\n');
+
+  const replacement = l1.join(localEol);
   await writeFile(abs, text.slice(0, first) + replacement + text.slice(first + anchor.length), 'utf8');
   return `edited ${p}`;
 }
