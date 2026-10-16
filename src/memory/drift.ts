@@ -92,6 +92,9 @@ export async function checkDrift(repoRoot: string, docsDir: string, schematic: s
       }
     }
     for (const sym of symbols) {
+      // DNP and BOM-excluded parts are intentionally absent from BOM.md
+      // (issue #248 gap 3), so their absence is not drift.
+      if (sym.dnp || !sym.inBom) continue;
       if (!seen.has(sym.ref)) {
         mismatches.push({ doc: 'BOM.md', claim: `${sym.ref} absent`, actual: `${sym.ref} (${sym.value}) in schematic` });
       }
