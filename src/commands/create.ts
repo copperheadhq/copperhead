@@ -319,20 +319,11 @@ export const STAGES: Stage[] = [
   },
   {
     name: 'devplan',
-    isComplete: async (root, docs) => {
-      // init does NOT scaffold DEVPLAN.md, but a blank file must not count.
-      // Require a bring-up section heading and at least one content line.
-      const p = path.join(root, docs, 'DEVPLAN.md');
-      if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      if (!/^#{1,6}[ \t]+.*\bbring[- ]?up\b/im.test(text)) return false;
-      const contentLines = text.split('\n').filter(
-        (l) => l.trim() && !l.trim().startsWith('#'),
-      );
-      return contentLines.length > 0;
-    },
-    prompt: () =>
-      'Stage 8: DEVPLAN.md. Write docs/DEVPLAN.md with a "Bring-up" section (steps in order, test points and what to meter first), a risk list, and the prototype order plan.',
+    // init does NOT scaffold DEVPLAN.md, but a blank file must not count:
+    // devplanGap requires a bring-up section heading and at least one content line
+    isComplete: async (root, docs) => (await devplanGap(root, docs)) === null,
+    prompt: (_brief, docs) =>
+      `Stage 8: DEVPLAN.md. Write ${path.posix.join(docs, 'DEVPLAN.md')} with a "## Bring-up" section (steps in order, test points and what to meter first), a risk list, and the prototype order plan.`,
   },
 ];
 
@@ -505,6 +496,26 @@ export async function layoutDocGap(root: string, docs: string): Promise<string |
   );
 }
 
+/** A heading line naming bring-up: "Bring-up", "Bring up", "Bringup", any hyphen (#378). */
+const BRING_UP_HEADING = /^#{1,6}[ \t]+.*\bbring[-\u2010-\u2014 \u00a0]?up\b/im;
+
+/**
+ * What is wrong with the devplan document, or null when it has a bring-up
+ * heading and some content. Spelled out for the retry: a bold line or a
+ * differently named section otherwise fails with no hint of what is missing.
+ */
+export async function devplanGap(root: string, docs: string): Promise<string | null> {
+  const devplanDoc = path.posix.join(docs, 'DEVPLAN.md');
+  const p = path.join(root, devplanDoc);
+  if (!existsSync(p)) return `${devplanDoc} does not exist`;
+  const text = await readFile(p, 'utf8');
+  if (!BRING_UP_HEADING.test(text)) {
+    return `${devplanDoc} has no "## Bring-up" heading (a Markdown heading line; bold text or another section name does not count)`;
+  }
+  const hasContent = text.split(/\r?\n/).some((l) => l.trim() && !l.trim().startsWith('#'));
+  return hasContent ? null : `${devplanDoc} has headings but no content under them`;
+}
+
 async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
   if (stageName === 'part-selection') {
@@ -528,6 +539,10 @@ async function contractGapDetail(stageName: string, root: string, config: Copper
     return docGap
       ? `the layout-draft contract is not met: ${docGap}`
       : 'the layout-draft contract is not met: the board does not pass DRC; run run_drc and fix what it reports before finishing';
+  }
+  if (stageName === 'devplan') {
+    const gap = await devplanGap(root, config.docs);
+    return gap ? `the devplan contract is not met: ${gap}` : generic;
   }
   if (stageName !== 'schematic' || !config.schematic) return generic;
   const p = path.join(root, config.schematic);

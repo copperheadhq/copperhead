@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
-import { STAGES } from '../src/commands/create.js';
+import { STAGES, devplanGap } from '../src/commands/create.js';
 
 /** Return the isComplete function for the named stage (throws if not found). */
 function stageNamed(name: string) {
@@ -446,6 +446,49 @@ describe('devplan isComplete', () => {
       );
       expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
     });
+  });
+});
+
+describe('devplan bring-up heading and failure detail (#378)', () => {
+  const write = async (root: string, text: string) => {
+    await mkdir(path.join(root, DOCS), { recursive: true });
+    await writeFile(path.join(root, DOCS, 'DEVPLAN.md'), text, 'utf8');
+  };
+
+  it('accepts a bring-up heading written with a Unicode hyphen', async () => {
+    await withTmpDir(async (root) => {
+      for (const hyphen of ['\u2010', '\u2011', '\u2013']) {
+        await write(root, `# DEVPLAN\n\n## Bring${hyphen}up\n\n1. Measure the 3.3 V rail.\n`);
+        expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+      }
+    });
+  });
+
+  it('names the missing heading when the section is bold text or named otherwise', async () => {
+    await withTmpDir(async (root) => {
+      const missing = 'docs/DEVPLAN.md has no "## Bring-up" heading';
+      await write(root, '# DEVPLAN\n\n**Bring-up**\n\n1. Measure the 3.3 V rail.\n');
+      expect(await devplanGap(root, DOCS)).toContain(missing);
+      await write(root, '# DEVPLAN\n\n## Power-on sequence\n\n1. Measure the 3.3 V rail.\n');
+      expect(await devplanGap(root, DOCS)).toContain(missing);
+    });
+  });
+
+  it('names the absent file and the empty section', async () => {
+    await withTmpDir(async (root) => {
+      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md does not exist');
+      await write(root, '# DEVPLAN\n\n## Bring-up\n');
+      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md has headings but no content under them');
+      await write(root, '# DEVPLAN\n\n## Bring-up\n\n1. Measure the 3.3 V rail.\n');
+      expect(await devplanGap(root, DOCS)).toBeNull();
+    });
+  });
+
+  it('the stage prompt asks for the heading the check requires, at the configured path', () => {
+    const devplan = STAGES.find((s) => s.name === 'devplan')!;
+    const prompt = devplan.prompt('brief', 'docs/');
+    expect(prompt).toContain('docs/DEVPLAN.md with a "## Bring-up" section');
+    expect(devplan.prompt('brief', 'design/notes')).toContain('design/notes/DEVPLAN.md');
   });
 });
 
