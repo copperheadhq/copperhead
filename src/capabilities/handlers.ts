@@ -10,6 +10,7 @@ import { scoreSchematic, formatScore } from '../kicad/score.js';
 import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
 import { FootprintResolver } from '../kicad/footprints.js';
 import { moveFootprint } from '../kicad/populate.js';
+import { formatFeedbackPlacement, optimizePlacementText } from '../kicad/placement-feedback.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
@@ -27,6 +28,20 @@ import { corruptionError, markTouched, str } from './helpers.js';
  */
 const isCosmetic = (v: { type: string }) => v.type.startsWith('silk_');
 const electrical = (r: CheckReport) => r.violations.filter((v) => !isCosmetic(v)).length;
+const DEFAULT_PLACEMENT_TOOL_BUDGET = 5_000;
+
+/** Which moved footprints KiCad names in a failed DRC. The next deterministic
+ * pass locks them and searches around the exact feedback instead of keeping a
+ * placement that needs a manual repair. */
+function movedRefsInDrc(report: CheckReport, movedRefs: readonly string[]): string[] {
+  const details = report.violations
+    .flatMap((violation) => [violation.description, ...violation.items.map((item) => item.description)])
+    .join('\n');
+  return movedRefs.filter((ref) => {
+    const escaped = ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^A-Za-z0-9_])${escaped}([^A-Za-z0-9_]|$)`).test(details);
+  });
+}
 
 /**
  * Count a repair cycle only for a fix that did not work (SPEC §4 step 5, "fix and
@@ -351,6 +366,185 @@ export const HANDLERS: HandlerDef[] = [
       }
       markTouched(ctx, rel);
       return `moved ${ref} to (${x}, ${y})${rotation === undefined ? '' : ` at ${rotation}°`}; pads and text turned with it. Run run_drc after this batch of moves.`;
+    },
+  },
+  {
+    schema: {
+      name: 'optimize_placement',
+      description:
+        'Improve a populated, unrouted, DRC-clean board with deterministic measured feedback. The optimizer keeps an immutable input fallback, rejects new placement findings and HPWL regressions, locks mechanical parts by default, and restores the exact input if final DRC or connectivity changes. Requires a validated change proposal first; run_drc is still required before finish.',
+      parameters: {
+        type: 'object',
+        properties: {
+          evaluation_budget: { type: 'number', description: 'maximum candidate evaluations across all DRC-feedback passes (integer 1..1000000; default 5000)' },
+          step_schedule_mm: { type: 'array', items: { type: 'number' }, description: 'positive coarse-to-fine translation steps in mm; default [2,1,0.5,0.25]' },
+          critical_nets: { type: 'array', items: { type: 'string' }, description: 'exact net names that may not regress separately from total HPWL' },
+          locked_refs: { type: 'array', items: { type: 'string' }, description: 'additional reference designators that must not move' },
+          allow_rotations: { type: 'boolean', description: 'try cardinal rotations (default true)' },
+          lock_mechanical: { type: 'boolean', description: 'lock inferred connectors, holes and fiducials (default true)' },
+        },
+        required: [],
+      },
+    },
+    requiresUnlock: true,
+    handler: async (ctx, args) => {
+      if (!ctx.config.board) return { ok: false, text: 'not optimized: no board is configured' };
+      const strings = (key: string): string[] | undefined => {
+        const value = args[key];
+        if (value === undefined) return undefined;
+        if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || !entry)) {
+          throw new Error(`${key} must be an array of non-empty strings`);
+        }
+        return value;
+      };
+      const numbers = (key: string): number[] | undefined => {
+        const value = args[key];
+        if (value === undefined) return undefined;
+        if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'number')) {
+          throw new Error(`${key} must be an array of numbers`);
+        }
+        return value;
+      };
+
+      let criticalNets: string[] | undefined;
+      let lockedRefs: string[] | undefined;
+      let stepScheduleMm: number[] | undefined;
+      try {
+        criticalNets = strings('critical_nets');
+        lockedRefs = strings('locked_refs');
+        stepScheduleMm = numbers('step_schedule_mm');
+      } catch (error) {
+        return { ok: false, text: `not optimized: ${(error as Error).message}` };
+      }
+      if (args.allow_rotations !== undefined && typeof args.allow_rotations !== 'boolean') {
+        return { ok: false, text: 'not optimized: allow_rotations must be boolean' };
+      }
+      if (args.lock_mechanical !== undefined && typeof args.lock_mechanical !== 'boolean') {
+        return { ok: false, text: 'not optimized: lock_mechanical must be boolean' };
+      }
+      if (args.evaluation_budget !== undefined && typeof args.evaluation_budget !== 'number') {
+        return { ok: false, text: 'not optimized: evaluation_budget must be a number' };
+      }
+      const evaluationBudget = args.evaluation_budget ?? DEFAULT_PLACEMENT_TOOL_BUDGET;
+      if (!Number.isSafeInteger(evaluationBudget) || evaluationBudget < 1 || evaluationBudget > 1_000_000) {
+        return { ok: false, text: 'not optimized: evaluation_budget must be an integer from 1 to 1000000' };
+      }
+
+      const rel = ctx.config.board;
+      const abs = resolveInRepo(ctx.repoRoot, rel);
+      const before = await readFile(abs, 'utf8');
+      let baseline: CheckReport;
+      try {
+        baseline = await runDrc(abs);
+      } catch (error) {
+        return { ok: false, text: `not optimized: baseline DRC could not run (${(error as Error).message})` };
+      }
+      if (!baseline.ok) {
+        return { ok: false, text: `not optimized: the input board must be DRC-clean:\n${formatViolations(baseline)}` };
+      }
+      if (baseline.unrouted === undefined) {
+        return { ok: false, text: 'not optimized: baseline DRC did not report an unrouted-connection count' };
+      }
+      if ((await readFile(abs, 'utf8')) !== before) {
+        return { ok: false, text: 'not optimized: the board changed while baseline DRC was running' };
+      }
+
+      const feedbackLocks = new Set(lockedRefs ?? []);
+      const drcFeedback: string[] = [];
+      const maxDrcPasses = 5;
+      let remainingEvaluations = evaluationBudget;
+      let totalEvaluated = 0;
+      let totalExactEvaluated = 0;
+      const budgetSummary = (): string =>
+        `${totalEvaluated}/${evaluationBudget} total candidate evaluations; ${totalExactEvaluated} exact checks`;
+      for (let pass = 1; pass <= maxDrcPasses; pass++) {
+        if (remainingEvaluations < 1) {
+          return { ok: false, text: `optimization REVERTED: global evaluation budget exhausted (${budgetSummary()})` };
+        }
+        const passesLeft = maxDrcPasses - pass + 1;
+        const passBudget = Math.max(1, Math.floor(remainingEvaluations / passesLeft));
+        let optimized;
+        try {
+          optimized = optimizePlacementText(before, {
+            evaluationBudget: passBudget,
+            ...(stepScheduleMm === undefined ? {} : { stepScheduleMm }),
+            ...(criticalNets === undefined ? {} : { criticalNets }),
+            ...(feedbackLocks.size ? { lockedRefs: [...feedbackLocks] } : {}),
+            ...(args.allow_rotations === undefined ? {} : { allowRotations: args.allow_rotations }),
+            ...(args.lock_mechanical === undefined ? {} : { lockMechanical: args.lock_mechanical }),
+          });
+        } catch (error) {
+          return { ok: false, text: `not optimized: ${(error as Error).message}` };
+        }
+        totalEvaluated += optimized.report.evaluated;
+        totalExactEvaluated += optimized.report.exactEvaluated;
+        remainingEvaluations -= optimized.report.evaluated;
+        if (!optimized.report.changed) {
+          return {
+            ok: true,
+            text:
+              `${formatFeedbackPlacement(optimized.report)}\n  global search: ${budgetSummary()}` +
+              `${drcFeedback.length ? `\n  DRC feedback exhausted safe moves: ${drcFeedback.join('; ')}` : ''}`,
+          };
+        }
+        if ((await readFile(abs, 'utf8')) !== before) {
+          return { ok: false, text: 'not optimized: the board changed while optimization was running' };
+        }
+
+        await writeFile(abs, optimized.boardText, 'utf8');
+        let loadErr: string | null;
+        try {
+          loadErr = await kicadLoadError(abs);
+        } catch (error) {
+          await writeFile(abs, before, 'utf8');
+          return { ok: false, text: `optimization REVERTED: candidate load check could not run (${(error as Error).message})` };
+        }
+        if (loadErr) {
+          await writeFile(abs, before, 'utf8');
+          return { ok: false, text: `optimization REVERTED: the candidate would not load in KiCad. kicad-cli says:\n${loadErr}` };
+        }
+        let verified: CheckReport;
+        try {
+          verified = await runDrc(abs);
+        } catch (error) {
+          await writeFile(abs, before, 'utf8');
+          return { ok: false, text: `optimization REVERTED: final DRC could not run (${(error as Error).message})` };
+        }
+        if (verified.ok && verified.unrouted === baseline.unrouted) {
+          markTouched(ctx, rel);
+          const moved = [...new Set(optimized.report.moves.map((move) => move.ref))];
+          return {
+            ok: true,
+            text:
+              `${formatFeedbackPlacement(optimized.report)}\n  moved refs: ${moved.join(', ')}\n` +
+              `  global search: ${budgetSummary()}\n` +
+              `  safety check: DRC clean; unrouted ${baseline.unrouted} → ${verified.unrouted}; ${pass} DRC pass(es)` +
+              `${drcFeedback.length ? `; feedback locks ${[...feedbackLocks].join(', ')}` : ''}\nRun run_drc before finish.`,
+          };
+        }
+
+        await writeFile(abs, before, 'utf8');
+        if (verified.ok && verified.unrouted !== baseline.unrouted) {
+          return {
+            ok: false,
+            text: `optimization REVERTED: unrouted connections changed ${baseline.unrouted} → ${verified.unrouted ?? 'unknown'}`,
+          };
+        }
+        const moved = [...new Set(optimized.report.moves.map((move) => move.ref))];
+        const implicated = movedRefsInDrc(verified, moved).filter((ref) => !feedbackLocks.has(ref));
+        if (implicated.length && pass < maxDrcPasses && remainingEvaluations > 0) {
+          for (const ref of implicated) feedbackLocks.add(ref);
+          drcFeedback.push(`pass ${pass} locked ${implicated.join(', ')} after ${verified.violations.length} violation(s)`);
+          continue;
+        }
+        return {
+          ok: false,
+          text:
+            `optimization REVERTED after ${pass} DRC pass(es): no DRC-clean improvement was found ` +
+            `(${budgetSummary()}):\n${formatViolations(verified)}`,
+        };
+      }
+      return { ok: false, text: 'optimization REVERTED: DRC feedback budget exhausted' };
     },
   },
   {
