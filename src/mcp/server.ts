@@ -1,6 +1,6 @@
 /**
  * `copperhead mcp` — a stdio MCP server exposing the gated pipeline to MCP
- * hosts as five opaque, outcome-level tools (design D1).
+ * hosts as six opaque, outcome-level tools (design D1).
  *
  * The security boundary is tool granularity, not prompt wording. Hosts get
  * `check`, `do`, `sync` and `init` as whole-pipeline invocations, plus the
@@ -27,6 +27,7 @@ import { createRequire } from 'node:module';
 
 import { loadConfig, resolveModel, type ModelSource } from '../config.js';
 import { runCheck } from '../commands/check.js';
+import { ElectricalDiffError, formatElectricalDiff, runElectricalDiff } from '../commands/diff.js';
 import { syncVerify, syncResolve, formatSyncReport } from '../commands/sync.js';
 import { runInit, InitError } from '../memory/scaffold.js';
 import { SandboxError } from '../util/paths.js';
@@ -53,6 +54,7 @@ export const MCP_PROTOCOL_VERSION = '0.1.0';
 /** The entire surface. Anything not on this list is not reachable over MCP. */
 export const PIPELINE_TOOL_NAMES = [
   'copperhead_check',
+  'copperhead_diff',
   'copperhead_do',
   'copperhead_sync',
   'copperhead_init',
@@ -68,6 +70,7 @@ export type PipelineToolName = (typeof PIPELINE_TOOL_NAMES)[number];
  */
 export const TOOL_SCHEMA_VERSIONS: Record<PipelineToolName, number> = {
   copperhead_check: 1,
+  copperhead_diff: 1,
   copperhead_do: 1,
   copperhead_sync: 1,
   copperhead_init: 1,
@@ -227,6 +230,26 @@ export function createMcpServer(opts: ServerOptions): McpServer {
     content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
     ...(result.ok ? {} : { isError: true }),
   });
+
+  server.registerTool(
+    'copperhead_diff',
+    {
+      title: 'Review electrical changes',
+      description: 'Compare the working schematic with a local Git revision (default HEAD~1). ' +
+        'Read-only, offline, no model or KiCad executable required. Returns the same data as diff --json.',
+      inputSchema: { base: z.string().min(1).optional().describe('local Git revision to compare against') },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      _meta: { schemaVersion: TOOL_SCHEMA_VERSIONS.copperhead_diff },
+    },
+    async ({ base }) => {
+      try {
+        const data = await runElectricalDiff(repoRoot, base);
+        return toMcp(seal({ ok: true, summary: formatElectricalDiff(data), viewHint: 'diagnostic', data }));
+      } catch (err) {
+        return toMcp(failure(err instanceof ElectricalDiffError || err instanceof SandboxError ? 'validation' : 'exception', (err as Error).message));
+      }
+    },
+  );
 
   server.registerTool(
     'copperhead_check',
@@ -416,6 +439,7 @@ export function createMcpServer(opts: ServerOptions): McpServer {
               transcriptDir: res.transcriptDir,
               exitPath: res.exitPath,
               stats: res.stats,
+              ...(res.electricalDiff ? { electricalDiff: res.electricalDiff } : {}),
             },
           }),
         );

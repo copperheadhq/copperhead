@@ -124,6 +124,21 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 
 With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
 
+## `copperhead diff`
+
+```bash
+copperhead diff --base HEAD~1
+copperhead --json diff --base main
+```
+
+Compares the configured working schematic with the same root at a local Git revision (default `HEAD~1`). Reports component values and footprints, pin-to-net changes, and named nets added, removed, or renamed. Renames require a unique identical nonempty pin set. Results sort deterministically; the header names the base and JSON includes its resolved commit.
+
+Each revision includes all referenced child sheets. Windows separators work in config and sheet paths. A missing baseline root means a new design; a missing child or invalid revision exits 1 with a clear error. Successful comparison exits 0 even when changes exist. Project files and the Git index are unchanged; isolated temporary sheet copies are cleaned up. No KiCad executable, model, credential, or network is required.
+
+The command uses the existing named-net reader. Reference renumbering remains visible; the report is not a complete connectivity solver and does not run ERC/DRC or evaluate constraints. Use `check` for verification. MCP clients can call `copperhead_diff` with optional `base` and receive the same report in the result envelope's `data` field.
+
+`do --dry-run` prints an electrical preview after verification and before rollback, includes it in its JSON result and redacted run summary, and compares against the actual pre-run design when `--allow-dirty` is used.
+
 ## `copperhead draft schematic`
 
 ```bash
