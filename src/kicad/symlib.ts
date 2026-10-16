@@ -380,7 +380,7 @@ export async function searchInstalledSymbols(
   for (const [lib, file] of await listInstalledLibraries(dirs)) {
     const names = await libSymbolNames(file);
     if (!names) continue;
-    for (const { name, rank } of rankSymbolNames(names, query, 4)) {
+    for (const { name, rank } of rankSymbolNames(names, query, cap)) {
       hits.push({ libId: `${lib}:${name}`, rank, name });
     }
   }
