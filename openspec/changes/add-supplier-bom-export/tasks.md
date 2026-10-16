@@ -12,6 +12,7 @@
 - [x] 2.1 Add `src/commands/export.ts` with `export bom --supplier --boards --spares --include-unverified`; validate supplier values with a helpful error
 - [x] 2.2 Refuse export with a drift hint when the parsed BOM.md disagrees with the schematic parse
 - [x] 2.3 Wire the JLCPCB emitter into `create` stage 6 outputs — `emitCreateJlcpcbBom`, called whenever the outputs stage is confirmed complete
+- [x] 2.4 Commit the emitted JLCPCB BOM under the outputs stage when it is the only changed path, so stage 7 or a resume's `commit completed stage spec-seed` cannot sweep it in (#379)
 
 ## 3. Tests
 
