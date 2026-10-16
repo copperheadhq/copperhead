@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from '../kicad/sexp.js';
+import { classifyPart, isPinoutWorthy, mpnOf, buildGraph, writeDesignGraph } from '../kicad/design-graph.js';
+import { parseNetlist } from '../kicad/netlist.js';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
 import { resolveInRepo } from '../util/paths.js';
 
@@ -33,9 +35,16 @@ async function findKicadFiles(searchRoot: string): Promise<{ sch: string | null;
 }
 
 function bomTable(symbols: SchematicSymbol[]): string {
-  const rows = symbols.map(
-    (s) => `| ${s.ref} | ${s.value} | ${s.footprint} | UNVERIFIED | extracted from schematic by copperhead init |`,
-  );
+  // DNP and BOM-excluded parts never become orderable rows (issue #248 gap 3).
+  // Parts that carry a real MPN in the schematic keep it. Parts with no MPN
+  // keep the UNVERIFIED placeholder so existing drift and export behavior
+  // (which treat it as missing) is unchanged.
+  const orderable = symbols.filter((s) => !s.dnp && s.inBom);
+  const rows = orderable.map((s) => {
+    const mpn = mpnOf(s);
+    if (mpn) return `| ${s.ref} | ${s.value} | ${s.footprint} | ${mpn} | from schematic fields by copperhead init |`;
+    return `| ${s.ref} | ${s.value} | ${s.footprint} | UNVERIFIED | extracted from schematic by copperhead init |`;
+  });
   return ['| Refdes | Value | Footprint | MPN | Rationale |', '|---|---|---|---|---|', ...rows].join('\n');
 }
 
@@ -49,8 +58,17 @@ function generateDocs(
   symbols: SchematicSymbol[],
   pins: PinNet[],
 ): Record<string, string> {
-  const mcuRefs = new Set(symbols.filter((s) => s.ref.startsWith('U')).map((s) => s.ref));
-  const mcuPins = pins.filter((p) => mcuRefs.has(p.ref));
+  // Chip classification is derived, not prefixed (issue #248 gap 4). The old
+  // `ref.startsWith('U')` rule missed connectors, regulators addressed as
+  // VR1, MOSFETs, and crystals, while any U-prefixed part counted as a chip.
+  const pinsByRef = new Map<string, number>();
+  for (const p of pins) pinsByRef.set(p.ref, (pinsByRef.get(p.ref) ?? 0) + 1);
+  const worthy = new Set(
+    symbols
+      .filter((s) => isPinoutWorthy(classifyPart(s, pinsByRef.get(s.ref) ?? 0).class))
+      .map((s) => s.ref),
+  );
+  const pinoutPins = pins.filter((p) => worthy.has(p.ref));
   return {
     'SPEC.md': `# ${projectName} — Specification
 
@@ -82,7 +100,7 @@ ${bomTable(symbols)}
 Pin assignment extracted from the schematic. Check strapping/RTC notes before
 reassigning pins.
 
-${pinoutTable(mcuPins.length ? mcuPins : pins)}
+${pinoutTable(pinoutPins.length ? pinoutPins : pins)}
 `,
     'SUBSYSTEMS.md': `# Subsystems
 
@@ -195,6 +213,35 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
   const pins = await pinNets(sch);
   const projectName = path.basename(sch, '.kicad_sch');
   const docs = generateDocs(projectName, symbols, pins);
+
+  // Normalized design graph (issue #248): derived artifact with source
+  // hashes, always refreshed on init. Uses the kicad-cli netlist when it can
+  // be produced, falls back to the s-expression parse when it cannot, so
+  // offline runs without kicad-cli still scaffold.
+  try {
+    const schRel = path.relative(repoRoot, sch);
+    const schText = await readFile(sch, 'utf8');
+    let netlist = null;
+    let kicadCli: string | null = null;
+    let partialReason: string | null = null;
+    try {
+      const { exportNetlist } = await import('../kicad/cli.js');
+      netlist = parseNetlist(await exportNetlist(sch));
+    } catch (err) {
+      partialReason = String((err as Error).message).slice(0, 300);
+    }
+    const graph = buildGraph(
+      symbols,
+      pins,
+      netlist,
+      [{ path: schRel, sha256: sha(schText) }],
+      kicadCli,
+      partialReason,
+    );
+    await writeDesignGraph(repoRoot, graph);
+  } catch {
+    // Graph write never blocks docs scaffolding; check surfaces drift.
+  }
 
   const docsDir = path.join(repoRoot, config.docs);
   await mkdir(docsDir, { recursive: true });
