@@ -167,6 +167,30 @@ export function parseDiagnosis(text: string | null): StageDiagnosis {
 
 /** Compact, most-recent-last excerpt of a run's transcript for the diagnostician:
  * the last assistant message and the last few tool results, truncated. */
+/**
+ * The first line of the last result a tool returned in a run, or null when the
+ * run never called it (or its transcript is missing or unreadable).
+ */
+export async function lastToolResult(transcriptDir: string, tool: string): Promise<string | null> {
+  let text: string;
+  try {
+    text = await readFile(path.join(transcriptDir, 'transcript.jsonl'), 'utf8');
+  } catch {
+    return null;
+  }
+  let last: string | null = null;
+  for (const line of text.split('\n')) {
+    if (!line.includes(`"${tool}"`)) continue;
+    try {
+      const e = JSON.parse(line) as { type: string; data?: { name?: unknown; result?: unknown } };
+      if (e.type === 'tool' && e.data?.name === tool) last = String(e.data.result ?? '').split('\n')[0] ?? '';
+    } catch {
+      /* skip */
+    }
+  }
+  return last;
+}
+
 export async function transcriptExcerpt(transcriptDir: string, maxChars = 4000): Promise<string> {
   const p = path.join(transcriptDir, 'transcript.jsonl');
   if (!existsSync(p)) return '(no transcript)';
