@@ -85,6 +85,8 @@ interface Measurement {
   report: PlacementCheckReport;
   hardKeys: string[];
   warningKeys: string[];
+  /** Summed finding magnitude per key; a key absent here carries no magnitude. */
+  magnitudes: Map<string, number>;
   metrics: FeedbackPlacementMetrics;
   netHpwlMm: Record<string, number>;
   proxy: ProxyMeasurement;
@@ -162,10 +164,17 @@ function measurement(boardText: string, criticalNets: readonly string[], proxy?:
   const physical = proxy ?? proxyMeasurement(boardText, criticalNets);
   const hardKeys = [...new Set(report.errors.map(findingKey))].sort(byCodeUnit);
   const warningKeys = [...new Set(report.warnings.map(findingKey))].sort(byCodeUnit);
+  const magnitudes = new Map<string, number>();
+  for (const finding of [...report.errors, ...report.warnings]) {
+    if (finding.magnitude === undefined) continue;
+    const key = findingKey(finding);
+    magnitudes.set(key, round((magnitudes.get(key) ?? 0) + finding.magnitude));
+  }
   return {
     report,
     hardKeys,
     warningKeys,
+    magnitudes,
     metrics: {
       hardErrors: hardKeys.length,
       warnings: warningKeys.length,
@@ -228,9 +237,23 @@ function continuousPlacementRegression(current: PlacementCheckReport, candidate:
   return null;
 }
 
+/**
+ * A finding that persists must not grow: an edge connector drifting further
+ * from the edge keeps the same id and refs, so key identity alone would miss it.
+ */
+function worsenedFinding(current: Measurement, candidate: Measurement, keys: readonly string[]): boolean {
+  return keys.some((key) => (candidate.magnitudes.get(key) ?? 0) > (current.magnitudes.get(key) ?? 0) + EPS);
+}
+
+function lessenedFinding(current: Measurement, candidate: Measurement): boolean {
+  return [...current.magnitudes].some(([key, magnitude]) => (candidate.magnitudes.get(key) ?? 0) < magnitude - EPS);
+}
+
 function accepts(current: Measurement, candidate: Measurement): { ok: boolean; reason: string } {
   if (!isSubset(candidate.hardKeys, current.hardKeys)) return { ok: false, reason: 'new-hard-finding' };
   if (!isSubset(candidate.warningKeys, current.warningKeys)) return { ok: false, reason: 'new-soft-finding' };
+  if (worsenedFinding(current, candidate, candidate.hardKeys)) return { ok: false, reason: 'worsened-hard-finding' };
+  if (worsenedFinding(current, candidate, candidate.warningKeys)) return { ok: false, reason: 'worsened-soft-finding' };
   const distanceRegression = continuousPlacementRegression(current.report, candidate.report);
   if (distanceRegression) return { ok: false, reason: distanceRegression };
   if (candidate.metrics.hpwlMm > current.metrics.hpwlMm + EPS) return { ok: false, reason: 'hpwl-regression' };
@@ -238,6 +261,7 @@ function accepts(current: Measurement, candidate: Measurement): { ok: boolean; r
   const improved =
     candidate.hardKeys.length < current.hardKeys.length ||
     candidate.warningKeys.length < current.warningKeys.length ||
+    lessenedFinding(current, candidate) ||
     candidate.metrics.hpwlMm < current.metrics.hpwlMm - EPS ||
     candidate.metrics.criticalHpwlMm < current.metrics.criticalHpwlMm - EPS;
   return improved ? { ok: true, reason: 'improved' } : { ok: false, reason: 'no-strict-improvement' };

@@ -33,6 +33,11 @@ export interface PlacementFinding {
   severity: 'error' | 'warning';
   refs: string[];
   detail: string;
+  /**
+   * How bad the finding is, larger is worse (mm gap/depth, mm² overlap, pad
+   * count). Lets a caller tell a finding that grew from one that merely persists.
+   */
+  magnitude?: number;
 }
 export interface CopperCounts {
   segments: number;
@@ -343,6 +348,12 @@ function polygonsIntersect(a: P[], b: P[]): boolean {
 
 function bodiesIntersect(a: P[][], b: P[][]): boolean {
   return a.some((x) => b.some((y) => boxesMayTouch(x, y) && polygonsIntersect(x, y)));
+}
+
+function bodiesOverlapArea(a: P[][], b: P[][]): number {
+  let area = 0;
+  for (const x of a) for (const y of b) if (boxesMayTouch(x, y)) area += overlapArea(x, y);
+  return area;
 }
 
 function boundsOf(points: P[]): { min: P; max: P } {
@@ -715,11 +726,11 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
     .sort((a, b) => byRef(a.ref, b.ref));
   const placed = parts.filter((part) => !part.boardOnly || part.pads.length > 0);
   const findings: PlacementFinding[] = [];
-  const error = (id: PlacementCheckId, refs: string[], detail: string): void => {
-    findings.push({ id, severity: 'error', refs, detail });
+  const error = (id: PlacementCheckId, refs: string[], detail: string, magnitude?: number): void => {
+    findings.push({ id, severity: 'error', refs, detail, ...(magnitude === undefined ? {} : { magnitude: round(magnitude) }) });
   };
-  const warn = (id: PlacementCheckId, refs: string[], detail: string): void => {
-    findings.push({ id, severity: 'warning', refs, detail });
+  const warn = (id: PlacementCheckId, refs: string[], detail: string, magnitude?: number): void => {
+    findings.push({ id, severity: 'warning', refs, detail, ...(magnitude === undefined ? {} : { magnitude: round(magnitude) }) });
   };
 
   // pad-overlap: copper of different nets touching within a footprint, or any
@@ -729,7 +740,8 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
     // unnumbered pads are paste/thermal apertures inside a numbered pad, not separate copper
     part.pads.filter((pad) => pad.kind !== 'np_thru_hole' && pad.number !== '').map((pad) => ({ part, pad, layers: copperLayersOf(pad, part.side) })),
   );
-  const padShorts = new Set<string>();
+  // one finding per part pair, carrying the deepest penetration of any of its pad pairs
+  const padShorts = new Map<string, { refs: string[]; detail: string; depth: number }>();
   for (let i = 0; i < allPads.length; i++) {
     const a = allPads[i]!;
     for (let j = i + 1; j < allPads.length; j++) {
@@ -738,19 +750,25 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
       if (a.part === b.part && a.pad.net && a.pad.net === b.pad.net) continue;
       if (!a.pad.net && !b.pad.net && a.part === b.part) continue;
       if (!layersShare(a.layers, b.layers) || !boxesMayTouch(a.pad.polygon, b.pad.polygon)) continue;
-      if (convexPenetration(a.pad.polygon, b.pad.polygon) <= EPS) continue;
+      const depth = convexPenetration(a.pad.polygon, b.pad.polygon);
+      if (depth <= EPS) continue;
       const key = [a.part.ref, b.part.ref].sort(byRef).join(' / ');
-      if (padShorts.has(key)) continue;
-      padShorts.add(key);
-      error(
-        'pad-overlap',
-        [...new Set([a.part.ref, b.part.ref])],
-        a.part === b.part
-          ? `${a.part.ref} pads ${a.pad.number} (${a.pad.net || 'no net'}) and ${b.pad.number} (${b.pad.net || 'no net'}) overlap: the pads are not at their library angle/position`
-          : `${a.part.ref}.${a.pad.number} (${a.pad.net || 'no net'}) overlaps ${b.part.ref}.${b.pad.number} (${b.pad.net || 'no net'})`,
-      );
+      const seen = padShorts.get(key);
+      if (seen) {
+        seen.depth = Math.max(seen.depth, depth);
+        continue;
+      }
+      padShorts.set(key, {
+        refs: [...new Set([a.part.ref, b.part.ref])],
+        detail:
+          a.part === b.part
+            ? `${a.part.ref} pads ${a.pad.number} (${a.pad.net || 'no net'}) and ${b.pad.number} (${b.pad.net || 'no net'}) overlap: the pads are not at their library angle/position`
+            : `${a.part.ref}.${a.pad.number} (${a.pad.net || 'no net'}) overlaps ${b.part.ref}.${b.pad.number} (${b.pad.net || 'no net'})`,
+        depth,
+      });
     }
   }
+  for (const short of padShorts.values()) error('pad-overlap', short.refs, short.detail, short.depth);
 
   // courtyard-overlap: same side, falling back to the pad envelope for a part
   // without a courtyard; tht-underside: through-hole leads under an opposite-side part
@@ -761,11 +779,11 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
       const bodiesMayTouch = boxesMayTouch(a.body.flat(), b.body.flat());
       if (a.side === b.side) {
         if (a.silk.some((x) => b.silk.some((y) => boxesMayTouch(x, y) && polygonsIntersect(x, y)))) {
-          warn('silkscreen-overlap', [a.ref, b.ref], `${a.ref} and ${b.ref} silkscreen envelopes overlap on ${a.side}.SilkS`);
+          warn('silkscreen-overlap', [a.ref, b.ref], `${a.ref} and ${b.ref} silkscreen envelopes overlap on ${a.side}.SilkS`, bodiesOverlapArea(a.silk, b.silk));
         }
         if (bodiesMayTouch && bodiesIntersect(a.body, b.body)) {
           const kind = a.hasCourtyard && b.hasCourtyard ? 'courtyards' : 'bodies (pad envelope where a courtyard is missing)';
-          error('courtyard-overlap', [a.ref, b.ref], `${a.ref} and ${b.ref} ${kind} overlap on ${a.side}.CrtYd`);
+          error('courtyard-overlap', [a.ref, b.ref], `${a.ref} and ${b.ref} ${kind} overlap on ${a.side}.CrtYd`, bodiesOverlapArea(a.body, b.body));
         }
         continue;
       }
@@ -803,6 +821,7 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
           'outline-containment',
           [part.ref],
           `${part.ref} has ${outside.length} pad(s) outside the board outline (${outside.slice(0, 4).map((pad) => pad.number).join(', ')})`,
+          outside.length,
         );
       }
       const overhangs = part.hasCourtyard && !part.body.flat().every((point) => pointInPolygon(point, outer));
@@ -829,6 +848,7 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
           'footprint-keepout',
           owner ? [part.ref, owner.ref] : [part.ref],
           `${part.ref} is inside ${owner ? `${owner.ref}'s` : 'the board'} keepout${keepout.name ? ` "${keepout.name}"` : ''}`,
+          bodiesOverlapArea(part.body, [keepout.polygon]),
         );
       }
     }
@@ -841,15 +861,16 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
         const gap = Math.min(...part.body.map(distanceToEdge));
         const inside = part.body.flat().every((point) => pointInPolygon(point, outer));
         if (inside && gap > edgeTolerance) {
-          error('edge-connector', [part.ref], `${part.ref} (${part.footprint.split(':').pop()}) is ${round(gap, 2)} mm from the nearest board edge; a mating connector must reach the edge`);
+          error('edge-connector', [part.ref], `${part.ref} (${part.footprint.split(':').pop()}) is ${round(gap, 2)} mm from the nearest board edge; a mating connector must reach the edge`, gap);
         }
       }
       for (const keepout of part.keepouts) {
         if (!keepout.copperBlocked || !keepout.footprintsBlocked) continue;
         if (!/ant/i.test(keepout.name) && !RADIO_MODULE.test(part.footprint)) continue;
         const inside = keepout.polygon.every((point) => pointInPolygon(point, outer));
-        if (inside && distanceToEdge(keepout.polygon) > edgeTolerance) {
-          warn('antenna-edge', [part.ref], `${part.ref}'s keepout${keepout.name ? ` "${keepout.name}"` : ''} is fully inside the board, ${round(distanceToEdge(keepout.polygon), 2)} mm from the edge (antenna keepouts belong at an edge)`);
+        const gap = inside ? distanceToEdge(keepout.polygon) : 0;
+        if (gap > edgeTolerance) {
+          warn('antenna-edge', [part.ref], `${part.ref}'s keepout${keepout.name ? ` "${keepout.name}"` : ''} is fully inside the board, ${round(gap, 2)} mm from the edge (antenna keepouts belong at an edge)`, gap);
         }
       }
     }

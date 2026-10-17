@@ -159,6 +159,20 @@ describe('feedback placement optimizer', () => {
     expect(Math.abs(r2!.x - r1!.x)).toBeGreaterThanOrEqual(1.4 - 1e-6);
   });
 
+  it('never lets an existing hard finding grow, such as an edge connector drifting inward', () => {
+    const edgeGap = (text: string): number =>
+      checkPlacementText(text).errors.find((finding) => finding.id === 'edge-connector' && finding.refs.includes('USB1'))?.magnitude ?? 0;
+    // a custom-library USB part, not inferred mechanical, already 2.5 mm from the edge
+    const input = board([footprint('USB1', 3.3, 10, 'A', 'SIG', 'MyLib:USB_C_Receptacle_GCT'), footprint('R1', 40, 10, 'SIG', 'B')]);
+    expect(edgeGap(input)).toBe(2.5);
+    const result = optimizePlacementText(input, { evaluationBudget: 400, stepScheduleMm: [2, 1], allowRotations: false });
+
+    expect(result.report.lockedRefs).not.toContain('USB1');
+        expect(result.report.rejectionCounts).toContainEqual(expect.objectContaining({ reason: 'worsened-hard-finding' }));
+    expect(edgeGap(result.boardText)).toBeLessThanOrEqual(2.5);
+    expect(result.report.after.hpwlMm).toBeLessThan(result.report.before.hpwlMm);
+  });
+
   it('validates explicit evaluation and step budgets', () => {
     const input = board([footprint('R1', 8, 10, 'A', 'B')]);
     expect(() => optimizePlacementText(input, { evaluationBudget: 0 })).toThrow(/evaluationBudget/);
