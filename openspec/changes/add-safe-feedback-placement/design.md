@@ -12,14 +12,20 @@ population, routing, or the agent's final verification obligations.
   zones cause an immediate refusal. Moving footprints away from routed copper
   without moving the routes can break connectivity even when HPWL improves.
 - **D2: Keep checkpoint zero immutable.** Candidate boards remain in memory.
-  The on-disk input is restored byte-for-byte after load, DRC, or connectivity
-  failure.
+  The on-disk input is restored byte-for-byte (kept as a Buffer) after load,
+  DRC, or connectivity failure. Verification must run in place, beside the
+  project's rules and `${KIPRJMOD}` libraries, so while a candidate awaits it a
+  synchronous `exit` listener writes the input back.
 - **D3: Use deterministic first improvement.** Reference, operator, candidate,
   and tie order are explicit; termination counts candidate evaluations globally
-  across DRC-feedback passes, not time; step sizes decrease at plateaus.
+  across DRC-feedback passes, not time; step sizes decrease at plateaus. A
+  deterministic pass that ends unchanged has nothing left to find, so each pass
+  gets the whole remaining budget rather than a fixed slice.
 - **D4: Guard every accepted in-memory move.** A candidate introduces no new
   hard or soft placement finding, does not worsen total or protected-net HPWL,
-  and strictly improves at least one guarded measurement.
+  and strictly improves at least one guarded measurement. Findings carry a
+  magnitude, so a persisting finding (same id and refs) that grows is a
+  regression, and one that shrinks is an improvement.
 - **D5: Close the loop with KiCad DRC.** The tool requires clean baseline DRC,
   then verifies the proposed checkpoint. If new DRC findings name moved refs,
   those refs become locks and search restarts from checkpoint zero. Five DRC
@@ -27,6 +33,13 @@ population, routing, or the agent's final verification obligations.
 - **D6: Connectivity is exact at the tool boundary.** Final unrouted count must
   equal the clean baseline count. The ordinary post-mutation `run_drc`
   obligation remains open; this internal check is an additional safety gate.
+
+- **D7: Respect locks the user already expressed.** KiCad's own footprint lock
+  is authoritative and independent of mechanical inference; inference reuses
+  the checker's edge-connector, radio-module, and antenna patterns.
+- **D8: Never block the event loop for long.** The search is a generator; the
+  async driver yields with `setImmediate` every ~20 ms. Only scheduling
+  changes, so determinism holds.
 
 ## Non-Goals
 
