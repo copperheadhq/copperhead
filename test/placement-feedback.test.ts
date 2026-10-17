@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkPlacementText, placementSummary } from '../src/kicad/placement-checks.js';
-import { optimizePlacementText } from '../src/kicad/placement-feedback.js';
+import { MAX_EVALUATION_BUDGET, optimizePlacement, optimizePlacementText } from '../src/kicad/placement-feedback.js';
 
 function footprint(ref: string, x: number, y: number, leftNet: string, rightNet: string, lib = 'Resistor_SMD:R_0402_1005Metric'): string {
   return `(footprint "${lib}"
@@ -200,9 +200,30 @@ describe('feedback placement optimizer', () => {
     expect(result.report.after.hpwlMm).toBeLessThan(result.report.before.hpwlMm);
   });
 
+  it('yields to the event loop while optimizing and returns the same result as the sync search', async () => {
+    const parts = Array.from({ length: 30 }, (_, i) =>
+      footprint(`R${i + 1}`, 4 + (i % 6) * 8, 4 + Math.floor(i / 6) * 5, `N${(i * 7) % 17}`, `N${(i * 11 + 3) % 17}`),
+    );
+    const input = board(parts);
+    const options = { evaluationBudget: 60 } as const;
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 1);
+    const started = performance.now();
+    const pending = optimizePlacement(input, options);
+    const result = await pending;
+    const elapsed = performance.now() - started;
+    clearInterval(timer);
+
+    expect(result).toEqual(optimizePlacementText(input, options));
+    // the search ran far longer than one 20 ms slice, so timers must have fired during it
+    expect(elapsed).toBeGreaterThan(60);
+    expect(ticks).toBeGreaterThan(0);
+  });
+
   it('validates explicit evaluation and step budgets', () => {
     const input = board([footprint('R1', 8, 10, 'A', 'B')]);
     expect(() => optimizePlacementText(input, { evaluationBudget: 0 })).toThrow(/evaluationBudget/);
+    expect(() => optimizePlacementText(input, { evaluationBudget: MAX_EVALUATION_BUDGET + 1 })).toThrow(/from 1 to 50000/);
     expect(() => optimizePlacementText(input, { stepScheduleMm: [] })).toThrow(/stepScheduleMm/);
   });
 });

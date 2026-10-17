@@ -117,6 +117,10 @@ interface Candidate {
 
 const DEFAULT_STEPS = [2, 1, 0.5, 0.25] as const;
 const DEFAULT_BUDGET = 1_000;
+/** Each evaluation can cost tens of ms on a large board; this caps one call at well under an hour. */
+export const MAX_EVALUATION_BUDGET = 50_000;
+/** How long the async driver computes before letting timers, signals and I/O run. */
+const YIELD_AFTER_MS = 20;
 const POSITION_DIGITS = 4;
 const EPS = 1e-6;
 const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -369,7 +373,9 @@ function prioritizedRefs(nodes: readonly Node[], current: Measurement, locked: R
 
 function validBudget(value: number | undefined): number {
   const budget = value ?? DEFAULT_BUDGET;
-  if (!Number.isSafeInteger(budget) || budget < 1 || budget > 1_000_000) throw new Error('evaluationBudget must be an integer from 1 to 1000000');
+  if (!Number.isSafeInteger(budget) || budget < 1 || budget > MAX_EVALUATION_BUDGET) {
+    throw new Error(`evaluationBudget must be an integer from 1 to ${MAX_EVALUATION_BUDGET}`);
+  }
   return budget;
 }
 
@@ -381,6 +387,33 @@ function validSteps(values: readonly number[] | undefined): number[] {
 
 /** Optimize a board entirely in memory; callers own spec/DRC/write gating. */
 export function optimizePlacementText(boardText: string, options: FeedbackPlacementOptions = {}): FeedbackPlacementResult {
+  const search = searchPlacement(boardText, options);
+  for (;;) {
+    const step = search.next();
+    if (step.done) return step.value;
+  }
+}
+
+/**
+ * The same search as {@link optimizePlacementText}, giving the event loop a
+ * turn every few milliseconds so SIGINT, heartbeats and timers stay live.
+ * Yielding only changes scheduling: the result is byte-identical.
+ */
+export async function optimizePlacement(boardText: string, options: FeedbackPlacementOptions = {}): Promise<FeedbackPlacementResult> {
+  const search = searchPlacement(boardText, options);
+  let sliceStart = performance.now();
+  for (;;) {
+    const step = search.next();
+    if (step.done) return step.value;
+    if (performance.now() - sliceStart >= YIELD_AFTER_MS) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      sliceStart = performance.now();
+    }
+  }
+}
+
+/** The search itself; it pauses after every candidate evaluation. */
+function* searchPlacement(boardText: string, options: FeedbackPlacementOptions): Generator<void, FeedbackPlacementResult> {
   const evaluationBudget = validBudget(options.evaluationBudget);
   const steps = validSteps(options.stepScheduleMm);
   const criticalNets = [...new Set(options.criticalNets ?? [])].filter(Boolean).sort(byCodeUnit);
@@ -428,6 +461,7 @@ export function optimizePlacementText(boardText: string, options: FeedbackPlacem
         });
         for (const candidate of proposed) {
           if (evaluated >= evaluationBudget) break search;
+          if (evaluated > 0) yield;
           evaluated++;
           const stats = operator.get(candidate.operator) ?? { evaluated: 0, accepted: 0 };
           stats.evaluated++;

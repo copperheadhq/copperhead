@@ -10,7 +10,7 @@ import { scoreSchematic, formatScore } from '../kicad/score.js';
 import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
 import { FootprintResolver } from '../kicad/footprints.js';
 import { moveFootprint } from '../kicad/populate.js';
-import { formatFeedbackPlacement, optimizePlacementText } from '../kicad/placement-feedback.js';
+import { formatFeedbackPlacement, MAX_EVALUATION_BUDGET, optimizePlacement } from '../kicad/placement-feedback.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
@@ -376,7 +376,7 @@ export const HANDLERS: HandlerDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          evaluation_budget: { type: 'number', description: 'maximum candidate evaluations across all DRC-feedback passes (integer 1..1000000; default 5000). Each pass may spend all that is left; a DRC-feedback retry gets only what earlier passes did not use' },
+          evaluation_budget: { type: 'number', description: 'maximum candidate evaluations across all DRC-feedback passes (integer 1..50000; default 5000). Each pass may spend all that is left; a DRC-feedback retry gets only what earlier passes did not use' },
           step_schedule_mm: { type: 'array', items: { type: 'number' }, description: 'positive coarse-to-fine translation steps in mm; default [2,1,0.5,0.25]' },
           critical_nets: { type: 'array', items: { type: 'string' }, description: 'exact net names that may not regress separately from total HPWL' },
           locked_refs: { type: 'array', items: { type: 'string' }, description: 'additional reference designators that must not move' },
@@ -426,8 +426,8 @@ export const HANDLERS: HandlerDef[] = [
         return { ok: false, text: 'not optimized: evaluation_budget must be a number' };
       }
       const evaluationBudget = args.evaluation_budget ?? DEFAULT_PLACEMENT_TOOL_BUDGET;
-      if (!Number.isSafeInteger(evaluationBudget) || evaluationBudget < 1 || evaluationBudget > 1_000_000) {
-        return { ok: false, text: 'not optimized: evaluation_budget must be an integer from 1 to 1000000' };
+      if (!Number.isSafeInteger(evaluationBudget) || evaluationBudget < 1 || evaluationBudget > MAX_EVALUATION_BUDGET) {
+        return { ok: false, text: `not optimized: evaluation_budget must be an integer from 1 to ${MAX_EVALUATION_BUDGET}` };
       }
 
       const rel = ctx.config.board;
@@ -465,7 +465,7 @@ export const HANDLERS: HandlerDef[] = [
         // left to find: give every pass the whole remainder rather than a slice.
         let optimized;
         try {
-          optimized = optimizePlacementText(before, {
+          optimized = await optimizePlacement(before, {
             evaluationBudget: remainingEvaluations,
             ...(stepScheduleMm === undefined ? {} : { stepScheduleMm }),
             ...(criticalNets === undefined ? {} : { criticalNets }),

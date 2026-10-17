@@ -118,6 +118,8 @@ interface Part {
   pads: Pad[];
   /** Board-coordinate courtyard loops, or the pads' bounding quad when there is no courtyard. */
   body: P[][];
+  /** Every body vertex, flattened once for box tests. */
+  bodyPoints: P[];
   /** Conservative per-item board-coordinate envelopes on this part's silkscreen side. */
   silk: P[][];
   hasCourtyard: boolean;
@@ -357,15 +359,30 @@ function bodiesOverlapArea(a: P[][], b: P[][]): number {
 }
 
 function boundsOf(points: P[]): { min: P; max: P } {
-  return {
-    min: { x: Math.min(...points.map((p) => p.x)), y: Math.min(...points.map((p) => p.y)) },
-    max: { x: Math.max(...points.map((p) => p.x)), y: Math.max(...points.map((p) => p.y)) },
-  };
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { min: { x: minX, y: minY }, max: { x: maxX, y: maxY } };
+}
+
+/** Polygons are never mutated once built, so each one's box is computed once. */
+const boxCache = new WeakMap<P[], { min: P; max: P }>();
+function cachedBounds(points: P[]): { min: P; max: P } {
+  let box = boxCache.get(points);
+  if (!box) boxCache.set(points, (box = boundsOf(points)));
+  return box;
 }
 
 function boxesMayTouch(a: P[], b: P[], margin = 0): boolean {
-  const x = boundsOf(a);
-  const y = boundsOf(b);
+  const x = cachedBounds(a);
+  const y = cachedBounds(b);
   return x.min.x <= y.max.x + margin && y.min.x <= x.max.x + margin && x.min.y <= y.max.y + margin && y.min.y <= x.max.y + margin;
 }
 
@@ -561,6 +578,7 @@ function partOf(fp: SexpNode[]): Part {
     : { min: { x: 0, y: 0 }, max: { x: 0, y: 0 } };
   const attr = child(fp, 'attr');
   const footprint = atom(fp, 1) ?? '';
+  const body = courtyard.length ? courtyard.map((loop) => loop.map((point) => place(point, origin, rotation))) : [quad(padBox.min, padBox.max, origin, rotation)];
   return {
     ref: propertyOf(fp, 'Reference'),
     footprint,
@@ -572,7 +590,8 @@ function partOf(fp: SexpNode[]): Part {
     netTie: Boolean(child(fp, 'net_tie_pad_groups')) || /NetTie/i.test(footprint),
     tht: pads.some((pad) => pad.kind === 'thru_hole' || pad.kind === 'np_thru_hole'),
     pads,
-    body: courtyard.length ? courtyard.map((loop) => loop.map((point) => place(point, origin, rotation))) : [quad(padBox.min, padBox.max, origin, rotation)],
+    body,
+    bodyPoints: body.flat(),
     silk: silkEnvelopes(fp, origin, rotation, side),
     hasCourtyard: courtyard.length > 0,
     bodyAreaMm2: courtyard.length
@@ -776,7 +795,7 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
     const a = placed[i]!;
     for (let j = i + 1; j < placed.length; j++) {
       const b = placed[j]!;
-      const bodiesMayTouch = boxesMayTouch(a.body.flat(), b.body.flat());
+      const bodiesMayTouch = boxesMayTouch(a.bodyPoints, b.bodyPoints);
       if (a.side === b.side) {
         if (a.silk.some((x) => b.silk.some((y) => boxesMayTouch(x, y) && polygonsIntersect(x, y)))) {
           warn('silkscreen-overlap', [a.ref, b.ref], `${a.ref} and ${b.ref} silkscreen envelopes overlap on ${a.side}.SilkS`, bodiesOverlapArea(a.silk, b.silk));
@@ -824,7 +843,7 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
           outside.length,
         );
       }
-      const overhangs = part.hasCourtyard && !part.body.flat().every((point) => pointInPolygon(point, outer));
+      const overhangs = part.hasCourtyard && !part.bodyPoints.every((point) => pointInPolygon(point, outer));
       if (overhangs && !outside.length && !OVERHANG_OK.test(part.footprint)) {
         warn('courtyard-overhang', [part.ref], `${part.ref} courtyard extends past the board outline`);
       }
@@ -842,7 +861,7 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
     const onSide = (side: 'F' | 'B'): boolean =>
       keepout.layers.some((layer) => layer === `${side}.Cu` || layer === '*.Cu' || layer === 'F&B.Cu' || layer === `${side}&B.Cu`);
     for (const part of placed) {
-      if (part === owner || !onSide(part.side) || !boxesMayTouch(part.body.flat(), keepout.polygon)) continue;
+      if (part === owner || !onSide(part.side) || !boxesMayTouch(part.bodyPoints, keepout.polygon)) continue;
       if (bodiesIntersect(part.body, [keepout.polygon])) {
         error(
           'footprint-keepout',
@@ -859,7 +878,7 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
     for (const part of placed) {
       if (EDGE_CONNECTOR.test(part.footprint)) {
         const gap = Math.min(...part.body.map(distanceToEdge));
-        const inside = part.body.flat().every((point) => pointInPolygon(point, outer));
+        const inside = part.bodyPoints.every((point) => pointInPolygon(point, outer));
         if (inside && gap > edgeTolerance) {
           error('edge-connector', [part.ref], `${part.ref} (${part.footprint.split(':').pop()}) is ${round(gap, 2)} mm from the nearest board edge; a mating connector must reach the edge`, gap);
         }
