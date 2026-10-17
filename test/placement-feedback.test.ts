@@ -220,6 +220,13 @@ describe('feedback placement optimizer', () => {
     expect(ticks).toBeGreaterThan(0);
   });
 
+  it('refuses critical nets and locked refs that are not on the board', () => {
+    const input = board([footprint('R1', 8, 10, 'A', '/N1'), footprint('R2', 28, 10, '/N1', 'B')]);
+    expect(() => optimizePlacementText(input, { criticalNets: ['N1'] })).toThrow('unknown critical net not on the board: N1 (did you mean /N1?)');
+    expect(() => optimizePlacementText(input, { lockedRefs: ['R9', 'R1'] })).toThrow('unknown locked ref not on the board: R9');
+    expect(optimizePlacementText(input, { evaluationBudget: 1, criticalNets: ['/N1'], lockedRefs: ['R1'] }).report.criticalNets).toEqual(['/N1']);
+  });
+
   it('validates explicit evaluation and step budgets', () => {
     const input = board([footprint('R1', 8, 10, 'A', 'B')]);
     expect(() => optimizePlacementText(input, { evaluationBudget: 0 })).toThrow(/evaluationBudget/);

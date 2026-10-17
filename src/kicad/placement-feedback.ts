@@ -371,6 +371,17 @@ function prioritizedRefs(nodes: readonly Node[], current: Measurement, locked: R
     .map((node) => node.ref);
 }
 
+/** A name the board does not have guards nothing; say so instead of reporting it as guarded. */
+function unknownNames(kind: string, names: Iterable<string>, known: ReadonlySet<string>): void {
+  const missing = [...names].filter((name) => !known.has(name));
+  if (!missing.length) return;
+  const hint = (name: string): string => {
+    const close = [...known].find((entry) => entry.replace(/^.*\//, '') === name.replace(/^.*\//, ''));
+    return close ? `${name} (did you mean ${close}?)` : name;
+  };
+  throw new Error(`unknown ${kind}${missing.length > 1 ? 's' : ''} not on the board: ${missing.map(hint).join(', ')}`);
+}
+
 function validBudget(value: number | undefined): number {
   const budget = value ?? DEFAULT_BUDGET;
   if (!Number.isSafeInteger(budget) || budget < 1 || budget > MAX_EVALUATION_BUDGET) {
@@ -420,6 +431,8 @@ function* searchPlacement(boardText: string, options: FeedbackPlacementOptions):
   const critical = new Set(criticalNets);
   const explicitLocks = new Set([...new Set(options.lockedRefs ?? [])].filter(Boolean));
   const firstNodes = topology(boardText);
+  unknownNames('critical net', criticalNets, new Set(firstNodes.flatMap((node) => node.nets)));
+  unknownNames('locked ref', explicitLocks, new Set(firstNodes.map((node) => node.ref)));
   const locked = new Set(
     firstNodes.filter((node) => node.kicadLocked || ((options.lockMechanical ?? true) && inferredMechanical(node))).map((node) => node.ref),
   );
