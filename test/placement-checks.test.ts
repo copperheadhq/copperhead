@@ -177,6 +177,28 @@ describe('universal placement checks', () => {
     expect(ids(square)).toContain('pad-overlap');
   });
 
+  it('reads KiCad 6/7 fp_text references, name-only nets, and back-side parts', () => {
+    const legacy = `(kicad_pcb (version 20221018) (generator pcbnew)
+  (gr_rect (start 0 0) (end 40 30) (layer "Edge.Cuts") (width 0.05))
+  (footprint "Resistor_SMD:R_0402_1005Metric" (layer "F.Cu") (at 10 10)
+    (fp_text reference "R1" (at 0 -1) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))
+    (pad "1" smd rect (at -0.5 0) (size 0.5 0.6) (layers "F.Cu") (net 1 "SIG"))
+    (pad "2" smd rect (at 0.5 0) (size 0.5 0.6) (layers "F.Cu") (net 2 "A")))
+  (footprint "Resistor_SMD:R_0402_1005Metric" (layer "B.Cu") (at 20 10 180)
+    (property "Reference" "R2" (at 0 1 180) (layer "B.SilkS"))
+    (pad "1" smd rect (at 0.5 0 180) (size 0.5 0.6) (layers "B.Cu") (net "SIG"))
+    (pad "2" smd rect (at -0.5 0 180) (size 0.5 0.6) (layers "B.Cu") (net "B"))))
+`;
+    const summary = placementSummary(legacy);
+    expect(summary.parts.map((part) => [part.ref, part.side, part.rotation])).toEqual([
+      ['R1', 'F', 0],
+      ['R2', 'B', 180],
+    ]);
+    // SIG joins R1.1 at x 9.5 and R2.1 at x 19.5 (local +0.5 turned 180°)
+    expect(summary.netHpwlMm.SIG).toBe(10);
+    expect(checkPlacementText(legacy).errors).toEqual([]);
+  });
+
   it('reports new cross-footprint silkscreen envelope overlaps', () => {
     const a = resistor('R1', 10, 10);
     a.silk = ['(fp_line (start 0 1) (end 3 1) (stroke (width 0.2) (type solid)) (layer "F.SilkS"))'];

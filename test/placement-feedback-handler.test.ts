@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { RunContext } from '../src/agent/context.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import { HANDLERS } from '../src/capabilities/handlers.js';
+import { availableTools, dispatchToolResult } from '../src/agent/tools.js';
+import { flatten } from '../src/agent/envelope.js';
 import type { CopperheadConfig } from '../src/config.js';
 import type { CheckReport } from '../src/kicad/report.js';
 
@@ -104,8 +106,25 @@ function context(repoRoot: string): RunContext {
 const optimize = HANDLERS.find((handler) => handler.schema.name === 'optimize_placement')!;
 
 describe('safe optimize_placement handler', () => {
-  it('is spec-gated like every KiCad mutation tool', () => {
-    expect(optimize.requiresUnlock).toBe(true);
+  it('is spec-gated like every KiCad mutation tool: absent and undispatchable until unlocked', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
+    try {
+      const input = board();
+      await writeFile(path.join(repo, 'board.kicad_pcb'), input);
+      mocks.runDrc.mockReset();
+      const ctx = { ...context(repo), editsUnlocked: false } as RunContext;
+
+      expect(optimize.requiresUnlock).toBe(true);
+      expect(availableTools(ctx).map((tool) => tool.name)).not.toContain('optimize_placement');
+      const refused = await dispatchToolResult(ctx, 'optimize_placement', {});
+      expect(flatten(refused)).toMatch(/not available|unavailable|proposal/i);
+      expect(mocks.runDrc).not.toHaveBeenCalled();
+      expect(await readFile(path.join(repo, 'board.kicad_pcb'), 'utf8')).toBe(input);
+
+      expect(availableTools({ ...ctx, editsUnlocked: true } as RunContext).map((tool) => tool.name)).toContain('optimize_placement');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
   });
 
   it('refuses a failing baseline DRC without changing the board', async () => {
