@@ -15,7 +15,7 @@ import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resol
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
@@ -432,7 +432,10 @@ export const HANDLERS: HandlerDef[] = [
 
       const rel = ctx.config.board;
       const abs = resolveInRepo(ctx.repoRoot, rel);
-      const before = await readFile(abs, 'utf8');
+      // The original bytes, kept as bytes: a utf8 round-trip is not exact for every input.
+      const original = await readFile(abs);
+      const before = original.toString('utf8');
+      const unchangedOnDisk = async (): Promise<boolean> => (await readFile(abs)).equals(original);
       let baseline: CheckReport;
       try {
         baseline = await runDrc(abs);
@@ -445,7 +448,7 @@ export const HANDLERS: HandlerDef[] = [
       if (baseline.unrouted === undefined) {
         return { ok: false, text: 'not optimized: baseline DRC did not report an unrouted-connection count' };
       }
-      if ((await readFile(abs, 'utf8')) !== before) {
+      if (!(await unchangedOnDisk())) {
         return { ok: false, text: 'not optimized: the board changed while baseline DRC was running' };
       }
 
@@ -487,30 +490,40 @@ export const HANDLERS: HandlerDef[] = [
               `${drcFeedback.length ? `\n  DRC feedback exhausted safe moves: ${drcFeedback.join('; ')}` : ''}`,
           };
         }
-        if ((await readFile(abs, 'utf8')) !== before) {
+        if (!(await unchangedOnDisk())) {
           return { ok: false, text: 'not optimized: the board changed while optimization was running' };
         }
 
+        // The candidate must sit in place to be verified (the project's rules and
+        // ${KIPRJMOD} libraries live beside it). While it is unverified, an exit
+        // (SIGINT ends in process.exit) puts the original bytes back synchronously.
+        const restoreOnExit = (): void => writeFileSync(abs, original);
+        const restore = async (): Promise<void> => {
+          await writeFile(abs, original);
+          process.removeListener('exit', restoreOnExit);
+        };
+        process.on('exit', restoreOnExit);
         await writeFile(abs, optimized.boardText, 'utf8');
         let loadErr: string | null;
         try {
           loadErr = await kicadLoadError(abs);
         } catch (error) {
-          await writeFile(abs, before, 'utf8');
+          await restore();
           return { ok: false, text: `optimization REVERTED: candidate load check could not run (${(error as Error).message})` };
         }
         if (loadErr) {
-          await writeFile(abs, before, 'utf8');
+          await restore();
           return { ok: false, text: `optimization REVERTED: the candidate would not load in KiCad. kicad-cli says:\n${loadErr}` };
         }
         let verified: CheckReport;
         try {
           verified = await runDrc(abs);
         } catch (error) {
-          await writeFile(abs, before, 'utf8');
+          await restore();
           return { ok: false, text: `optimization REVERTED: final DRC could not run (${(error as Error).message})` };
         }
         if (verified.ok && verified.unrouted === baseline.unrouted) {
+          process.removeListener('exit', restoreOnExit);
           markTouched(ctx, rel);
           const moved = [...new Set(optimized.report.moves.map((move) => move.ref))];
           return {
@@ -523,7 +536,7 @@ export const HANDLERS: HandlerDef[] = [
           };
         }
 
-        await writeFile(abs, before, 'utf8');
+        await restore();
         if (verified.ok && verified.unrouted !== baseline.unrouted) {
           return {
             ok: false,

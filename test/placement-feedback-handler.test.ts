@@ -232,6 +232,56 @@ describe('safe optimize_placement handler', () => {
     }
   });
 
+  it('restores the exact input bytes, even ones that are not valid UTF-8', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
+    try {
+      const file = path.join(repo, 'board.kicad_pcb');
+      const text = board().replace('(property "Value" "1k"', '(property "Value" "1kMARK"');
+      const input = Buffer.concat(text.split('MARK').flatMap((part, i) => (i ? [Buffer.from([0xb5]), Buffer.from(part)] : [Buffer.from(part)])));
+      await writeFile(file, input);
+      mocks.runDrc.mockReset().mockResolvedValueOnce(cleanDrc()).mockResolvedValueOnce(failedDrc());
+      mocks.kicadLoadError.mockReset().mockResolvedValue(null);
+
+      const result = await optimize.handler(context(repo), { evaluation_budget: 400, allow_rotations: false });
+
+      expect(result).toMatchObject({ ok: false });
+      expect((await readFile(file)).equals(input)).toBe(true);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('puts the original back if the process exits while a candidate is being verified', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
+    try {
+      const file = path.join(repo, 'board.kicad_pcb');
+      const input = board();
+      await writeFile(file, input);
+      const exitListeners = process.listeners('exit');
+      let onDiskDuringDrc = '';
+      let afterExit = '';
+      mocks.runDrc.mockReset()
+        .mockResolvedValueOnce(cleanDrc())
+        .mockImplementationOnce(async () => {
+          onDiskDuringDrc = await readFile(file, 'utf8');
+          // what process.exit would run: every exit listener the handler added
+          for (const listener of process.listeners('exit')) if (!exitListeners.includes(listener)) (listener as () => void)();
+          afterExit = await readFile(file, 'utf8');
+          return cleanDrc();
+        });
+      mocks.kicadLoadError.mockReset().mockResolvedValue(null);
+
+      const result = await optimize.handler(context(repo), { evaluation_budget: 400, allow_rotations: false });
+
+      expect(result).toMatchObject({ ok: true });
+      expect(onDiskDuringDrc).not.toBe(input);
+      expect(afterExit).toBe(input);
+      expect(process.listeners('exit')).toEqual(exitListeners);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('restores the exact input when the candidate load check throws', async () => {
     const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
     try {
