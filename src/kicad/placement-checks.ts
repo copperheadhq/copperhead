@@ -678,9 +678,9 @@ function shapeLoops(parent: SexpNode[], prefix: 'gr_' | 'fp_', layer: string): P
 
 // ---------------------------------------------------------------- classification
 
-const EDGE_CONNECTOR = /USB|Barrel|DC_?Jack|Jack_DC|RJ\d\d|8P8C|6P6C|Jack_3\.5|Jack_6\.35|AudioJack|HDMI|DisplayPort|EdgeMount|Edge_Mount/i;
+export const EDGE_CONNECTOR = /USB|Barrel|DC_?Jack|Jack_DC|RJ\d\d|8P8C|6P6C|Jack_3\.5|Jack_6\.35|AudioJack|HDMI|DisplayPort|EdgeMount|Edge_Mount/i;
 const OVERHANG_OK = /Connector|USB|Jack|Header|Terminal|Socket|Card|Button|Switch|SW_|LED_.*Side|Antenna|Edge|MountingHole|RF_Module/i;
-const RADIO_MODULE = /RF_Module|Antenna|WROOM|WROVER|ESP32|nRF|BM\d\d|CC\d{4}|RFM\d|XBee|LoRa/i;
+export const RADIO_MODULE = /RF_Module|Antenna|WROOM|WROVER|ESP32|nRF|BM\d\d|CC\d{4}|RFM\d|XBee|LoRa/i;
 const GROUND = /(^|\/)(A|D|P|S|C)?GND[A-Z0-9_]*$|(^|\/)VSS[A-Z0-9_]*$|(^|\/)0V$|(^|\/)EARTH$/i;
 const POWER_NAME = /(^|\/)(\+?\d+V\d*|\d+V\d+|VCC\w*|VDD\w*|AVDD\w*|DVDD\w*|IOVDD\w*|VBUS\w*|VBAT\w*|VIN\w*|VSYS\w*|VREG\w*|VOUT\w*|VREF\w*|V3V3|3V3\w*|1V8\w*|1V1\w*|5V\w*|PWR\w*)$/i;
 

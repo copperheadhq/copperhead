@@ -2,6 +2,8 @@ import { child, children, isList, parseSexp, type SexpNode } from './sexp.js';
 import { moveFootprint } from './populate.js';
 import {
   checkPlacementText,
+  EDGE_CONNECTOR,
+  RADIO_MODULE,
   placementSummary,
   type PlacementCheckReport,
   type PlacementFinding,
@@ -27,7 +29,11 @@ export interface FeedbackPlacementOptions {
   lockedRefs?: Iterable<string>;
   /** Exact KiCad net names guarded separately from total HPWL. */
   criticalNets?: Iterable<string>;
-  /** Lock connectors, mounting holes and fiducials inferred from ref/id. Default true. */
+  /**
+   * Lock connectors, edge-mount parts, radio modules, mounting holes and
+   * fiducials inferred from ref/id/keepouts. Default true. Footprints locked
+   * in KiCad stay locked either way.
+   */
   lockMechanical?: boolean;
 }
 export interface FeedbackPlacementMetrics {
@@ -79,6 +85,10 @@ interface Node {
   y: number;
   rotation: number;
   nets: string[];
+  /** Locked in pcbnew: the bare `locked` token (KiCad ≤ 7) or `(locked yes)` (KiCad 8+). */
+  kicadLocked: boolean;
+  /** Carries an antenna rule area, the same signal the antenna-edge check uses. */
+  antenna: boolean;
 }
 
 interface Measurement {
@@ -147,6 +157,8 @@ function topology(boardText: string): Node[] {
       y,
       rotation: mod(rotation, 360),
       nets: [...nets].sort(byCodeUnit),
+      kicadLocked: fp.includes('locked') || atom(child(fp, 'locked'), 1) === 'yes',
+      antenna: children(fp, 'zone').some((zone) => Boolean(child(zone, 'keepout')) && /ant/i.test(atom(child(zone, 'name'), 1) ?? '')),
     });
   }
   return nodes.sort((a, b) => byCodeUnit(a.ref, b.ref));
@@ -268,7 +280,13 @@ function accepts(current: Measurement, candidate: Measurement): { ok: boolean; r
 }
 
 function inferredMechanical(node: Node): boolean {
-  return /^(J|H|FID|MH)\d/i.test(node.ref) || /Connector|MountingHole|Fiducial/i.test(node.footprint);
+  return (
+    /^(J|H|FID|MH)\d/i.test(node.ref) ||
+    /Connector|MountingHole|Fiducial/i.test(node.footprint) ||
+    EDGE_CONNECTOR.test(node.footprint) ||
+    RADIO_MODULE.test(node.footprint) ||
+    node.antenna
+  );
 }
 
 function netMaps(nodes: readonly Node[]): { byNet: Map<string, Node[]>; byRef: Map<string, Node> } {
@@ -369,7 +387,9 @@ export function optimizePlacementText(boardText: string, options: FeedbackPlacem
   const critical = new Set(criticalNets);
   const explicitLocks = new Set([...new Set(options.lockedRefs ?? [])].filter(Boolean));
   const firstNodes = topology(boardText);
-  const locked = new Set(firstNodes.filter((node) => (options.lockMechanical ?? true) && inferredMechanical(node)).map((node) => node.ref));
+  const locked = new Set(
+    firstNodes.filter((node) => node.kicadLocked || ((options.lockMechanical ?? true) && inferredMechanical(node))).map((node) => node.ref),
+  );
   for (const ref of explicitLocks) locked.add(ref);
 
   let currentText = boardText;
@@ -493,6 +513,7 @@ export function formatFeedbackPlacement(report: FeedbackPlacementReport): string
   const delta = (after: number, before: number): string => `${round(after - before) >= 0 ? '+' : ''}${round(after - before)}`;
   return [
     `feedback placement: ${report.changed ? 'IMPROVED' : 'UNCHANGED'} — ${report.accepted} accepted / ${report.evaluated} evaluated; ${report.exactEvaluated} exact checks (${report.stopReason})`,
+    ...(report.lockedRefs.length ? [`  locked refs: ${report.lockedRefs.join(', ')}`] : []),
     `  hard findings: ${report.before.hardErrors} → ${report.after.hardErrors}; warnings: ${report.before.warnings} → ${report.after.warnings}`,
     `  HPWL: ${report.before.hpwlMm} → ${report.after.hpwlMm} mm (${delta(report.after.hpwlMm, report.before.hpwlMm)})`,
     ...(report.criticalNets.length

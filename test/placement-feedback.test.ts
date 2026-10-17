@@ -63,6 +63,33 @@ describe('feedback placement optimizer', () => {
     expect(parts.get('R1')!.x).toBeLessThan(30);
   });
 
+  it('keeps footprints locked in KiCad in place, with either lock spelling', () => {
+    const lockedBare = footprint('R1', 30, 10, 'SIG', 'B').replace('(footprint "Resistor_SMD:R_0402_1005Metric"', '$& locked');
+    const lockedYes = footprint('R2', 40, 20, 'SIG', 'C').replace('(layer "F.Cu")', '$&\n    (locked yes)');
+    const input = board([footprint('R3', 5, 10, 'A', 'SIG'), lockedBare, lockedYes]);
+    for (const lockMechanical of [true, false]) {
+      const result = optimizePlacementText(input, { evaluationBudget: 200, stepScheduleMm: [2], allowRotations: false, lockMechanical });
+      const parts = new Map(placementSummary(result.boardText).parts.map((part) => [part.ref, part]));
+
+      expect(result.report.lockedRefs).toEqual(expect.arrayContaining(['R1', 'R2']));
+      expect(parts.get('R1')).toMatchObject({ x: 30, y: 10 });
+      expect(parts.get('R2')).toMatchObject({ x: 40, y: 20 });
+      expect(parts.get('R3')!.x).toBeGreaterThan(5);
+    }
+  });
+
+  it('infers edge connectors and radio modules from custom libraries as mechanical', () => {
+    const input = board([
+      footprint('USB1', 3.3, 10, 'A', 'SIG', 'MyLib:USB_C_Receptacle_GCT'),
+      footprint('U1', 25, 3, 'SIG', 'B', 'MyLib:ESP32-WROOM-32'),
+      footprint('CN1', 47, 10, 'C', 'SIG', 'MyLib:Edge_Mount_Header'),
+      footprint('R1', 30, 20, 'SIG', 'D'),
+    ]);
+    const result = optimizePlacementText(input, { evaluationBudget: 100, stepScheduleMm: [2], allowRotations: false });
+    expect(result.report.lockedRefs).toEqual(['CN1', 'U1', 'USB1']);
+    expect(optimizePlacementText(input, { evaluationBudget: 1, lockMechanical: false }).report.lockedRefs).toEqual([]);
+  });
+
   it('returns byte-identical input when no proposal is a strict non-regression', () => {
     const input = board([
       footprint('J1', 3, 10, 'A', 'SIG', 'Connector_Generic:Conn_01x02'),
@@ -162,10 +189,10 @@ describe('feedback placement optimizer', () => {
   it('never lets an existing hard finding grow, such as an edge connector drifting inward', () => {
     const edgeGap = (text: string): number =>
       checkPlacementText(text).errors.find((finding) => finding.id === 'edge-connector' && finding.refs.includes('USB1'))?.magnitude ?? 0;
-    // a custom-library USB part, not inferred mechanical, already 2.5 mm from the edge
+    // a custom-library USB part already 2.5 mm from the edge, left movable on purpose
     const input = board([footprint('USB1', 3.3, 10, 'A', 'SIG', 'MyLib:USB_C_Receptacle_GCT'), footprint('R1', 40, 10, 'SIG', 'B')]);
     expect(edgeGap(input)).toBe(2.5);
-    const result = optimizePlacementText(input, { evaluationBudget: 400, stepScheduleMm: [2, 1], allowRotations: false });
+    const result = optimizePlacementText(input, { evaluationBudget: 400, stepScheduleMm: [2, 1], allowRotations: false, lockMechanical: false });
 
     expect(result.report.lockedRefs).not.toContain('USB1');
         expect(result.report.rejectionCounts).toContainEqual(expect.objectContaining({ reason: 'worsened-hard-finding' }));
