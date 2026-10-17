@@ -237,6 +237,16 @@ describe('feedback placement optimizer', () => {
     expect(result.report.accepted).toBeGreaterThan(0);
   });
 
+  it('reports only fully searched steps as plateaus', () => {
+    const input = board([footprint('R1', 8, 10, 'A', 'N1'), footprint('R2', 28, 10, 'N1', 'B')]);
+    const cut = optimizePlacementText(input, { evaluationBudget: 1, stepScheduleMm: [2, 1, 0.5], allowRotations: false });
+    expect(cut.report).toMatchObject({ evaluated: 1, plateauStepsMm: [], stopReason: 'evaluation-budget' });
+
+    const full = optimizePlacementText(input, { evaluationBudget: 5000, stepScheduleMm: [2, 1, 0.5], allowRotations: false });
+    expect(full.report.stopReason).toBe('local-optimum');
+    expect(full.report.plateauStepsMm).toContain(0.5);
+  });
+
   it('validates explicit evaluation and step budgets', () => {
     const input = board([footprint('R1', 8, 10, 'A', 'B')]);
     expect(() => optimizePlacementText(input, { evaluationBudget: 0 })).toThrow(/evaluationBudget/);

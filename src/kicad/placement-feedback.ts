@@ -527,7 +527,9 @@ function* searchPlacement(boardText: string, options: FeedbackPlacementOptions):
         if (restart) break;
       }
     }
-    if (!improvedAtStep) plateauStepsMm.push(step);
+    // a plateau is a step scanned to the end without an accept; `restart` still
+    // set means the budget ran out before this step's scan could finish
+    if (!improvedAtStep && !restart) plateauStepsMm.push(step);
   }
 
   const stopReason: FeedbackPlacementReport['stopReason'] = !movableSeen
