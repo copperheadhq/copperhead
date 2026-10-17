@@ -123,6 +123,13 @@ describe('universal placement checks', () => {
     const under = { ...resistor('R2', 10.5, 10, 'C', 'D'), side: 'B' as const };
     expect(checkPlacementText(board([resistor('R1', 10, 10), under])).ok).toBe(true);
 
+    // without a courtyard, the pad envelope stands in for the body
+    const bare = (spec: FootprintSpec): FootprintSpec => ({ ...spec, courtyard: undefined });
+    const stacked = checkPlacementText(board([bare(resistor('R1', 10, 10, 'A', 'N1')), bare(resistor('R2', 11.2, 10, 'N1', 'B'))]));
+    expect(ids(stacked)).toEqual(['pad-overlap', 'courtyard-overlap']);
+    expect(stacked.errors[1]!.detail).toMatch(/pad envelope/);
+    expect(checkPlacementText(board([bare(resistor('R1', 10, 10)), bare(resistor('R2', 12, 10, 'C', 'D'))])).ok).toBe(true);
+
     // an L-shaped courtyard: bounding boxes overlap, polygons do not (the stepped QFN case)
     const ell: FootprintSpec = {
       ref: 'U1',

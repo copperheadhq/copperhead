@@ -144,6 +144,21 @@ describe('feedback placement optimizer', () => {
     expect(after.distanceMm).toBeLessThanOrEqual(before.distanceMm!);
   });
 
+  it('never stacks courtyard-less parts onto their shared net', () => {
+    const bare = (ref: string, x: number, left: string, right: string): string =>
+      footprint(ref, x, 10, left, right, 'Resistor_SMD:R_0603_NoCrtYd')
+        .replace(/\n\s*\(fp_rect[^\n]*CrtYd"\)\)/, '')
+        .replace('(layer "F.SilkS")', '(layer "F.Fab")');
+    const input = board([bare('R1', 10, 'A', 'N1'), bare('R2', 30, 'N1', 'B')]);
+    const result = optimizePlacementText(input, { evaluationBudget: 2000 });
+    const after = checkPlacementText(result.boardText);
+    const [r1, r2] = placementSummary(result.boardText).parts;
+
+    expect(result.report.changed).toBe(true);
+    expect(after.errors).toEqual([]);
+    expect(Math.abs(r2!.x - r1!.x)).toBeGreaterThanOrEqual(1.4 - 1e-6);
+  });
+
   it('validates explicit evaluation and step budgets', () => {
     const input = board([footprint('R1', 8, 10, 'A', 'B')]);
     expect(() => optimizePlacementText(input, { evaluationBudget: 0 })).toThrow(/evaluationBudget/);

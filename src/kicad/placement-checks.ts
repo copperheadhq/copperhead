@@ -722,7 +722,9 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
     findings.push({ id, severity: 'warning', refs, detail });
   };
 
-  // pad-overlap: copper of different nets touching, within or across footprints
+  // pad-overlap: copper of different nets touching within a footprint, or any
+  // copper of two different footprints touching (same net included: KiCad DRC
+  // does not report same-net copper, so stacked parts would otherwise pass)
   const allPads = placed.flatMap((part) =>
     // unnumbered pads are paste/thermal apertures inside a numbered pad, not separate copper
     part.pads.filter((pad) => pad.kind !== 'np_thru_hole' && pad.number !== '').map((pad) => ({ part, pad, layers: copperLayersOf(pad, part.side) })),
@@ -733,7 +735,7 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
     for (let j = i + 1; j < allPads.length; j++) {
       const b = allPads[j]!;
       if (a.part === b.part && (a.pad.number === b.pad.number || a.part.netTie)) continue;
-      if (a.pad.net && a.pad.net === b.pad.net) continue;
+      if (a.part === b.part && a.pad.net && a.pad.net === b.pad.net) continue;
       if (!a.pad.net && !b.pad.net && a.part === b.part) continue;
       if (!layersShare(a.layers, b.layers) || !boxesMayTouch(a.pad.polygon, b.pad.polygon)) continue;
       if (convexPenetration(a.pad.polygon, b.pad.polygon) <= EPS) continue;
@@ -750,7 +752,8 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
     }
   }
 
-  // courtyard-overlap: same side; tht-underside: through-hole leads under an opposite-side part
+  // courtyard-overlap: same side, falling back to the pad envelope for a part
+  // without a courtyard; tht-underside: through-hole leads under an opposite-side part
   for (let i = 0; i < placed.length; i++) {
     const a = placed[i]!;
     for (let j = i + 1; j < placed.length; j++) {
@@ -760,8 +763,9 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
         if (a.silk.some((x) => b.silk.some((y) => boxesMayTouch(x, y) && polygonsIntersect(x, y)))) {
           warn('silkscreen-overlap', [a.ref, b.ref], `${a.ref} and ${b.ref} silkscreen envelopes overlap on ${a.side}.SilkS`);
         }
-        if (bodiesMayTouch && a.hasCourtyard && b.hasCourtyard && bodiesIntersect(a.body, b.body)) {
-          error('courtyard-overlap', [a.ref, b.ref], `${a.ref} and ${b.ref} courtyards overlap on ${a.side}.CrtYd`);
+        if (bodiesMayTouch && bodiesIntersect(a.body, b.body)) {
+          const kind = a.hasCourtyard && b.hasCourtyard ? 'courtyards' : 'bodies (pad envelope where a courtyard is missing)';
+          error('courtyard-overlap', [a.ref, b.ref], `${a.ref} and ${b.ref} ${kind} overlap on ${a.side}.CrtYd`);
         }
         continue;
       }
