@@ -12,7 +12,8 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
-import { STAGES, devplanGap } from '../src/commands/create.js';
+import { STAGES, contractGapDetail, devplanGap } from '../src/commands/create.js';
+import type { CopperheadConfig } from '../src/config.js';
 
 /** Return the isComplete function for the named stage (throws if not found). */
 function stageNamed(name: string) {
@@ -478,16 +479,56 @@ describe('devplan bring-up heading and failure detail (#378)', () => {
     await withTmpDir(async (root) => {
       expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md does not exist');
       await write(root, '# DEVPLAN\n\n## Bring-up\n');
-      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md has headings but no content under them');
+      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md has a "## Bring-up" heading with nothing under it');
       await write(root, '# DEVPLAN\n\n## Bring-up\n\n1. Measure the 3.3 V rail.\n');
       expect(await devplanGap(root, DOCS)).toBeNull();
+    });
+  });
+
+  it('returns false when the only bring-up "heading" is a comment in a fenced stage-7 snippet', async () => {
+    await withTmpDir(async (root) => {
+      for (const fence of ['```', '~~~']) {
+        await write(
+          root,
+          `# DEVPLAN\n\n## Firmware: not compiled here\n\nThe vendor toolchain is not installed:\n\n${fence}sh\n# bring up the toolchain first\nidf.py build\n${fence}\n`,
+        );
+        expect(await stageNamed('devplan')(root, DOCS), fence).toBe(false);
+      }
+    });
+  });
+
+  it('returns false when the bring-up heading is empty and the content belongs to another section', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n## Firmware: none, by design\n\nThe schematic has no programmable part.\n\n## Bring-up\n\n## Risks\n\nThe LDO may run hot.\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(false);
+      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md has a "## Bring-up" heading with nothing under it');
+    });
+  });
+
+  it('counts content under a subheading of the bring-up section, and a fenced snippet inside it', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n## Bring-up\n\n### Power\n\n1. Measure the 3.3 V rail.\n\n## Risks\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+      await write(root, '# DEVPLAN\n\n## Bring-up\n\n```sh\n# meter the 3.3 V rail first\n```\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+    });
+  });
+
+  it('the stage failure detail names the missing heading', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n**Bring-up**\n\n1. Measure the 3.3 V rail.\n');
+      const config = { docs: DOCS } as CopperheadConfig;
+      expect(await contractGapDetail('devplan', root, config)).toBe(
+        'the devplan contract is not met: docs/DEVPLAN.md has no "## Bring-up" heading (a Markdown heading line; bold text or another section name does not count)',
+      );
     });
   });
 
   it('the stage prompt asks for the heading the check requires, at the configured path', () => {
     const devplan = STAGES.find((s) => s.name === 'devplan')!;
     const prompt = devplan.prompt('brief', 'docs/');
-    expect(prompt).toContain('docs/DEVPLAN.md with a "## Bring-up" section');
+    expect(prompt).toContain('Write docs/DEVPLAN.md (or, if it already exists, add to it with edit_file, keeping what is there)');
+    expect(prompt).toContain('with a "## Bring-up" section');
     expect(devplan.prompt('brief', 'design/notes')).toContain('design/notes/DEVPLAN.md');
   });
 });
