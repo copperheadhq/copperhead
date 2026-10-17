@@ -160,7 +160,7 @@ describe('safe optimize_placement handler', () => {
       mocks.kicadLoadError.mockReset().mockResolvedValue(null);
 
       const result = await optimize.handler(context(repo), {
-        evaluation_budget: 160,
+        evaluation_budget: 400,
         step_schedule_mm: [2, 1, 0.5],
         allow_rotations: false,
       });
@@ -168,9 +168,45 @@ describe('safe optimize_placement handler', () => {
       expect(result, typeof result === 'string' ? result : result.text).toMatchObject({ ok: true });
       expect(typeof result === 'string' ? result : result.text).toContain('2 DRC pass(es)');
       expect(typeof result === 'string' ? result : result.text).toContain('feedback locks R1');
-      expect(typeof result === 'string' ? result : result.text).toMatch(/global search: \d+\/160 total candidate evaluations/);
+      expect(typeof result === 'string' ? result : result.text).toMatch(/global search: 29\d\/400 total candidate evaluations/);
       expect(await readFile(path.join(repo, 'board.kicad_pcb'), 'utf8')).not.toBe(input);
       expect(mocks.runDrc).toHaveBeenCalledTimes(3);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('gives the first pass the whole evaluation budget', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
+    try {
+      await writeFile(path.join(repo, 'board.kicad_pcb'), board());
+      mocks.runDrc.mockReset().mockResolvedValueOnce(cleanDrc()).mockResolvedValueOnce(cleanDrc());
+      mocks.kicadLoadError.mockReset().mockResolvedValue(null);
+
+      const result = await optimize.handler(context(repo), { evaluation_budget: 10, allow_rotations: false });
+
+      expect(result, typeof result === 'string' ? result : result.text).toMatchObject({ ok: true });
+      expect(typeof result === 'string' ? result : result.text).toContain('global search: 10/10 total candidate evaluations');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('reverts when DRC feedback needs a retry but the budget is spent', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
+    try {
+      const input = board();
+      await writeFile(path.join(repo, 'board.kicad_pcb'), input);
+      mocks.runDrc.mockReset().mockResolvedValueOnce(cleanDrc()).mockResolvedValueOnce(silkDrc('R1'));
+      mocks.kicadLoadError.mockReset().mockResolvedValue(null);
+      const ctx = context(repo);
+
+      const result = await optimize.handler(ctx, { evaluation_budget: 10, allow_rotations: false });
+
+      expect(result).toMatchObject({ ok: false });
+      expect(typeof result === 'string' ? result : result.text).toContain('REVERTED');
+      expect(await readFile(path.join(repo, 'board.kicad_pcb'), 'utf8')).toBe(input);
+      expect(ctx.filesTouched).toEqual(new Set());
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

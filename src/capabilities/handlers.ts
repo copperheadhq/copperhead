@@ -376,7 +376,7 @@ export const HANDLERS: HandlerDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          evaluation_budget: { type: 'number', description: 'maximum candidate evaluations across all DRC-feedback passes (integer 1..1000000; default 5000)' },
+          evaluation_budget: { type: 'number', description: 'maximum candidate evaluations across all DRC-feedback passes (integer 1..1000000; default 5000). Each pass may spend all that is left; a DRC-feedback retry gets only what earlier passes did not use' },
           step_schedule_mm: { type: 'array', items: { type: 'number' }, description: 'positive coarse-to-fine translation steps in mm; default [2,1,0.5,0.25]' },
           critical_nets: { type: 'array', items: { type: 'string' }, description: 'exact net names that may not regress separately from total HPWL' },
           locked_refs: { type: 'array', items: { type: 'string' }, description: 'additional reference designators that must not move' },
@@ -461,12 +461,12 @@ export const HANDLERS: HandlerDef[] = [
         if (remainingEvaluations < 1) {
           return { ok: false, text: `optimization REVERTED: global evaluation budget exhausted (${budgetSummary()})` };
         }
-        const passesLeft = maxDrcPasses - pass + 1;
-        const passBudget = Math.max(1, Math.floor(remainingEvaluations / passesLeft));
+        // The search is deterministic, so a pass that ends unchanged has nothing
+        // left to find: give every pass the whole remainder rather than a slice.
         let optimized;
         try {
           optimized = optimizePlacementText(before, {
-            evaluationBudget: passBudget,
+            evaluationBudget: remainingEvaluations,
             ...(stepScheduleMm === undefined ? {} : { stepScheduleMm }),
             ...(criticalNets === undefined ? {} : { criticalNets }),
             ...(feedbackLocks.size ? { lockedRefs: [...feedbackLocks] } : {}),
