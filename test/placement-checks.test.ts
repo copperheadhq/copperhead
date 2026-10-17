@@ -9,6 +9,7 @@ interface PadSpec {
   kind?: 'smd' | 'thru_hole' | 'np_thru_hole';
   shape?: 'rect' | 'roundrect' | 'circle' | 'oval';
   pintype?: string;
+  rratio?: number;
 }
 
 interface FootprintSpec {
@@ -31,8 +32,9 @@ function padText(pad: PadSpec, side: 'F' | 'B'): string {
   const angle = pad.at[2] === undefined ? '' : ` ${pad.at[2]}`;
   const net = pad.net ? ` (net 1 "${pad.net}")` : '';
   const pintype = pad.pintype ? ` (pintype "${pad.pintype}")` : '';
+  const rratio = pad.rratio === undefined ? '' : ` (roundrect_rratio ${pad.rratio})`;
   const drill = kind === 'smd' ? '' : ' (drill 0.8)';
-  return `(pad "${pad.n}" ${kind} ${pad.shape ?? 'rect'} (at ${pad.at[0]} ${pad.at[1]}${angle}) (size ${pad.size[0]} ${pad.size[1]})${drill} (layers ${layers})${net}${pintype})`;
+  return `(pad "${pad.n}" ${kind} ${pad.shape ?? 'rect'} (at ${pad.at[0]} ${pad.at[1]}${angle}) (size ${pad.size[0]} ${pad.size[1]})${drill} (layers ${layers})${rratio}${net}${pintype})`;
 }
 
 function courtyardText(spec: FootprintSpec): string {
@@ -158,6 +160,21 @@ describe('universal placement checks', () => {
     const explicit = checkPlacementText(rotated('(at 0 0 0)'));
     expect(ids(explicit, 'warning')).toContain('silkscreen-overlap');
     expect(checkPlacementText(rotated('(at 0 0)')).warnings).toEqual(explicit.warnings);
+  });
+
+  it('models a round-rect pad inside its true outline, so near-diagonal neighbours are not a short', () => {
+    // rratio 0.5 on a 3 x 3 pad is a 1.5 mm circle; diagonal centres 3.4 mm apart leave a 0.4 mm gap
+    const pad = (ref: string, at: number, net: string): FootprintSpec => ({
+      ref,
+      at: [at, at],
+      pads: [{ n: '1', at: [0, 0], size: [3, 3], shape: 'roundrect', rratio: 0.5, net }],
+    });
+    const offset = 3.4 / Math.SQRT2;
+    // (these parts have no courtyard, so their square pad envelopes still count as a body overlap)
+    expect(ids(checkPlacementText(board([pad('P1', 10, 'A'), pad('P2', 10 + offset, 'B')])))).not.toContain('pad-overlap');
+    // squares at the same spacing do overlap at the corners
+    const square = checkPlacementText(board([pad('P1', 10, 'A'), pad('P2', 10 + offset, 'B')]).replaceAll('roundrect', 'rect'));
+    expect(ids(square)).toContain('pad-overlap');
   });
 
   it('reports new cross-footprint silkscreen envelope overlaps', () => {

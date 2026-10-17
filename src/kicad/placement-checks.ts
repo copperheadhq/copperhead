@@ -523,7 +523,9 @@ function padOutline(shape: string, size: P, rratio: number): P[] {
     return out;
   }
   if (shape === 'roundrect') {
-    const c = Math.min(hw, hh) * 2 * Math.min(0.5, Math.max(0, rratio)) * (1 - Math.SQRT1_2);
+    // cutting each corner at the full radius puts the chamfer on the arc's chord,
+    // which lies inside the true rounded corner (a shallower cut pokes outside it)
+    const c = Math.min(hw, hh) * 2 * Math.min(0.5, Math.max(0, rratio));
     return [
       { x: -hw + c, y: -hh },
       { x: hw - c, y: -hh },
