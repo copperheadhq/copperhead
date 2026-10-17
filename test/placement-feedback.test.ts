@@ -227,6 +227,16 @@ describe('feedback placement optimizer', () => {
     expect(optimizePlacementText(input, { evaluationBudget: 1, criticalNets: ['/N1'], lockedRefs: ['R1'] }).report.criticalNets).toEqual(['/N1']);
   });
 
+  it('locks and reports duplicate refs instead of spending the budget on them', () => {
+    const input = board([footprint('R1', 8, 10, 'A', 'N1'), footprint('R1', 20, 20, 'C', 'N1'), footprint('R2', 40, 10, 'N1', 'B')]);
+    const result = optimizePlacementText(input, { evaluationBudget: 100, stepScheduleMm: [2], allowRotations: false });
+
+    expect(result.report.duplicateRefs).toEqual(['R1']);
+    expect(result.report.lockedRefs).toContain('R1');
+    expect(result.report.rejectionCounts).not.toContainEqual(expect.objectContaining({ reason: 'invalid-transform' }));
+    expect(result.report.accepted).toBeGreaterThan(0);
+  });
+
   it('validates explicit evaluation and step budgets', () => {
     const input = board([footprint('R1', 8, 10, 'A', 'B')]);
     expect(() => optimizePlacementText(input, { evaluationBudget: 0 })).toThrow(/evaluationBudget/);

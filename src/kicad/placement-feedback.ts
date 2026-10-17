@@ -67,6 +67,8 @@ export interface FeedbackPlacementReport {
   plateauStepsMm: number[];
   stopReason: 'local-optimum' | 'evaluation-budget' | 'no-movable-parts';
   lockedRefs: string[];
+  /** Refs carried by more than one footprint: a move cannot name one of them, so they stay put. */
+  duplicateRefs: string[];
   criticalNets: string[];
   operatorStats: { operator: string; evaluated: number; accepted: number }[];
   rejectionCounts: { reason: string; count: number }[];
@@ -437,6 +439,10 @@ function* searchPlacement(boardText: string, options: FeedbackPlacementOptions):
     firstNodes.filter((node) => node.kicadLocked || ((options.lockMechanical ?? true) && inferredMechanical(node))).map((node) => node.ref),
   );
   for (const ref of explicitLocks) locked.add(ref);
+  const seenRefs = new Set<string>();
+  const duplicateRefs = new Set<string>();
+  for (const node of firstNodes) (seenRefs.has(node.ref) ? duplicateRefs : seenRefs).add(node.ref);
+  for (const ref of duplicateRefs) locked.add(ref);
 
   let currentText = boardText;
   let current = measurement(boardText, criticalNets);
@@ -544,6 +550,7 @@ function* searchPlacement(boardText: string, options: FeedbackPlacementOptions):
       plateauStepsMm,
       stopReason,
       lockedRefs: [...locked].sort(byCodeUnit),
+      duplicateRefs: [...duplicateRefs].sort(byCodeUnit),
       criticalNets,
       operatorStats: [...operator.entries()]
         .sort(([a], [b]) => byCodeUnit(a, b))
@@ -561,6 +568,7 @@ export function formatFeedbackPlacement(report: FeedbackPlacementReport): string
   return [
     `feedback placement: ${report.changed ? 'IMPROVED' : 'UNCHANGED'} — ${report.accepted} accepted / ${report.evaluated} evaluated; ${report.exactEvaluated} exact checks (${report.stopReason})`,
     ...(report.lockedRefs.length ? [`  locked refs: ${report.lockedRefs.join(', ')}`] : []),
+    ...(report.duplicateRefs.length ? [`  duplicate refs (not moved): ${report.duplicateRefs.join(', ')}`] : []),
     `  hard findings: ${report.before.hardErrors} → ${report.after.hardErrors}; warnings: ${report.before.warnings} → ${report.after.warnings}`,
     `  HPWL: ${report.before.hpwlMm} → ${report.after.hpwlMm} mm (${delta(report.after.hpwlMm, report.before.hpwlMm)})`,
     ...(report.criticalNets.length
