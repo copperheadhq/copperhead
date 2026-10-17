@@ -148,6 +148,18 @@ describe('universal placement checks', () => {
     expect(ids(checkPlacementText(board([ell, resistor('R1', 10.5, 9, 'C', 'D')])))).toEqual(['courtyard-overlap']);
   });
 
+  it('reads a text position with no angle as absolute 0°, not the footprint angle', () => {
+    // a long horizontal reference on a rotated part reaches R2; read as vertical it would not
+    const rotated = (at: string): string =>
+      board([{ ...resistor('R1_LONG_REFERENCE', 10, 10, 'A', 'B', 90) }, resistor('R2', 16, 10, 'C', 'D')]).replace(
+        '(property "Reference" "R1_LONG_REFERENCE" (at 0 0 0)',
+        `(property "Reference" "R1_LONG_REFERENCE" ${at}`,
+      );
+    const explicit = checkPlacementText(rotated('(at 0 0 0)'));
+    expect(ids(explicit, 'warning')).toContain('silkscreen-overlap');
+    expect(checkPlacementText(rotated('(at 0 0)')).warnings).toEqual(explicit.warnings);
+  });
+
   it('reports new cross-footprint silkscreen envelope overlaps', () => {
     const a = resistor('R1', 10, 10);
     a.silk = ['(fp_line (start 0 1) (end 3 1) (stroke (width 0.2) (type solid)) (layer "F.SilkS"))'];

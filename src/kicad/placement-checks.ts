@@ -444,7 +444,8 @@ function silkEnvelopes(fp: SexpNode[], origin: P, rotation: number, side: 'F' | 
       const x0 = justify.has('left') ? 0 : justify.has('right') ? -width : -width / 2;
       const y0 = justify.has('top') ? 0 : justify.has('bottom') ? -size.y : -size.y / 2;
       const center = place(local, origin, rotation);
-      const angle = num(atom(at, 3), rotation);
+      // text angles are absolute, and KiCad omits a zero angle: `(at x y)` means 0°
+      const angle = num(atom(at, 3), 0);
       const polygon = envelope(
         [
           { x: x0, y: y0 },
