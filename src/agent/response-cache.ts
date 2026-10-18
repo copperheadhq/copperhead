@@ -5,6 +5,16 @@ import path from 'node:path';
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from './types.js';
 
 /**
+ * Providers that speak the text tool protocol (`renderConversation` / `parseToolCalls`).
+ * Their cache entries carry the protocol's parser version: a turn cached before the
+ * fabricated-result cut (#320) can hold tool calls the model planned after a result it
+ * invented, and replaying it would dispatch them again. Bumping the version orphans only
+ * these providers' entries; keyed and codex caches are untouched.
+ */
+const TEXT_PROTOCOL_PROVIDERS = new Set(['claude-code', 'cursor']);
+const TEXT_PROTOCOL_VERSION = 2;
+
+/**
  * Wraps a provider so each turn's `(messages, tools) -> Turn` is written to disk
  * and replayed on an identical later call. This makes the pipeline cheap and
  * fast to recover: a stage that is retried after a transient failure (a timed-out
@@ -19,16 +29,6 @@ import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from './types.js';
  * The key is a content hash of the full message history and the advertised tool
  * names, so any change to the conversation or available tools is a fresh call.
  */
-/**
- * Providers that speak the text tool protocol (`renderConversation` / `parseToolCalls`).
- * Their cache entries carry the protocol's parser version: a turn cached before the
- * fabricated-result cut (#320) can hold tool calls the model planned after a result it
- * invented, and replaying it would dispatch them again. Bumping the version orphans only
- * these providers' entries; keyed and codex caches are untouched.
- */
-const TEXT_PROTOCOL_PROVIDERS = new Set(['claude-code', 'cursor']);
-const TEXT_PROTOCOL_VERSION = 2;
-
 export class CachingProvider implements Provider {
   readonly name: string;
   private hits = 0;

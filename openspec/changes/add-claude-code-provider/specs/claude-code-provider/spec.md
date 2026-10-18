@@ -68,7 +68,7 @@ When the model's reply does not contain a parseable tool-call JSON object, the p
 - **WHEN** a `claude-code` turn returns text that is not a valid tool-call JSON object
 - **THEN** `chat()` returns a `Turn` with that text and an empty `toolCalls` array, and does not throw
 ### Requirement: Fabricated tool results are discarded
-When the model's reply continues past its tool calls in the harness's own transcript format (a line holding only `[result of <tool>]` or `[user]`), the provider SHALL treat everything from that line on as fabricated: it SHALL dispatch only the tool calls before it, SHALL NOT return the discarded text as assistant content, and SHALL return a notice naming the number of discarded blocks and tool calls, which the loop sends to the model after the real tool results. The discarded text SHALL be recorded in the transcript. A marker inside a JSON string value, or not alone on its line, SHALL NOT cut the reply.
+When the model's reply continues past its tool calls in the harness's own transcript format (a line holding only `[result of <tool>]` or `[user]`), the provider SHALL treat everything from that line on as fabricated: it SHALL dispatch only the tool calls before it, SHALL NOT return the discarded text as assistant content, and SHALL return a notice naming the number of discarded blocks and tool calls, which the loop sends to the model after the real tool results. The discarded text SHALL be recorded in the transcript. A skill's sub-run SHALL send the same notice and record the same event. A marker inside a JSON string value, or not alone on its line, SHALL NOT cut the reply.
 
 #### Scenario: A reply invents its own tool result
 - **WHEN** a turn's reply holds a tool call, then a line `[result of run_drc]` with invented output, then a second tool call
@@ -77,3 +77,7 @@ When the model's reply continues past its tool calls in the harness's own transc
 #### Scenario: A result quoted inside a JSON string
 - **WHEN** a `write_file` call's `content` string contains the text `[result of run_drc]`
 - **THEN** the call is dispatched unchanged and no notice is produced
+
+#### Scenario: A skill's sub-run invents a tool result
+- **WHEN** a skill's sub-run gets a reply cut for an invented `[result of …]` block
+- **THEN** the sub-run sends the notice after the real results and the transcript has a `fabricated-results` event naming the skill

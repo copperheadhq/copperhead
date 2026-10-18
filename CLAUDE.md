@@ -42,7 +42,7 @@ Two invariants shape everything (SPEC.md §1.3):
 
 Other load-bearing decisions (full rationale in `design.md`):
 
-- KiCad files are edited via anchored exact-match text replace only; the sexp parser never serializes (no round-tripping).
+- KiCad files are never serialized from a parse tree (no round-tripping): the agent edits them by anchored exact-match text replace, and the deterministic writers (board populate, `move_footprint`, the sym-lib-table rewrite) splice the spans `src/kicad/spans.ts` locates, keeping every byte they do not change.
 - `check` (alias `verify`) is contractually LLM-free and network-free — CI/pre-commit safe. `sync` = deterministic verify phase + LLM resolve phase; it never silently resolves a requirement violation (truth precedence: KiCad files = as-built facts, specs/budgets = requirements).
 - The loop keeps a sync-obligations ledger fed by post-tool-call hooks; commit refuses while any obligation (drift check, constraint dual-write, DECISIONS/CHANGELOG entries) is open.
 - User-visible memory: `docs/DECISIONS.md` (append-only decision log), `docs/CHANGELOG.md` (per-run design changelog), `.copperhead/runs/<ts>/summary.md` beside each JSONL transcript, `.copperhead/README.md` (self-describing config).

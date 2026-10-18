@@ -127,13 +127,27 @@ function detectMalformedCall(text: string, catalog: Set<string>): string | undef
   // result it never got (I15), or concluding the engine is absent from the build and
   // refusing the stage outright (I18). Withholding the tool is the invariant; hiding
   // the reason never was, so name it and print the real catalog.
+  // The proposal advice only where the turn offers propose_change (the main
+  // loop always does); a skill or review pass has a fixed catalog of its own.
   if (offCatalog.length) {
     const named = offCatalog.map((n) => `"${n}"`).join(', ');
+    const unlock = catalog.has('propose_change')
+      ? 'Edit and drafting tools are withheld until a proposal validates — call propose_change, then validate_change, and they appear. '
+      : '';
     return (
-      `No call ran: ${named} ${offCatalog.length > 1 ? 'are' : 'is'} not in this turn's tool ` +
-      'catalog. Edit and drafting tools are withheld until a proposal validates — call ' +
-      'propose_change, then validate_change, and they appear. Do not conclude a tool is ' +
-      `missing from the build. Available this turn: ${[...catalog].join(', ')}.`
+      `No call ran: ${named} ${offCatalog.length > 1 ? 'are' : 'is'} not in this turn's tool catalog. ${unlock}` +
+      `Do not conclude a tool is missing from the build. Available this turn: ${[...catalog].join(', ')}.`
+    );
+  }
+  // A native function-call block instead of the JSON protocol. Some models fall back to it from
+  // habit, turn after turn; a plain "call a tool" nudge gets one JSON call before the habit
+  // returns, so say what was wrong with the call.
+  const invoke = /<(?:[a-z]+:)?invoke\s+name="([^"]+)"/.exec(text);
+  if (invoke && catalog.has(invoke[1]!)) {
+    return (
+      `No call ran: the call to "${invoke[1]}" was written as an <invoke> block, which this ` +
+      'protocol does not read. Write every call as one JSON object in a ```json block: ' +
+      `{"tool": "${invoke[1]}", "args": { ... }}.`
     );
   }
   return undefined;
@@ -288,6 +302,22 @@ function toToolCall(raw: string | undefined, nextId: () => string, catalog: Set<
   // Only accept names the turn actually advertised. An empty catalog means the
   // turn offered no tools, so nothing parses as a call.
   if (!catalog.has(rec.tool)) return null;
-  const args = rec.args && typeof rec.args === 'object' ? (rec.args as Record<string, unknown>) : {};
-  return { id: nextId(), name: rec.tool, args };
+  return { id: nextId(), name: rec.tool, args: argsOf(rec) };
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * The call's arguments. The protocol asks for `args`, but a model sometimes names the object
+ * `arguments`, `parameters` or `input`, or writes the arguments flat beside `tool`. Reading only
+ * `args` turned those calls into empty ones, and the model, told an argument was missing from a
+ * call it believed complete, concluded the tool was broken. Each shape is taken as written.
+ */
+function argsOf(rec: Record<string, unknown>): Record<string, unknown> {
+  for (const key of ['args', 'arguments', 'parameters', 'input']) {
+    const v = rec[key];
+    if (isObject(v)) return v;
+  }
+  const { tool: _tool, args: _args, arguments: _arguments, parameters: _parameters, input: _input, ...flat } = rec;
+  return flat;
 }

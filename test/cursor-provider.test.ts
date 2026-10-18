@@ -113,6 +113,19 @@ describe('CursorProvider — tool protocol', () => {
     expect(prompts[1]).not.toContain('You are copperhead');
   });
 
+  it('starts a new session after close(), so a retried turn cannot duplicate a torn-down turn', async () => {
+    const resumes: Array<string | undefined> = [];
+    const runFn: CursorRunLike = async (args) => {
+      resumes.push(args.resume);
+      return { text: 'ok', sessionId: 'sess-1', usage: { inputTokens: 1, outputTokens: 1 } };
+    };
+    const provider = new CursorProvider(undefined, runFn, true);
+    await provider.chat(messages, tools);
+    await provider.close();
+    await provider.chat([...messages, { role: 'assistant', content: 'ok', toolCalls: [] }, { role: 'user', content: 'next' }], tools);
+    expect(resumes).toEqual([undefined, undefined]);
+  });
+
   it('with cache on, a replayed turn does not leave a later real call mid-session', async () => {
     // Repro for H1: if resume were on while CachingProvider can skip inner.chat,
     // the next real turn would --resume a session that never saw the cached turn.

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { execa } from 'execa';
 import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { availableTools, dispatchTool, dispatchToolResult, registry, runSkillSubRun } from '../src/agent/tools.js';
@@ -17,7 +17,7 @@ import {
   formatSkillEnvelope,
 } from '../src/commands/skill.js';
 import { parseToolCalls } from '../src/agent/providers/tool-protocol.js';
-import type { Provider, Turn } from '../src/agent/types.js';
+import type { Msg, Provider, Turn } from '../src/agent/types.js';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
 import { Transcript } from '../src/agent/transcript.js';
@@ -516,6 +516,64 @@ describe('tool-registry catalog', () => {
       const env = await runSkillSubRun({ ctx, skill, args: {}, provider });
       expect(env.ok).toBe(true);
       expect(provider.calls).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a skill turn cut for fabricated results sends the notice after the real results and records the cut (#320)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      let done = false;
+      const skill = defineSkill({
+        schema: { name: 'cut_report', description: 'test', parameters: { type: 'object', properties: {} } },
+        version: 1,
+        viewHint: 'diagnostic',
+        tools: ['list_nets'],
+        maxTurns: 4,
+        prompt: () => '',
+        isComplete: () => done,
+      });
+      const notice = 'Your last reply went on past its tool call and wrote 1 "[result of …]" block itself.';
+      const seen: Msg[][] = [];
+      const turns: Turn[] = [
+        {
+          text: null,
+          toolCalls: [{ id: '1', name: 'list_nets', args: {} }],
+          usage: { inputTokens: 1, outputTokens: 1 },
+          notice,
+          discarded: '[result of list_nets]\ninvented',
+        },
+        // tool-less, cut too: the notice arrives as its nudge
+        { text: 'thinking', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 }, nudge: notice, notice },
+        // a provider steer (a malformed call) still reaches the skill's model
+        { text: 'thinking', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 }, nudge: 'Re-emit it as exactly one complete JSON object' },
+        { text: 'done', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } },
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          if (seen.length === 4) done = true;
+          return turns[seen.length - 1]!;
+        },
+      };
+      await runSkillSubRun({ ctx, skill, args: {}, provider });
+      const second = seen[1]!;
+      const toolAt = second.findIndex((m) => m.role === 'tool' && m.toolCallId === '1');
+      expect(toolAt).toBeGreaterThanOrEqual(0);
+      expect(second.findIndex((m) => m.role === 'user' && m.content === notice)).toBeGreaterThan(toolAt);
+      expect(seen[2]!.at(-1)).toEqual({ role: 'user', content: notice });
+      expect(seen[3]!.at(-1)).toEqual({ role: 'user', content: 'Re-emit it as exactly one complete JSON object' });
+      const events = (await readFile(path.join(ctx.transcript.dir, 'transcript.jsonl'), 'utf8'))
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { type: string; data: Record<string, unknown> });
+      const cuts = events.filter((e) => e.type === 'fabricated-results').map((e) => e.data);
+      expect(cuts).toHaveLength(2);
+      expect(cuts[0]).toEqual({ skill: 'cut_report', notice, discarded: '[result of list_nets]\ninvented' });
     } finally {
       await cleanup();
     }

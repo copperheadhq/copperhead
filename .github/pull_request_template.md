@@ -70,7 +70,7 @@ $ <command>
 - [ ] **Spec-gated in**: `edit_file`/`write_file` stay structurally absent from the agent tool list until an OpenSpec proposal validates (gated by omission, not prompt text).
 - [ ] **Verification-gated out**: mutations still end in ERC (and DRC when the board changed) passing, with repair up to `maxRepairCycles` then rollback to the git snapshot.
 - [ ] **`check`/`verify` stays LLM-free and network-free**: nothing reachable from `src/commands/check` touches a provider, an API key, or the network.
-- [ ] **No sexp serialization**: the `src/kicad/` parser stays read-only; KiCad files are edited only via anchored exact-match text replace (no round-tripping).
+- [ ] **No sexp serialization**: the `src/kicad/` parser stays read-only; the agent edits KiCad files only via anchored exact-match text replace, and the deterministic writers (populate, `move_footprint`, the sym-lib-table rewrite) splice located spans and keep every byte they do not change (no round-tripping).
 - [ ] **Sync-obligations ledger**: post-tool-call hooks keep feeding the ledger, and commit keeps refusing while obligations are open.
 - [ ] **Secrets**: transcripts and summaries redact `sk-[A-Za-z0-9_-]+` at write time; keys live only in env vars; `.gitignore` keeps `.env` and `.copperhead/runs/`.
 - [ ] **Spec coherence**: if spec-level behavior changed, SPEC.md and the change artifacts (`proposal.md`, `design.md`, delta specs, `tasks.md`) moved together and `openspec validate <change>` passes.

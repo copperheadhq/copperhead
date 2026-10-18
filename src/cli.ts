@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command, Option } from 'commander';
 import path from 'node:path';
+import { setMaxListeners } from 'node:events';
 import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
 import { loadConfig, resolveModel, type ModelSource } from './config.js';
@@ -24,7 +25,7 @@ import { runAgentLoop, type BudgetExhaustedStats } from './agent/loop.js';
 import { makeRenderer } from './agent/render.js';
 import { kicadCliVersion } from './kicad/cli.js';
 import { loadEnvFile } from './util/env.js';
-import { budgetExtraTurns, budgetPromptText, parseMaxTurns, repoOf } from './util/cli-args.js';
+import { budgetExtraTurns, budgetPromptText, parseMaxTurns, repoOf, reviewProviderFactory } from './util/cli-args.js';
 
 // Read .env from the working directory before any command resolves a model or a
 // provider. Loaded here rather than per-command so `check` behaves identically,
@@ -407,6 +408,101 @@ program
       process.exit(1);
     }
   });
+
+program
+  .command('review')
+  .description('EXPERIMENTAL: grounded design review: a deterministic sweep, model passes that propose, verifiers that decide (RFC 17)')
+  .argument('[design]', 'the design directory (default: --repo or cwd); never written')
+  .option('--out <dir>', 'a new directory, outside the design, for the review record')
+  .option('--source <path...>', 'retained sources a citation may name: datasheet text, documents, firmware (repeatable; directories are walked)')
+  .option('--fab <path...>', 'fabrication outputs to review with the design: Gerber and drill directories or zips, BOM and placement files')
+  .option('--fab-profile <path>', 'a manufacturer capability profile for fab-rules')
+  .option('--model <model>', 'claude-code | claude | codex | gpt-5 (or a provider-specific model id)')
+  .option('--domains <list>', 'comma-separated domains: P power, M MCU, S storage/IO, F firmware, L physical, R routing, G fabrication outputs, B BOM', 'P,M,S,F,L,R,G,B')
+  .option('--max-turns <n>', 'turn budget per domain pass', '40')
+  .option('--max-minutes <n>', 'wall-clock budget per domain pass', '45')
+  .option('--parallel <n>', 'domain passes run at once', '3')
+  .option('--label <text>', 'the design name shown in the report')
+  .option('--sweep <dir>', 'reuse a copperhead-tools review record instead of running the sweep')
+  .option('--tools <path>', 'copperhead-tools cli.js or executable (default: COPPERHEAD_TOOLS, then PATH)')
+  .option('--replay <dir>', 're-verify a recorded review with no model and compare its report byte for byte; run it from the directory the review ran in')
+  .option('--resume', 'continue the record in --out that a killed run left: keep its sweep, bundle and ended passes')
+  .addHelpText(
+    'after',
+    '\nExit codes: 0 every pass ended and the report was written; 2 the report was written but a pass failed\n' +
+      '(rerun it with --resume); 1 an error, or a replay that differs; 130 or 143 cancelled by SIGINT or SIGTERM.',
+  )
+  .action(
+    async (
+      designArg: string | undefined,
+      opts: { out?: string; source?: string[]; fab?: string[]; fabProfile?: string; model?: string; domains: string; maxTurns: string; maxMinutes: string; parallel: string; label?: string; sweep?: string; tools?: string; replay?: string; resume?: boolean },
+    ) => {
+      const json = Boolean(program.opts().json);
+      const log = (line: string) => console.error(line);
+      // Cancelling stops the passes and the copperhead-tools processes, keeps every sample saved so
+      // far (a later --resume reruns the interrupted passes), and exits 128 + the signal number.
+      const cancel = new AbortController();
+      // Every pass and copperhead-tools process listens on it; --parallel 8 passes more than the default ten.
+      setMaxListeners(0, cancel.signal);
+      let cancelCode = 0;
+      const onSignal = (sig: NodeJS.Signals) => {
+        if (cancelCode) process.exit(cancelCode);
+        cancelCode = sig === 'SIGINT' ? 130 : 143;
+        console.error(`review: ${sig}: cancelling`);
+        cancel.abort();
+        setTimeout(() => process.exit(cancelCode), 10_000).unref();
+      };
+      process.on('SIGINT', onSignal);
+      process.on('SIGTERM', onSignal);
+      try {
+        const { runReview, replayReview } = await import('./review/run.js');
+        if (opts.replay) {
+          const r = await replayReview(opts.replay, { ...(opts.tools ? { tools: opts.tools } : {}), log, signal: cancel.signal });
+          if (cancelCode) throw new Error('cancelled');
+          if (json) console.log(JSON.stringify(r, null, 2));
+          else console.log(r.identical ? `replay identical: ${r.replayReport}` : `replay DIFFERS: compare ${r.report} with ${r.replayReport} (a replay runs from the directory the review ran in)`);
+          process.exit(r.identical ? 0 : 1);
+        }
+        if (!opts.out) throw new Error('--out is required (a new directory for the review record)');
+        const design = designArg ?? repoOf(program.opts());
+        const config = await loadConfig(design);
+        const { model } = resolveModel(opts.model, config);
+        const { makeProvider } = await import('./agent/loop.js');
+        const res = await runReview({
+          design,
+          out: opts.out,
+          sources: opts.source ?? [],
+          model,
+          domains: opts.domains.split(',').map((d) => d.trim().toUpperCase()).filter(Boolean),
+          maxTurns: Number(opts.maxTurns),
+          maxMinutes: Number(opts.maxMinutes),
+          parallel: Number(opts.parallel),
+          ...(opts.label ? { label: opts.label } : {}),
+          ...(opts.sweep ? { sweep: opts.sweep } : {}),
+          ...(opts.fab ? { fab: opts.fab } : {}),
+          ...(opts.fabProfile ? { fabProfile: opts.fabProfile } : {}),
+          ...(opts.resume ? { resume: true } : {}),
+          ...(opts.tools ? { tools: opts.tools } : {}),
+          makeProvider: reviewProviderFactory(config, makeProvider),
+          log,
+          signal: cancel.signal,
+        });
+        if (cancelCode) throw new Error('cancelled');
+        if (json) console.log(JSON.stringify(res, null, 2));
+        else {
+          console.log(`report: ${res.report}`);
+          console.log(`verification: ${JSON.stringify(res.summary)}`);
+          for (const p of res.passes) console.log(`  ${p.domain}: ${p.outcome}, ${p.turns} turns, ${p.proposals} proposals, ${p.seconds} s${p.error ? ` (${p.error})` : ''}`);
+        }
+        const failed = res.passes.filter((p) => p.outcome === 'failed').map((p) => p.domain);
+        if (failed.length) console.error(`review: ${failed.length} pass(es) failed (${failed.join(', ')}); the report covers the rest. Rerun them with --resume.`);
+        process.exit(failed.length ? 2 : 0);
+      } catch (err) {
+        console.error((err as Error).message);
+        process.exit(cancelCode || 1);
+      }
+    },
+  );
 
 program
   .command('mcp')

@@ -56,6 +56,11 @@ export interface ChatOpts {
    * once, on the returned Turn.
    */
   onStream?: (streamedChars: number) => void;
+  /**
+   * Aborting it cancels the turn's request. Providers that make an HTTP request pass it to their
+   * SDK; the subprocess providers are stopped through close() instead.
+   */
+  signal?: AbortSignal;
 }
 
 export interface Provider {

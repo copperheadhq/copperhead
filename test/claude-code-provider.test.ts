@@ -219,8 +219,9 @@ describe('ClaudeCodeProvider — tool protocol', () => {
   // build, and refused stage 4. The lock still withholds; it just says so now.
   it('nudges with the real catalog when a well-formed call names a withheld tool (#I18)', async () => {
     const reply = '```json\n{"tool":"draft_schematic","args":{"intent_json":"schematic.intent.json"}}\n```';
+    const propose: ToolSchema = { name: 'propose_change', description: 'Propose a change', parameters: { type: 'object', properties: {} } };
     const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
-    const turn = await provider.chat(messages, tools); // catalog = read_file, finish
+    const turn = await provider.chat(messages, [...tools, propose]); // the main loop's catalog always offers propose_change
     expect(turn.toolCalls).toHaveLength(0); // still not dispatched — the lock is structural
     expect(turn.nudge).toMatch(/draft_schematic/);
     expect(turn.nudge).toMatch(/propose_change/);
@@ -228,6 +229,16 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     // The real catalog, so the model cannot invent one.
     expect(turn.nudge).toMatch(/read_file/);
     expect(turn.nudge).toMatch(/finish/);
+  });
+
+  it('names the catalog, without proposal advice, where the turn offers no propose_change (a skill)', async () => {
+    const reply = '```json\n{"tool":"finish","args":{}}\n```';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools.filter((t) => t.name !== 'finish'));
+    expect(turn.toolCalls).toHaveLength(0);
+    expect(turn.nudge).toMatch(/"finish" is not in this turn's tool catalog/);
+    expect(turn.nudge).toMatch(/Available this turn: read_file\./);
+    expect(turn.nudge).not.toMatch(/propose_change/);
   });
 
   it('names every withheld tool when a turn calls more than one (#I18)', async () => {
@@ -410,6 +421,27 @@ describe('ClaudeCodeProvider — session resume (1.1)', () => {
     expect(seen[1]!.prompt).toContain('[result of read_file]');
     expect(seen[1]!.prompt).not.toContain('do it'); // earlier turns live in the session, not re-sent
     expect(seen[1]!.prompt).not.toContain('[assistant tool call]'); // our own reply isn't re-sent
+  });
+
+  it('starts a new session after close(), so a retried turn cannot duplicate a torn-down turn', async () => {
+    const seen: Array<{ prompt: string; options?: Record<string, unknown> }> = [];
+    const q: QueryLike = (args) => {
+      seen.push(args);
+      return (async function* () {
+        for (const m of withSession('sess-123', [assistant('ok'), result()])) yield m;
+      })();
+    };
+    const provider = new ClaudeCodeProvider(undefined, q, undefined, true);
+    const first: Msg[] = [
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'do it' },
+    ];
+    await provider.chat(first, tools);
+    // The watchdog closes the provider on a hung turn, then the turn is retried.
+    await provider.close();
+    await provider.chat([...first, { role: 'assistant', content: 'ok' }, { role: 'user', content: 'next' }], tools);
+    expect((seen[1]!.options ?? {}).resume).toBeUndefined();
+    expect(seen[1]!.prompt).toContain('do it'); // the whole conversation, in a new session
   });
 
   it('is off by default: every turn re-sends the full flattened history, never resume', async () => {

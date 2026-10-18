@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { normalizeReport, type CheckReport } from './report.js';
+import { duplicateFootprintRefs, normalizeReport, type CheckReport } from './report.js';
 import { JLC_DRILL_ARGS, type JlcProfile } from './jlc-profile.js';
 import { PreflightError, isNotFoundError } from '../util/preflight.js';
 
@@ -286,6 +286,10 @@ async function runCheck(
   const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-'));
   const out = path.join(dir, `${kind}.json`);
   const sub = kind === 'erc' ? ['sch', 'erc'] : ['pcb', 'drc'];
+  // the board DRC reads, read first: a shared reference on it is never one
+  // footprint's own geometry (AC-15.41). A board this cannot read gets no
+  // finding excused, rather than every one that names a single reference.
+  const duplicateRefs = kind === 'drc' ? await readFile(filePath, 'utf8').then(duplicateFootprintRefs, () => null) : undefined;
   try {
     const res = await runKicad(
       [...sub, '--format', 'json', '--exit-code-violations', '--output', out, ...extraArgs, filePath],
@@ -304,7 +308,7 @@ async function runCheck(
         `kicad-cli ${kind} produced no report — the ${kind === 'erc' ? 'schematic' : 'board'} file likely fails to load in KiCad. kicad-cli output: ${detail || '(none)'}`,
       );
     }
-    return normalizeReport(raw, kind);
+    return normalizeReport(raw, kind, duplicateRefs === null ? { excuse: false } : duplicateRefs ? { duplicateRefs } : {});
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

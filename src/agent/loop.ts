@@ -656,6 +656,15 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     nudges = 0;
 
     for (const call of res.toolCalls) {
+      // An accepted finish ends the run on the checks it just passed: a call
+      // after it in the same reply would change the board or sheet those checks
+      // saw, and nothing re-checks before the commit, so it is answered, not run.
+      if (ctx.finishRequest) {
+        const result = 'not run: finish was already accepted earlier in this reply, so the run ended there';
+        await transcript.event('tool-not-run', { name: call.name, args: call.args, result });
+        messages.push({ role: 'tool', toolCallId: call.id, content: result });
+        continue;
+      }
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
@@ -666,10 +675,11 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     // of its own "results" to disregard (a tool-less turn got this as its nudge).
     if (res.notice) messages.push({ role: 'user', content: res.notice });
 
-    // Not when this same turn went on to finish: finish is approved only after
-    // the checks passed, so its violations do not persist, whatever the count
-    // reached on the way (a batched turn: a failed repair, a fix, a clean check,
-    // finish).
+    // Not when this same turn went on to finish: a finish done is approved only
+    // after the checks passed, and nothing after it in the turn runs, so its
+    // violations do not persist, whatever the count reached on the way (a
+    // batched turn: a failed repair, a fix, a clean check, finish). A refusal
+    // restores the snapshot either way, and keeps the budget it cites (AC-3.4).
     if (!ctx.finishRequest && repairBudgetExhausted(ctx.repairCycles, config.maxRepairCycles)) {
       return fail(`repair cycles exhausted (${config.maxRepairCycles}); violations persist`, 'repair-cycles-exhausted');
     }

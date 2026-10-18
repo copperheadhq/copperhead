@@ -55,6 +55,8 @@ export class CursorProvider implements Provider {
   private cwdPromise?: Promise<string>;
   private sessionId?: string;
   private sentCount = 0;
+  /** Bumped by close(): a turn begun before a teardown must not write session state after it. */
+  private generation = 0;
   private readonly inFlight = new Set<AbortController>();
 
   constructor(
@@ -75,6 +77,7 @@ export class CursorProvider implements Provider {
       .map((m) => m.content)
       .join('\n\n');
     const systemPrompt = [system, renderToolProtocol(tools)].filter(Boolean).join('\n\n');
+    const generation = this.generation;
     const resume = this.sessionResume ? this.sessionId : undefined;
     const prompt = resume ? renderDelta(messages, this.sentCount) : renderConversation(messages);
     const catalog = new Set(tools.map((t) => t.name));
@@ -96,7 +99,7 @@ export class CursorProvider implements Provider {
         env: subprocessEnv(),
       });
       text = result.text;
-      if (this.sessionResume && result.sessionId) this.sessionId = result.sessionId;
+      if (this.sessionResume && generation === this.generation && result.sessionId) this.sessionId = result.sessionId;
       inputTokens = result.usage.inputTokens;
       outputTokens = result.usage.outputTokens;
       opts.onStream?.(text.length);
@@ -108,7 +111,7 @@ export class CursorProvider implements Provider {
     }
 
     // Only advance the high-water mark when resume is on (same as claude-code).
-    if (this.sessionResume) this.sentCount = messages.length;
+    if (this.sessionResume && generation === this.generation) this.sentCount = messages.length;
     const parsed = parseToolCalls(text, () => `cur-${++this.callSeq}`, catalog);
     return {
       text: parsed.text,
@@ -120,6 +123,11 @@ export class CursorProvider implements Provider {
   }
 
   async close(): Promise<void> {
+    // As in claude-code: a torn-down session is not resumed, so a retried turn cannot duplicate
+    // messages the stopped subprocess had already taken; the next turn starts a new session.
+    this.generation++;
+    this.sessionId = undefined;
+    this.sentCount = 0;
     for (const aborter of this.inFlight) {
       try {
         aborter.abort();
