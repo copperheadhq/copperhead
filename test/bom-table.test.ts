@@ -192,6 +192,80 @@ describe('parseBomTable', () => {
   it('returns an empty array for a BOM with header only, no data rows', () => {
     expect(parseBomTable(header)).toEqual([]);
   });
+
+  it('ignores a Refdes-headed table with no Value column, keeping the real row (#321)', () => {
+    const md = [
+      '| Refdes | Value | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|',
+      '| C1 | 4700uF | Capacitor_THT:CP_Radial_D12.5mm_P5.00mm | UNVERIFIED | reservoir |',
+      '',
+      '## Symbol availability audit',
+      '',
+      '| Refdes | Symbol `lib_id` | Symbol exists? | Pins read back from the installed symbol |',
+      '|---|---|---|---|',
+      '| C1 | `Device:C_Polarized` | Yes | 2 pins, both passive |',
+    ].join('\n');
+    const rows = parseBomTable(md);
+    expect(rows.map((r) => r.refdes)).toEqual(['C1']);
+    expect(rows[0]!.value).toBe('4700uF');
+  });
+
+  it('does not let a quiescent-current or lib_id table override a real value (#321)', () => {
+    const md = [
+      '| Refdes | Value | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|',
+      '| J1 | USB-C 6P | Connector_USB:USB_C_Receptacle_USB2.0 | UNVERIFIED | power in |',
+      '',
+      '## Quiescent-current roll-up',
+      '',
+      '| Refdes | Leakage / quiescent contribution | Basis |',
+      '|---|---|---|',
+      '| J1 | 0 mA | none |',
+      '',
+      '## Symbol availability',
+      '',
+      '| Refdes | Symbol `lib_id` |',
+      '|---|---|',
+      '| J1 | `Connector:USB_C_Receptacle_USB2.0` |',
+    ].join('\n');
+    const rows = parseBomTable(md);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ refdes: 'J1', value: 'USB-C 6P' });
+  });
+
+  it('still parses a normal Refdes|Value|Footprint|MPN|Rationale BOM unchanged', () => {
+    const md = `${header}\n| R1 | 10k | Resistor_SMD:R_0603_1608Metric | UNVERIFIED | Rd |\n`;
+    expect(parseBomTable(md)).toEqual([
+      {
+        refdes: 'R1',
+        value: '10k',
+        footprint: 'Resistor_SMD:R_0603_1608Metric',
+        mpn: 'UNVERIFIED',
+        flags: ['UNVERIFIED'],
+      },
+    ]);
+  });
+
+  it('parses a BOM with extra appended columns (Manufacturer, LCSC)', () => {
+    const md = [
+      '| Refdes | Value | Footprint | MPN | Rationale | Manufacturer | LCSC |',
+      '|---|---|---|---|---|---|---|',
+      '| R1 | 10k | Resistor_SMD:R_0603_1608Metric | UNVERIFIED | Rd | Yageo | C25804 |',
+    ].join('\n');
+    const rows = parseBomTable(md);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      refdes: 'R1',
+      value: '10k',
+      footprint: 'Resistor_SMD:R_0603_1608Metric',
+      mpn: 'UNVERIFIED',
+    });
+  });
+
+  it('ignores a pin-headed table (no Value column) rather than reading it as a BOM', () => {
+    const md = '| Refdes | Pin | Net |\n|---|---|---|\n| J1 | A4 | VBUS |\n';
+    expect(parseBomTable(md)).toEqual([]);
+  });
 });
 
 describe('normalizeValue (#I11 — semantic value equality, not byte-exact)', () => {
