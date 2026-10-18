@@ -11,8 +11,11 @@ import {
   loadConstraints,
   classifyAffectsTarget,
   reopenDeferredAffects,
+  checkForbiddenPins,
+  uncheckedForbiddenConstraints,
 } from '../src/memory/constraints.js';
-import { syncVerify } from '../src/commands/sync.js';
+import { syncVerify, formatSyncReport } from '../src/commands/sync.js';
+import { runCheck } from '../src/commands/check.js';
 import { tempFixtureRepo } from './helpers.js';
 
 async function makeCtx(repo: string): Promise<RunContext> {
@@ -379,11 +382,20 @@ describe('copperhead sync verify phase (AC-7)', () => {
     }
   });
 
-  it('forbidden-pin use is a requirement violation: flagged, never resolvable (AC-7.3)', async () => {
+  it('forbidden-pin use is a requirement violation against stock RF_Module:ESP32-S3-WROOM-1 IO* pin names (AC-7.3, #395)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
+      const schPath = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const rawSch = await readFile(schPath, 'utf8');
+      // Rewrite the fixture MCU symbol to use stock RF_Module:ESP32-S3-WROOM-1 naming (IO0, IO3, IO14, IO18, IO21)
+      const stockSch = rawSch
+        .replaceAll('fixture:ESP32-S3-MINI', 'RF_Module:ESP32-S3-WROOM-1')
+        .replaceAll('ESP32-S3-MINI', 'ESP32-S3-WROOM-1')
+        .replaceAll('(name "GPIO', '(name "IO');
+      await writeFile(schPath, stockSch, 'utf8');
       await runInit({ repoRoot: repo });
-      // GPIO14 carries KEY_DAH in the fixture; forbid it and sync must flag, not fix
+
+      // IO14 carries KEY_DAH on the stock symbol while datasheet/spec constraint says GPIO14
       await saveConstraint(repo, 'pins.forbidden_gpio14', {
         forbidden: ['GPIO14'],
         source: 'esp32-s3 datasheet',
@@ -391,10 +403,88 @@ describe('copperhead sync verify phase (AC-7)', () => {
       });
       const report = await syncVerify(repo);
       expect(report.violations).toHaveLength(1);
+      expect(report.violations[0]!.description).toContain('IO14');
       expect(report.violations[0]!.description).toContain('GPIO14');
       expect(report.violations[0]!.governedBy).toBe('esp32-s3 datasheet');
     } finally {
       await cleanup();
     }
   });
+
+  it('scopes forbidden pins by part, matches pin numbers and IO/GPIO aliases, and reports unchecked free-text rules (#395)', async () => {
+    const strappingReg = {
+      'pins.strapping': {
+        forbidden: ['GPIO0', 'GPIO3', 'GPIO45', 'GPIO46'],
+        source: 'esp32-s3 datasheet §2.4',
+        affects: ['U1'],
+      },
+    };
+
+    // 1. Stock ESP32-S3-WROOM-1 symbol: pin is named IO0 -> flagged on U1
+    const v1 = checkForbiddenPins(strappingReg, [{ ref: 'U1', pinName: 'IO0', net: 'BOOT' }]);
+    expect(v1).toHaveLength(1);
+    expect(v1[0]!.description).toContain('U1 pin IO0 (GPIO0) is connected to net BOOT');
+
+    // 2. Unrelated part U5 with a pin named GPIO0 -> not flagged when scoped to U1 via affects, refs, or U1: prefix
+    expect(checkForbiddenPins(strappingReg, [{ ref: 'U5', pinName: 'GPIO0', net: 'LED_EN' }])).toEqual([]);
+    expect(
+      checkForbiddenPins(
+        { 'pins.strapping': { forbidden: ['U1:GPIO0'], source: 'datasheet', affects: [] } },
+        [{ ref: 'U5', pinName: 'GPIO0', net: 'LED_EN' }],
+      ),
+    ).toEqual([]);
+    expect(
+      checkForbiddenPins(
+        { 'pins.strapping': { forbidden: ['GPIO0'], refs: ['U1'], source: 'datasheet', affects: [] } },
+        [{ ref: 'U5', pinName: 'GPIO0', net: 'LED_EN' }],
+      ),
+    ).toEqual([]);
+
+    // 3. Match by pin number (e.g. U1:27 matches pinNumber 27)
+    const vNum = checkForbiddenPins(
+      { 'pins.by_number': { forbidden: ['U1:27'], source: 'datasheet', affects: [] } },
+      [{ ref: 'U1', pinNumber: '27', pinName: 'IO21', net: 'LED' }],
+    );
+    expect(vNum).toHaveLength(1);
+    expect(vNum[0]!.description).toContain('U1 pin IO21 (27) is connected to net LED');
+
+    // 4. Free-text rule in forbidden: matches no pin -> surfaced as not mechanically checked in check & sync
+    const freeTextReg = {
+      'assembly.hand_solderable': {
+        forbidden: ['BGA'],
+        source: 'SPEC.md',
+        affects: ['board'],
+      },
+    };
+    expect(checkForbiddenPins(freeTextReg, [{ ref: 'U2', pinName: 'VIN', net: 'VBUS' }])).toEqual([]);
+    expect(uncheckedForbiddenConstraints(freeTextReg, [{ ref: 'U2', pinName: 'VIN', net: 'VBUS' }])).toEqual([
+      'assembly.hand_solderable',
+    ]);
+
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const subs = await readFile(path.join(repo, 'docs', 'SUBSYSTEMS.md'), 'utf8');
+      await writeFile(path.join(repo, 'docs', 'SUBSYSTEMS.md'), subs + '\n## Keyer\n\nKey input block.\n', 'utf8');
+      const spec = await readFile(path.join(repo, 'docs', 'SPEC.md'), 'utf8');
+      await writeFile(path.join(repo, 'docs', 'SPEC.md'), spec + '\n- hand_solderable: no BGA\n', 'utf8');
+      await saveConstraint(repo, 'assembly.hand_solderable', {
+        forbidden: ['component smaller than 0603', 'BGA'],
+        source: 'docs/SPEC.md',
+        affects: ['board'],
+      });
+
+      const logs: string[] = [];
+      const checkRes = await runCheck(repo, (s) => logs.push(s));
+      expect(checkRes.constraints.unchecked).toEqual(['assembly.hand_solderable']);
+      expect(logs).toContain('constraint assembly.hand_solderable: not mechanically checked');
+      expect(logs).not.toContain('constraints ✓');
+
+      const syncRep = await syncVerify(repo);
+      expect(syncRep.unchecked).toEqual(['assembly.hand_solderable']);
+      expect(formatSyncReport(syncRep)).toContain('constraint assembly.hand_solderable: not mechanically checked');
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
 });
