@@ -205,6 +205,72 @@ describe('file tools', () => {
     expect(await readFile(path.join(dir, 'mixed-all.txt'), 'utf8')).toBe('a\r\nb\r\n---\na\nb\n');
   });
 
+  it('edit_file replace_all handles a CRLF anchor ending in a line break once', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, '  (in_bom yes)\r\n  (on_board yes)\r\n', 'utf8');
+
+    const result = await toolEditFile(
+      dir,
+      'f.txt',
+      '  (in_bom yes)\n',
+      '  (in_bom yes)\n  (dnp no)\n',
+      true,
+    );
+
+    expect(result).toBe('edited f.txt (1 occurrence(s) replaced)');
+    expect(await readFile(file, 'utf8')).toBe('  (in_bom yes)\r\n  (dnp no)\r\n  (on_board yes)\r\n');
+  });
+
+  it('edit_file finds a multi-line anchor after an earlier unmatched first line', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'a\r\nX\r\na\r\nb\r\n', 'utf8');
+
+    await toolEditFile(dir, 'f.txt', 'a\nb', 'c\nd');
+
+    expect(await readFile(file, 'utf8')).toBe('a\r\nX\r\nc\r\nd\r\n');
+  });
+
+  it('edit_file finds a schematic anchor after an earlier unmatched close line', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.kicad_sch');
+    const anchor = '      )\n    )\n    (symbol (lib_id "Device:C")';
+    await writeFile(file, '      )\r\n  (earlier symbol)\r\n      )\r\n    )\r\n    (symbol (lib_id "Device:C")\r\n', 'utf8');
+
+    await toolEditFile(dir, 'f.kicad_sch', anchor, anchor.replace('Device:C', 'Device:R'));
+
+    expect(await readFile(file, 'utf8')).toBe('      )\r\n  (earlier symbol)\r\n      )\r\n    )\r\n    (symbol (lib_id "Device:R")\r\n');
+  });
+
+  it('edit_file replace_all rejects a missing one-line anchor without writing', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'present\r\n', 'utf8');
+
+    await expect(toolEditFile(dir, 'f.txt', 'missing', 'replacement', true)).rejects.toThrow(
+      'edit_file: anchor not found in f.txt; re-read the file and use an exact excerpt',
+    );
+    expect(await readFile(file, 'utf8')).toBe('present\r\n');
+  });
+
+  it('edit_file one-line anchors learn the following break at each match', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const midLineFile = path.join(dir, 'mid-line.txt');
+    await writeFile(midLineFile, '(a "R1" b)\r\nnext\r\n', 'utf8');
+
+    await toolEditFile(dir, 'mid-line.txt', '"R1"', '"R1"\n"R2"');
+
+    expect(await readFile(midLineFile, 'utf8')).toBe('(a "R1"\r\n"R2" b)\r\nnext\r\n');
+
+    const mixedFile = path.join(dir, 'mixed.txt');
+    await writeFile(mixedFile, 'hdr\r\nfoo\nbar\n', 'utf8');
+
+    await toolEditFile(dir, 'mixed.txt', 'foo', 'foo\nadded', true);
+
+    expect(await readFile(mixedFile, 'utf8')).toBe('hdr\r\nfoo\nadded\nbar\n');
+  });
+
   it('search finds regex matches with glob filtering', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     await writeFile(path.join(dir, 'a.md'), 'KEY_DAH here');

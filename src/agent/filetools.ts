@@ -50,46 +50,44 @@ export async function toolEditFile(
   const abs = resolveInRepo(repoRoot, p);
   let text = await readFile(abs, 'utf8');
 
-  const l0 = oldString.split(/\r?\n|\r/);
-  const l1 = newString.split(/\r?\n|\r/);
-  let anchor = oldString;
-
-  if (!text.includes(anchor) && l0.length > 1) {
-    const idx = text.indexOf(l0[0]!);
-    const gap = idx !== -1 ? text.slice(idx + l0[0]!.length).match(/^(\r?\n|\r)/)?.[0] : null;
-    if (gap && text.startsWith(l0[1]!, idx + l0[0]!.length + gap.length)) {
-      anchor = l0.join(gap);
-    }
-  }
+  const l0 = oldString.split(/\r\n|\n|\r/);
+  const l1 = newString.split(/\r\n|\n|\r/);
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const normalizedRe = new RegExp(l0.map(esc).join('(?:\\r\\n|\\n|\\r)'), 'g');
+  const exactRe = new RegExp(esc(oldString), 'g');
+  const exactMatches = [...text.matchAll(exactRe)];
+  const re = exactMatches.length > 0 ? exactRe : normalizedRe;
+  const breakAtOrAfter = (at: number) => text.slice(at).match(/\r\n|\n|\r/)?.[0] ?? '\n';
+  const replacementFor = (match: string, at: number) => {
+    const localEol = l0.length === 1 ? breakAtOrAfter(at) : (match.match(/\r\n|\n|\r/)?.[0] ?? breakAtOrAfter(at));
+    return l1.join(localEol);
+  };
 
   if (replaceAll) {
     let count = 0;
-    const eols = l0.length > 1 ? ['\n', '\r\n', '\r'].filter(e => text.includes(l0.join(e))) : [null];
-    if (eols.length === 0) throw new Error(`edit_file: anchor not found in ${p}`);
-
-    for (const eol of eols) {
-      const cand = eol ? l0.join(eol) : anchor;
-      if (text.includes(cand)) {
-        count += text.split(cand).length - 1;
-        const repEol = eol ?? (text.match(/\r?\n|\r/)?.[0] ?? '\n');
-        text = text.split(cand).join(l1.join(repEol));
-      }
+    const out = text.replace(normalizedRe, (match, at: number) => {
+      count++;
+      return replacementFor(match, at);
+    });
+    if (count === 0) {
+      throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
     }
-    await writeFile(abs, text, 'utf8');
+    await writeFile(abs, out, 'utf8');
     return `edited ${p} (${count} occurrence(s) replaced)`;
   }
 
-  const first = text.indexOf(anchor);
-  if (first === -1) throw new Error(`edit_file: anchor not found in ${p}`);
-  const count = text.split(anchor).length - 1;
-  if (count > 1) throw new Error(`edit_file: anchor matched ${count} times in ${p}`);
+  const matches = [...text.matchAll(re)];
+  if (matches.length === 0) {
+    throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+  }
+  if (matches.length > 1) {
+    throw new Error(`edit_file: anchor matched ${matches.length} times in ${p}; widen the anchor with surrounding lines until it is unique, or pass replace_all: true to replace every occurrence`);
+  }
 
-  const localEol = l0.length === 1
-    ? (text.slice(first + anchor.length).match(/^(\r?\n|\r)/)?.[0] ?? '\n')
-    : (anchor.match(/\r?\n|\r/)?.[0] ?? '\n');
-
-  const replacement = l1.join(localEol);
-  await writeFile(abs, text.slice(0, first) + replacement + text.slice(first + anchor.length), 'utf8');
+  const match = matches[0]!;
+  const first = match.index!;
+  const replacement = replacementFor(match[0], first);
+  await writeFile(abs, text.slice(0, first) + replacement + text.slice(first + match[0].length), 'utf8');
   return `edited ${p}`;
 }
 
