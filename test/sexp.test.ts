@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { listSymbols, listNets, pinNets, parseSexp } from '../src/kicad/sexp.js';
+import { checkDrift } from '../src/memory/drift.js';
 import { FIXTURE, tempFixtureRepo } from './helpers.js';
 
 const SCH = path.join(FIXTURE, 'hardware', 'open-key.kicad_sch');
@@ -163,6 +164,134 @@ describe('sexp parser', () => {
       // power:GND must be excluded; only Device:C (C1) is a real component
       const syms = await listSymbols(legacySch);
       expect(syms.map((s) => s.ref)).toEqual(['C1']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('loads reused hierarchical sheets per placement and resolves per-instance references (#394)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const { writeFile, mkdir } = await import('node:fs/promises');
+      const rootSch = path.join(repo, 'root.kicad_sch');
+      const chanSch = path.join(repo, 'chan.kicad_sch');
+      const docsDir = path.join(repo, 'docs');
+      await mkdir(docsDir, { recursive: true });
+
+      const rootContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-000000000001")
+        (lib_symbols)
+        (sheet
+          (at 20 20)
+          (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000a1")
+          (property "Sheetname" "ChanA" (at 20 19 0))
+          (property "Sheetfile" "chan.kicad_sch" (at 20 41 0))
+        )
+        (sheet
+          (at 60 20)
+          (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000b1")
+          (property "Sheetname" "ChanB" (at 60 19 0))
+          (property "Sheetfile" "chan.kicad_sch" (at 60 41 0))
+        )
+      )`;
+
+      const chanContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000c1")
+        (lib_symbols
+          (symbol "Device:R"
+            (property "Reference" "R" (at 0 0 0))
+            (property "Value" "R" (at 0 0 0))
+            (property "Footprint" "" (at 0 0 0))
+            (symbol "R_1_1"
+              (pin passive line (at 0 3.81 270) (length 1.27)
+                (name "~" (effects (font (size 1.27 1.27))))
+                (number "1" (effects (font (size 1.27 1.27))))
+              )
+              (pin passive line (at 0 -3.81 90) (length 1.27)
+                (name "~" (effects (font (size 1.27 1.27))))
+                (number "2" (effects (font (size 1.27 1.27))))
+              )
+            )
+          )
+        )
+        (label "SIG" (at 10 6.19 0))
+        (label "GND" (at 10 13.81 0))
+        (symbol
+          (lib_id "Device:R")
+          (at 10 10 0)
+          (uuid "00000000-0000-4000-8000-0000000000d1")
+          (property "Reference" "R101" (at 10 10 0))
+          (property "Value" "10k" (at 10 10 0))
+          (property "Footprint" "Resistor_SMD:R_0603_1608Metric" (at 10 10 0))
+          (pin "1" (uuid "00000000-0000-4000-8000-0000000000e1"))
+          (pin "2" (uuid "00000000-0000-4000-8000-0000000000e2"))
+          (instances
+            (project "p"
+              (path "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-0000000000a1"
+                (reference "R101")
+                (unit 1)
+              )
+              (path "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-0000000000b1"
+                (reference "R201")
+                (unit 1)
+              )
+            )
+          )
+        )
+      )`;
+
+      await writeFile(rootSch, rootContent, 'utf8');
+      await writeFile(chanSch, chanContent, 'utf8');
+
+      const syms = await listSymbols(rootSch);
+      expect(syms.map((s) => ({ ref: s.ref, sheet: s.sheet, unit: s.unit }))).toEqual([
+        { ref: 'R101', sheet: 'ChanA', unit: 1 },
+        { ref: 'R201', sheet: 'ChanB', unit: 1 },
+      ]);
+
+      const pins = await pinNets(rootSch);
+      expect(pins).toEqual([
+        { ref: 'R101', pinNumber: '1', pinName: '~', net: 'SIG' },
+        { ref: 'R101', pinNumber: '2', pinName: '~', net: 'GND' },
+        { ref: 'R201', pinNumber: '1', pinName: '~', net: 'SIG' },
+        { ref: 'R201', pinNumber: '2', pinName: '~', net: 'GND' },
+      ]);
+
+      await writeFile(
+        path.join(docsDir, 'BOM.md'),
+        [
+          '# BOM',
+          '',
+          '| Refdes | Value | Footprint | MPN | Subsystem |',
+          '| --- | --- | --- | --- | --- |',
+          '| R101 | 10k | Resistor_SMD:R_0603_1608Metric | RC0603FR-0710KL | ChanA |',
+          '| R201 | 10k | Resistor_SMD:R_0603_1608Metric | RC0603FR-0710KL | ChanB |',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      await writeFile(
+        path.join(docsDir, 'PINOUT.md'),
+        [
+          '# Pinout',
+          '',
+          '| Refdes | Pin | Name | Net | Notes |',
+          '| --- | --- | --- | --- | --- |',
+          '| R101 | 1 | ~ | SIG | |',
+          '| R101 | 2 | ~ | GND | |',
+          '| R201 | 1 | ~ | SIG | |',
+          '| R201 | 2 | ~ | GND | |',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const drift = await checkDrift(repo, 'docs', 'root.kicad_sch');
+      expect(drift).toEqual([]);
     } finally {
       await cleanup();
     }

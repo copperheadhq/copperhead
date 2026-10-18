@@ -109,29 +109,58 @@ export interface PinDef {
 interface ParsedSheet {
   filePath: string;
   sheetName: string;
+  placementPath: string;
   root: SexpNode[];
 }
 
 async function loadSheets(rootSch: string): Promise<ParsedSheet[]> {
-  const seen = new Set<string>();
+  const seenPlacements = new Set<string>();
+  const fileCache = new Map<string, SexpNode[]>();
   const out: ParsedSheet[] = [];
-  async function load(file: string, sheetName: string): Promise<void> {
-    const abs = path.resolve(file);
-    if (seen.has(abs)) return;
-    seen.add(abs);
+
+  async function readRoot(abs: string, rawFile: string): Promise<SexpNode[]> {
+    const cached = fileCache.get(abs);
+    if (cached) return cached;
     const text = await readFile(abs, 'utf8');
     const root = parseSexp(text)[0];
     if (root === undefined || !isList(root)) {
-      throw new Error(`not a KiCad s-expression file: ${file}`);
+      throw new Error(`not a KiCad s-expression file: ${rawFile}`);
     }
-    out.push({ filePath: abs, sheetName, root });
-    for (const sheet of children(root, 'sheet')) {
+    fileCache.set(abs, root);
+    return root;
+  }
+
+  async function load(
+    file: string,
+    sheetName: string,
+    placementPath: string | null,
+    fileChain: Set<string>,
+  ): Promise<void> {
+    const abs = path.resolve(file);
+    if (fileChain.has(abs)) return;
+    const root = await readRoot(abs, file);
+    const rootUuid = atomAt(child(root, 'uuid'), 1) ?? '';
+    const currentPath = placementPath ?? (rootUuid ? `/${rootUuid}` : '/');
+    if (seenPlacements.has(currentPath)) return;
+    seenPlacements.add(currentPath);
+
+    out.push({ filePath: abs, sheetName, placementPath: currentPath, root });
+
+    const nextChain = new Set(fileChain);
+    nextChain.add(abs);
+    const subSheets = children(root, 'sheet');
+    for (let i = 0; i < subSheets.length; i++) {
+      const sheet = subSheets[i]!;
       const sub = property(sheet, 'Sheetfile') ?? property(sheet, 'Sheet file');
       const name = property(sheet, 'Sheetname') ?? property(sheet, 'Sheet name') ?? 'sheet';
-      if (sub) await load(path.resolve(path.dirname(abs), sub), name);
+      if (!sub) continue;
+      const sheetUuid = atomAt(child(sheet, 'uuid'), 1) ?? `${name}#${i}`;
+      const childPath = currentPath === '/' ? `/${sheetUuid}` : `${currentPath}/${sheetUuid}`;
+      await load(path.resolve(path.dirname(abs), sub), name, childPath, nextChain);
     }
   }
-  await load(rootSch, '/');
+
+  await load(rootSch, '/', null, new Set());
   return out;
 }
 
@@ -224,6 +253,28 @@ class UnionFind {
   }
 }
 
+function instanceForPath(sym: SexpNode[], placementPath: string): { ref?: string; unit?: number } | null {
+  const inst = child(sym, 'instances');
+  if (!inst) return null;
+  const paths: SexpNode[][] = [
+    ...children(inst, 'path'),
+    ...children(inst, 'project').flatMap((proj) => children(proj, 'path')),
+  ];
+  let match = paths.find((p) => atomAt(p, 1) === placementPath);
+  if (!match && placementPath !== '/') {
+    const suffixMatches = paths.filter((p) => {
+      const pPath = atomAt(p, 1) ?? '';
+      return pPath.endsWith(placementPath) || placementPath.endsWith(pPath);
+    });
+    if (suffixMatches.length === 1) match = suffixMatches[0];
+  }
+  if (!match) return null;
+  const ref = atomAt(child(match, 'reference'), 1);
+  const unitStr = atomAt(child(match, 'unit'), 1);
+  const unit = unitStr !== undefined ? parseInt(unitStr, 10) || 1 : undefined;
+  return { ...(ref !== undefined ? { ref } : {}), ...(unit !== undefined ? { unit } : {}) };
+}
+
 function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol; mirror: 'x' | 'y' | null }[] {
   const out: { node: SexpNode[]; sym: SchematicSymbol; mirror: 'x' | 'y' | null }[] = [];
   for (const s of children(sheet.root, 'symbol')) {
@@ -231,11 +282,12 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
     if (!libId) continue; // lib_symbols entries have no lib_id child
     const at = child(s, 'at');
     const mirrorAtom = atomAt(child(s, 'mirror'), 1);
+    const inst = instanceForPath(s, sheet.placementPath);
     out.push({
       node: s,
       mirror: mirrorAtom === 'x' || mirrorAtom === 'y' ? mirrorAtom : null,
       sym: {
-        ref: property(s, 'Reference') ?? '?',
+        ref: inst?.ref ?? property(s, 'Reference') ?? '?',
         value: property(s, 'Value') ?? '',
         footprint: property(s, 'Footprint') ?? '',
         libId,
@@ -246,7 +298,7 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
           rot: parseFloat(atomAt(at, 3) ?? '0'),
         },
         uuid: atomAt(child(s, 'uuid'), 1) ?? '',
-        unit: parseInt(atomAt(child(s, 'unit'), 1) ?? '1', 10) || 1,
+        unit: inst?.unit ?? (parseInt(atomAt(child(s, 'unit'), 1) ?? '1', 10) || 1),
       },
     });
   }
