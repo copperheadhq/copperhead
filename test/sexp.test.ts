@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { listSymbols, listNets, pinNets, parseSexp } from '../src/kicad/sexp.js';
+import { listSymbols, listNets, pinNets, parseSexp, instanceForPath } from '../src/kicad/sexp.js';
 import { checkDrift } from '../src/memory/drift.js';
 import { FIXTURE, tempFixtureRepo } from './helpers.js';
 
@@ -292,6 +292,369 @@ describe('sexp parser', () => {
 
       const drift = await checkDrift(repo, 'docs', 'root.kicad_sch');
       expect(drift).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+  it('distinguishes nested reused sheet placements by hierarchical path (#394)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const { writeFile } = await import('node:fs/promises');
+      const rootSch = path.join(repo, 'root.kicad_sch');
+      const chanSch = path.join(repo, 'channel.kicad_sch');
+      const leafSch = path.join(repo, 'leaf.kicad_sch');
+
+      const rootContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-000000000001")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000a1")
+          (property "Sheetname" "ChanA" (at 20 19 0))
+          (property "Sheetfile" "channel.kicad_sch" (at 20 41 0))
+        )
+        (sheet
+          (at 60 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000b1")
+          (property "Sheetname" "ChanB" (at 60 19 0))
+          (property "Sheetfile" "channel.kicad_sch" (at 60 41 0))
+        )
+      )`;
+
+      const chanContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000c1")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000d1")
+          (property "Sheetname" "Filter" (at 20 19 0))
+          (property "Sheetfile" "leaf.kicad_sch" (at 20 41 0))
+        )
+      )`;
+
+      const leafContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000e1")
+        (lib_symbols
+          (symbol "Device:R"
+            (property "Reference" "R" (at 0 0 0))
+            (property "Value" "R" (at 0 0 0))
+            (symbol "R_1_1"
+              (pin passive line (at 0 3.81 270) (length 1.27)
+                (name "~" (effects (font (size 1.27 1.27))))
+                (number "1" (effects (font (size 1.27 1.27))))
+              )
+              (pin passive line (at 0 -3.81 90) (length 1.27)
+                (name "~" (effects (font (size 1.27 1.27))))
+                (number "2" (effects (font (size 1.27 1.27))))
+              )
+            )
+          )
+        )
+        (symbol
+          (lib_id "Device:R")
+          (at 10 10 0)
+          (uuid "00000000-0000-4000-8000-0000000000f1")
+          (property "Reference" "R101" (at 10 10 0))
+          (property "Value" "10k" (at 10 10 0))
+          (instances
+            (project "root"
+              (path "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-0000000000a1/00000000-0000-4000-8000-0000000000d1"
+                (reference "R101")
+                (unit 1)
+              )
+              (path "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-0000000000b1/00000000-0000-4000-8000-0000000000d1"
+                (reference "R201")
+                (unit 1)
+              )
+            )
+          )
+        )
+      )`;
+
+      await writeFile(rootSch, rootContent, 'utf8');
+      await writeFile(chanSch, chanContent, 'utf8');
+      await writeFile(leafSch, leafContent, 'utf8');
+
+      const syms = await listSymbols(rootSch);
+      expect(syms.map((s) => ({ ref: s.ref, sheet: s.sheet, unit: s.unit }))).toEqual([
+        { ref: 'R101', sheet: 'ChanA/Filter', unit: 1 },
+        { ref: 'R201', sheet: 'ChanB/Filter', unit: 1 },
+      ]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('scopes instance lookup to active KiCad project and ignores stale project blocks', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const { writeFile } = await import('node:fs/promises');
+      const rootSch = path.join(repo, 'current.kicad_sch');
+      const chanSch = path.join(repo, 'chan.kicad_sch');
+
+      const rootContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-000000000001")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000a1")
+          (property "Sheetname" "Chan" (at 20 19 0))
+          (property "Sheetfile" "chan.kicad_sch" (at 20 41 0))
+        )
+      )`;
+
+      const chanContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000c1")
+        (lib_symbols
+          (symbol "Device:R"
+            (property "Reference" "R" (at 0 0 0))
+            (property "Value" "R" (at 0 0 0))
+          )
+        )
+        (symbol
+          (lib_id "Device:R")
+          (at 10 10 0)
+          (property "Reference" "R?" (at 10 10 0))
+          (property "Value" "10k" (at 10 10 0))
+          (instances
+            (project "stale"
+              (path "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-0000000000a1"
+                (reference "R900")
+                (unit 1)
+              )
+            )
+            (project "current"
+              (path "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-0000000000a1"
+                (reference "R101")
+                (unit 1)
+              )
+            )
+          )
+        )
+      )`;
+
+      await writeFile(rootSch, rootContent, 'utf8');
+      await writeFile(chanSch, chanContent, 'utf8');
+
+      const syms = await listSymbols(rootSch);
+      expect(syms.map((s) => s.ref)).toEqual(['R101']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('rejects conflicting exact paths across unselected projects and falls back to legacy direct instances', () => {
+    // 1. Conflicting exact paths across projects with unselected active project
+    const [conflictSym] = parseSexp(`(symbol
+      (property "Reference" "R?" (at 0 0 0))
+      (instances
+        (project "projA"
+          (path "/root/chan" (reference "R900") (unit 1))
+        )
+        (project "projB"
+          (path "/root/chan" (reference "R101") (unit 1))
+        )
+      )
+    )`);
+    // Should NOT silently choose first project ("R900")
+    expect(instanceForPath(conflictSym as any, '/root/chan', 'unrelated')).toBeNull();
+
+    // Matching project succeeds
+    expect(instanceForPath(conflictSym as any, '/root/chan', 'projB')).toEqual({ ref: 'R101', unit: 1 });
+
+    // Non-conflicting exact paths across projects succeed
+    const [nonConflictSym] = parseSexp(`(symbol
+      (instances
+        (project "projA"
+          (path "/other/path" (reference "R900") (unit 1))
+        )
+        (project "projB"
+          (path "/root/chan" (reference "R101") (unit 1))
+        )
+      )
+    )`);
+    expect(instanceForPath(nonConflictSym as any, '/root/chan', 'unrelated')).toEqual({ ref: 'R101', unit: 1 });
+
+    // 2. Legacy direct instances without project block
+    const [legacySym] = parseSexp(`(symbol
+      (instances
+        (path "/root/chan" (reference "R42") (unit 1))
+      )
+    )`);
+    expect(instanceForPath(legacySym as any, '/root/chan', 'anyProject')).toEqual({ ref: 'R42', unit: 1 });
+
+    // 3. Ambiguous suffix matches are rejected, unique suffix matches succeed
+    const [ambigSym] = parseSexp(`(symbol
+      (instances
+        (project "p"
+          (path "/branch1/sub/sheet" (reference "R11") (unit 1))
+          (path "/branch2/sub/sheet" (reference "R12") (unit 1))
+        )
+      )
+    )`);
+    expect(instanceForPath(ambigSym as any, '/sub/sheet', 'p')).toBeNull();
+
+    const [uniqueSuffixSym] = parseSexp(`(symbol
+      (instances
+        (project "p"
+          (path "/only/one/sub/sheet" (reference "R11") (unit 1))
+        )
+      )
+    )`);
+    expect(instanceForPath(uniqueSuffixSym as any, '/sub/sheet', 'p')).toEqual({ ref: 'R11', unit: 1 });
+  });
+
+  it('prevents cycle loops without suppressing sibling placements', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const { writeFile } = await import('node:fs/promises');
+      const rootSch = path.join(repo, 'cycle_root.kicad_sch');
+      const loopSch = path.join(repo, 'loop.kicad_sch');
+      const siblingSch = path.join(repo, 'sibling.kicad_sch');
+
+      const rootContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-000000000001")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000a1")
+          (property "Sheetname" "LoopSheet" (at 20 19 0))
+          (property "Sheetfile" "loop.kicad_sch" (at 20 41 0))
+        )
+        (sheet
+          (at 60 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000b1")
+          (property "Sheetname" "SiblingSheet" (at 60 19 0))
+          (property "Sheetfile" "sibling.kicad_sch" (at 60 41 0))
+        )
+      )`;
+
+      const loopContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000c1")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000d1")
+          (property "Sheetname" "RecurseRoot" (at 20 19 0))
+          (property "Sheetfile" "cycle_root.kicad_sch" (at 20 41 0))
+        )
+      )`;
+
+      const siblingContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000e1")
+        (lib_symbols
+          (symbol "Device:R"
+            (property "Reference" "R" (at 0 0 0))
+            (property "Value" "R" (at 0 0 0))
+          )
+        )
+        (symbol
+          (lib_id "Device:R")
+          (at 10 10 0)
+          (property "Reference" "R_SIB" (at 10 10 0))
+          (property "Value" "10k" (at 10 10 0))
+        )
+      )`;
+
+      await writeFile(rootSch, rootContent, 'utf8');
+      await writeFile(loopSch, loopContent, 'utf8');
+      await writeFile(siblingSch, siblingContent, 'utf8');
+
+      const syms = await listSymbols(rootSch);
+      expect(syms.map((s) => s.ref)).toEqual(['R_SIB']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('resolves per-instance units and pins for multi-unit symbols', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const { writeFile } = await import('node:fs/promises');
+      const rootSch = path.join(repo, 'multi_unit.kicad_sch');
+      const dualSch = path.join(repo, 'dual.kicad_sch');
+
+      const rootContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-000000000001")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000a1")
+          (property "Sheetname" "UnitA" (at 20 19 0))
+          (property "Sheetfile" "dual.kicad_sch" (at 20 41 0))
+        )
+        (sheet
+          (at 60 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000b1")
+          (property "Sheetname" "UnitB" (at 60 19 0))
+          (property "Sheetfile" "dual.kicad_sch" (at 60 41 0))
+        )
+      )`;
+
+      const dualContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000c1")
+        (lib_symbols
+          (symbol "Amplifier_Operational:LM358"
+            (property "Reference" "U" (at 0 0 0))
+            (property "Value" "LM358" (at 0 0 0))
+            (symbol "LM358_1_1"
+              (pin output line (at 0 0 0) (length 2.54)
+                (name "OUTA" (effects (font (size 1.27 1.27))))
+                (number "1" (effects (font (size 1.27 1.27))))
+              )
+            )
+            (symbol "LM358_2_1"
+              (pin output line (at 0 0 0) (length 2.54)
+                (name "OUTB" (effects (font (size 1.27 1.27))))
+                (number "7" (effects (font (size 1.27 1.27))))
+              )
+            )
+          )
+        )
+        (symbol
+          (lib_id "Amplifier_Operational:LM358")
+          (at 10 10 0)
+          (property "Reference" "U1" (at 10 10 0))
+          (property "Value" "LM358" (at 10 10 0))
+          (instances
+            (project "multi_unit"
+              (path "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-0000000000a1"
+                (reference "U1")
+                (unit 1)
+              )
+              (path "/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-0000000000b1"
+                (reference "U1")
+                (unit 2)
+              )
+            )
+          )
+        )
+      )`;
+
+      await writeFile(rootSch, rootContent, 'utf8');
+      await writeFile(dualSch, dualContent, 'utf8');
+
+      const syms = await listSymbols(rootSch);
+      expect(syms.map((s) => ({ ref: s.ref, sheet: s.sheet, unit: s.unit }))).toEqual([
+        { ref: 'U1', sheet: 'UnitA', unit: 1 },
+        { ref: 'U1', sheet: 'UnitB', unit: 2 },
+      ]);
+
+      const pins = await pinNets(rootSch);
+      expect(pins).toEqual([
+        { ref: 'U1', pinNumber: '1', pinName: 'OUTA', net: null },
+        { ref: 'U1', pinNumber: '7', pinName: 'OUTB', net: null },
+      ]);
     } finally {
       await cleanup();
     }
