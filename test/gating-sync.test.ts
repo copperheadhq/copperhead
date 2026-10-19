@@ -461,6 +461,48 @@ describe('copperhead sync verify phase (AC-7)', () => {
       'assembly.hand_solderable',
     ]);
 
+    // 5. Dotted pin names (e.g. nRF52 P0.13) must not be split into ref "P0" and pin "13" (#395 review finding 1)
+    const nrfReg = {
+      'pins.nrf_forbidden': {
+        forbidden: ['P0.13'],
+        source: 'nrf52 datasheet',
+        affects: ['U1'],
+      },
+    };
+    const nrfPins: PinNetEntry[] = [{ ref: 'U1', pinName: 'P0.13', net: 'LED' }];
+    const nrfViolations = checkForbiddenPins(nrfReg, nrfPins);
+    expect(nrfViolations).toHaveLength(1);
+    expect(nrfViolations[0]!.description).toContain('U1 pin P0.13 is connected to net LED');
+    expect(uncheckedForbiddenConstraints(nrfReg, nrfPins)).toEqual([]);
+
+    // 6. Free-text entry with no whitespace (e.g. BGA) marked unchecked even when another entry matches (#395 review finding 2)
+    const mixedReg = {
+      'pins.mixed': {
+        forbidden: ['GPIO0', 'BGA'],
+        source: 'spec',
+        affects: ['U1'],
+      },
+    };
+    const mcuPins: PinNetEntry[] = [{ ref: 'U1', pinName: 'IO0', pinNumber: '1', net: 'BOOT' }];
+    expect(checkForbiddenPins(mixedReg, mcuPins)).toHaveLength(1);
+    expect(uncheckedForbiddenConstraints(mixedReg, mcuPins)).toEqual(['pins.mixed']);
+
+    // 7. Unscoped bare pin numbers do not match across unrelated parts (#395 review finding 3)
+    const bareNumberReg = {
+      'pins.bare_pin_number': {
+        forbidden: ['1'],
+        source: 'spec',
+        affects: [],
+      },
+    };
+    const passivePins: PinNetEntry[] = [
+      { ref: 'R1', pinName: '~', pinNumber: '1', net: 'VCC' },
+      { ref: 'C1', pinName: '~', pinNumber: '1', net: 'VCC' },
+      { ref: 'U1', pinName: 'VBUS', pinNumber: '1', net: 'VCC' },
+    ];
+    expect(checkForbiddenPins(bareNumberReg, passivePins)).toEqual([]);
+    expect(uncheckedForbiddenConstraints(bareNumberReg, passivePins)).toEqual(['pins.bare_pin_number']);
+
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });

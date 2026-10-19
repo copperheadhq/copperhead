@@ -212,11 +212,15 @@ The agent maintains `.copperhead/constraints.json` — a live, machine-readable 
                                "affects": ["U2", "R7-absent", "GPIO-pullups"] },
   "rf.antenna_keepout_mm":   { "min": 5,   "source": "docs/LAYOUT.md", "affects": ["zone:top"] },
   "pins.strapping":          { "forbidden": ["GPIO0","GPIO3","GPIO45","GPIO46"],
-                               "source": "esp32-s3 datasheet §2.4" }
+                               "refs": ["U1"],
+                               "source": "esp32-s3 datasheet §2.4",
+                               "affects": ["U1"] }
 }
 ```
 
 Loaded into every run's system prompt; `check` validates the design against it mechanically where possible (leakage sums, keepout geometry, forbidden pins). The `affects` field is what makes propagation reliable — change a constraint and the agent knows exactly which parts to revisit.
+
+Forbidden pin constraints are scoped by an explicit `<ref>:<pin>` spec (such as `U1:IO0`), an optional `refs` list (such as `["U1"]`), or refdes items extracted from `affects`. Pin matching checks both pin names and pin numbers (scoped to the referenced part), normalizes `IO` and `GPIO` prefixes equivalently (matching stock symbol names like `IO0` against `GPIO0`), and reports `constraint <key>: not mechanically checked` in `check` and `sync` whenever any forbidden entry cannot be matched to a schematic pin.
 
 An `affects` item that targets an artifact that does not exist yet (schematic, board, or BOM recorded before their pipeline stage) opens no revisit obligation at record time — it is marked `deferred` in the registry instead, and the obligation re-opens automatically at the start of the first run where the artifact exists. This keeps early docs-only stages from burning turns on ceremonial "not yet created" resolutions without losing the reconciliation guarantee: the revisit still happens, at the moment it can actually change the design.
 

@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import type { PinNet } from '../kicad/sexp.js';
 
 /**
  * Machine-readable constraint registry (SPEC §2.6). Built simultaneously with
@@ -135,17 +136,7 @@ export interface ConstraintViolation {
   source: string;
 }
 
-/**
- * Mechanical validation where possible (SPEC §2.6): forbidden pins against the
- * pinout, numeric budget keys surfaced for the doc-level checks. Geometry
- * checks are out of scope for Phase 1.
- */
-export interface PinNetEntry {
-  ref: string;
-  pinName: string;
-  pinNumber?: string;
-  net: string | null;
-}
+export type PinNetEntry = Omit<PinNet, 'pinNumber'> & { pinNumber?: string };
 
 const REFDES_TOKEN_RE =
   /^(?:U|IC|MCU|R|C|L|D|Q|J|P|SW|S|K|Y|X|F|FB|TP|BT|LED|RN|RV|T|BZ|LS|MK|VR|Z|FL|A|H|M|TH|W)\d+[A-Za-z]*$/;
@@ -173,7 +164,7 @@ function parseForbiddenSpec(
   defaultRefs: Set<string> | null,
 ): { refs: Set<string> | null; pinSpec: string } {
   const trimmed = raw.trim();
-  const prefixed = /^([A-Za-z]+\d+[A-Za-z]*)\s*[:.]\s*(.+)$/.exec(trimmed);
+  const prefixed = /^([A-Za-z]+\d+[A-Za-z]*)\s*:\s*(.+)$/.exec(trimmed);
   if (prefixed) {
     return { refs: new Set([prefixed[1]!]), pinSpec: prefixed[2]!.trim() };
   }
@@ -184,9 +175,9 @@ function canonicalIoName(name: string): string {
   return name.trim().replace(/^GPIO(?=\d)/i, 'IO').toUpperCase();
 }
 
-function matchesPin(pn: PinNetEntry, pinSpec: string): boolean {
+function matchesPin(pn: PinNetEntry, pinSpec: string, isRefScoped: boolean): boolean {
   if (!pinSpec) return false;
-  if (pn.pinNumber !== undefined && pn.pinNumber !== '' && pn.pinNumber === pinSpec) {
+  if (isRefScoped && pn.pinNumber !== undefined && pn.pinNumber !== '' && pn.pinNumber === pinSpec) {
     return true;
   }
   if (pn.pinName === pinSpec) return true;
@@ -201,6 +192,11 @@ function matchesPin(pn: PinNetEntry, pinSpec: string): boolean {
   return false;
 }
 
+/**
+ * Mechanical validation where possible (SPEC §2.6): forbidden pins against the
+ * pinout, numeric budget keys surfaced for the doc-level checks. Geometry
+ * checks are out of scope for Phase 1.
+ */
 export function checkForbiddenPins(
   registry: ConstraintRegistry,
   pinNets: PinNetEntry[],
@@ -214,7 +210,8 @@ export function checkForbiddenPins(
     for (const pn of pinNets) {
       if (!pn.net) continue;
       const matchedSpec = specs.find(
-        ({ refs, pinSpec }) => (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec),
+        ({ refs, pinSpec }) =>
+          (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, Boolean(refs && refs.size > 0)),
       );
       if (matchedSpec) {
         const pinLabel =
@@ -231,10 +228,10 @@ export function checkForbiddenPins(
 }
 
 /**
- * Constraint keys whose `forbidden` list matched no pin on any in-scope part
- * (or contains free-text entries that do not match any pin), so `check` and
- * `sync` can report `constraint <key>: not mechanically checked` instead of
- * counting them as a silent pass (#395).
+ * Constraint keys whose `forbidden` list contains entries that did not match
+ * any pin on the in-scope part(s), so `check` and `sync` can report
+ * `constraint <key>: not mechanically checked` instead of counting them as a
+ * silent pass (#395).
  */
 export function uncheckedForbiddenConstraints(
   registry: ConstraintRegistry,
@@ -245,18 +242,17 @@ export function uncheckedForbiddenConstraints(
   for (const [key, c] of Object.entries(registry)) {
     if (!c.forbidden?.length) continue;
     const defaultRefs = extractScopedRefs(c, knownRefs);
-    let anyPinMatched = false;
-    let hasUnmatchedFreeText = false;
+    let anyUnmatched = false;
     for (const raw of c.forbidden) {
       const { refs, pinSpec } = parseForbiddenSpec(raw, defaultRefs);
-      const matched = pinNets.some((pn) => (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec));
-      if (matched) {
-        anyPinMatched = true;
-      } else if (/\s/.test(pinSpec)) {
-        hasUnmatchedFreeText = true;
+      const isRefScoped = Boolean(refs && refs.size > 0);
+      const matched = pinNets.some((pn) => (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, isRefScoped));
+      if (!matched) {
+        anyUnmatched = true;
+        break;
       }
     }
-    if (!anyPinMatched || hasUnmatchedFreeText) {
+    if (anyUnmatched) {
       unchecked.push(key);
     }
   }
