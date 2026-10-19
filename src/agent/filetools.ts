@@ -47,19 +47,30 @@ export async function toolEditFile(
   newString: string,
   replaceAll = false,
 ): Promise<string> {
+  if (oldString === '') throw new Error('edit_file: old_string must not be empty');
+
   const abs = resolveInRepo(repoRoot, p);
-  let text = await readFile(abs, 'utf8');
+  const text = await readFile(abs, 'utf8');
 
   const l0 = oldString.split(/\r\n|\n|\r/);
   const l1 = newString.split(/\r\n|\n|\r/);
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const normalizedRe = new RegExp(l0.map(esc).join('(?:\\r\\n|\\n|\\r)'), 'g');
-  const exactRe = new RegExp(esc(oldString), 'g');
-  const exactMatches = [...text.matchAll(exactRe)];
-  const re = exactMatches.length > 0 ? exactRe : normalizedRe;
-  const breakAtOrAfter = (at: number) => text.slice(at).match(/\r\n|\n|\r/)?.[0] ?? '\n';
+  const normalizedRe = new RegExp(l0.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g');
+  // A leading LF in an anchor must not match only the LF half of a CRLF pair.
+  // Let normalizedRe match the whole break in that case.
+  const exactPattern = `${oldString.startsWith('\n') ? '(?<!\\r)' : ''}${esc(oldString)}`;
+  const exactRe = new RegExp(exactPattern, 'g');
+  const re = text.includes(oldString) && new RegExp(exactPattern).test(text) ? exactRe : normalizedRe;
+  const breakAtOrAfter = (at: number) => {
+    const nextBreak = text.slice(at).match(/\r\n|\r(?!\n)|\n/);
+    if (nextBreak) {
+      const breakStart = at + nextBreak.index!;
+      return nextBreak[0] === '\n' && text[breakStart - 1] === '\r' ? '\r\n' : nextBreak[0];
+    }
+    return text.slice(0, at).match(/(\r\n|\n|\r)[^\r\n]*$/)?.[1] ?? '\n';
+  };
   const replacementFor = (match: string, at: number) => {
-    const localEol = l0.length === 1 ? breakAtOrAfter(at) : (match.match(/\r\n|\n|\r/)?.[0] ?? breakAtOrAfter(at));
+    const localEol = l0.length === 1 ? breakAtOrAfter(at) : match.match(/\r\n|\r(?!\n)|\n/)![0];
     return l1.join(localEol);
   };
 

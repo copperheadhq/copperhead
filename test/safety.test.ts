@@ -177,6 +177,15 @@ describe('file tools', () => {
     expect(await readFile(path.join(dir, 'f.txt'), 'utf8')).toBe('aaa\nccc\naaa\n');
   });
 
+  it('edit_file rejects an empty anchor without changing the file', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'abc', 'utf8');
+
+    await expect(toolEditFile(dir, 'f.txt', '', 'X', true)).rejects.toThrow('edit_file: old_string must not be empty');
+    expect(await readFile(file, 'utf8')).toBe('abc');
+  });
+
   it('edit_file matches LF multi-line anchors in CRLF files and preserves CRLF', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     const file = path.join(dir, 'f.txt');
@@ -203,6 +212,62 @@ describe('file tools', () => {
     await writeFile(path.join(dir, 'mixed-all.txt'), 'x\r\ny\r\n---\nx\ny\n', 'utf8');
     await toolEditFile(dir, 'mixed-all.txt', 'x\ny', 'a\nb', true);
     expect(await readFile(path.join(dir, 'mixed-all.txt'), 'utf8')).toBe('a\r\nb\r\n---\na\nb\n');
+  });
+
+  it('edit_file does not match a missing blank line across CRLF pairs', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'a\r\nb\r\n', 'utf8');
+
+    await expect(toolEditFile(dir, 'f.txt', 'a\n\nb', 'Z')).rejects.toThrow(/anchor not found/);
+    expect(await readFile(file, 'utf8')).toBe('a\r\nb\r\n');
+  });
+
+  it('edit_file matches blank-line anchors across CRLF and lone-CR breaks', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const cases = [
+      { name: 'crlf', source: 'a\r\n\r\nb\r\n', expected: 'Z\r\n' },
+      { name: 'cr-only', source: 'a\r\rb', expected: 'Z' },
+      { name: 'mixed-lf', source: 'a\r\n\nb', expected: 'Z' },
+      { name: 'mixed-cr', source: 'a\r\n\rb', expected: 'Z' },
+    ];
+
+    for (const { name, source, expected } of cases) {
+      const file = path.join(dir, `${name}.txt`);
+      await writeFile(file, source, 'utf8');
+      await toolEditFile(dir, `${name}.txt`, 'a\n\nb', 'Z');
+      expect(await readFile(file, 'utf8'), name).toBe(expected);
+    }
+  });
+
+  it('edit_file preserves CRLF when a normalized anchor starts with a break', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'x\r\nbar\r\n', 'utf8');
+
+    await toolEditFile(dir, 'f.txt', '\nbar', '\nbar\nnew');
+
+    expect(await readFile(file, 'utf8')).toBe('x\r\nbar\r\nnew\r\n');
+  });
+
+  it('edit_file uses the preceding break for a match on the unterminated last line', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'a\r\nfoo', 'utf8');
+
+    await toolEditFile(dir, 'f.txt', 'foo', 'foo\nadded');
+
+    expect(await readFile(file, 'utf8')).toBe('a\r\nfoo\r\nadded');
+  });
+
+  it('edit_file rejects ambiguous normalized anchors without changing the file', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    const contents = 'a\r\nb\r\na\r\nb\r\n';
+    await writeFile(file, contents, 'utf8');
+
+    await expect(toolEditFile(dir, 'f.txt', 'a\nb', 'Z')).rejects.toThrow(/matched 2 times/);
+    expect(await readFile(file, 'utf8')).toBe(contents);
   });
 
   it('edit_file replace_all handles a CRLF anchor ending in a line break once', async () => {
