@@ -28,9 +28,10 @@ becomes locked. Each pass MAY spend everything earlier passes left.
 
 An accepted move SHALL introduce no new universal hard or soft placement
 finding, SHALL NOT let a persisting finding's magnitude grow (edge distance,
-overlap depth or area, pads outside the outline), SHALL NOT lengthen any
-decoupling or crystal distance, SHALL NOT worsen total or declared-critical
-physical-pad HPWL, and SHALL strictly improve at least one guarded measurement.
+overlap depth or area, courtyard overhang depth, pads outside the outline),
+SHALL NOT lengthen any decoupling or crystal distance, SHALL NOT worsen total
+or declared-critical physical-pad HPWL, and SHALL strictly improve at least one
+guarded measurement.
 A part without a courtyard SHALL collide by its pad envelope, and copper of two
 different footprints touching SHALL be a collision even on the same net. When
 no move passes, the returned board SHALL be byte-identical to the input.
@@ -46,6 +47,12 @@ no move passes, the returned board SHALL be byte-identical to the input.
 - **WHEN** two parts without courtyards share a net and stacking their pads
   would shorten HPWL
 - **THEN** the stacking move is rejected and their pad envelopes do not overlap
+
+#### Scenario: Existing courtyard overhang would grow
+
+- **WHEN** a part's courtyard already overhangs the outline and moving it
+  farther out would shorten HPWL while its pads remain on the board
+- **THEN** the move is rejected and the overhang depth does not grow
 
 #### Scenario: No safe move exists
 
@@ -91,14 +98,23 @@ copper zones before evaluating any move.
 The tool SHALL require a clean baseline KiCad DRC and a reported unrouted count.
 A proposed final checkpoint SHALL load in KiCad, pass DRC, and preserve that
 unrouted count before it may remain on disk. Failure SHALL restore the exact
-input bytes and SHALL NOT mark the board touched. An exit while a candidate
-awaits verification SHALL write the exact input bytes back before the process
-ends.
+input bytes and SHALL NOT mark the board touched. SIGINT, SIGTERM, or ordinary
+process exit while an exact candidate awaits verification SHALL write the exact
+input bytes back before the process ends. The tool SHALL compare the on-disk
+candidate after every load/DRC probe and immediately before rollback; when a
+concurrent writer changed it, the tool SHALL abort without accepting or
+overwriting those external bytes.
 
 #### Scenario: Process exits during verification
 
 - **WHEN** the process exits while the candidate is on disk awaiting DRC
 - **THEN** the original board bytes are on disk when it ends
+
+#### Scenario: Board changes during final DRC
+
+- **WHEN** another writer changes the candidate bytes while final DRC runs
+- **THEN** optimization aborts, does not accept the DRC result for different
+  bytes, and leaves the external bytes untouched
 
 #### Scenario: Candidate introduces a DRC finding
 

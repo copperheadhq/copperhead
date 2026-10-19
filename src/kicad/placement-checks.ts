@@ -194,6 +194,10 @@ function segmentPointDistance(p: P, a: P, b: P): number {
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
 
+function pointBoundaryDistance(point: P, poly: P[]): number {
+  return Math.min(...edges(poly).map(([a, b]) => segmentPointDistance(point, a, b)));
+}
+
 function segmentsCross(a: P, b: P, c: P, d: P): boolean {
   const cross = (o: P, p: P, q: P): number => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
   const d1 = cross(c, d, a);
@@ -815,10 +819,18 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
         [b, a],
       ] as const) {
         if (!tht.tht) continue;
-        const lead = tht.pads.find(
-          (pad) => (pad.kind === 'thru_hole' || pad.kind === 'np_thru_hole') && bodiesIntersect([pad.polygon], other.body),
-        );
-        if (lead) warn('tht-underside', [tht.ref, other.ref], `${tht.ref} through-hole pad ${lead.number || '(npth)'} is under ${other.ref} on the opposite side`);
+        const leads = tht.pads
+          .filter((pad) => pad.kind === 'thru_hole' || pad.kind === 'np_thru_hole')
+          .map((pad) => ({ pad, overlap: bodiesOverlapArea([pad.polygon], other.body) }))
+          .filter(({ overlap }) => overlap > MIN_OVERLAP_MM2);
+        if (leads.length) {
+          warn(
+            'tht-underside',
+            [tht.ref, other.ref],
+            `${tht.ref} through-hole pad ${leads[0]!.pad.number || '(npth)'} is under ${other.ref} on the opposite side`,
+            leads.reduce((sum, { overlap }) => sum + overlap, 0),
+          );
+        }
       }
     }
   }
@@ -846,9 +858,10 @@ export function checkPlacementText(boardText: string): PlacementCheckReport {
           outside.length,
         );
       }
-      const overhangs = part.hasCourtyard && !part.bodyPoints.every((point) => pointInPolygon(point, outer));
-      if (overhangs && !outside.length && !OVERHANG_OK.test(part.footprint)) {
-        warn('courtyard-overhang', [part.ref], `${part.ref} courtyard extends past the board outline`);
+      const overhangingPoints = part.hasCourtyard ? part.bodyPoints.filter((point) => !pointInPolygon(point, outer)) : [];
+      if (overhangingPoints.length && !outside.length && !OVERHANG_OK.test(part.footprint)) {
+        const depth = Math.max(...overhangingPoints.map((point) => pointBoundaryDistance(point, outer)));
+        warn('courtyard-overhang', [part.ref], `${part.ref} courtyard extends past the board outline`, depth);
       }
     }
   }

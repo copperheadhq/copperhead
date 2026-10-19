@@ -22,3 +22,9 @@
 - [x] Restore exact input bytes and write them back on exit during verification.
 - [x] Refuse unknown critical nets and locked refs; lock duplicate refs.
 - [x] Report only fully searched plateau steps; keep round-rect pad outlines inside the true pad.
+
+## Review follow-ups (round 2)
+
+- [x] Restore exact candidate bytes on SIGINT and SIGTERM as well as ordinary exit.
+- [x] Refuse verification results for concurrently changed bytes without overwriting the external edit.
+- [x] Measure courtyard overhang and opposite-side through-hole overlap so persisting warnings cannot grow.

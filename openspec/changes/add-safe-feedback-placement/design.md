@@ -15,7 +15,9 @@ population, routing, or the agent's final verification obligations.
   The on-disk input is restored byte-for-byte (kept as a Buffer) after load,
   DRC, or connectivity failure. Verification must run in place, beside the
   project's rules and `${KIPRJMOD}` libraries, so while a candidate awaits it a
-  synchronous `exit` listener writes the input back.
+  synchronous exit/SIGINT/SIGTERM guard writes the input back. The guard and
+  every verification boundary compare the exact candidate bytes first: a
+  concurrent edit aborts optimization and is never accepted or overwritten.
 - **D3: Use deterministic first improvement.** Reference, operator, candidate,
   and tie order are explicit; termination counts candidate evaluations globally
   across DRC-feedback passes, not time; step sizes decrease at plateaus. A
@@ -25,7 +27,8 @@ population, routing, or the agent's final verification obligations.
   hard or soft placement finding, does not worsen total or protected-net HPWL,
   and strictly improves at least one guarded measurement. Findings carry a
   magnitude, so a persisting finding (same id and refs) that grows is a
-  regression, and one that shrinks is an improvement.
+  regression, and one that shrinks is an improvement. Courtyard overhang and
+  opposite-side through-hole overlap carry continuous magnitudes too.
 - **D5: Close the loop with KiCad DRC.** The tool requires clean baseline DRC,
   then verifies the proposed checkpoint. If new DRC findings name moved refs,
   those refs become locks and search restarts from checkpoint zero. Five DRC

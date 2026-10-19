@@ -229,6 +229,21 @@ describe('universal placement checks', () => {
     const report = checkPlacementText(board([resistor('R1', 39.1, 10)]));
     expect(report.ok).toBe(true);
     expect(ids(report, 'warning')).toContain('courtyard-overhang');
+    expect(report.warnings.find((finding) => finding.id === 'courtyard-overhang')?.magnitude).toBeCloseTo(0.03, 3);
+  });
+
+  it('measures the overlap of through-hole leads under an opposite-side part', () => {
+    const through: FootprintSpec = {
+      ref: 'J1',
+      at: [10, 10],
+      side: 'F',
+      courtyard: [1, 1],
+      pads: [{ n: '1', at: [0, 0], size: [1, 1], kind: 'thru_hole', net: 'A' }],
+    };
+    const underside = { ...resistor('R1', 10, 10, 'B', 'C'), side: 'B' as const };
+    const finding = checkPlacementText(board([through, underside])).warnings.find((entry) => entry.id === 'tht-underside');
+
+    expect(finding?.magnitude).toBeGreaterThan(0);
   });
 
   it('honours footprint-embedded keepouts and wants antenna keepouts at an edge', () => {

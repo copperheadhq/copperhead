@@ -15,7 +15,7 @@ import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resol
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
@@ -495,35 +495,110 @@ export const HANDLERS: HandlerDef[] = [
         }
 
         // The candidate must sit in place to be verified (the project's rules and
-        // ${KIPRJMOD} libraries live beside it). While it is unverified, an exit
-        // (SIGINT ends in process.exit) puts the original bytes back synchronously.
-        const restoreOnExit = (): void => writeFileSync(abs, original);
-        const restore = async (): Promise<void> => {
-          await writeFile(abs, original);
-          process.removeListener('exit', restoreOnExit);
+        // ${KIPRJMOD} libraries live beside it). Guard the exact candidate rather
+        // than the path alone: a concurrent edit belongs to the user and must not
+        // be accepted as verified or overwritten by rollback.
+        const candidate = Buffer.from(optimized.boardText, 'utf8');
+        const candidateOnDisk = (): boolean => {
+          try {
+            return readFileSync(abs).equals(candidate);
+          } catch {
+            return false;
+          }
         };
-        process.on('exit', restoreOnExit);
-        await writeFile(abs, optimized.boardText, 'utf8');
+        const restoreOriginalIfCandidate = (): boolean => {
+          if (!candidateOnDisk()) return false;
+          writeFileSync(abs, original);
+          return true;
+        };
+        const hadSigintHandler = process.listenerCount('SIGINT') > 0;
+        const hadSigtermHandler = process.listenerCount('SIGTERM') > 0;
+        let guardArmed = false;
+        const restoreOnExit = (): void => {
+          restoreOriginalIfCandidate();
+        };
+        const disarmGuard = (): void => {
+          if (!guardArmed) return;
+          guardArmed = false;
+          process.removeListener('exit', restoreOnExit);
+          process.removeListener('SIGINT', restoreOnSigint);
+          process.removeListener('SIGTERM', restoreOnSigterm);
+        };
+        const restoreOnSigint = (): void => {
+          try {
+            restoreOriginalIfCandidate();
+          } finally {
+            disarmGuard();
+            if (!hadSigintHandler) process.exit(130);
+          }
+        };
+        const restoreOnSigterm = (): void => {
+          try {
+            restoreOriginalIfCandidate();
+          } finally {
+            disarmGuard();
+            if (!hadSigtermHandler) process.exit(143);
+          }
+        };
+        const armGuard = (): void => {
+          guardArmed = true;
+          process.on('exit', restoreOnExit);
+          // Existing CLI handlers still receive the signal. These prepended
+          // listeners only ensure rollback happens before one of them exits.
+          process.prependOnceListener('SIGINT', restoreOnSigint);
+          process.prependOnceListener('SIGTERM', restoreOnSigterm);
+        };
+        const concurrentEdit = (phase: string): { ok: false; text: string } => {
+          disarmGuard();
+          return {
+            ok: false,
+            text: `optimization ABORTED: the board changed while ${phase}; the external bytes were left untouched`,
+          };
+        };
+        const restore = (phase: string): { ok: false; text: string } | null => {
+          if (!restoreOriginalIfCandidate()) return concurrentEdit(phase);
+          disarmGuard();
+          return null;
+        };
+        armGuard();
+        try {
+          // Keep the guarded transition indivisible with respect to Node signal
+          // callbacks; they cannot run halfway through this synchronous write.
+          writeFileSync(abs, candidate);
+        } catch (error) {
+          // A failed write is ours, so checkpoint zero is still the only safe
+          // complete value to leave behind.
+          writeFileSync(abs, original);
+          disarmGuard();
+          return { ok: false, text: `optimization REVERTED: candidate write failed (${(error as Error).message})` };
+        }
         let loadErr: string | null;
         try {
           loadErr = await kicadLoadError(abs);
         } catch (error) {
-          await restore();
+          if (!candidateOnDisk()) return concurrentEdit('the candidate load check was running');
+          const conflict = restore('restoring after the candidate load check failed');
+          if (conflict) return conflict;
           return { ok: false, text: `optimization REVERTED: candidate load check could not run (${(error as Error).message})` };
         }
+        if (!candidateOnDisk()) return concurrentEdit('the candidate load check was running');
         if (loadErr) {
-          await restore();
+          const conflict = restore('restoring after the candidate failed to load');
+          if (conflict) return conflict;
           return { ok: false, text: `optimization REVERTED: the candidate would not load in KiCad. kicad-cli says:\n${loadErr}` };
         }
         let verified: CheckReport;
         try {
           verified = await runDrc(abs);
         } catch (error) {
-          await restore();
+          if (!candidateOnDisk()) return concurrentEdit('final DRC was running');
+          const conflict = restore('restoring after final DRC failed to run');
+          if (conflict) return conflict;
           return { ok: false, text: `optimization REVERTED: final DRC could not run (${(error as Error).message})` };
         }
+        if (!candidateOnDisk()) return concurrentEdit('final DRC was running');
         if (verified.ok && verified.unrouted === baseline.unrouted) {
-          process.removeListener('exit', restoreOnExit);
+          disarmGuard();
           markTouched(ctx, rel);
           const moved = [...new Set(optimized.report.moves.map((move) => move.ref))];
           return {
@@ -536,7 +611,8 @@ export const HANDLERS: HandlerDef[] = [
           };
         }
 
-        await restore();
+        const conflict = restore('restoring after final DRC rejected the candidate');
+        if (conflict) return conflict;
         if (verified.ok && verified.unrouted !== baseline.unrouted) {
           return {
             ok: false,

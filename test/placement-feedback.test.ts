@@ -100,6 +100,25 @@ describe('feedback placement optimizer', () => {
     expect(result.report).toMatchObject({ changed: false, accepted: 0, stopReason: 'no-movable-parts' });
   });
 
+  it('rejects an HPWL improvement that worsens an existing courtyard overhang', () => {
+    const wideCourtyard = footprint('R1', 1.9, 10, 'A', 'N1')
+      .replace('(start -0.8 -0.6)', '(start -2 -1)')
+      .replace('(end 0.8 0.6)', '(end 2 1)');
+    const backTarget = footprint('U1', 0.9, 10, 'N1', 'B').replaceAll('F.Cu', 'B.Cu').replaceAll('F.Mask', 'B.Mask').replaceAll('F.SilkS', 'B.SilkS').replaceAll('F.Fab', 'B.Fab').replaceAll('F.CrtYd', 'B.CrtYd');
+    const input = board([wideCourtyard, backTarget]);
+    const before = checkPlacementText(input).warnings.find((finding) => finding.id === 'courtyard-overhang' && finding.refs.includes('R1'));
+    const result = optimizePlacementText(input, {
+      evaluationBudget: 1,
+      stepScheduleMm: [1],
+      allowRotations: false,
+      lockedRefs: ['U1'],
+    });
+
+    expect(before?.magnitude).toBeCloseTo(0.1, 3);
+    expect(result.report.changed).toBe(false);
+    expect(result.report.rejectionCounts).toContainEqual({ reason: 'worsened-soft-finding', count: 1 });
+  });
+
   it('refuses routed boards before evaluating a move', () => {
     const input = board([
       footprint('R1', 8, 10, 'A', 'N1'),

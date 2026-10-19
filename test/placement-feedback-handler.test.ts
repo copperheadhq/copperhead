@@ -292,10 +292,104 @@ describe('safe optimize_placement handler', () => {
 
       const result = await optimize.handler(context(repo), { evaluation_budget: 400, allow_rotations: false });
 
-      expect(result).toMatchObject({ ok: true });
+      expect(result).toMatchObject({ ok: false });
+      expect(typeof result === 'string' ? result : result.text).toContain('board changed while final DRC was running');
       expect(onDiskDuringDrc).not.toBe(input);
       expect(afterExit).toBe(input);
       expect(process.listeners('exit')).toEqual(exitListeners);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+  ] as const)('handles %s itself and restores the original in CLI modes without a signal handler', async (signal, exitCode) => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
+    const exitListeners = process.listeners('exit');
+    const sigintListeners = process.listeners('SIGINT');
+    const sigtermListeners = process.listeners('SIGTERM');
+    const signalListeners = process.listeners(signal);
+    const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as (code?: string | number | null) => never);
+    try {
+      const file = path.join(repo, 'board.kicad_pcb');
+      const input = board();
+      await writeFile(file, input);
+      let onDiskDuringDrc = '';
+      let afterSigint = '';
+      mocks.runDrc.mockReset()
+        .mockResolvedValueOnce(cleanDrc())
+        .mockImplementationOnce(async () => {
+          onDiskDuringDrc = await readFile(file, 'utf8');
+          const added = process.listeners(signal).filter((listener) => !signalListeners.includes(listener));
+          expect(added).toHaveLength(1);
+          (added[0] as (received: NodeJS.Signals) => void)(signal);
+          afterSigint = await readFile(file, 'utf8');
+          return cleanDrc();
+        });
+      mocks.kicadLoadError.mockReset().mockResolvedValue(null);
+
+      const result = await optimize.handler(context(repo), { evaluation_budget: 400, allow_rotations: false });
+
+      expect(result).toMatchObject({ ok: false });
+      expect(onDiskDuringDrc).not.toBe(input);
+      expect(afterSigint).toBe(input);
+      if (!signalListeners.length) expect(exit).toHaveBeenCalledWith(exitCode);
+      expect(process.listeners('exit')).toEqual(exitListeners);
+      expect(process.listeners('SIGINT')).toEqual(sigintListeners);
+      expect(process.listeners('SIGTERM')).toEqual(sigtermListeners);
+    } finally {
+      exit.mockRestore();
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('does not accept or overwrite bytes changed concurrently during final DRC', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
+    try {
+      const file = path.join(repo, 'board.kicad_pcb');
+      const input = board();
+      const externalEdit = Buffer.from('(kicad_pcb (external-edit yes))');
+      await writeFile(file, input);
+      mocks.runDrc.mockReset()
+        .mockResolvedValueOnce(cleanDrc())
+        .mockImplementationOnce(async () => {
+          await writeFile(file, externalEdit);
+          return cleanDrc();
+        });
+      mocks.kicadLoadError.mockReset().mockResolvedValue(null);
+      const ctx = context(repo);
+
+      const result = await optimize.handler(ctx, { evaluation_budget: 160, allow_rotations: false });
+
+      expect(result).toMatchObject({ ok: false });
+      expect(typeof result === 'string' ? result : result.text).toContain('board changed while final DRC was running');
+      expect((await readFile(file)).equals(externalEdit)).toBe(true);
+      expect(ctx.filesTouched).toEqual(new Set());
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('does not run final DRC or overwrite bytes changed during the load check', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-placement-handler-'));
+    try {
+      const file = path.join(repo, 'board.kicad_pcb');
+      const externalEdit = Buffer.from('(kicad_pcb (external-edit during-load))');
+      await writeFile(file, board());
+      mocks.runDrc.mockReset().mockResolvedValueOnce(cleanDrc());
+      mocks.kicadLoadError.mockReset().mockImplementationOnce(async () => {
+        await writeFile(file, externalEdit);
+        return null;
+      });
+
+      const result = await optimize.handler(context(repo), { evaluation_budget: 160, allow_rotations: false });
+
+      expect(result).toMatchObject({ ok: false });
+      expect(typeof result === 'string' ? result : result.text).toContain('board changed while the candidate load check was running');
+      expect((await readFile(file)).equals(externalEdit)).toBe(true);
+      expect(mocks.runDrc).toHaveBeenCalledTimes(1);
     } finally {
       await rm(repo, { recursive: true, force: true });
     }
