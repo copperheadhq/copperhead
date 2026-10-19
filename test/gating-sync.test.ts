@@ -13,8 +13,10 @@ import {
   reopenDeferredAffects,
   checkForbiddenPins,
   uncheckedForbiddenConstraints,
+  type PinNetEntry,
 } from '../src/memory/constraints.js';
 import { syncVerify, formatSyncReport } from '../src/commands/sync.js';
+import { formatSyncInspect } from '../src/commands/repl-inspect.js';
 import { runCheck } from '../src/commands/check.js';
 import { tempFixtureRepo } from './helpers.js';
 
@@ -164,9 +166,11 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
       await dispatchTool(ctx, 'record_constraint', {
         key: 'power.sleep_current_uA',
         max: 25,
+        refs: ['U1'],
         source: 'docs/SPEC.md#budgets',
         affects: ['R1'],
       });
+      expect((await loadConstraints(repo))['power.sleep_current_uA']?.refs).toEqual(['U1']);
       expect(ctx.ledger.openObligations.some((o) => o.kind === 'affects-revisit')).toBe(true);
       await dispatchTool(ctx, 'resolve_affected', {
         constraint_key: 'power.sleep_current_uA',
@@ -503,6 +507,41 @@ describe('copperhead sync verify phase (AC-7)', () => {
     expect(checkForbiddenPins(bareNumberReg, passivePins)).toEqual([]);
     expect(uncheckedForbiddenConstraints(bareNumberReg, passivePins)).toEqual(['pins.bare_pin_number']);
 
+    // 8. Bare pin number scoped only through affects does not match passives in affects; explicit refs does (#395 pass-2 finding 2)
+    const affectsScopedNumberReg = {
+      'pins.affects_only_number': {
+        forbidden: ['1'],
+        source: 'spec',
+        affects: ['U1', 'R5'],
+      },
+    };
+    const mcuAndPullupPins: PinNetEntry[] = [
+      { ref: 'U1', pinName: 'IO0', pinNumber: '1', net: 'BOOT' },
+      { ref: 'R5', pinName: '~', pinNumber: '1', net: 'BOOT' },
+    ];
+    expect(checkForbiddenPins(affectsScopedNumberReg, mcuAndPullupPins)).toEqual([]);
+    expect(uncheckedForbiddenConstraints(affectsScopedNumberReg, mcuAndPullupPins)).toEqual([
+      'pins.affects_only_number',
+    ]);
+    const explicitRefsNumberReg = {
+      'pins.explicit_refs_number': {
+        forbidden: ['1'],
+        refs: ['U1'],
+        source: 'spec',
+        affects: ['U1', 'R5'],
+      },
+    };
+    const explicitNumViolations = checkForbiddenPins(explicitRefsNumberReg, mcuAndPullupPins);
+    expect(explicitNumViolations).toHaveLength(1);
+    expect(explicitNumViolations[0]!.description).toContain('U1 pin IO0 (1) is connected to net BOOT');
+    expect(uncheckedForbiddenConstraints(explicitRefsNumberReg, mcuAndPullupPins)).toEqual([]);
+
+    // 9. Slash-delimited multi-function pin name (e.g. IO0/BOOT) matches GPIO0 (#395 pass-2 finding 3b)
+    const multiFnPins: PinNetEntry[] = [{ ref: 'U1', pinName: 'IO0/BOOT', net: 'BOOT' }];
+    const multiFnViolations = checkForbiddenPins(strappingReg, multiFnPins);
+    expect(multiFnViolations).toHaveLength(1);
+    expect(multiFnViolations[0]!.description).toContain('U1 pin IO0/BOOT (GPIO0) is connected to net BOOT');
+
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
@@ -525,6 +564,11 @@ describe('copperhead sync verify phase (AC-7)', () => {
       const syncRep = await syncVerify(repo);
       expect(syncRep.unchecked).toEqual(['assembly.hand_solderable']);
       expect(formatSyncReport(syncRep)).toContain('constraint assembly.hand_solderable: not mechanically checked');
+
+      const replSyncOut = await formatSyncInspect(repo);
+      expect(replSyncOut).toContain('sync: 1 constraint(s) not mechanically checked');
+      expect(replSyncOut).not.toContain('sync: clean');
+      expect(replSyncOut).toContain('constraint assembly.hand_solderable: not mechanically checked');
     } finally {
       await cleanup();
     }

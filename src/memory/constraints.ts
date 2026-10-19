@@ -141,10 +141,13 @@ export type PinNetEntry = Omit<PinNet, 'pinNumber'> & { pinNumber?: string };
 const REFDES_TOKEN_RE =
   /^(?:U|IC|MCU|R|C|L|D|Q|J|P|SW|S|K|Y|X|F|FB|TP|BT|LED|RN|RV|T|BZ|LS|MK|VR|Z|FL|A|H|M|TH|W)\d+[A-Za-z]*$/;
 
-function extractScopedRefs(c: Constraint, knownRefs: ReadonlySet<string>): Set<string> | null {
+function extractScopedRefs(
+  c: Constraint,
+  knownRefs: ReadonlySet<string>,
+): { refs: Set<string> | null; explicit: boolean } {
   if (c.refs?.length) {
     const explicit = new Set(c.refs.map((r) => r.trim()).filter(Boolean));
-    if (explicit.size > 0) return explicit;
+    if (explicit.size > 0) return { refs: explicit, explicit: true };
   }
   const fromAffects = new Set<string>();
   for (const raw of c.affects ?? []) {
@@ -156,19 +159,19 @@ function extractScopedRefs(c: Constraint, knownRefs: ReadonlySet<string>): Set<s
       fromAffects.add(head);
     }
   }
-  return fromAffects.size > 0 ? fromAffects : null;
+  return { refs: fromAffects.size > 0 ? fromAffects : null, explicit: false };
 }
 
 function parseForbiddenSpec(
   raw: string,
-  defaultRefs: Set<string> | null,
-): { refs: Set<string> | null; pinSpec: string } {
+  defaultScope: { refs: Set<string> | null; explicit: boolean },
+): { refs: Set<string> | null; pinSpec: string; isRefScoped: boolean } {
   const trimmed = raw.trim();
   const prefixed = /^([A-Za-z]+\d+[A-Za-z]*)\s*:\s*(.+)$/.exec(trimmed);
   if (prefixed) {
-    return { refs: new Set([prefixed[1]!]), pinSpec: prefixed[2]!.trim() };
+    return { refs: new Set([prefixed[1]!]), pinSpec: prefixed[2]!.trim(), isRefScoped: true };
   }
-  return { refs: defaultRefs, pinSpec: trimmed };
+  return { refs: defaultScope.refs, pinSpec: trimmed, isRefScoped: defaultScope.explicit };
 }
 
 function canonicalIoName(name: string): string {
@@ -205,13 +208,13 @@ export function checkForbiddenPins(
   const knownRefs = new Set(pinNets.map((p) => p.ref));
   for (const [key, c] of Object.entries(registry)) {
     if (!c.forbidden?.length) continue;
-    const defaultRefs = extractScopedRefs(c, knownRefs);
-    const specs = c.forbidden.map((entry) => parseForbiddenSpec(entry, defaultRefs));
+    const defaultScope = extractScopedRefs(c, knownRefs);
+    const specs = c.forbidden.map((entry) => parseForbiddenSpec(entry, defaultScope));
     for (const pn of pinNets) {
       if (!pn.net) continue;
       const matchedSpec = specs.find(
-        ({ refs, pinSpec }) =>
-          (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, Boolean(refs && refs.size > 0)),
+        ({ refs, pinSpec, isRefScoped }) =>
+          (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, isRefScoped),
       );
       if (matchedSpec) {
         const pinLabel =
@@ -241,11 +244,10 @@ export function uncheckedForbiddenConstraints(
   const knownRefs = new Set(pinNets.map((p) => p.ref));
   for (const [key, c] of Object.entries(registry)) {
     if (!c.forbidden?.length) continue;
-    const defaultRefs = extractScopedRefs(c, knownRefs);
+    const defaultScope = extractScopedRefs(c, knownRefs);
     let anyUnmatched = false;
     for (const raw of c.forbidden) {
-      const { refs, pinSpec } = parseForbiddenSpec(raw, defaultRefs);
-      const isRefScoped = Boolean(refs && refs.size > 0);
+      const { refs, pinSpec, isRefScoped } = parseForbiddenSpec(raw, defaultScope);
       const matched = pinNets.some((pn) => (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, isRefScoped));
       if (!matched) {
         anyUnmatched = true;
