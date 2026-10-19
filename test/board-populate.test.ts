@@ -1133,9 +1133,30 @@ describe('placing a reference label in board coordinates (#380)', () => {
     expect(moved).toContain('(fp_text reference "R1" (at 20 -10 270)');
   });
 
-  it('refuses to guess when the footprint has no Reference property to place', () => {
-    expect(() => moveFootprint(BOARD.replace('"Reference"', '"Ref"'), 'R1', 100, 100, 0, { x: 1, y: 1 })).toThrow(
-      /no footprint with refdes R1/,
+  it('refuses a Reference property that has no (at …) to place the label at', () => {
+    // the footprint still carries a Reference, so it is found; the label has
+    // nowhere to go
+    const noAt = BOARD.replace('      (at 0 -1.43 0)\n', '');
+    expect(noAt).toContain('(property "Reference" "R1"');
+    expect(noAt).not.toMatch(/\(property "Reference" "R1"\n\s+\(at/);
+    expect(() => moveFootprint(noAt, 'R1', 100, 100, 0, { x: 1, y: 1 })).toThrow(/Reference property has no \(at/);
+  });
+
+  it('refuses a Reference that is not a direct child of the footprint (defensive)', () => {
+    // a nested Reference (e.g. inside a (group …)) is not where moveFootprint
+    // looks; the tool says so rather than picking the wrong node
+    const refBlock =
+      '    (property "Reference" "R1"\n' +
+      '      (at 0 -1.43 0)\n' +
+      '      (layer "F.SilkS")\n' +
+      '      (uuid "00000000-0000-4000-8000-000000000002")\n' +
+      '      (effects (font (size 1 1) (thickness 0.15)))\n' +
+      '    )\n';
+    const grouped = `    (group "labels"\n${refBlock.replace(/^(?=.)/gm, '  ')}    )\n`;
+    const nested = BOARD.replace(refBlock, grouped);
+    expect(nested).not.toBe(BOARD);
+    expect(() => moveFootprint(nested, 'R1', 100, 100, 0, { x: 1, y: 1 })).toThrow(
+      /has no Reference property to place a label on/,
     );
   });
 
@@ -1183,6 +1204,29 @@ describe('placing a reference label in board coordinates (#380)', () => {
       await writeFile(path.join(repo, 'board.kicad_pcb'), BOARD, 'utf8');
       const out = await dispatchTool(labelCtx(repo), 'move_footprint', { ref: 'R1', x: 100, y: 100, label_x: 'left', label_y: 1 });
       expect(String(out)).toContain('label_x and label_y must be numbers');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  // Goes through kicadLoadError, so it needs kicad-cli (like the DRC test below).
+  it('the handler places the label from a valid label_x/label_y pair and names the point', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-label-'));
+    try {
+      await writeFile(path.join(repo, 'board.kicad_pcb'), BOARD, 'utf8');
+      const out = await dispatchTool(labelCtx(repo), 'move_footprint', {
+        ref: 'R1',
+        x: 100,
+        y: 100,
+        rotation: 90,
+        label_x: 110,
+        label_y: 120,
+      });
+      expect(String(out)).toContain('moved R1 to (100, 100) at 90°');
+      expect(String(out)).toContain('; Reference label at (110, 120)');
+      expect(String(out)).not.toContain('REVERTED');
+      // the board keeps only the Reference's (at …) changed, to the inverse-rotated local point
+      expect(refLocal(await readFile(path.join(repo, 'board.kicad_pcb'), 'utf8'), 'R1')).toEqual({ x: -20, y: 10, rot: 90 });
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

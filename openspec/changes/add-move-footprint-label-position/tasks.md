@@ -26,5 +26,5 @@
 
 ## 5. Close-out
 
-- [x] 5.1 Run `npm run typecheck`, `npm test`, and `npm run docs:build`.
+- [ ] 5.1 Run `npm run typecheck`, `npm test`, and `npm run docs:build`. `typecheck` and `npm test` ran; `docs:build` did not (docs/node_modules is not installed here, and this change touches no docs source).
 - [x] 5.2 Report any live-model test not run; the offline suite does not prove provider parity.
