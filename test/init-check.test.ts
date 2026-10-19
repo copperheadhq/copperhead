@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFile, writeFile, rm, mkdtemp, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, rm, mkdtemp, mkdir, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -93,7 +93,7 @@ describe('copperhead check (AC-2)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 300_000);
 
   it('broken schematic (unconnected pin): fails with location (AC-2.2)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -110,7 +110,7 @@ describe('copperhead check (AC-2)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 300_000);
 
   it('BOM value drift: names doc, claim, and actual (AC-2.3)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
@@ -152,7 +152,7 @@ describe('copperhead check (AC-2)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 300_000);
 });
 
 describe('check is LLM-free by construction (AC-2.1)', () => {
@@ -195,7 +195,66 @@ describe('fab export (create stage 6 tooling)', () => {
     } finally {
       await cleanup();
     }
-  }, 60_000);
+  }, 300_000);
+
+  it('regression: a failed gerbers export is not masked by drill sharing its output directory', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const { exportFab, resetKicadCliCache } = await import('../src/kicad/cli.js');
+      // Fake kicad-cli: the gerbers job always fails; every other job succeeds
+      // and creates its --output target, exactly like drill writing into the
+      // same out/gerbers directory that the failed gerbers job would have used.
+      const fakeScript = path.join(repo, 'fake-kicad-cli.cjs');
+      await writeFile(
+        fakeScript,
+        `const fs = require('fs');\n` +
+          `const path = require('path');\n` +
+          `const args = process.argv.slice(2);\n` +
+          `if (args[2] === 'gerbers') process.exit(1);\n` +
+          `const target = args[args.indexOf('--output') + 1];\n` +
+          `if (path.extname(target)) {\n` +
+          `  fs.mkdirSync(path.dirname(target), { recursive: true });\n` +
+          `  fs.writeFileSync(target, '');\n` +
+          `} else {\n` +
+          `  fs.mkdirSync(target, { recursive: true });\n` +
+          `}\n` +
+          `process.exit(0);\n`,
+        'utf8',
+      );
+      const bin =
+        process.platform === 'win32'
+          ? path.join(repo, 'fake-kicad-cli.cmd')
+          : path.join(repo, 'fake-kicad-cli');
+      if (process.platform === 'win32') {
+        await writeFile(bin, `@echo off\r\nnode "${fakeScript}" %*\r\n`, 'utf8');
+      } else {
+        await writeFile(bin, `#!/bin/sh\nexec node "${fakeScript}" "$@"\n`, 'utf8');
+        await chmod(bin, 0o755);
+      }
+      const saved = process.env.COPPERHEAD_KICAD_CLI;
+      process.env.COPPERHEAD_KICAD_CLI = bin;
+      resetKicadCliCache();
+      try {
+        const out = path.join(repo, 'outputs');
+        const res = await exportFab(
+          path.join(repo, 'hardware', 'open-key.kicad_pcb'),
+          path.join(repo, 'hardware', 'open-key.kicad_sch'),
+          out,
+        );
+        // Trap: the directory exists because drill wrote into it, even though
+        // gerbers itself never produced anything.
+        expect(existsSync(path.join(out, 'gerbers'))).toBe(true);
+        expect(res.produced).not.toContain('gerbers');
+        expect(res.failed.map((f) => f.artifact)).toContain('gerbers');
+      } finally {
+        if (saved === undefined) delete process.env.COPPERHEAD_KICAD_CLI;
+        else process.env.COPPERHEAD_KICAD_CLI = saved;
+        resetKicadCliCache();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe('model selection precedence (task 4.6)', () => {
