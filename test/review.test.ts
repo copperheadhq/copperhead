@@ -689,6 +689,28 @@ describe('review: the run and its record', () => {
     expect(await readdir(path.join(root, 'sweep-record'))).toEqual(['review.json']);
     expect(await readdir(path.join(design, 'empty'))).toEqual([]);
   });
+  it('validates --tools, --sweep, PATH, and --out before creating the record directory (#404)', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'review-test-'));
+    const design = path.join(root, 'design');
+    await mkdir(design, { recursive: true });
+    const base = { design, sources: [], model: 's', domains: ['P'], maxTurns: 1, maxMinutes: 1, parallel: 1, makeProvider: async () => scriptedProvider([]), log: () => undefined };
+
+    const outTools = path.join(root, 'out-bad-tools');
+    await expect(runReview({ ...base, out: outTools, tools: path.join(root, 'nope.js') })).rejects.toThrow(/copperhead-tools not found/);
+    await expect(readdir(outTools)).rejects.toMatchObject({ code: 'ENOENT' });
+
+    const outSweep = path.join(root, 'out-bad-sweep');
+    await expect(runReview({ ...base, out: outSweep, sweep: path.join(root, 'nosweep'), client: fakeTools() })).rejects.toThrow(/holds no review\.json/);
+    await expect(readdir(outSweep)).rejects.toMatchObject({ code: 'ENOENT' });
+
+    const outFile = path.join(root, 'existing-file');
+    await writeFile(outFile, 'x');
+    await expect(runReview({ ...base, out: outFile, client: fakeTools() })).rejects.toThrow(/not a directory/);
+
+    const emptyPathDir = path.join(root, 'empty-bin');
+    await mkdir(emptyPathDir);
+    await expect(resolveTools(undefined, { PATH: emptyPathDir })).rejects.toThrow(/not found on PATH/);
+  });
 });
 
 describe('review: the copperhead-tools client', () => {

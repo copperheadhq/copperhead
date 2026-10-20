@@ -82,8 +82,10 @@ async function emptyOrAbsent(dir: string): Promise<boolean> {
   try {
     return (await readdir(dir)).length === 0;
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return true;
-    throw new Error(`--out ${dir} exists and is not a directory`);
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return true;
+    if (code === 'ENOTDIR') throw new Error(`--out ${dir} is not a directory, or lies under a file`);
+    throw e;
   }
 }
 
