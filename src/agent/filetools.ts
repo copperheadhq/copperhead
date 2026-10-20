@@ -121,19 +121,101 @@ export function globToRegex(glob: string): RegExp {
 }
 
 
+const MAX_SEARCH_PATTERN_CHARS = 512;
+const MAX_SEARCH_LINE_CHARS = 16_384;
+const DEFAULT_SEARCH_TIMEOUT_MS = 5_000;
+
+/**
+ * Detect regex constructs prone to catastrophic backtracking (CWE-1333):
+ * - Quantified groups whose body already contains a repetition quantifier, e.g. `(a+)+`, `(.*a){2,}`
+ * - Backreferences (`\1`..`\9`) inside or followed by repetition quantifiers
+ */
+export function hasCatastrophicBacktracking(pattern: string): boolean {
+  if (/\\[1-9]/.test(pattern)) return true;
+  const groupHasQuantifier: boolean[] = [];
+  let inCharClass = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i]!;
+    if (ch === '\\') {
+      i++;
+      continue;
+    }
+    if (inCharClass) {
+      if (ch === ']') inCharClass = false;
+      continue;
+    }
+    if (ch === '[') {
+      inCharClass = true;
+      continue;
+    }
+    if (ch === '(') {
+      groupHasQuantifier.push(false);
+      continue;
+    }
+    if (ch === ')') {
+      const innerQuantified = groupHasQuantifier.pop() ?? false;
+      const next = pattern.slice(i + 1);
+      const outerQuantified = /^(?:[+*]|\{\d+,?\d*\}|\?[+*])/.test(next);
+      if (innerQuantified && outerQuantified) return true;
+      if (innerQuantified && groupHasQuantifier.length > 0) {
+        groupHasQuantifier[groupHasQuantifier.length - 1] = true;
+      }
+      continue;
+    }
+    if (
+      (ch === '+' || ch === '*' || (ch === '{' && /^\{\d+,?\d*\}/.test(pattern.slice(i)))) &&
+      groupHasQuantifier.length > 0
+    ) {
+      groupHasQuantifier[groupHasQuantifier.length - 1] = true;
+    }
+  }
+  return false;
+}
+
+export function compileSafeSearchRegex(pattern: string): RegExp {
+  if (!pattern || typeof pattern !== 'string') {
+    throw new Error('search: pattern must be a non-empty string');
+  }
+  if (pattern.length > MAX_SEARCH_PATTERN_CHARS) {
+    throw new Error(
+      `search: pattern length (${pattern.length}) exceeds maximum of ${MAX_SEARCH_PATTERN_CHARS} characters`,
+    );
+  }
+  if (hasCatastrophicBacktracking(pattern)) {
+    throw new Error(
+      'search: pattern rejected due to nested quantifiers or backreferences that risk catastrophic backtracking (ReDoS)',
+    );
+  }
+  try {
+    return new RegExp(pattern);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`search: invalid regular expression: ${msg}`);
+  }
+}
+
 /** ripgrep-style regex search implemented natively (no rg dependency). */
 export async function toolSearch(
   repoRoot: string,
   pattern: string,
   glob?: string,
   maxMatches = 200,
+  timeoutMs = DEFAULT_SEARCH_TIMEOUT_MS,
 ): Promise<SearchMatch[]> {
-  const re = new RegExp(pattern);
+  const re = compileSafeSearchRegex(pattern);
   const globRe = glob ? globToRegex(glob) : null;
   const matches: SearchMatch[] = [];
+  const deadline = Date.now() + Math.max(1, timeoutMs);
+  function checkDeadline(): void {
+    if (Date.now() > deadline) {
+      throw new Error(`search: time budget (${timeoutMs}ms) exceeded; narrow the pattern or pass a glob`);
+    }
+  }
   async function walk(dir: string): Promise<void> {
+    checkDeadline();
     if (matches.length >= maxMatches) return;
     for (const entry of await readdir(dir)) {
+      checkDeadline();
       if (SKIP_DIRS.has(entry)) continue;
       const abs = path.join(dir, entry);
       const rel = path.relative(repoRoot, abs);
@@ -150,7 +232,10 @@ export async function toolSearch(
         if (text.includes('\u0000')) continue; // binary
         const lines = text.split('\n');
         for (let i = 0; i < lines.length && matches.length < maxMatches; i++) {
-          if (re.test(lines[i]!)) matches.push({ file: rel, line: i + 1, text: clipMatch(lines[i]!) });
+          if ((i & 63) === 0) checkDeadline();
+          const line = lines[i]!;
+          const bounded = line.length <= MAX_SEARCH_LINE_CHARS ? line : line.slice(0, MAX_SEARCH_LINE_CHARS);
+          if (re.test(bounded)) matches.push({ file: rel, line: i + 1, text: clipMatch(line) });
         }
       }
       if (matches.length >= maxMatches) return;
