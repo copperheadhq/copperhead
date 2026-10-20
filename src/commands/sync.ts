@@ -2,7 +2,8 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
-import { checkDrift } from '../memory/drift.js';
+import { checkDrift, checkBriefProvenance, reconcileBriefHash } from '../memory/drift.js';
+export { reconcileBriefHash };
 import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -139,6 +140,17 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
         governedBy: v.source,
       });
     }
+  }
+
+  const brief = await checkBriefProvenance(repoRoot, config.docs);
+  if (brief && !brief.ok) {
+    resolvable.push({
+      kind: 'drift',
+      doc: brief.path,
+      claim: `brief sha256 ${brief.current.slice(0, 8)}`,
+      actual: `design last reconciled against ${brief.recorded.slice(0, 8)}`,
+      resolution: 'reconcile the design with the updated brief and run copperhead sync --brief',
+    });
   }
 
   return { resolvable, violations };

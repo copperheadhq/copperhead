@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol } from '../kicad/sexp.js';
@@ -136,4 +137,106 @@ export async function checkDrift(repoRoot: string, docsDir: string, schematic: s
   }
 
   return mismatches;
+}
+
+export interface BriefProvenanceStatus {
+  ok: boolean;
+  path: string;
+  recorded: string;
+  origin: string;
+  current: string;
+}
+
+function resolveBriefFile(repoRoot: string, docsDir: string, recordedPath: string): string | null {
+  const candidates = [
+    path.resolve(repoRoot, recordedPath),
+    path.join(repoRoot, docsDir, path.basename(recordedPath)),
+    path.join(repoRoot, docsDir, 'BRIEF.md'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+export async function checkBriefProvenance(
+  repoRoot: string,
+  docsDir: string,
+): Promise<BriefProvenanceStatus | null> {
+  const shaFile = path.join(repoRoot, docsDir, 'BRIEF.sha256');
+  if (!existsSync(shaFile)) return null;
+
+  const raw = await readFile(shaFile, 'utf8');
+  const briefMatch = raw.match(/^brief:\s*(.+)$/m);
+  const shaMatch = raw.match(/^sha256:\s*([0-9a-fA-F]+)$/m);
+  const originMatch = raw.match(/^origin_sha256:\s*([0-9a-fA-F]+)$/m);
+  const reconciledMatch = raw.match(/^reconciled_sha256:\s*([0-9a-fA-F]+)$/m);
+
+  if (!shaMatch) return null;
+
+  const recordedPath = briefMatch?.[1]?.trim() || path.join(docsDir, 'BRIEF.md');
+  const origin = (originMatch?.[1] ?? shaMatch[1]!).trim();
+  const recorded = (reconciledMatch?.[1] ?? shaMatch[1]!).trim();
+
+  const resolvedBrief = resolveBriefFile(repoRoot, docsDir, recordedPath);
+  if (!resolvedBrief) return null;
+
+  const current = createHash('sha256')
+    .update(await readFile(resolvedBrief))
+    .digest('hex');
+
+  return {
+    ok: current === recorded,
+    path: recordedPath,
+    recorded,
+    origin,
+    current,
+  };
+}
+
+export async function reconcileBriefHash(
+  repoRoot: string,
+  docsDir: string,
+  briefMeta?: { path: string; sha256: string },
+): Promise<BriefProvenanceStatus> {
+  const shaFile = path.join(repoRoot, docsDir, 'BRIEF.sha256');
+  await mkdir(path.dirname(shaFile), { recursive: true });
+
+  let existingPath = briefMeta?.path ?? path.join(docsDir, 'BRIEF.md');
+  let originSha: string | null = null;
+
+  if (existsSync(shaFile)) {
+    const raw = await readFile(shaFile, 'utf8');
+    const briefMatch = raw.match(/^brief:\s*(.+)$/m);
+    const shaMatch = raw.match(/^sha256:\s*([0-9a-fA-F]+)$/m);
+    const originMatch = raw.match(/^origin_sha256:\s*([0-9a-fA-F]+)$/m);
+    if (!briefMeta?.path && briefMatch?.[1]) existingPath = briefMatch[1].trim();
+    originSha = (originMatch?.[1] ?? shaMatch?.[1] ?? '').trim() || null;
+  }
+
+  let currentSha = briefMeta?.sha256;
+  if (!currentSha) {
+    const resolvedBrief = resolveBriefFile(repoRoot, docsDir, existingPath);
+    if (!resolvedBrief) {
+      throw new Error(`cannot reconcile brief provenance: brief file not found (${existingPath})`);
+    }
+    currentSha = createHash('sha256')
+      .update(await readFile(resolvedBrief))
+      .digest('hex');
+  }
+
+  const finalOrigin = originSha ?? currentSha;
+  const lines = [`brief: ${existingPath}`, `sha256: ${currentSha}`];
+  if (finalOrigin !== currentSha) {
+    lines.push(`origin_sha256: ${finalOrigin}`);
+  }
+  await writeFile(shaFile, lines.join('\n') + '\n', 'utf8');
+
+  return {
+    ok: true,
+    path: existingPath,
+    recorded: currentSha,
+    origin: finalOrigin,
+    current: currentSha,
+  };
 }
