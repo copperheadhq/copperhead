@@ -3,6 +3,7 @@
  * stdout. copperhead never imports that package; this subprocess boundary is the only coupling.
  */
 import { spawn } from 'node:child_process';
+import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -38,7 +39,26 @@ export async function resolveTools(flag?: string, env = process.env): Promise<To
     }
     command = abs.endsWith('.js') ? [process.execPath, abs] : [abs];
   } else {
-    command = ['copperhead-tools'];
+    const dirs = (env.PATH ?? '').split(path.delimiter).filter(Boolean);
+    const exts = process.platform === 'win32' ? (env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
+    let found: string | null = null;
+    for (const dir of dirs) {
+      for (const ext of ['', ...exts]) {
+        const candidate = path.join(dir, `copperhead-tools${ext}`);
+        try {
+          await access(candidate, constants.X_OK);
+          found = candidate;
+          break;
+        } catch {
+          // try next
+        }
+      }
+      if (found) break;
+    }
+    if (!found) {
+      throw new ToolsError('copperhead-tools not found on PATH (set --tools or COPPERHEAD_TOOLS)');
+    }
+    command = [found];
   }
   return {
     command,
