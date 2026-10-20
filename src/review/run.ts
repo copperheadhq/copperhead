@@ -81,8 +81,9 @@ async function exists(p: string): Promise<boolean> {
 async function emptyOrAbsent(dir: string): Promise<boolean> {
   try {
     return (await readdir(dir)).length === 0;
-  } catch {
-    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return true;
+    throw new Error(`--out ${dir} exists and is not a directory`);
   }
 }
 
@@ -239,9 +240,12 @@ export async function runReview(o: ReviewOptions): Promise<ReviewOutcome> {
       if (JSON.stringify(was) !== JSON.stringify(inputs)) throw new Error(`--resume must name the record's inputs, from the directory its review ran in: the record has ${JSON.stringify(was)}, this run names ${JSON.stringify(inputs)}`);
     }
   }
+  if (o.sweep && !(await exists(path.join(abs(o.sweep), 'review.json')))) {
+    throw new Error(`--sweep ${o.sweep} holds no review.json; give an existing sweep record directory`);
+  }
+  const tools = runningIn(cwd, o.client ?? (await resolveTools(o.tools)));
   await mkdir(path.join(out, 'model', 'samples'), { recursive: true });
   if (!(await exists(inputsPath))) await writeAtomic(inputsPath, `${JSON.stringify(inputs, null, 1)}\n`);
-  const tools = runningIn(cwd, o.client ?? (await resolveTools(o.tools)));
   const signal = o.signal;
   const sig = signal ? { signal } : {};
   const started = new Date();
