@@ -866,7 +866,7 @@ export function moveFootprint(
   const [localLabelX, localLabelY] = hasLabel ? rotate(labelX - x, labelY - y, -to) : [0, 0];
   const isRefText = (k: Span): boolean => {
     const s = boardText.slice(k.start, k.end);
-    return (k.tag === 'property' && /^\(property\s+"Reference"\b/.test(s)) || (k.tag === 'fp_text' && /^\(fp_text\s+reference\b/.test(s));
+    return (k.tag === 'property' && /^\(property\s+"Reference"\s/.test(s)) || (k.tag === 'fp_text' && /^\(fp_text\s+reference\b/.test(s));
   };
   const edits: { start: number; end: number; text: string }[] = [{ start: at.start, end: at.end, text: atText(x, y, to) }];
   for (const k of kids) {
@@ -874,6 +874,7 @@ export function moveFootprint(
     const from = { x: nums[0] ?? 0, y: nums[1] ?? 0 };
     edits.push({ start: k.start, end: k.end, text: moveZonePoints(boardText.slice(k.start, k.end), from, { x, y }, delta) });
   }
+  let rewroteRef = false;
   if (delta || hasLabel) {
     for (const k of kids) {
       if (k.tag !== 'pad' && k.tag !== 'property' && k.tag !== 'fp_text') continue;
@@ -881,6 +882,7 @@ export function moveFootprint(
       if (!delta && !refMatch) continue;
       const own = childSpans(boardText, k.start).find((c) => c.tag === 'at');
       if (!own) continue;
+      if (refMatch) rewroteRef = true;
       const v = boardText.slice(own.start, own.end).match(/-?[\d.]+/g)?.map(Number) ?? [];
       const rest = / unlocked\)$/.test(boardText.slice(own.start, own.end)) ? ' unlocked' : '';
       const nx = refMatch ? localLabelX : (v[0] ?? 0);
@@ -888,6 +890,9 @@ export function moveFootprint(
       const na = normAngle((v[2] ?? 0) + delta);
       edits.push({ start: own.start, end: own.end, text: atText(nx, ny, na).replace(/\)$/, `${rest})`) });
     }
+  }
+  if (hasLabel && !rewroteRef) {
+    throw new Error(`no Reference text with an (at …) on ${ref}`);
   }
   let text = boardText;
   for (const e of edits.sort((a, b) => b.start - a.start)) text = text.slice(0, e.start) + e.text + text.slice(e.end);

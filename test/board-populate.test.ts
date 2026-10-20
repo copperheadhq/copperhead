@@ -1276,3 +1276,49 @@ describe('an agent run may not raise the unrouted count (AC-15.39)', () => {
     }
   });
 });
+
+describe('moveFootprint Reference text placement via label_x/label_y (#380)', () => {
+  const kicad8Board = [
+    '(kicad_pcb',
+    '  (footprint "Resistor_SMD:R_0402" (layer "F.Cu")',
+    '    (at 100 100)',
+    '    (property "Reference" "R1" (at 0 -1.43 0) (layer "F.SilkS"))',
+    '    (property "Value" "10k" (at 0 1.43 0) (layer "F.Fab"))',
+    '    (pad "1" smd roundrect (at -0.51 0 0) (size 0.54 0.64) (layers "F.Cu"))',
+    '  )',
+    ')',
+  ].join('\n');
+
+  it('converts board label_x/label_y into the footprint rotated frame at 0, 90, 180 and 270 deg on KiCad 8+ property form and keeps pads/Value unchanged on label-only move', () => {
+    const at0 = moveFootprint(kicad8Board, 'R1', 100, 100, undefined, 102, 98);
+    expect(at0).toContain('(property "Reference" "R1" (at 2 -2) (layer "F.SilkS"))');
+    expect(at0).toContain('(property "Value" "10k" (at 0 1.43 0) (layer "F.Fab"))');
+    expect(at0).toContain('(pad "1" smd roundrect (at -0.51 0 0) (size 0.54 0.64) (layers "F.Cu"))');
+
+    const at90 = moveFootprint(kicad8Board, 'R1', 100, 100, 90, 102, 98);
+    expect(at90).toContain('(property "Reference" "R1" (at 2 2 90) (layer "F.SilkS"))');
+
+    const at180 = moveFootprint(kicad8Board, 'R1', 100, 100, 180, 102, 98);
+    expect(at180).toContain('(property "Reference" "R1" (at -2 2 180) (layer "F.SilkS"))');
+
+    const at270 = moveFootprint(kicad8Board, 'R1', 100, 100, 270, 102, 98);
+    expect(at270).toContain('(property "Reference" "R1" (at -2 -2 270) (layer "F.SilkS"))');
+  });
+
+  it('supports legacy fp_text reference form, preserves unlocked suffix, and rejects unpaired or missing Reference (at ...)', () => {
+    const legacy = [
+      '(kicad_pcb',
+      '  (footprint "R" (at 100 100)',
+      '    (fp_text reference "R1" (at 0 -1 0 unlocked) (layer "F.SilkS"))',
+      '  )',
+      ')',
+    ].join('\n');
+    const moved = moveFootprint(legacy, 'R1', 100, 100, 90, 102, 98);
+    expect(moved).toContain('(fp_text reference "R1" (at 2 2 90 unlocked) (layer "F.SilkS"))');
+
+    expect(() => moveFootprint(kicad8Board, 'R1', 100, 100, 0, 102, undefined)).toThrow(/label_x and label_y must be given together/);
+
+    const noRefAt = '(kicad_pcb (footprint "R" (at 100 100) (property "Reference" "R1" (layer "F.SilkS"))))';
+    expect(() => moveFootprint(noRefAt, 'R1', 100, 100, 0, 102, 98)).toThrow(/no Reference text with an \(at …\) on R1/);
+  });
+});
