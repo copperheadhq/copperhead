@@ -834,9 +834,20 @@ const atText = (x: number, y: number, a: number): string => `(at ${num(x)} ${num
  * into each other. Its zones are stored in board coordinates, so they move
  * and turn with it too. All by anchored splices only.
  */
-export function moveFootprint(boardText: string, ref: string, x: number, y: number, rotation?: number): string {
+export function moveFootprint(
+  boardText: string,
+  ref: string,
+  x: number,
+  y: number,
+  rotation?: number,
+  labelX?: number,
+  labelY?: number,
+): string {
   const open = boardText.indexOf('(kicad_pcb');
   if (open < 0) throw new Error('not a KiCad board');
+  if ((labelX === undefined) !== (labelY === undefined)) {
+    throw new Error('label_x and label_y must be given together');
+  }
   const owns = (s: Span): boolean => {
     const t = boardText.slice(s.start, s.end);
     return t.includes(`(property "Reference" ${q(ref)}`) || t.includes(`(fp_text reference ${q(ref)}`);
@@ -851,20 +862,31 @@ export function moveFootprint(boardText: string, ref: string, x: number, y: numb
   const from = normAngle(nums[2] ?? 0);
   const to = normAngle(rotation ?? from);
   const delta = to - from;
+  const hasLabel = labelX !== undefined && labelY !== undefined;
+  const [localLabelX, localLabelY] = hasLabel ? rotate(labelX - x, labelY - y, -to) : [0, 0];
+  const isRefText = (k: Span): boolean => {
+    const s = boardText.slice(k.start, k.end);
+    return (k.tag === 'property' && /^\(property\s+"Reference"\b/.test(s)) || (k.tag === 'fp_text' && /^\(fp_text\s+reference\b/.test(s));
+  };
   const edits: { start: number; end: number; text: string }[] = [{ start: at.start, end: at.end, text: atText(x, y, to) }];
   for (const k of kids) {
     if (k.tag !== 'zone') continue;
     const from = { x: nums[0] ?? 0, y: nums[1] ?? 0 };
     edits.push({ start: k.start, end: k.end, text: moveZonePoints(boardText.slice(k.start, k.end), from, { x, y }, delta) });
   }
-  if (delta) {
+  if (delta || hasLabel) {
     for (const k of kids) {
       if (k.tag !== 'pad' && k.tag !== 'property' && k.tag !== 'fp_text') continue;
+      const refMatch = hasLabel && isRefText(k);
+      if (!delta && !refMatch) continue;
       const own = childSpans(boardText, k.start).find((c) => c.tag === 'at');
       if (!own) continue;
       const v = boardText.slice(own.start, own.end).match(/-?[\d.]+/g)?.map(Number) ?? [];
       const rest = / unlocked\)$/.test(boardText.slice(own.start, own.end)) ? ' unlocked' : '';
-      edits.push({ start: own.start, end: own.end, text: atText(v[0] ?? 0, v[1] ?? 0, normAngle((v[2] ?? 0) + delta)).replace(/\)$/, `${rest})`) });
+      const nx = refMatch ? localLabelX : (v[0] ?? 0);
+      const ny = refMatch ? localLabelY : (v[1] ?? 0);
+      const na = normAngle((v[2] ?? 0) + delta);
+      edits.push({ start: own.start, end: own.end, text: atText(nx, ny, na).replace(/\)$/, `${rest})`) });
     }
   }
   let text = boardText;
