@@ -377,9 +377,21 @@ program
   .description('verify the whole design state for inconsistencies and resolve drift')
   .option('--model <model>', 'model for the resolve phase')
   .option('--dry-run', 'print the inconsistency report, write nothing')
-  .action(async (opts: { model?: string; dryRun?: boolean }) => {
+  .option('--brief', 'reconcile BRIEF.sha256 with the current brief file')
+  .action(async (opts: { model?: string; dryRun?: boolean; brief?: boolean }) => {
     const repo = repoOf(program.opts());
     try {
+      if (opts.brief && !opts.dryRun) {
+        const config = await loadConfig(repo);
+        const { reconcileBriefHash } = await import('./commands/sync.js');
+        const reconciled = await reconcileBriefHash(repo, config.docs);
+        if (program.opts().json) {
+          console.log(JSON.stringify(reconciled, null, 2));
+        } else {
+          console.log(`brief ✓ reconciled ${reconciled.path} (${reconciled.recorded.slice(0, 8)})`);
+        }
+        process.exit(0);
+      }
       const kicadVer = await kicadCliVersion();
       const report = await syncVerify(repo);
       const json = Boolean(program.opts().json);

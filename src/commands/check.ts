@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
-import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
+import { checkDrift, checkBriefProvenance, emptySchematicWarning, type BriefProvenanceStatus, type DriftMismatch } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '../memory/constraints.js';
 import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
@@ -21,6 +21,7 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  brief?: BriefProvenanceStatus;
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -122,10 +123,20 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  const brief = await checkBriefProvenance(repoRoot, config.docs);
+  if (brief) {
+    log(
+      brief.ok
+        ? 'brief ✓'
+        : `brief ✗ ${brief.path} changed since the design was last reconciled (${brief.recorded.slice(0, 8)} -> ${brief.current.slice(0, 8)})`,
+    );
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
+    (brief?.ok ?? true) &&
     (openspec?.ok ?? true) &&
     constraintViolations.length === 0;
 
@@ -137,5 +148,6 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,
+    ...(brief ? { brief } : {}),
   };
 }
