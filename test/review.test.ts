@@ -710,6 +710,19 @@ describe('review: the run and its record', () => {
     const emptyPathDir = path.join(root, 'empty-bin');
     await mkdir(emptyPathDir);
     await expect(resolveTools(undefined, { PATH: emptyPathDir })).rejects.toThrow(/not found on PATH/);
+
+    const savedPath = process.env.PATH;
+    const savedTools = process.env.COPPERHEAD_TOOLS;
+    process.env.PATH = emptyPathDir;
+    delete process.env.COPPERHEAD_TOOLS;
+    const outNoPath = path.join(root, 'out-no-path');
+    try {
+      await expect(runReview({ ...base, out: outNoPath })).rejects.toThrow(/not found on PATH/);
+      await expect(readdir(outNoPath)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      process.env.PATH = savedPath;
+      if (savedTools !== undefined) process.env.COPPERHEAD_TOOLS = savedTools;
+    }
   });
 });
 
