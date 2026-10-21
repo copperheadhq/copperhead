@@ -296,6 +296,13 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(out).toContain('Logic:SN74LVC1G17');
     });
 
+    it('labels approximate matches as near-misses requiring confirmation (#200)', async () => {
+      const out = await dispatchTool(ctx(), 'search_symbols', { query: 'SN74LVC1G17DBVR' });
+      expect(out).toContain('no exact installed symbol matches "SN74LVC1G17DBVR"');
+      expect(out).toContain('approximate / near-miss candidates only');
+      expect(out).toContain('Logic:SN74LVC1G17 (base-part substring)');
+    });
+
     it('states a genuine miss with the searched directories', async () => {
       const out = await dispatchTool(ctx(), 'search_symbols', { query: 'ZZZQ9999XY' });
       expect(out).toContain('no installed symbol matches "ZZZQ9999XY"');
