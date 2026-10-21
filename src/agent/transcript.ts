@@ -129,10 +129,14 @@ export class Transcript {
       durationMs: this.turnEntries.reduce((acc, t) => acc + (t.durationMs ?? 0), 0),
       perTurn: [...this.turnEntries],
     };
-    await mkdir(this.dir, { recursive: true });
-    const tmp = `${this.metricsPath}.tmp`;
-    await writeFile(tmp, redactSecrets(JSON.stringify(snapshot, null, 2) + '\n'), 'utf8');
-    await rename(tmp, this.metricsPath);
+    try {
+      await mkdir(this.dir, { recursive: true });
+      const tmp = `${this.metricsPath}.tmp`;
+      await writeFile(tmp, redactSecrets(JSON.stringify(snapshot, null, 2) + '\n'), 'utf8');
+      await rename(tmp, this.metricsPath);
+    } catch {
+      // Best-effort: telemetry must not end the run.
+    }
     return snapshot;
   }
 
