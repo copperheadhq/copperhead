@@ -234,6 +234,27 @@ export async function snapshotAtCommit(
   }
 }
 
+async function validateWorkingSubsheets(repoRoot: string, schematicRel: string, visited = new Set<string>()): Promise<void> {
+  const norm = schematicRel.split(path.sep).join('/');
+  if (visited.has(norm)) return;
+  visited.add(norm);
+  let fullPath: string;
+  try {
+    fullPath = resolveInRepo(repoRoot, norm);
+  } catch (err) {
+    if (err instanceof SandboxError) {
+      throw new DiffError(`schematic sub-sheet path escapes repository: ${schematicRel}`);
+    }
+    throw err;
+  }
+  if (!existsSync(fullPath)) return;
+  const content = await readFile(fullPath, 'utf8');
+  for (const sub of sheetSubfiles(content)) {
+    const subRel = path.posix.join(path.posix.dirname(norm), sub);
+    await validateWorkingSubsheets(repoRoot, subRel, visited);
+  }
+}
+
 async function snapshotWorkingTree(repoRoot: string, schematicRel: string): Promise<ElectricalSnapshot> {
   let rootSch: string;
   try {
@@ -247,6 +268,7 @@ async function snapshotWorkingTree(repoRoot: string, schematicRel: string): Prom
   if (!existsSync(rootSch)) {
     throw new DiffError(`schematic not found at ${schematicRel}`);
   }
+  await validateWorkingSubsheets(repoRoot, schematicRel);
   const [symbols, nets, pins] = await Promise.all([
     listSymbols(rootSch),
     listNets(rootSch),
