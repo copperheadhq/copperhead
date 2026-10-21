@@ -61,13 +61,11 @@ export async function toolEditFile(
   const exactPattern = `${oldString.startsWith('\n') ? '(?<!\\r)' : ''}${esc(oldString)}`;
   const exactRe = new RegExp(exactPattern, 'g');
   const re = text.includes(oldString) && new RegExp(exactPattern).test(text) ? exactRe : normalizedRe;
+  let lastBreak: string | undefined;
   const breakAtOrAfter = (at: number) => {
     const nextBreak = text.slice(at).match(/\r\n|\r(?!\n)|\n/);
-    if (nextBreak) {
-      const breakStart = at + nextBreak.index!;
-      return nextBreak[0] === '\n' && text[breakStart - 1] === '\r' ? '\r\n' : nextBreak[0];
-    }
-    return text.slice(0, at).match(/(\r\n|\n|\r)[^\r\n]*$/)?.[1] ?? '\n';
+    if (nextBreak) return nextBreak[0];
+    return (lastBreak ??= text.match(/(\r\n|\n|\r)[^\r\n]*$/)?.[1] ?? '\n');
   };
   const replacementFor = (match: string, at: number) => {
     const localEol = l0.length === 1 ? breakAtOrAfter(at) : match.match(/\r\n|\r(?!\n)|\n/)![0];
