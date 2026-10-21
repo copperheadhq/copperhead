@@ -1,0 +1,563 @@
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { execa } from 'execa';
+import { loadConfig } from '../config.js';
+import {
+  children,
+  child,
+  isList,
+  listNets,
+  listSymbols,
+  parseSexp,
+  pinNets,
+  type PinNet,
+  type SchematicSymbol,
+  type SexpNode,
+} from '../kicad/sexp.js';
+import { normalizeFootprint, normalizeValue } from '../memory/bom-table.js';
+import { loadConstraints, type ConstraintRegistry } from '../memory/constraints.js';
+import { fileAtCommit } from '../util/git.js';
+
+export class DiffError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DiffError';
+  }
+}
+
+export interface ComponentAdded {
+  ref: string;
+  value: string;
+  footprint: string;
+  libId: string;
+  nets: string[];
+}
+
+export interface ComponentFieldChange {
+  field: 'value' | 'footprint' | 'libId';
+  before: string;
+  after: string;
+}
+
+export interface ComponentModified {
+  ref: string;
+  changes: ComponentFieldChange[];
+}
+
+export interface ComponentRemoved {
+  ref: string;
+  value: string;
+  footprint: string;
+  libId: string;
+}
+
+export interface PinConnectionChange {
+  kind: 'connected' | 'disconnected';
+  ref: string;
+  pinNumber: string;
+  pinName: string;
+  pinLabel: string;
+  net: string;
+}
+
+export interface NetMergeWarning {
+  nets: [string, string];
+  into: string;
+}
+
+export interface NetRename {
+  from: string;
+  to: string;
+}
+
+export interface DiffResult {
+  base: string;
+  schematic: string;
+  hasChanges: boolean;
+  components: {
+    added: ComponentAdded[];
+    modified: ComponentModified[];
+    removed: ComponentRemoved[];
+  };
+  connections: {
+    changes: PinConnectionChange[];
+    mergedNets: NetMergeWarning[];
+  };
+  nets: {
+    renamed: NetRename[];
+    added: string[];
+    removed: string[];
+  };
+  affectedConstraints: string[];
+}
+
+interface ElectricalSnapshot {
+  symbols: SchematicSymbol[];
+  nets: string[];
+  pins: PinNet[];
+}
+
+function sheetSubfiles(text: string): string[] {
+  const root = parseSexp(text)[0];
+  if (!root || !isList(root)) return [];
+  const out: string[] = [];
+  for (const sheet of children(root, 'sheet')) {
+    for (const p of children(sheet, 'property')) {
+      const k = typeof p[1] === 'string' ? p[1] : undefined;
+      const v = typeof p[2] === 'string' ? p[2] : undefined;
+      if ((k === 'Sheetfile' || k === 'Sheet file') && v) {
+        out.push(v);
+      }
+    }
+  }
+  return out;
+}
+
+async function verifyRevision(repoRoot: string, rev: string): Promise<void> {
+  const res = await execa('git', ['rev-parse', '--verify', `${rev}^{commit}`], {
+    cwd: repoRoot,
+    reject: false,
+  });
+  if (res.exitCode !== 0) {
+    throw new DiffError(`cannot resolve git revision "${rev}"`);
+  }
+}
+
+async function snapshotAtCommit(
+  repoRoot: string,
+  commit: string,
+  schematicRel: string,
+): Promise<ElectricalSnapshot> {
+  const rootBytes = await fileAtCommit(repoRoot, commit, schematicRel);
+  if (rootBytes === null) {
+    return { symbols: [], nets: [], pins: [] };
+  }
+  const tempRoot = await mkdtemp(path.join(tmpdir(), 'copperhead-diff-'));
+  try {
+    const visited = new Set<string>();
+    const materialize = async (relPath: string): Promise<void> => {
+      const norm = relPath.split(path.sep).join('/');
+      if (visited.has(norm)) return;
+      visited.add(norm);
+      const content = await fileAtCommit(repoRoot, commit, norm);
+      if (content === null) return;
+      const dest = path.join(tempRoot, norm);
+      await mkdir(path.dirname(dest), { recursive: true });
+      await writeFile(dest, content, 'utf8');
+      for (const sub of sheetSubfiles(content)) {
+        const subRel = path.posix.join(path.posix.dirname(norm), sub);
+        await materialize(subRel);
+      }
+    };
+    await materialize(schematicRel);
+    const rootSch = path.join(tempRoot, schematicRel);
+    const [symbols, nets, pins] = await Promise.all([
+      listSymbols(rootSch),
+      listNets(rootSch),
+      pinNets(rootSch),
+    ]);
+    return { symbols, nets, pins };
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function snapshotWorkingTree(repoRoot: string, schematicRel: string): Promise<ElectricalSnapshot> {
+  const rootSch = path.join(repoRoot, schematicRel);
+  if (!existsSync(rootSch)) {
+    throw new DiffError(`schematic not found at ${schematicRel}`);
+  }
+  const [symbols, nets, pins] = await Promise.all([
+    listSymbols(rootSch),
+    listNets(rootSch),
+    pinNets(rootSch),
+  ]);
+  return { symbols, nets, pins };
+}
+
+function collapseSymbols(symbols: SchematicSymbol[]): Map<string, SchematicSymbol> {
+  const byRef = new Map<string, SchematicSymbol>();
+  for (const sym of symbols) {
+    const existing = byRef.get(sym.ref);
+    if (!existing || sym.unit === 1) {
+      byRef.set(sym.ref, sym);
+    }
+  }
+  return byRef;
+}
+
+function formatPinLabel(p: PinNet): string {
+  const suffix = p.pinName && p.pinName !== '~' ? p.pinName : p.pinNumber;
+  return `${p.ref}.${suffix}`;
+}
+
+function matchAffectedConstraints(
+  registry: ConstraintRegistry,
+  touchedRefs: Set<string>,
+  touchedNets: Set<string>,
+  touchedPins: Set<string>,
+): string[] {
+  const matched: string[] = [];
+  const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const [key, constraint] of Object.entries(registry)) {
+    const targets = [...(constraint.affects ?? []), ...(constraint.deferred ?? [])];
+    let hit = false;
+    for (const target of targets) {
+      for (const ref of touchedRefs) {
+        if (new RegExp(`\\b${escape(ref)}\\b`, 'i').test(target)) {
+          hit = true;
+          break;
+        }
+      }
+      if (hit) break;
+      for (const net of touchedNets) {
+        if (new RegExp(`\\b${escape(net)}\\b`, 'i').test(target)) {
+          hit = true;
+          break;
+        }
+      }
+      if (hit) break;
+      for (const pin of touchedPins) {
+        if (target.toLowerCase().includes(pin.toLowerCase())) {
+          hit = true;
+          break;
+        }
+      }
+      if (hit) break;
+    }
+    if (hit) matched.push(key);
+  }
+  return matched.sort();
+}
+
+export function diffSnapshots(
+  base: string,
+  schematic: string,
+  before: ElectricalSnapshot,
+  after: ElectricalSnapshot,
+  constraints: ConstraintRegistry = {},
+): DiffResult {
+  const beforeSyms = collapseSymbols(before.symbols);
+  const afterSyms = collapseSymbols(after.symbols);
+
+  const afterNetsByRef = new Map<string, Set<string>>();
+  for (const p of after.pins) {
+    if (!p.net) continue;
+    let set = afterNetsByRef.get(p.ref);
+    if (!set) {
+      set = new Set<string>();
+      afterNetsByRef.set(p.ref, set);
+    }
+    set.add(p.net);
+  }
+
+  const addedComponents: ComponentAdded[] = [];
+  const modifiedComponents: ComponentModified[] = [];
+  const removedComponents: ComponentRemoved[] = [];
+  const touchedRefs = new Set<string>();
+  const touchedNets = new Set<string>();
+  const touchedPins = new Set<string>();
+
+  const allRefs = [...new Set([...beforeSyms.keys(), ...afterSyms.keys()])].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }),
+  );
+
+  for (const ref of allRefs) {
+    const b = beforeSyms.get(ref);
+    const a = afterSyms.get(ref);
+    if (!b && a) {
+      const nets = [...(afterNetsByRef.get(ref) ?? [])].sort();
+      addedComponents.push({
+        ref: a.ref,
+        value: a.value,
+        footprint: a.footprint,
+        libId: a.libId,
+        nets,
+      });
+      touchedRefs.add(ref);
+      for (const n of nets) touchedNets.add(n);
+    } else if (b && !a) {
+      removedComponents.push({
+        ref: b.ref,
+        value: b.value,
+        footprint: b.footprint,
+        libId: b.libId,
+      });
+      touchedRefs.add(ref);
+    } else if (b && a) {
+      const changes: ComponentFieldChange[] = [];
+      if (normalizeValue(b.value) !== normalizeValue(a.value)) {
+        changes.push({ field: 'value', before: b.value, after: a.value });
+      }
+      if (normalizeFootprint(b.footprint) !== normalizeFootprint(a.footprint)) {
+        changes.push({ field: 'footprint', before: b.footprint, after: a.footprint });
+      }
+      if (b.libId !== a.libId) {
+        changes.push({ field: 'libId', before: b.libId, after: a.libId });
+      }
+      if (changes.length > 0) {
+        modifiedComponents.push({ ref, changes });
+        touchedRefs.add(ref);
+      }
+    }
+  }
+
+  const pinKey = (p: PinNet): string => `${p.ref}:${p.pinNumber}`;
+  const beforePins = new Map<string, PinNet>(before.pins.map((p) => [pinKey(p), p]));
+  const afterPins = new Map<string, PinNet>(after.pins.map((p) => [pinKey(p), p]));
+  const allPinKeys = [...new Set([...beforePins.keys(), ...afterPins.keys()])].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true }),
+  );
+
+  const connectionChanges: PinConnectionChange[] = [];
+  for (const k of allPinKeys) {
+    const bp = beforePins.get(k);
+    const ap = afterPins.get(k);
+    const bNet = bp?.net ?? null;
+    const aNet = ap?.net ?? null;
+    if (bNet === aNet) continue;
+
+    if (ap && aNet !== null) {
+      const label = formatPinLabel(ap);
+      connectionChanges.push({
+        kind: 'connected',
+        ref: ap.ref,
+        pinNumber: ap.pinNumber,
+        pinName: ap.pinName,
+        pinLabel: label,
+        net: aNet,
+      });
+      touchedRefs.add(ap.ref);
+      touchedNets.add(aNet);
+      touchedPins.add(label);
+      touchedPins.add(`${ap.ref}.${ap.pinNumber}`);
+    }
+    if (bp && bNet !== null) {
+      const label = formatPinLabel(bp);
+      connectionChanges.push({
+        kind: 'disconnected',
+        ref: bp.ref,
+        pinNumber: bp.pinNumber,
+        pinName: bp.pinName,
+        pinLabel: label,
+        net: bNet,
+      });
+      touchedRefs.add(bp.ref);
+      touchedNets.add(bNet);
+      touchedPins.add(label);
+      touchedPins.add(`${bp.ref}.${bp.pinNumber}`);
+    }
+  }
+
+  // Detect merged nets: two distinct nets in `before` whose pins now sit on a
+  // single shared net in `after`.
+  const beforeNetPins = new Map<string, Set<string>>();
+  for (const p of before.pins) {
+    if (!p.net) continue;
+    let s = beforeNetPins.get(p.net);
+    if (!s) {
+      s = new Set<string>();
+      beforeNetPins.set(p.net, s);
+    }
+    s.add(pinKey(p));
+  }
+  const afterNetPins = new Map<string, Set<string>>();
+  for (const p of after.pins) {
+    if (!p.net) continue;
+    let s = afterNetPins.get(p.net);
+    if (!s) {
+      s = new Set<string>();
+      afterNetPins.set(p.net, s);
+    }
+    s.add(pinKey(p));
+  }
+
+  const mergedNets: NetMergeWarning[] = [];
+  const seenMergePairs = new Set<string>();
+  for (const [afterNet, aPins] of afterNetPins.entries()) {
+    const contributingBeforeNets: string[] = [];
+    for (const [bNet, bPins] of beforeNetPins.entries()) {
+      const survivingPins = [...bPins].filter((pk) => afterSyms.has(pk.split(':')[0]!));
+      if (survivingPins.length === 0) continue;
+      const overlap = survivingPins.filter((pk) => aPins.has(pk));
+      if (overlap.length > 0 && overlap.length === survivingPins.length) {
+        contributingBeforeNets.push(bNet);
+      }
+    }
+    contributingBeforeNets.sort();
+    if (contributingBeforeNets.length >= 2) {
+      for (let i = 0; i < contributingBeforeNets.length; i++) {
+        for (let j = i + 1; j < contributingBeforeNets.length; j++) {
+          const pair: [string, string] = [contributingBeforeNets[i]!, contributingBeforeNets[j]!];
+          const pairKey = `${pair[0]}::${pair[1]}`;
+          if (!seenMergePairs.has(pairKey)) {
+            seenMergePairs.add(pairKey);
+            mergedNets.push({ nets: pair, into: afterNet });
+            touchedNets.add(pair[0]);
+            touchedNets.add(pair[1]);
+            touchedNets.add(afterNet);
+          }
+        }
+      }
+    }
+  }
+
+  const beforeNetSet = new Set(before.nets);
+  const afterNetSet = new Set(after.nets);
+  const rawRemovedNets = [...beforeNetSet].filter((n) => !afterNetSet.has(n)).sort();
+  const rawAddedNets = [...afterNetSet].filter((n) => !beforeNetSet.has(n)).sort();
+
+  const renamed: NetRename[] = [];
+  const matchedRemoved = new Set<string>();
+  const matchedAdded = new Set<string>();
+
+  for (const oldNet of rawRemovedNets) {
+    const oldPins = beforeNetPins.get(oldNet);
+    if (!oldPins || oldPins.size === 0) continue;
+    const oldSig = [...oldPins].sort().join(',');
+    for (const newNet of rawAddedNets) {
+      if (matchedAdded.has(newNet)) continue;
+      const newPins = afterNetPins.get(newNet);
+      if (!newPins || newPins.size === 0) continue;
+      const newSig = [...newPins].sort().join(',');
+      if (oldSig === newSig) {
+        renamed.push({ from: oldNet, to: newNet });
+        matchedRemoved.add(oldNet);
+        matchedAdded.add(newNet);
+        touchedNets.add(oldNet);
+        touchedNets.add(newNet);
+        break;
+      }
+    }
+  }
+
+  const addedNets = rawAddedNets.filter((n) => !matchedAdded.has(n));
+  const removedNets = rawRemovedNets.filter((n) => !matchedRemoved.has(n));
+  for (const n of addedNets) touchedNets.add(n);
+  for (const n of removedNets) touchedNets.add(n);
+
+  const affectedConstraints = matchAffectedConstraints(
+    constraints,
+    touchedRefs,
+    touchedNets,
+    touchedPins,
+  );
+
+  const hasChanges =
+    addedComponents.length > 0 ||
+    modifiedComponents.length > 0 ||
+    removedComponents.length > 0 ||
+    connectionChanges.length > 0 ||
+    mergedNets.length > 0 ||
+    renamed.length > 0 ||
+    addedNets.length > 0 ||
+    removedNets.length > 0;
+
+  return {
+    base,
+    schematic,
+    hasChanges,
+    components: {
+      added: addedComponents,
+      modified: modifiedComponents,
+      removed: removedComponents,
+    },
+    connections: {
+      changes: connectionChanges,
+      mergedNets,
+    },
+    nets: {
+      renamed,
+      added: addedNets,
+      removed: removedNets,
+    },
+    affectedConstraints,
+  };
+}
+
+export async function runDiff(
+  repoRoot: string,
+  opts: { base?: string } = {},
+): Promise<DiffResult> {
+  const base = opts.base ?? 'HEAD';
+  const config = await loadConfig(repoRoot);
+  if (!config.schematic) {
+    throw new DiffError('no schematic configured (run copperhead init)');
+  }
+  await verifyRevision(repoRoot, base);
+  const [before, after, constraints] = await Promise.all([
+    snapshotAtCommit(repoRoot, base, config.schematic),
+    snapshotWorkingTree(repoRoot, config.schematic),
+    loadConstraints(repoRoot),
+  ]);
+  return diffSnapshots(base, config.schematic, before, after, constraints);
+}
+
+export function formatDiffReport(res: DiffResult): string {
+  if (!res.hasChanges) {
+    return `No electrical changes since ${res.base}`;
+  }
+  const lines: string[] = [`Electrical changes since ${res.base}`];
+
+  if (
+    res.components.added.length > 0 ||
+    res.components.modified.length > 0 ||
+    res.components.removed.length > 0
+  ) {
+    lines.push('', 'Components:');
+    for (const c of res.components.added) {
+      const netSuffix = c.nets.length > 0 ? ` -> ${c.nets.join(', ')}` : '';
+      lines.push(`  + ${c.ref} ${c.value}${netSuffix}`);
+    }
+    for (const m of res.components.modified) {
+      for (const ch of m.changes) {
+        lines.push(`  ~ ${m.ref} ${ch.field} changed (${ch.before} -> ${ch.after})`);
+      }
+    }
+    for (const r of res.components.removed) {
+      lines.push(`  - ${r.ref} removed`);
+    }
+  }
+
+  if (res.connections.changes.length > 0 || res.connections.mergedNets.length > 0) {
+    lines.push('', 'Connections:');
+    for (const c of res.connections.changes) {
+      if (c.kind === 'connected') {
+        lines.push(`  + ${c.pinLabel} connected to ${c.net}`);
+      } else {
+        lines.push(`  - ${c.pinLabel} disconnected from ${c.net}`);
+      }
+    }
+    for (const m of res.connections.mergedNets) {
+      lines.push(`  ! ${m.nets[0]} and ${m.nets[1]} appear to be merged`);
+    }
+  }
+
+  if (
+    res.nets.renamed.length > 0 ||
+    res.nets.added.length > 0 ||
+    res.nets.removed.length > 0
+  ) {
+    lines.push('', 'Nets:');
+    for (const r of res.nets.renamed) {
+      lines.push(`  Renamed: ${r.from} -> ${r.to}`);
+    }
+    for (const a of res.nets.added) {
+      lines.push(`  Added: ${a}`);
+    }
+    for (const r of res.nets.removed) {
+      lines.push(`  Removed: ${r}`);
+    }
+  }
+
+  if (res.affectedConstraints.length > 0) {
+    lines.push('', 'Affected constraints:');
+    for (const k of res.affectedConstraints) {
+      lines.push(`  - ${k}`);
+    }
+  }
+
+  return lines.join('\n');
+}

@@ -9,6 +9,7 @@ import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
+import { runDiff, formatDiffReport, DiffError } from './commands/diff.js';
 import { runCreate } from './commands/create.js';
 import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
@@ -179,6 +180,27 @@ program
   .alias('verify')
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
   .action(checkAction);
+
+program
+  .command('diff')
+  .description('summarize electrical changes (components, connections, nets, affected constraints) since a git revision')
+  .option('--base <rev>', 'git revision to compare against', 'HEAD')
+  .action(async (opts: { base: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const res = await runDiff(repo, { base: opts.base });
+      if (json) {
+        console.log(JSON.stringify(res, null, 2));
+      } else {
+        console.log(formatDiffReport(res));
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error(err instanceof DiffError ? err.message : (err as Error).message);
+      process.exit(1);
+    }
+  });
 
 // `draft` and `score` are command groups taking the artifact as a noun
 // (`draft schematic` today, `draft pcb` when layout drafting exists), so the
