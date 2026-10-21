@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schemas.kicad.org/drc.v1.json",
+  "coordinate_units": "mm",
+  "date": "2026-07-31T00:00:00",
+  "ignored_checks": [],
+  "included_severities": [
+    "error",
+    "warning"
+  ],
+  "kicad_version": "8.0.0",
+  "schematic_parity": [],
+  "source": "open-key.kicad_pcb",
+  "unconnected_items": [
+    {
+      "description": "Unconnected items",
+      "items": [
+        {
+          "description": "Pad 1 [KEY_DAH] of R2 on F.Cu",
+          "pos": {
+            "x": 115.175,
+            "y": 110.0
+          }
+        },
+        {
+          "description": "Pad 5 [KEY_DAH] of U1 on F.Cu",
+          "pos": {
+            "x": 123.5,
+            "y": 116.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "unconnected_items"
+    }
+  ],
+  "violations": []
+}
