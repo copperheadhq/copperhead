@@ -100,6 +100,7 @@ function clipMatch(line: string): string {
   return t.length <= MAX_MATCH_CHARS ? t : `${t.slice(0, MAX_MATCH_CHARS)}… [+${t.length - MAX_MATCH_CHARS} chars]`;
 }
 
+/** Compile a path glob to a RegExp; `\` is normalized to `/` (no escaping, no literal backslashes). */
 export function globToRegex(glob: string): RegExp {
   const norm = glob.replace(/\\/g, '/');
   let out = '';
