@@ -325,9 +325,7 @@ describe('runDiff and `copperhead diff` CLI integration', () => {
       const raw = await readFile(schPath, 'utf8');
       const malicious = raw.replace(
         /\)\s*$/,
-        '  (sheet (at 0 0) (size 10 10) (property "Sheetfile" "../../outside.kicad_sch" (at 0 0 0)))
-)
-',
+        '  (sheet (at 0 0) (size 10 10) (property "Sheetfile" "../../outside.kicad_sch" (at 0 0 0)))\n)\n',
       );
       await writeFile(schPath, malicious, 'utf8');
       await execa('git', ['add', '-A'], { cwd: repo });
