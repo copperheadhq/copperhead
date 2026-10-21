@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
@@ -8,6 +9,7 @@ import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '.
 import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
+import { checkDocumentationPresence, isCreateProducedRepo, type FabCheckResult } from '../kicad/fab.js';
 import { openspecValidate } from '../openspec/cli.js';
 
 /**
@@ -35,9 +37,20 @@ export interface CheckResult {
     /** Advisory quantitative score; null when no schematic is configured. */
     score: ScoreReport | null;
   };
+  fab?: {
+    docs: FabCheckResult;
+  };
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+export interface RunCheckOptions {
+  fab?: boolean;
+}
+
+export async function runCheck(
+  repoRoot: string,
+  log: (s: string) => void,
+  opts: RunCheckOptions = {},
+): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
@@ -122,12 +135,33 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let fabDocs: FabCheckResult | undefined;
+  if (opts.fab) {
+    const layoutPath = path.join(repoRoot, config.docs, 'LAYOUT.md');
+    const layoutMd = existsSync(layoutPath) ? await readFile(layoutPath, 'utf8') : null;
+    const devplanExists = existsSync(path.join(repoRoot, config.docs, 'DEVPLAN.md'));
+    fabDocs = checkDocumentationPresence({
+      layoutMd,
+      devplanExists,
+      isCreateRepo: isCreateProducedRepo(config),
+      docsDir: config.docs,
+    });
+    log(
+      fabDocs.status === 'pass'
+        ? 'fab docs ✓'
+        : fabDocs.violations
+            .map((v) => `fab: ${v.location ?? config.docs} claims "${v.claim}" but actual is "${v.actual}"`)
+            .join('\n'),
+    );
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (fabDocs ? fabDocs.status !== 'fail' : true);
 
   return {
     ok,
@@ -137,5 +171,6 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,
+    ...(fabDocs ? { fab: { docs: fabDocs } } : {}),
   };
 }

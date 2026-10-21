@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { runCheck } from '../src/commands/check.js';
 import {
   CREATE_ORIGIN,
   checkDocumentationPresence,
@@ -158,5 +162,54 @@ describe('checkDocumentationPresence', () => {
       'docs/LAYOUT.md',
       'docs/DEVPLAN.md',
     ]);
+  });
+});
+
+describe('runCheck --fab documentation gate wiring (#182)', () => {
+  it('omits fab when opts.fab is false/omitted and runs checkDocumentationPresence when opts.fab is true', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'ch-fab-check-'));
+    try {
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(
+        path.join(repo, '.copperhead', 'config.json'),
+        JSON.stringify({ schematic: null, board: null, docs: 'docs', origin: 'create' }),
+        'utf8',
+      );
+      await writeFile(path.join(repo, 'docs', 'LAYOUT.md'), INIT_LAYOUT, 'utf8');
+
+      const baseRes = await runCheck(repo, () => {});
+      expect(baseRes.ok).toBe(true);
+      expect(baseRes.fab).toBeUndefined();
+
+      const logs: string[] = [];
+      const failRes = await runCheck(repo, (s) => logs.push(s), { fab: true });
+      expect(failRes.ok).toBe(false);
+      expect(failRes.fab?.docs.status).toBe('fail');
+      expect(failRes.fab?.docs.violations).toEqual([
+        {
+          claim: 'release-ready',
+          actual: '## Draft quality section is empty',
+          location: 'docs/LAYOUT.md',
+        },
+        {
+          claim: 'release-ready',
+          actual: 'missing',
+          location: 'docs/DEVPLAN.md',
+        },
+      ]);
+      expect(logs.some((l) => l.includes('fab: docs/LAYOUT.md claims "release-ready"'))).toBe(true);
+
+      await writeFile(path.join(repo, 'docs', 'LAYOUT.md'), FILLED_LAYOUT, 'utf8');
+      await writeFile(path.join(repo, 'docs', 'DEVPLAN.md'), '# Dev plan\n\nBring-up sequence.\n', 'utf8');
+
+      const passLogs: string[] = [];
+      const passRes = await runCheck(repo, (s) => passLogs.push(s), { fab: true });
+      expect(passRes.ok).toBe(true);
+      expect(passRes.fab?.docs).toEqual({ status: 'pass', violations: [] });
+      expect(passLogs).toContain('fab docs ✓');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
   });
 });
