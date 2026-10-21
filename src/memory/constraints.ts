@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -171,7 +171,7 @@ export interface ConstraintEvidence {
   sha256?: string;
   /** Optional section or page locator (for diagnostics). */
   section?: string;
-  /** Verbatim quote from the cached evidence supporting the constraint bound. */
+  /** Verbatim quote from the cached evidence that mentions the constraint bound. */
   quote: string;
   /** Optional explicit numeric literals cited from the quote. */
   numbers?: (string | number)[];
@@ -181,95 +181,180 @@ export interface EvidenceBackedConstraint extends Constraint {
   evidence?: ConstraintEvidence;
 }
 
+export interface VerifyEvidenceOptions {
+  /** Repo-relative directories allowed for evidence reads (defaults to ['.copperhead/datasheets', 'docs/datasheets']). */
+  allowedDirs?: string[];
+}
+
+const DEFAULT_EVIDENCE_DIRS = ['.copperhead/datasheets', 'docs/datasheets'];
+
 function normalizeWs(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-function isWithinRepo(repoRoot: string, candidatePath: string): boolean {
-  const rootResolved = path.resolve(repoRoot);
-  const resolved = path.resolve(rootResolved, candidatePath);
-  return resolved === rootResolved || resolved.startsWith(rootResolved + path.sep);
+function resolveCanonicalOrLexical(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+function isWithinAllowedEvidenceDirs(
+  repoRoot: string,
+  candidatePath: string,
+  allowedDirs: string[],
+): boolean {
+  const canonicalRoot = resolveCanonicalOrLexical(repoRoot);
+  const lexicalTarget = path.resolve(canonicalRoot, candidatePath);
+  let canonicalTarget = lexicalTarget;
+  if (existsSync(lexicalTarget)) {
+    try {
+      canonicalTarget = realpathSync(lexicalTarget);
+    } catch {
+      return false;
+    }
+  }
+  for (const relDir of allowedDirs) {
+    const allowedAbs = resolveCanonicalOrLexical(path.resolve(canonicalRoot, relDir));
+    if (canonicalTarget === allowedAbs || canonicalTarget.startsWith(allowedAbs + path.sep)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function extractNumericTokens(text: string): number[] {
+  const normalized = text.replace(/\u2212/g, '-').replace(/(\d),(?=\d{3}\b)/g, '$1');
+  const matches = normalized.match(/-?\d+(?:\.\d+)?/g) ?? [];
+  return matches.map((m) => Number(m)).filter((n) => Number.isFinite(n));
 }
 
 /**
  * Deterministic, offline verification of general constraint evidence (#232).
- * Checks that every constraint carrying `evidence` (or a `source` citing a
- * local file with an attached `evidence` block) resolves inside `repoRoot`,
- * matches its optional `sha256` digest, contains the verbatim `quote`
- * (whitespace-normalized), and mentions the constraint's numeric bounds.
+ * Checks that every constraint carrying `evidence` resolves inside the allowed
+ * evidence cache directories under `repoRoot` (following symlinks via realpath),
+ * refers to a regular file, matches its optional `sha256` digest, contains the
+ * verbatim `quote` (reading a sibling `.pdf.txt` sidecar when `path` is a PDF),
+ * and that the quote mentions the constraint's numeric bounds.
  */
 export async function verifyConstraintEvidence(
   repoRoot: string,
   registry: ConstraintRegistry,
+  opts?: VerifyEvidenceOptions,
 ): Promise<ConstraintViolation[]> {
   const { createHash } = await import('node:crypto');
+  const allowedDirs = opts?.allowedDirs ?? DEFAULT_EVIDENCE_DIRS;
   const violations: ConstraintViolation[] = [];
 
   for (const [key, rawConstraint] of Object.entries(registry)) {
     const c = rawConstraint as EvidenceBackedConstraint;
-    const ev = c.evidence;
+    const ev = c.evidence as unknown as Record<string, unknown> | undefined;
     if (!ev) continue;
 
-    if (!ev.path || !isWithinRepo(repoRoot, ev.path)) {
+    if (
+      typeof ev.path !== 'string' ||
+      typeof ev.quote !== 'string' ||
+      (ev.sha256 !== undefined && typeof ev.sha256 !== 'string')
+    ) {
       violations.push({
         key,
-        description: `evidence path "${ev.path}" escapes the repository root or is empty`,
+        description: `malformed evidence entry (path, quote, and optional sha256 must be strings)`,
         source: c.source,
       });
       continue;
     }
 
-    const fullPath = path.resolve(repoRoot, ev.path);
-    if (!existsSync(fullPath)) {
+    const evPath = ev.path.trim();
+    if (!evPath || !isWithinAllowedEvidenceDirs(repoRoot, evPath, allowedDirs)) {
       violations.push({
         key,
-        description: `cached evidence file "${ev.path}" does not exist on disk`,
+        description: `evidence path "${ev.path}" escapes the allowed evidence cache (${allowedDirs.join(', ')}) or is empty`,
         source: c.source,
       });
       continue;
     }
 
-    const buf = await readFile(fullPath);
+    const fullPath = path.resolve(repoRoot, evPath);
+    let isRegularFile = false;
+    try {
+      isRegularFile = statSync(fullPath).isFile();
+    } catch {
+      isRegularFile = false;
+    }
+    if (!isRegularFile) {
+      violations.push({
+        key,
+        description: `cached evidence file "${evPath}" does not exist on disk or is not a regular file`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    let buf: Buffer;
+    try {
+      buf = await readFile(fullPath);
+    } catch (err) {
+      violations.push({
+        key,
+        description: `failed to read cached evidence file "${evPath}": ${(err as Error).message}`,
+        source: c.source,
+      });
+      continue;
+    }
+
     if (ev.sha256) {
       const actualHash = createHash('sha256').update(buf).digest('hex');
       if (actualHash.toLowerCase() !== ev.sha256.toLowerCase()) {
         violations.push({
           key,
-          description: `evidence file "${ev.path}" sha256 mismatch (expected ${ev.sha256}, got ${actualHash})`,
+          description: `evidence file "${evPath}" sha256 mismatch (expected ${ev.sha256}, got ${actualHash})`,
           source: c.source,
         });
         continue;
       }
     }
 
-    const text = buf.toString('utf8');
+    let textSourceBuf = buf;
+    if (evPath.toLowerCase().endsWith('.pdf') && existsSync(`${fullPath}.txt`)) {
+      try {
+        textSourceBuf = await readFile(`${fullPath}.txt`);
+      } catch {
+        // Fall back to the primary buffer if the sidecar cannot be read.
+      }
+    }
+
+    const text = textSourceBuf.toString('utf8');
     const normDoc = normalizeWs(text);
-    const normQuote = normalizeWs(ev.quote ?? '');
+    const normQuote = normalizeWs(ev.quote);
+    const sectionSuffix = typeof ev.section === 'string' && ev.section ? ` (${ev.section})` : '';
     if (!normQuote || !normDoc.includes(normQuote)) {
       violations.push({
         key,
-        description: `cited quote not found verbatim in "${ev.path}"${ev.section ? ` (${ev.section})` : ''}`,
+        description: `cited quote not found verbatim in "${evPath}"${sectionSuffix}`,
         source: c.source,
       });
       continue;
     }
 
-    const requiredNumbers: string[] = [];
-    if (ev.numbers?.length) {
-      for (const n of ev.numbers) requiredNumbers.push(String(n));
+    const requiredNumbers: number[] = [];
+    if (Array.isArray(ev.numbers) && ev.numbers.length > 0) {
+      for (const n of ev.numbers) {
+        const parsed = Number(n);
+        if (Number.isFinite(parsed)) requiredNumbers.push(parsed);
+      }
     } else {
-      if (typeof c.min === 'number') requiredNumbers.push(String(c.min));
-      if (typeof c.max === 'number') requiredNumbers.push(String(c.max));
-      if (typeof c.value === 'number') requiredNumbers.push(String(c.value));
+      if (typeof c.min === 'number') requiredNumbers.push(c.min);
+      if (typeof c.max === 'number') requiredNumbers.push(c.max);
+      if (typeof c.value === 'number') requiredNumbers.push(c.value);
     }
 
-    for (const numStr of requiredNumbers) {
-      const escaped = numStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const numRe = new RegExp(`(?<![0-9.])${escaped}(?![0-9.])`);
-      if (!numRe.test(normQuote)) {
+    const quoteNumbers = extractNumericTokens(normQuote);
+    for (const boundNum of requiredNumbers) {
+      if (!quoteNumbers.some((qn) => qn === boundNum)) {
         violations.push({
           key,
-          description: `constraint bound "${numStr}" is not present in the cited quote from "${ev.path}"`,
+          description: `constraint bound "${boundNum}" is not present in the cited quote from "${evPath}"`,
           source: c.source,
         });
       }
