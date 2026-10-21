@@ -96,6 +96,16 @@ export interface SchematicSymbol {
   unit: number;
 }
 
+export interface BoardFootprint {
+  ref: string;
+  value: string;
+  footprint: string;
+  layer: string;
+  side: 'front' | 'back';
+  at: { x: number; y: number; rot: number };
+  uuid: string;
+}
+
 export interface PinDef {
   number: string;
   name: string;
@@ -283,6 +293,52 @@ export async function listSymbols(rootSch: string): Promise<SchematicSymbol[]> {
     }
   }
   return out.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
+}
+
+function fpText(fp: SexpNode[], kind: string): string | undefined {
+  for (const t of children(fp, 'fp_text')) {
+    if (atomAt(t, 1) === kind) return atomAt(t, 2);
+  }
+  return undefined;
+}
+
+/** Parse footprints from `.kicad_pcb` text (read-only). */
+export function footprintsOf(boardText: string): BoardFootprint[] {
+  const root = parseSexp(boardText)[0];
+  if (root === undefined || !isList(root) || tag(root) !== 'kicad_pcb') {
+    throw new Error('not a KiCad PCB s-expression file');
+  }
+  const out: BoardFootprint[] = [];
+  for (const fp of children(root, 'footprint')) {
+    const rawRef = property(fp, 'Reference') ?? fpText(fp, 'reference');
+    const ref = rawRef && rawRef.trim() !== '' ? rawRef : '?';
+    const value = property(fp, 'Value') ?? fpText(fp, 'value') ?? '';
+    const footprint = atomAt(fp, 1) ?? '';
+    const layer = atomAt(child(fp, 'layer'), 1) ?? 'F.Cu';
+    const side: 'front' | 'back' = layer.startsWith('B.') ? 'back' : 'front';
+    const at = child(fp, 'at');
+    const uuid = atomAt(child(fp, 'uuid'), 1) ?? atomAt(child(fp, 'tstamp'), 1) ?? '';
+    out.push({
+      ref,
+      value,
+      footprint,
+      layer,
+      side,
+      at: {
+        x: parseFloat(atomAt(at, 1) ?? '0'),
+        y: parseFloat(atomAt(at, 2) ?? '0'),
+        rot: parseFloat(atomAt(at, 3) ?? '0'),
+      },
+      uuid,
+    });
+  }
+  return out.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
+}
+
+/** One row per footprint placed on a `.kicad_pcb` board (read-only). */
+export async function listFootprints(pcbPath: string): Promise<BoardFootprint[]> {
+  const text = await readFile(path.resolve(pcbPath), 'utf8');
+  return footprintsOf(text);
 }
 
 /** All net names visible via labels and power symbols, across all sheets. */
