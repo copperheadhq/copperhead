@@ -442,9 +442,10 @@ export const HANDLERS: HandlerDef[] = [
     },
     requiresUnlock: false,
     handler: async (ctx) => {
-      const bomPath = path.join(ctx.repoRoot, ctx.config.docs, 'BOM.md');
+      const docsDir = ctx.config?.docs ?? 'docs';
+      const bomPath = path.join(ctx.repoRoot, docsDir, 'BOM.md');
       if (!existsSync(bomPath)) {
-        return `no ${path.join(ctx.config.docs, 'BOM.md')} found`;
+        return `no ${path.join(docsDir, 'BOM.md')} found`;
       }
       const dirs = await symbolSearchDirs();
       if (!dirs.length) return 'no installed KiCad symbol library directories found on this machine';
