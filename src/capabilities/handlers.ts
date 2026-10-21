@@ -134,7 +134,7 @@ export const HANDLERS: HandlerDef[] = [
   {
     schema: {
       name: 'search',
-      description: 'Regex search over the repo (ripgrep-style). Optional glob filter, e.g. "**/*.kicad_sch".',
+      description: 'Regex search over the repo (ripgrep-style). Optional glob filter, e.g. "**/*.kicad_sch" (use / separators).',
       parameters: {
         type: 'object',
         properties: { pattern: { type: 'string' }, glob: { type: 'string' } },
