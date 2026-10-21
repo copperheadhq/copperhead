@@ -1,4 +1,4 @@
-import { appendFile, mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { redactSecrets } from '../util/redact.js';
 import { renderEnvironmentSection, type RunMeta } from './runmeta.js';
@@ -14,6 +14,25 @@ export type ExitPath =
   | 'provider-error'
   | 'session-limit'
   | 'stalled';
+
+/** Per-LLM-call telemetry entry flushed immediately after each turn (#140). */
+export interface TurnMetricsEntry {
+  turn: number;
+  in: number;
+  out: number;
+  durationMs?: number;
+  stage?: string;
+}
+
+/** Incremental metrics snapshot persisted after each LLM call (#140). */
+export interface IncrementalRunMetrics {
+  updatedAt: string;
+  turnsUsed: number;
+  tokensIn: number;
+  tokensOut: number;
+  durationMs: number;
+  perTurn: TurnMetricsEntry[];
+}
 
 /** Post-run addenda recorded at every terminal branch (AC-8.5). */
 export interface RunStats {
@@ -71,11 +90,14 @@ function renderRunStats(s: RunStats): string[] {
 export class Transcript {
   readonly dir: string;
   readonly jsonlPath: string;
+  readonly metricsPath: string;
+  private readonly turnEntries: TurnMetricsEntry[] = [];
 
   constructor(repoRoot: string, stamp = new Date()) {
     const ts = stamp.toISOString().replace(/[:.]/g, '-');
     this.dir = path.join(repoRoot, '.copperhead', 'runs', ts);
     this.jsonlPath = path.join(this.dir, 'transcript.jsonl');
+    this.metricsPath = path.join(this.dir, 'metrics.json');
   }
 
   async init(): Promise<void> {
@@ -90,6 +112,28 @@ export class Transcript {
     // is acceptable, crashing the run to report one is not.
     await mkdir(this.dir, { recursive: true });
     await appendFile(this.jsonlPath, line + '\n', 'utf8');
+  }
+
+  /**
+   * Flush per-LLM-call token and timing metrics immediately after a turn
+   * completes so stalled or killed runs preserve per-turn cost telemetry (#140).
+   */
+  async recordTurnMetrics(entry: TurnMetricsEntry): Promise<IncrementalRunMetrics> {
+    this.turnEntries.push(entry);
+    await this.event('turn-metrics', entry);
+    const snapshot: IncrementalRunMetrics = {
+      updatedAt: new Date().toISOString(),
+      turnsUsed: this.turnEntries.length,
+      tokensIn: this.turnEntries.reduce((acc, t) => acc + t.in, 0),
+      tokensOut: this.turnEntries.reduce((acc, t) => acc + t.out, 0),
+      durationMs: this.turnEntries.reduce((acc, t) => acc + (t.durationMs ?? 0), 0),
+      perTurn: [...this.turnEntries],
+    };
+    await mkdir(this.dir, { recursive: true });
+    const tmp = `${this.metricsPath}.tmp`;
+    await writeFile(tmp, redactSecrets(JSON.stringify(snapshot, null, 2) + '\n'), 'utf8');
+    await rename(tmp, this.metricsPath);
+    return snapshot;
   }
 
   async writeSummary(s: RunSummaryData): Promise<string> {
