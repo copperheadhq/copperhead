@@ -455,10 +455,25 @@ export const HANDLERS: HandlerDef[] = [
         return 'no non-passive BOM.md rows to check (or no readable symbol libraries found)';
       }
       const missingCount = (dossier.match(/NO INSTALLED SYMBOL matches/g) ?? []).length;
-      const summary =
-        missingCount > 0
-          ? `MISS: ${missingCount} BOM part group(s) have no installed KiCad symbol on this machine. Substitute an installed part before finishing part selection:`
-          : 'OK: every checked BOM.md part resolves to an installed KiCad symbol:';
+      const incomplete =
+        dossier.includes('NOT INCLUDED (') ||
+        dossier.includes('UNRESOLVED (') ||
+        dossier.includes('NOT SEARCHED (') ||
+        dossier.includes('pins unreadable');
+      let summary: string;
+      if (missingCount > 0) {
+        summary = `MISS: ${missingCount} BOM part group(s) have no installed KiCad symbol on this machine. Substitute an installed part before finishing part selection${
+          incomplete
+            ? ' (and verify any NOT SEARCHED / NOT INCLUDED / UNRESOLVED lines with search_symbols and symbol_pins)'
+            : ''
+        }:`;
+      } else if (incomplete) {
+        summary =
+          'INCOMPLETE: some BOM parts were not verified (see NOT SEARCHED / NOT INCLUDED / UNRESOLVED lines); verify them with search_symbols and symbol_pins before finishing part selection:';
+      } else {
+        summary =
+          'OK: every checked BOM.md part has an installed candidate symbol; confirm each top hit is the same part (not a family member or bare die) with symbol_pins:';
+      }
       return `${summary}\n${dossier}`;
     },
   },

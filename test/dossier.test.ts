@@ -263,6 +263,9 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
   describe('search_symbols tool', () => {
     beforeAll(() => {
       vi.stubEnv('KICAD_SYMBOL_DIR', libDir);
+      vi.stubEnv('KICAD10_SYMBOL_DIR', '');
+      vi.stubEnv('KICAD9_SYMBOL_DIR', '');
+      vi.stubEnv('KICAD8_SYMBOL_DIR', '');
     });
 
     afterAll(() => {
@@ -305,22 +308,53 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
     it('check_bom_symbols audits docs/BOM.md rows against installed libraries in one pass (#196)', async () => {
       const repo = await mkdtemp(path.join(tmpdir(), 'ch-bom-sym-'));
       try {
+        const repoCtx: RunContext = { ...ctx(), repoRoot: repo };
+        const noBomOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
+        expect(noBomOut).toContain('no docs');
+
         await mkdir(path.join(repo, 'docs'), { recursive: true });
         await writeFile(
           path.join(repo, 'docs', 'BOM.md'),
           [
             '| Refdes | Value | Footprint | MPN |',
             '| --- | --- | --- | --- |',
-            '| U1 | SN74LVC1G17 | Package_TO_SOT_SMD:SOT-23-5 | UNVERIFIED: SN74LVC1G17 |',
-            '| U2 | ESP32-C3-MINI-1 | RF_Module:ESP32-C3-MINI-1 | UNVERIFIED: ESP32-C3-MINI-1 |',
+            '| R1 | 10k | Resistor_SMD:R_0402_1005Metric | RC0402FR-0710KL |',
+            '| C1 | 100n | Capacitor_SMD:C_0402_1005Metric | CL05B104KO5NNNC |',
           ].join('\n'),
           'utf8',
         );
-        const repoCtx: RunContext = { ...ctx(), repoRoot: repo };
+        const passivesOnlyOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
+        expect(passivesOnlyOut).toContain('no non-passive BOM.md rows to check');
+
+        await writeFile(
+          path.join(repo, 'docs', 'BOM.md'),
+          [
+            '| Refdes | Value | Footprint | MPN |',
+            '| --- | --- | --- | --- |',
+            '| U1 | SN74LVC1G17 | Package_TO_SOT_SMD:SOT-23-5 | UNVERIFIED: SN74LVC1G17 |',
+            '| U2 | ZZZQ9999XY | RF_Module:ESP32-C3-MINI-1 | UNVERIFIED: ZZZQ9999XY |',
+          ].join('\n'),
+          'utf8',
+        );
         const missOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
         expect(missOut).toContain('MISS: 1 BOM part group(s) have no installed KiCad symbol');
         expect(missOut).toContain('U1 (SN74LVC1G17): Logic:SN74LVC1G17');
-        expect(missOut).toContain('U2 (ESP32-C3-MINI-1): NO INSTALLED SYMBOL matches');
+        expect(missOut).toContain('U2 (ZZZQ9999XY): NO INSTALLED SYMBOL matches');
+
+        await writeFile(
+          path.join(repo, 'docs', 'BOM.md'),
+          [
+            '| Refdes | Value | Footprint | MPN |',
+            '| --- | --- | --- | --- |',
+            '| U1 | SN74LVC1G17 | Package_TO_SOT_SMD:SOT-23-5 | UNVERIFIED: SN74LVC1G17 |',
+            '| Y1 | 8M | Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm | TBD |',
+          ].join('\n'),
+          'utf8',
+        );
+        const incOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
+        expect(incOut).toContain('INCOMPLETE: some BOM parts were not verified');
+        expect(incOut).not.toContain('OK:');
+        expect(incOut).toContain('NOT SEARCHED (name under 3 chars): Y1 (8M)');
 
         await writeFile(
           path.join(repo, 'docs', 'BOM.md'),
@@ -332,8 +366,16 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
           'utf8',
         );
         const okOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
-        expect(okOut).toContain('OK: every checked BOM.md part resolves to an installed KiCad symbol:');
+        expect(okOut).toContain('OK: every checked BOM.md part has an installed candidate symbol; confirm each top hit is the same part (not a family member or bare die) with symbol_pins:');
         expect(okOut).toContain('U1 (SN74LVC1G17): Logic:SN74LVC1G17');
+
+        vi.stubEnv('KICAD_SYMBOL_DIR', path.join(repo, 'does-not-exist'));
+        try {
+          const noDirsOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
+          expect(noDirsOut).toContain('no installed KiCad symbol library directories');
+        } finally {
+          vi.stubEnv('KICAD_SYMBOL_DIR', libDir);
+        }
       } finally {
         await rm(repo, { recursive: true, force: true });
       }
