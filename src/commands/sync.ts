@@ -85,20 +85,22 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     }
   }
 
-  // PINOUT.md vs generated pins.h
-  const pinsH = path.join(repoRoot, 'firmware', 'src', 'pins.h');
-  if (existsSync(pinsH) && existsSync(path.join(docsDir, 'PINOUT.md'))) {
-    const header = await readFile(pinsH, 'utf8');
-    const pinout = await readFile(path.join(docsDir, 'PINOUT.md'), 'utf8');
-    for (const m of header.matchAll(/#define\s+PIN_(\w+)\s+(\S+)/g)) {
-      if (!pinout.includes(m[1]!)) {
-        resolvable.push({
-          kind: 'pins-h',
-          doc: 'firmware/src/pins.h',
-          claim: `defines PIN_${m[1]}`,
-          actual: 'PINOUT.md does not mention it',
-          resolution: 'regenerate pins.h from PINOUT.md (PINOUT.md is the single source of truth)',
-        });
+  // PINOUT.md vs generated firmware pin headers (firmware/src/pins.h and firmware/inc/pinout.h)
+  for (const relHeader of ['firmware/src/pins.h', 'firmware/inc/pinout.h']) {
+    const pinsH = path.join(repoRoot, relHeader);
+    if (existsSync(pinsH) && existsSync(path.join(docsDir, 'PINOUT.md'))) {
+      const header = await readFile(pinsH, 'utf8');
+      const pinout = await readFile(path.join(docsDir, 'PINOUT.md'), 'utf8');
+      for (const m of header.matchAll(/#define\s+PIN_(\w+)\s+(\S+)/g)) {
+        if (!pinout.includes(m[1]!)) {
+          resolvable.push({
+            kind: 'pins-h',
+            doc: relHeader,
+            claim: `defines PIN_${m[1]}`,
+            actual: 'PINOUT.md does not mention it',
+            resolution: `regenerate ${relHeader} from PINOUT.md (PINOUT.md is the single source of truth)`,
+          });
+        }
       }
     }
   }

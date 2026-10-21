@@ -2,17 +2,25 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadConfig } from '../config.js';
-import { listSymbols, pinNets } from './sexp.js';
-import { parsePinoutRows } from '../memory/bom-table.js';
+import { listSymbols, pinNets, type PinNet, type SchematicSymbol } from './sexp.js';
+import { parseCanonicalTables } from '../memory/bom-table.js';
 import { ExportError } from '../commands/export.js';
+import { resolveInRepo, SandboxError } from '../util/paths.js';
 
 export const FIRMWARE_TARGETS = ['c'] as const;
 export type FirmwareTarget = (typeof FIRMWARE_TARGETS)[number];
 
 export const DEFAULT_FIRMWARE_HEADER = 'firmware/inc/pinout.h';
+export const LEGACY_FIRMWARE_HEADER = 'firmware/src/pins.h';
 
 const POWER_NET_PATTERN =
-  /^(?:GND|AGND|DGND|PGND|VSS|AVSS|VCC|VDD|AVDD|VBAT|VBUS|3V3|5V|1V8|12V|\+\d+(?:V\d+|\.\d+V)|-\d+(?:V\d+|\.\d+V)|PWR_FLAG|NC|unconnected-.*)$/i;
+  /^(?:(?:A|D|P)?GND[A-Za-z0-9_]*|VSS[A-Za-z0-9_]*|AVSS[A-Za-z0-9_]*|VCC[A-Za-z0-9_]*|VDD[A-Za-z0-9_]*|AVDD[A-Za-z0-9_]*|VREF[A-Za-z0-9_]*|VSYS[A-Za-z0-9_]*|VBAT[A-Za-z0-9_]*|VBUS[A-Za-z0-9_]*|3V3(?:_[A-Za-z0-9_]+)?|5V(?:_[A-Za-z0-9_]+)?|1V8(?:_[A-Za-z0-9_]+)?|12V(?:_[A-Za-z0-9_]+)?|[+-]\d+(?:V\d*|\.\d+V?)(?:_[A-Za-z0-9_]+)?|PWR_FLAG|NC|unconnected-.*)$/i;
+
+const GPIO_SEGMENT_PATTERN =
+  /^(?:GPIO\d+|GP\d+|P[A-K]\d+|P\d+[._]\d+|DIO\d+|IO\d+|AIN\d+|ADC\d+)$/i;
+
+const MCU_HINT_PATTERN =
+  /(?:MCU|ESP32|STM32|RP2040|RP2350|NRF\d|ATMEGA|ATTINY|SAMD|ATSAM|PIC\d|CH32|GD32|LPC\d|MSP430|CORTEX)/i;
 
 export interface FirmwarePinEntry {
   macro: string;
@@ -49,6 +57,17 @@ export interface ExportFirmwareResult {
   content: string;
 }
 
+function sandboxPath(repoRoot: string, relPath: string): string {
+  try {
+    return resolveInRepo(repoRoot, relPath);
+  } catch (err) {
+    if (err instanceof SandboxError) {
+      throw new ExportError(`firmware path escapes repository: ${relPath}`);
+    }
+    throw err;
+  }
+}
+
 export function parseFirmwareTarget(value: string): FirmwareTarget {
   if ((FIRMWARE_TARGETS as readonly string[]).includes(value)) {
     return value as FirmwareTarget;
@@ -64,10 +83,21 @@ export function sanitizeMacroSuffix(netName: string): string {
     .toUpperCase();
 }
 
-function normalizePinToken(rawPin: string): string {
+export function normalizePinToken(rawPin: string): string {
   const trimmed = rawPin.trim();
-  const primary = trimmed.split('/')[0]?.trim() || trimmed;
-  return primary.replace(/[^A-Za-z0-9_]/g, '');
+  if (!trimmed) return '';
+  const segments = trimmed
+    .split('/')
+    .map((s) => s.trim().replace(/^~\{(.*)\}$/, '$1').replace(/^~/, ''))
+    .filter(Boolean);
+  for (const seg of segments) {
+    const cleaned = seg.replace(/[^A-Za-z0-9_]/g, '');
+    if (GPIO_SEGMENT_PATTERN.test(cleaned)) {
+      return cleaned;
+    }
+  }
+  const first = segments[0] ?? trimmed;
+  return first.replace(/[^A-Za-z0-9_]/g, '');
 }
 
 function isPowerOrIgnoredNet(net: string | null): boolean {
@@ -78,45 +108,84 @@ function isPowerOrIgnoredNet(net: string | null): boolean {
   return POWER_NET_PATTERN.test(clean);
 }
 
+function parsePinoutNameMap(md: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const strip = (s: string | undefined): string => (s ?? '').replace(/`/g, '').trim();
+  for (const { header, rows } of parseCanonicalTables(md)) {
+    const col = (re: RegExp): number => header.cells.findIndex((c) => re.test(c));
+    const refI = col(/^refdes$/i);
+    const pinI = col(/^pin$/i);
+    const nameI = col(/^name$/i);
+    if (pinI < 0 || nameI < 0) continue;
+    for (const row of rows) {
+      const ref = refI >= 0 ? strip(row.cells[refI]) : '';
+      const pin = strip(row.cells[pinI]);
+      const name = strip(row.cells[nameI]);
+      if (ref && pin && name) {
+        map.set(`${ref}:${pin}`, name);
+      }
+    }
+  }
+  return map;
+}
+
+function selectMcuRefs(symbols: SchematicSymbol[], nets: PinNet[], explicitRef?: string): Set<string> {
+  if (explicitRef) {
+    return new Set([explicitRef]);
+  }
+  const icSymbols = symbols.filter((s) => /^(?:U|IC)\d+/i.test(s.ref));
+  if (icSymbols.length <= 1) {
+    return new Set(icSymbols.map((s) => s.ref));
+  }
+  const pinsByRef = new Map<string, PinNet[]>();
+  for (const pn of nets) {
+    let arr = pinsByRef.get(pn.ref);
+    if (!arr) {
+      arr = [];
+      pinsByRef.set(pn.ref, arr);
+    }
+    arr.push(pn);
+  }
+  const mcuCandidates = icSymbols.filter((s) => {
+    if (MCU_HINT_PATTERN.test(s.libId) || MCU_HINT_PATTERN.test(s.value)) return true;
+    const refPins = pinsByRef.get(s.ref) ?? [];
+    return refPins.some((p) => {
+      const tok = normalizePinToken(p.pinName);
+      return GPIO_SEGMENT_PATTERN.test(tok);
+    });
+  });
+  if (mcuCandidates.length > 0) {
+    return new Set(mcuCandidates.map((s) => s.ref));
+  }
+  return new Set(icSymbols.map((s) => s.ref));
+}
+
 /**
  * Deterministically extract firmware pin assignments from the configured
- * schematic (supplemented by PINOUT.md pin names when a library symbol's pin
- * name is blank or `~`).
+ * schematic (supplemented by PINOUT.md's Name column when a library symbol's
+ * pin name is blank or `~`).
  */
 export async function extractSchematicPinout(
   repoRoot: string,
   opts?: { ref?: string },
 ): Promise<FirmwarePinEntry[]> {
   const config = await loadConfig(repoRoot);
-  if (!config.schematic || !existsSync(path.join(repoRoot, config.schematic))) {
+  if (!config.schematic) {
     throw new ExportError('no schematic configured in .copperhead/config.json');
   }
-  const schPath = path.join(repoRoot, config.schematic);
+  const schPath = sandboxPath(repoRoot, config.schematic);
+  if (!existsSync(schPath)) {
+    throw new ExportError('no schematic configured in .copperhead/config.json');
+  }
   const [symbols, nets] = await Promise.all([listSymbols(schPath), pinNets(schPath)]);
 
-  const mcuRefs = new Set<string>();
-  if (opts?.ref) {
-    mcuRefs.add(opts.ref);
-  } else {
-    for (const s of symbols) {
-      if (/^(?:U|IC)\d+/i.test(s.ref)) mcuRefs.add(s.ref);
-    }
-    if (mcuRefs.size === 0) {
-      for (const s of symbols) mcuRefs.add(s.ref);
-    }
-  }
+  const mcuRefs = selectMcuRefs(symbols, nets, opts?.ref);
 
-  // Optional PINOUT.md lookup for human pin names (e.g. PA5 on pin number 15)
-  // when the schematic symbol definition uses `~` or numeric pin names.
-  const pinoutNameByRefPin = new Map<string, string>();
-  const pinoutPath = path.join(repoRoot, config.docs, 'PINOUT.md');
+  let pinoutNameByRefPin = new Map<string, string>();
+  const pinoutPath = sandboxPath(repoRoot, path.join(config.docs, 'PINOUT.md'));
   if (existsSync(pinoutPath)) {
     const md = await readFile(pinoutPath, 'utf8');
-    for (const row of parsePinoutRows(md)) {
-      if (row.ref && row.pin) {
-        pinoutNameByRefPin.set(`${row.ref}:${row.pin}`, row.pin);
-      }
-    }
+    pinoutNameByRefPin = parsePinoutNameMap(md);
   }
 
   const byMacro = new Map<string, FirmwarePinEntry>();
@@ -129,10 +198,10 @@ export async function extractSchematicPinout(
   for (const pn of sortedNets) {
     if (!mcuRefs.has(pn.ref)) continue;
     if (isPowerOrIgnoredNet(pn.net)) continue;
-    const suffix = sanitizeMacroSuffix(pn.net!);
+    const cleanSignal = pn.net!.trim().replace(/^\/+/, '');
+    const suffix = sanitizeMacroSuffix(cleanSignal);
     if (!suffix) continue;
     const macro = suffix.startsWith('PIN_') ? suffix : `PIN_${suffix}`;
-    if (byMacro.has(macro)) continue;
 
     const fromSchName = pn.pinName && pn.pinName !== '~' ? normalizePinToken(pn.pinName) : '';
     const fromPinout = pinoutNameByRefPin.get(`${pn.ref}:${pn.pinNumber}`);
@@ -143,9 +212,30 @@ export async function extractSchematicPinout(
       normalizePinToken(pn.pinNumber);
 
     if (!resolvedPin) continue;
+
+    const existing = byMacro.get(macro);
+    if (existing) {
+      if (existing.signal !== cleanSignal) {
+        throw new ExportError(
+          `net name macro collision on ${macro}: "${existing.signal}" and "${cleanSignal}" both normalize to ${macro}`,
+        );
+      }
+      // If two pins are on the same signal net, prefer a named GPIO/port pin over a bare number
+      if (!/[A-Za-z]/.test(existing.pin) && /[A-Za-z]/.test(resolvedPin)) {
+        byMacro.set(macro, {
+          macro,
+          signal: cleanSignal,
+          pin: resolvedPin,
+          ref: pn.ref,
+          pinNumber: pn.pinNumber,
+        });
+      }
+      continue;
+    }
+
     byMacro.set(macro, {
       macro,
-      signal: pn.net!.replace(/^\/+/, ''),
+      signal: cleanSignal,
       pin: resolvedPin,
       ref: pn.ref,
       pinNumber: pn.pinNumber,
@@ -167,7 +257,8 @@ export function renderFirmwareHeaderC(entries: FirmwarePinEntry[]): string {
 
 export function parseFirmwareHeaderC(content: string): Map<string, string> {
   const map = new Map<string, string>();
-  for (const rawLine of content.split(/\r?\n/)) {
+  const withoutBlockComments = content.replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const rawLine of withoutBlockComments.split(/\r?\n/)) {
     const line = rawLine.replace(/\/\/.*$/, '').trim();
     const m = /^#define\s+(PIN_[A-Za-z0-9_]+)\s+(\S+)/.exec(line);
     if (m) {
@@ -181,9 +272,9 @@ export async function runExportFirmware(opts: ExportFirmwareOptions): Promise<Ex
   const target = opts.target ?? 'c';
   parseFirmwareTarget(target);
   const outPath = opts.outPath ?? DEFAULT_FIRMWARE_HEADER;
+  const absOut = sandboxPath(opts.repoRoot, outPath);
   const pins = await extractSchematicPinout(opts.repoRoot, opts.ref ? { ref: opts.ref } : undefined);
   const content = renderFirmwareHeaderC(pins);
-  const absOut = path.join(opts.repoRoot, outPath);
   await mkdir(path.dirname(absOut), { recursive: true });
   await writeFile(absOut, content, 'utf8');
   return { target, outPath, pins, content };
@@ -193,8 +284,15 @@ export async function checkFirmwareDrift(
   repoRoot: string,
   opts?: { headerPath?: string; ref?: string },
 ): Promise<FirmwareCheckResult> {
-  const headerPath = opts?.headerPath ?? DEFAULT_FIRMWARE_HEADER;
-  const absHeader = path.join(repoRoot, headerPath);
+  let headerPath = opts?.headerPath ?? DEFAULT_FIRMWARE_HEADER;
+  if (!opts?.headerPath) {
+    const defaultAbs = sandboxPath(repoRoot, DEFAULT_FIRMWARE_HEADER);
+    const legacyAbs = sandboxPath(repoRoot, LEGACY_FIRMWARE_HEADER);
+    if (!existsSync(defaultAbs) && existsSync(legacyAbs)) {
+      headerPath = LEGACY_FIRMWARE_HEADER;
+    }
+  }
+  const absHeader = sandboxPath(repoRoot, headerPath);
   const expectedEntries = await extractSchematicPinout(repoRoot, opts?.ref ? { ref: opts.ref } : undefined);
 
   if (!existsSync(absHeader)) {
