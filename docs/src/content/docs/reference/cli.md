@@ -122,7 +122,11 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `0` | Everything agrees. |
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+| Option | Default | Description |
+| --- | --- | --- |
+| `--fab` | off | Run the fabrication release-gate checks (currently runs the documentation-presence check on `LAYOUT.md` and `DEVPLAN.md`). |
+
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). When `--fab` is passed, `--json` also adds `fab: { docs: { status, violations } }`. Legibility findings never affect the exit code.
 
 ## `copperhead draft schematic`
 

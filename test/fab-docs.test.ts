@@ -176,6 +176,20 @@ describe('runCheck --fab documentation gate wiring (#182)', () => {
         JSON.stringify({ schematic: null, board: null, docs: 'docs', origin: 'create' }),
         'utf8',
       );
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
+        throw new Error('network forbidden during check --fab');
+      });
+      try {
+      const noLayoutLogs: string[] = [];
+      const noLayoutRes = await runCheck(repo, (s) => noLayoutLogs.push(s), { fab: true });
+      expect(noLayoutRes.ok).toBe(false);
+      expect(noLayoutRes.fab?.docs.violations[0]).toEqual({
+        claim: 'release-ready',
+        actual: 'missing',
+        location: 'docs/LAYOUT.md',
+      });
+      expect(noLayoutLogs).toContain('fab: routing, BOM, sch/PCB match, output freshness not yet checked');
+
       await writeFile(path.join(repo, 'docs', 'LAYOUT.md'), INIT_LAYOUT, 'utf8');
 
       const baseRes = await runCheck(repo, () => {});
@@ -208,6 +222,10 @@ describe('runCheck --fab documentation gate wiring (#182)', () => {
       expect(passRes.ok).toBe(true);
       expect(passRes.fab?.docs).toEqual({ status: 'pass', violations: [] });
       expect(passLogs).toContain('fab docs ✓');
+      expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

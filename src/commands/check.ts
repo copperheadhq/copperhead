@@ -150,9 +150,10 @@ export async function runCheck(
       fabDocs.status === 'pass'
         ? 'fab docs ✓'
         : fabDocs.violations
-            .map((v) => `fab: ${v.location ?? config.docs} claims "${v.claim}" but actual is "${v.actual}"`)
+            .map((v) => `fab: ${v.location} claims "${v.claim}" but actual is "${v.actual}"`)
             .join('\n'),
     );
+    log('fab: routing, BOM, sch/PCB match, output freshness not yet checked');
   }
 
   const ok =
