@@ -8,6 +8,7 @@ import {
   symbolSearchDirs,
   findSymbolAcrossLibraries,
   closestSymbolNames,
+  isTrailingPackageWildcard,
   searchInstalledSymbols,
   findLibraryFile,
 } from '../src/kicad/symlib.js';
@@ -364,11 +365,26 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
     expect(await searchInstalledSymbols('TLP2361', [dir])).toEqual([]);
   });
 
-  it('finds a family-variant spelling instead of declaring it absent', async () => {
+  it('finds a family-variant spelling and multi-x package wildcards while enforcing prefix/mid-x guards', async () => {
     // Before the edit-distance tier, search returned [] here while
     // findSymbolAcrossLibraries found the part, and the dossier rendered the
     // disagreement as a false NO INSTALLED SYMBOL under a machine-verified label.
     expect(await searchInstalledSymbols('STM32F103C8T6', [dir])).toEqual(['MCU_ST_STM32F1:STM32F103C8Tx']);
+    expect(isTrailingPackageWildcard('tsop31238', 'tsop312xx')).toBe(true);
+    expect(isTrailingPackageWildcard('max3232abc', 'max3232xxx')).toBe(true);
+    expect(isTrailingPackageWildcard('mua508', 'mux508')).toBe(false);
+    expect(isTrailingPackageWildcard('ab123', 'abxxx')).toBe(false);
+    expect(isTrailingPackageWildcard('tsop312', 'tsop312xx')).toBe(false);
+
+    const wcDir = await mkdtemp(path.join(tmpdir(), 'copperhead-multi-x-'));
+    try {
+      await writeFile(path.join(wcDir, 'Interface_Optical.kicad_sym'), lib('TSOP312xx', 'MAX3232xxx'), 'utf8');
+      expect(await searchInstalledSymbols('TSOP31238', [wcDir])).toEqual(['Interface_Optical:TSOP312xx']);
+      expect(await searchInstalledSymbols('MAX3232ABC', [wcDir])).toEqual(['Interface_Optical:MAX3232xxx']);
+      expect(await searchInstalledSymbols('TSOP312xx', [wcDir])).toEqual(['Interface_Optical:TSOP312xx']);
+    } finally {
+      await rm(wcDir, { recursive: true, force: true });
+    }
   });
 
   it('renders a genuinely absent lib_id with the not-found line, never a fabricated location', async () => {

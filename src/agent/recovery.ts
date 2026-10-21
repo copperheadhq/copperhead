@@ -251,14 +251,18 @@ export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap
         // block exists to prevent.
         lines.push(`- ${libId}: not at that lib_id, but installed as: ${r.libIds.slice(0, 4).join(', ')}`);
       } else {
-        const elsewhere = await searchInstalledSymbols(name, searchDirs, 4);
+        const elsewhere = await searchInstalledSymbolsRanked(name, searchDirs, 4);
+        const exactElsewhere = elsewhere.filter((h) => h.rank === 0).map((h) => h.libId);
+        const approxElsewhere = elsewhere.filter((h) => h.rank > 0).map((h) => h.libId);
         const inThat =
           r.status === 'no-symbol' && r.candidates.length
             ? ` (closest in that library: ${r.candidates.slice(0, 4).join(', ')})`
             : '';
-        const where = elsewhere.length
-          ? `; installed as: ${elsewhere.join(', ')}`
-          : `; no installed symbol matches "${name}" in any library`;
+        const where = exactElsewhere.length
+          ? `; installed as: ${exactElsewhere.join(', ')}`
+          : approxElsewhere.length
+            ? `; approximate: ${approxElsewhere.join(', ')}`
+            : `; no installed symbol matches "${name}" in any library`;
         lines.push(
           r.status === 'no-symbol'
             ? `- ${libId}: not in that library${inThat}${where}`

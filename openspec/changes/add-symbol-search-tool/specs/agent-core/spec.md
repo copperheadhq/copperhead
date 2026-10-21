@@ -25,6 +25,12 @@ When no library directory exists on the machine, and when no symbol matches, the
 - **WHEN** no installed library holds any match for the query
 - **THEN** the result states that no installed symbol matches, names the directories searched, and says the part must be substituted
 
+
+#### Scenario: Grouped exact vs approximate output
+
+- **WHEN** `search_symbols` matches both an exact symbol (or full-length trailing-`x` package wildcard such as `STM32F103C8Tx` for `STM32F103C8T6`, or `TSOP312xx` for `TSOP31238`) and approximate candidates (prefix, substring, or single-edit family variants)
+- **THEN** the tool lists exact matches under `installed symbols matching` and lists approximate candidates in a separate `approximate / near-miss candidates` section with their tier labels (`prefix match`, `substring match`, `family wildcard / near-miss`)
+
 ## MODIFIED Requirements
 
 ### Requirement: Stage recovery diagnosis

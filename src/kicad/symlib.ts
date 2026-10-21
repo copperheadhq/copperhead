@@ -178,22 +178,15 @@ const canonSymName = (s: string): string => s.toLowerCase().replace(/[_\-.]/g, '
 export interface RankedSymbolName {
   name: string;
   /** 0 = exact (separator-insensitive), 1 = prefix, 2 = substring,
-   * 3 = name-inside-query, 4 = one-edit family variant. */
+   * 3 = name-inside-query, 4 = one-edit family variant or trailing package wildcard. */
   rank: number;
 }
 
 /** Names must be this long before a single edit is distinctive enough to match. */
 const MIN_EDIT_MATCH_LEN = 5;
 
-/**
- * The shared one-edit rule for "same part family, variant spelling": within one
- * edit (SHT40 vs SHT4x, STM32F103C8T6 vs STM32F103C8Tx), except a
- * digit-for-digit substitution, which names a *different real part*
- * (TPS22860 vs TPS22810) rather than a family wildcard. Used by both resolvers
- * so search and cross-library discovery can never disagree about what counts
- * as a near-miss.
- */
-function isTrailingPackageWildcard(mpn: string, wildcardSym: string): boolean {
+/** True when `wildcardSym` is `mpn` with 1+ trailing package characters replaced by `x` (prefix >= 4 chars). */
+export function isTrailingPackageWildcard(mpn: string, wildcardSym: string): boolean {
   if (mpn.length !== wildcardSym.length || mpn.length < MIN_EDIT_MATCH_LEN) return false;
   const m = wildcardSym.match(/x+$/);
   if (!m) return false;
@@ -203,6 +196,14 @@ function isTrailingPackageWildcard(mpn: string, wildcardSym: string): boolean {
   return mpn.slice(0, prefixLen) === wildcardSym.slice(0, prefixLen);
 }
 
+/**
+ * The shared one-edit rule for "same part family, variant spelling": within one
+ * edit (SHT40 vs SHT4x, STM32F103C8T6 vs STM32F103C8Tx), except a
+ * digit-for-digit substitution, which names a *different real part*
+ * (TPS22860 vs TPS22810) rather than a family wildcard. Used by both resolvers
+ * so search and cross-library discovery can never disagree about what counts
+ * as a near-miss.
+ */
 function oneEditFamilyVariant(a: string, b: string): boolean {
   if (a.length < MIN_EDIT_MATCH_LEN || b.length < MIN_EDIT_MATCH_LEN) return false;
   if (isTrailingPackageWildcard(a, b) || isTrailingPackageWildcard(b, a)) return true;
@@ -369,6 +370,14 @@ export async function findSymbolAcrossLibraries(
   return [...exact, ...fuzzy];
 }
 
+export interface RankedInstalledSymbol {
+  libId: string;
+  name: string;
+  /** 0 = exact (separator-insensitive or full-length trailing-x package wildcard),
+   * 1 = prefix, 2 = substring, 4 = one-edit family variant. */
+  rank: number;
+}
+
 /**
  * Search every installed library for symbols matching a part name, returning
  * ranked `Lib:Name` lib_ids with exact (separator-insensitive) matches first.
@@ -377,20 +386,13 @@ export async function findSymbolAcrossLibraries(
  * and KiCad's nicknames rarely follow from the part number (TPS61165DBV lives
  * in Driver_LED, AudioJack3 in Connector_Audio, INA226 in Sensor_Energy).
  */
-export interface RankedInstalledSymbol {
-  libId: string;
-  name: string;
-  /** 0 = exact (separator-insensitive), 1 = prefix, 2 = substring,
-   * 3 = name-inside-query, 4 = family-variant / package wildcard. */
-  rank: number;
-}
-
 export async function searchInstalledSymbolsRanked(
   query: string,
   dirs: string[],
   cap = 24,
 ): Promise<RankedInstalledSymbol[]> {
-  if (canonSymName(query).length < 2) return [];
+  const qCanon = canonSymName(query);
+  if (qCanon.length < 2) return [];
   // Rank globally, not per library: a library scanned early contributes only
   // weak matches, and capping in scan order would drop a later library's
   // stronger candidate — the exact case this tool exists to surface, since a
@@ -400,7 +402,13 @@ export async function searchInstalledSymbolsRanked(
     const names = await libSymbolNames(file);
     if (!names) continue;
     for (const { name, rank } of rankSymbolNames(names, query, 4)) {
-      hits.push({ libId: `${lib}:${name}`, rank, name });
+      if (rank === 3) continue;
+      const nCanon = canonSymName(name);
+      const effectiveRank =
+        rank === 4 && (isTrailingPackageWildcard(qCanon, nCanon) || isTrailingPackageWildcard(nCanon, qCanon))
+          ? 0
+          : rank;
+      hits.push({ libId: `${lib}:${name}`, rank: effectiveRank, name });
     }
   }
   hits.sort(
