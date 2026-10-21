@@ -102,8 +102,6 @@ export interface SchematicSymbol {
   dnp: boolean;
   /** False when the instance carries `(in_bom no)` (excluded from BOM). */
   inBom: boolean;
-  /** False when the instance carries `(on_board no)`. */
-  onBoard: boolean;
 }
 
 export interface PinDef {
@@ -252,8 +250,6 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
     }
     const dnpRaw = atomAt(child(s, 'dnp'), 1);
     const inBomRaw = atomAt(child(s, 'in_bom'), 1);
-    const excludeRaw = atomAt(child(s, 'exclude_from_bom'), 1);
-    const onBoardRaw = atomAt(child(s, 'on_board'), 1);
     out.push({
       node: s,
       mirror: mirrorAtom === 'x' || mirrorAtom === 'y' ? mirrorAtom : null,
@@ -273,8 +269,7 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
         datasheet: rawDatasheet === '~' ? '' : rawDatasheet,
         fields,
         dnp: dnpRaw?.toLowerCase() === 'yes',
-        inBom: inBomRaw?.toLowerCase() !== 'no' && excludeRaw?.toLowerCase() !== 'yes',
-        onBoard: onBoardRaw?.toLowerCase() !== 'no',
+        inBom: inBomRaw?.toLowerCase() !== 'no',
       },
     });
   }
@@ -299,6 +294,11 @@ function collectPowerSymbols(sheets: ParsedSheet[]): Set<string> {
 
 const isPowerSymbol = (libId: string, powerSyms: Set<string>): boolean =>
   libId.startsWith('power:') || powerSyms.has(libId);
+
+/** Every sheet file of the hierarchy (root first, each once), as absolute paths. */
+export async function listSheetFiles(rootSch: string): Promise<string[]> {
+  return (await loadSheets(rootSch)).map((s) => s.filePath);
+}
 
 /** One row per real component (power symbols excluded), across all sheets. */
 export async function listSymbols(rootSch: string): Promise<SchematicSymbol[]> {

@@ -1,8 +1,9 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from './sexp.js';
+import { listSymbols, listSheetFiles, pinNets, type SchematicSymbol, type PinNet } from './sexp.js';
 import { parseNetlist, type Netlist } from './netlist.js';
+import { ensureIgnored } from '../util/git.js';
 
 /**
  * Normalized design graph (issue #248, step 1 for #247).
@@ -18,7 +19,7 @@ import { parseNetlist, type Netlist } from './netlist.js';
 
 export const DESIGN_GRAPH_VERSION = 1;
 
-export type PartClass = 'ic' | 'passive' | 'connector' | 'power' | 'mechanical';
+export type PartClass = 'ic' | 'passive' | 'discrete' | 'connector' | 'power' | 'mechanical';
 
 export interface GraphPin {
   num: string;
@@ -81,14 +82,15 @@ const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex
 
 const MPN_KEYS = ['mpn', 'manufacturerpartnumber', 'mfrpartnumber', 'mfrpart', 'partnumber'];
 const MANUFACTURER_KEYS = ['manufacturer', 'mfr', 'mfg'];
-const LCSC_KEYS = ['lcsc', 'lcscpart', 'lcscpartnumber', 'lcsc_part'];
+const LCSC_KEYS = ['lcsc', 'lcscpart', 'lcscpartnumber'];
+const PLACEHOLDERS = new Set(['', '~', '-', 'n/a', 'na', 'tbd']);
 
 function pickField(fields: Record<string, string>, keys: string[]): string {
   const norm = new Map<string, string>();
   for (const [k, v] of Object.entries(fields)) norm.set(k.toLowerCase().replace(/[^a-z0-9]/g, ''), v);
   for (const k of keys) {
     const v = norm.get(k);
-    if (v !== undefined && v !== '') return v;
+    if (v !== undefined && !PLACEHOLDERS.has(v.trim().toLowerCase())) return v.trim();
   }
   return '';
 }
@@ -115,14 +117,14 @@ export function lcscOf(sym: SchematicSymbol): string {
  * library category, the footprint family, and the pin count, and keeps the
  * raw evidence so the classification is auditable.
  */
-export function classifyPart(sym: SchematicSymbol, pinCount: number): { class: PartClass; evidence: string } {
+export function classifyPart(sym: Pick<SchematicSymbol, 'ref' | 'libId' | 'footprint'>, pinCount: number): { class: PartClass; evidence: string } {
   const lib = sym.libId;
   const libCat = lib.includes(':') ? lib.slice(0, lib.indexOf(':')) : '';
   const fpItem = sym.footprint.includes(':')
     ? sym.footprint.slice(sym.footprint.lastIndexOf(':') + 1)
     : sym.footprint;
-  const refPrefix = sym.ref.replace(/[0-9]+.*$/, '');
-  if (/^power$/i.test(libCat) || /^power/i.test(lib)) return { class: 'power', evidence: `lib:${lib}` };
+  const refPrefix = sym.ref.replace(/[^A-Za-z].*$/, '');
+  if (/^power$/i.test(libCat)) return { class: 'power', evidence: `lib:${lib}` };
   if (/connector/i.test(libCat) || /connector/i.test(lib)) return { class: 'connector', evidence: `lib:${lib}` };
   if (/mechanical|mountinghole/i.test(libCat) || /mechanical|mountinghole/i.test(lib)) {
     return { class: 'mechanical', evidence: `lib:${lib}` };
@@ -131,10 +133,16 @@ export function classifyPart(sym: SchematicSymbol, pinCount: number): { class: P
     return { class: 'passive', evidence: `footprint:${sym.footprint},pins:${pinCount}` };
   }
   if (/^(R|C|L)$/i.test(refPrefix) && pinCount <= 2) return { class: 'passive', evidence: `ref:${sym.ref},pins:${pinCount}` };
-  if (/^(J|P|CONN|MH)$/i.test(refPrefix) || /^(J|P)_/.test(sym.ref)) {
+  if (/^RN$/i.test(refPrefix)) return { class: 'passive', evidence: `ref:${sym.ref},pins:${pinCount}` };
+  if (/^(J|P|CONN)$/i.test(refPrefix) || /^(J|P)_/.test(sym.ref)) {
     return { class: 'connector', evidence: `ref:${sym.ref},lib:${lib}` };
   }
   if (/^(MH|MOUNT|FID|LOGO)$/i.test(refPrefix)) return { class: 'mechanical', evidence: `ref:${sym.ref}` };
+  // Small discretes (diodes, LEDs, transistors, crystals, fuses, switches, ...) are not chips:
+  // their pins do not belong in the pinout.
+  if (pinCount <= 3 && (/^(D|LED|Q|Y|X|SW|F|FB|JP|RV|TP|CP|TVS|ESD)$/i.test(refPrefix) || libCat === 'Device')) {
+    return { class: 'discrete', evidence: `ref:${sym.ref},lib:${lib},pins:${pinCount}` };
+  }
   return { class: 'ic', evidence: `lib:${lib},ref:${sym.ref},pins:${pinCount}` };
 }
 
@@ -159,7 +167,20 @@ async function tryNetlist(schPath: string): Promise<{ netlist: Netlist | null; k
   }
 }
 
-/** Build the normalized graph from s-expression symbols plus the netlist export when available. */
+/** Collapse multi-unit placements to one symbol per ref (first placement wins; DNP/BOM flags are per-ref). */
+function uniqueByRef(symbols: SchematicSymbol[]): SchematicSymbol[] {
+  const byRef = new Map<string, SchematicSymbol>();
+  for (const s of symbols) if (!byRef.has(s.ref)) byRef.set(s.ref, s);
+  return [...byRef.values()];
+}
+
+/**
+ * Build the normalized graph. With a netlist, parts, pins and nets all come from
+ * it (one part per netlist component, pin nets named exactly as in `nets[]`);
+ * the s-expression symbols only add geometry-side data (DNP and BOM flags,
+ * pin names) joined by uuid, then ref. Without one, symbols collapse to one
+ * part per ref and the graph is partial.
+ */
 export function buildGraph(
   symbols: SchematicSymbol[],
   pins: PinNet[],
@@ -168,14 +189,23 @@ export function buildGraph(
   kicadCli: string | null,
   partialReason: string | null,
 ): DesignGraph {
-  const pinsByRef = new Map<string, PinNet[]>();
+  const sexpPins = new Map<string, PinNet>();
   for (const p of pins) {
-    const arr = pinsByRef.get(p.ref) ?? [];
-    arr.push(p);
-    pinsByRef.set(p.ref, arr);
+    const k = `${p.ref}:${p.pinNumber}`;
+    const prev = sexpPins.get(k);
+    if (!prev || (prev.net === null && p.net !== null)) sexpPins.set(k, p);
   }
-  const netByRefPin = new Map<string, { netclass: string; pintype: string; pinfunction: string }>();
+  const symByRef = new Map(uniqueByRef(symbols).map((s) => [s.ref, s]));
+  const symByUuid = new Map(symbols.filter((s) => s.uuid).map((s) => [s.uuid, s]));
+
   const nets: GraphNet[] = [];
+  const netlistPins = new Map<string, GraphPin[]>();
+  const pinOf = (ref: string, num: string, fallbackName: string, type: string, net: string | null): GraphPin => ({
+    num,
+    name: sexpPins.get(`${ref}:${num}`)?.pinName || fallbackName,
+    type,
+    net,
+  });
   if (netlist) {
     for (const n of netlist.nets) {
       nets.push({
@@ -183,11 +213,15 @@ export function buildGraph(
         netclass: n.netclass,
         nodes: n.nodes.map((nd) => ({ ref: nd.ref, pin: nd.pin, pintype: nd.pintype, pinfunction: nd.pinfunction })),
       });
-      for (const nd of n.nodes) netByRefPin.set(`${nd.ref}:${nd.pin}`, { netclass: n.netclass, pintype: nd.pintype, pinfunction: nd.pinfunction });
+      for (const nd of n.nodes) {
+        const arr = netlistPins.get(nd.ref) ?? [];
+        arr.push(pinOf(nd.ref, nd.pin, nd.pinfunction, nd.pintype, n.name));
+        netlistPins.set(nd.ref, arr);
+      }
     }
   } else {
     const grouped = new Map<string, GraphNetNode[]>();
-    for (const p of pins) {
+    for (const p of sexpPins.values()) {
       if (!p.net) continue;
       const arr = grouped.get(p.net) ?? [];
       arr.push({ ref: p.ref, pin: p.pinNumber, pintype: '', pinfunction: '' });
@@ -195,41 +229,62 @@ export function buildGraph(
     }
     for (const [name, nodes] of grouped) nets.push({ name, netclass: 'Default', nodes });
   }
-  const nlByRef = new Map<string, Netlist['parts'][number]>();
-  if (netlist) for (const p of netlist.parts) nlByRef.set(p.ref, p);
 
-  const parts: GraphPart[] = symbols.map((s) => {
-    const refPins = pinsByRef.get(s.ref) ?? [];
-    const { class: cls, evidence } = classifyPart(s, refPins.length);
-    const nl = nlByRef.get(s.ref);
-    const fields = { ...s.fields, ...(nl ? nl.fields : {}) };
-    const mpn = pickField(fields, MPN_KEYS);
-    const graphPins: GraphPin[] = refPins.map((p) => {
-      const extra = netByRefPin.get(`${p.ref}:${p.pinNumber}`);
-      return { num: p.pinNumber, name: p.pinName, type: extra?.pintype ?? '', net: p.net };
-    });
+  const byPin = (a: GraphPin, b: GraphPin): number => a.num.localeCompare(b.num, undefined, { numeric: true });
+  const build = (
+    ref: string,
+    s: SchematicSymbol | undefined,
+    nl: Netlist['parts'][number] | undefined,
+    graphPins: GraphPin[],
+  ): GraphPart => {
+    const libId = s?.libId ?? nl?.libId ?? '';
+    const footprint = s?.footprint ?? nl?.footprint ?? '';
+    graphPins.sort(byPin);
+    const { class: cls, evidence } = classifyPart({ ref, libId, footprint }, graphPins.length);
+    const fields = { ...(s?.fields ?? {}), ...(nl?.fields ?? {}) };
     return {
-      ref: s.ref,
-      uuid: s.uuid || nl?.tstamps || '',
-      value: s.value,
-      libId: s.libId,
-      footprint: s.footprint,
+      ref,
+      uuid: s?.uuid || nl?.tstamps || '',
+      value: s?.value ?? nl?.value ?? '',
+      libId,
+      footprint,
       class: cls,
       classEvidence: evidence,
-      sheet: s.sheet,
+      sheet: s?.sheet ?? nl?.sheet ?? '',
       sheetFile: nl?.sheetFile ?? '',
-      dnp: s.dnp,
-      excludeFromBom: !s.inBom,
+      dnp: s?.dnp ?? false,
+      excludeFromBom: s ? !s.inBom : false,
       fields,
-      mpn,
+      mpn: pickField(fields, MPN_KEYS),
       manufacturer: pickField(fields, MANUFACTURER_KEYS),
       lcsc: pickField(fields, LCSC_KEYS),
-      datasheet: s.datasheet || (nl ? nl.datasheet : ''),
+      datasheet: s?.datasheet || nl?.datasheet || '',
       description: nl?.description ?? '',
       units: nl?.units ?? [],
       pins: graphPins,
     };
-  });
+  };
+
+  let parts: GraphPart[];
+  if (netlist) {
+    const seen = new Set<string>();
+    parts = [];
+    for (const nl of netlist.parts) {
+      if (seen.has(nl.ref)) continue;
+      seen.add(nl.ref);
+      const s = (nl.tstamps && symByUuid.get(nl.tstamps)) || symByRef.get(nl.ref);
+      parts.push(build(nl.ref, s, nl, netlistPins.get(nl.ref) ?? []));
+    }
+  } else {
+    parts = [...symByRef.values()].map((s) =>
+      build(
+        s.ref,
+        s,
+        undefined,
+        [...sexpPins.values()].filter((p) => p.ref === s.ref).map((p) => pinOf(p.ref, p.pinNumber, p.pinName, '', p.net)),
+      ),
+    );
+  }
   parts.sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }));
   nets.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -243,12 +298,20 @@ export function buildGraph(
   };
 }
 
+/** A sha256 per sheet file of the hierarchy, repo-relative and sorted, so a sub-sheet edit moves the graph's sources. */
+async function hashSheets(repoRoot: string, schematicRel: string): Promise<{ path: string; sha256: string }[]> {
+  const files = await listSheetFiles(path.join(repoRoot, schematicRel));
+  const out = await Promise.all(
+    files.map(async (f) => ({ path: path.relative(repoRoot, f), sha256: sha256(await readFile(f, 'utf8')) })),
+  );
+  return out.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 /** Extract the graph for a schematic file, preferring the `kicad-cli` netlist and falling back to the s-expression parse. */
 export async function extractDesignGraph(repoRoot: string, schematicRel: string): Promise<DesignGraph> {
   const schPath = path.join(repoRoot, schematicRel);
-  const schText = await readFile(schPath, 'utf8');
-  const sources = [{ path: schematicRel, sha256: sha256(schText) }];
-  const [symbols, pins, nl] = await Promise.all([
+  const [sources, symbols, pins, nl] = await Promise.all([
+    hashSheets(repoRoot, schematicRel),
     listSymbols(schPath),
     pinNets(schPath),
     tryNetlist(schPath),
@@ -260,34 +323,28 @@ export function graphPath(repoRoot: string): string {
   return path.join(repoRoot, '.copperhead', 'design-graph.json');
 }
 
-/** Write the graph to `.copperhead/design-graph.json` (derived artifact, see header note). */
+/** Write the graph to `.copperhead/design-graph.json`. It is a derived cache, so it is gitignored. */
 export async function writeDesignGraph(repoRoot: string, graph: DesignGraph): Promise<string> {
   const p = graphPath(repoRoot);
   await mkdir(path.dirname(p), { recursive: true });
   await writeFile(p, JSON.stringify(graph, null, 2) + '\n', 'utf8');
+  await ensureIgnored(repoRoot, ['.copperhead/design-graph.json']);
   return p;
 }
 
-/** Read the graph when fresh, or null when missing, version-mismatched, or stale (source hashes moved). */
+/** Read the graph when fresh, or null when missing, version-mismatched, or stale (any sheet file's hash or the set of sheet files moved). */
 export async function readFreshGraph(repoRoot: string, schematicRel: string): Promise<DesignGraph | null> {
-  let raw: string;
-  try {
-    raw = await readFile(graphPath(repoRoot), 'utf8');
-  } catch {
-    return null;
-  }
   let graph: DesignGraph;
   try {
-    graph = JSON.parse(raw) as DesignGraph;
+    graph = JSON.parse(await readFile(graphPath(repoRoot), 'utf8')) as DesignGraph;
   } catch {
     return null;
   }
   if (graph.version !== DESIGN_GRAPH_VERSION) return null;
   try {
-    const schText = await readFile(path.join(repoRoot, schematicRel), 'utf8');
-    const current = sha256(schText);
-    const recorded = graph.generated.sources.find((s) => s.path === schematicRel)?.sha256;
-    if (recorded !== current) return null;
+    const current = await hashSheets(repoRoot, schematicRel);
+    const recorded = [...graph.generated.sources].sort((a, b) => a.path.localeCompare(b.path));
+    if (JSON.stringify(current) !== JSON.stringify(recorded)) return null;
   } catch {
     return null;
   }

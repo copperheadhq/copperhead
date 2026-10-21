@@ -1,13 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { execa } from 'execa';
 import { readFile, writeFile } from 'node:fs/promises';
-import { listSymbols } from '../src/kicad/sexp.js';
-import { parseNetlist } from '../src/kicad/netlist.js';
+import { listSymbols, pinNets } from '../src/kicad/sexp.js';
+import { parseNetlist, unescapeNetName } from '../src/kicad/netlist.js';
 import {
   classifyPart,
   isPinoutWorthy,
   mpnOf,
+  manufacturerOf,
+  lcscOf,
   buildGraph,
+  graphPath,
+  writeDesignGraph,
+  readFreshGraph,
   extractDesignGraph,
   DESIGN_GRAPH_VERSION,
 } from '../src/kicad/design-graph.js';
@@ -24,7 +32,6 @@ describe('ingestion preserves symbol fields (issue #248 gaps 1-2)', () => {
     expect(r1.datasheet).toBe('');
     expect(r1.dnp).toBe(false);
     expect(r1.inBom).toBe(true);
-    expect(r1.onBoard).toBe(true);
     expect(r1.fields).toEqual({});
   });
 
@@ -57,7 +64,12 @@ describe('DNP and BOM-excluded parts never become orderable (gap 3)', () => {
     try {
       const sch = path.join(repo, 'hardware', 'open-key.kicad_sch');
       let text = await readFile(sch, 'utf8');
-      text = text.replace('(dnp no)\n    (fields_autoplaced yes)\n    (uuid "0d0d0d0d-0000-4000-8000-000000000001")', '(dnp yes)\n    (fields_autoplaced yes)\n    (uuid "0d0d0d0d-0000-4000-8000-000000000001")');
+      const flagged = text.replace(
+        /\(dnp no\)(\s+\(fields_autoplaced yes\)\s+\(uuid "0d0d0d0d-0000-4000-8000-000000000001"\))/,
+        '(dnp yes)$1',
+      );
+      expect(flagged).not.toBe(text);
+      text = flagged;
       await writeFile(sch, text, 'utf8');
       const syms = await listSymbols(sch);
       expect(syms.find((s) => s.ref === 'R1')!.dnp).toBe(true);
@@ -161,11 +173,304 @@ describe('design graph build and extract', () => {
   it('extractDesignGraph degrades gracefully without kicad-cli netlist', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
-      const graph = await extractDesignGraph(repo, 'hardware/open-key.kicad_sch');
-      expect(graph.version).toBe(DESIGN_GRAPH_VERSION);
-      expect(graph.parts.map((p) => p.ref)).toContain('U1');
+      const prev = process.env.COPPERHEAD_KICAD_CLI;
+      process.env.COPPERHEAD_KICAD_CLI = path.join(repo, 'no-such-kicad-cli');
+      try {
+        const graph = await extractDesignGraph(repo, 'hardware/open-key.kicad_sch');
+        expect(graph.version).toBe(DESIGN_GRAPH_VERSION);
+        expect(graph.generated.partial).toBe(true);
+        expect(graph.generated.partialReason).toBeTruthy();
+        expect(graph.parts.map((p) => p.ref)).toContain('U1');
+      } finally {
+        if (prev === undefined) delete process.env.COPPERHEAD_KICAD_CLI;
+        else process.env.COPPERHEAD_KICAD_CLI = prev;
+      }
     } finally {
       await cleanup();
     }
   }, 60_000);
+});
+
+const sym = (ref: string, libId: string, footprint = '') => ({ ref, libId, footprint });
+
+describe('classification (table-driven)', () => {
+  it('keeps stock Power_* library ICs as ic, not power', () => {
+    expect(classifyPart(sym('U3', 'Power_Protection:USBLC6-2SC6'), 6).class).toBe('ic');
+    expect(classifyPart(sym('U4', 'Power_Management:TPS2113A'), 8).class).toBe('ic');
+    expect(classifyPart(sym('#PWR1', 'power:GND'), 1).class).toBe('power');
+  });
+
+  it.each([
+    ['D1', 'Device:LED', 2, 'discrete'],
+    ['D2', 'Device:D_Schottky', 2, 'discrete'],
+    ['Y1', 'Device:Crystal', 2, 'discrete'],
+    ['Q1', 'Transistor_FET:2N7002', 3, 'discrete'],
+    ['F1', 'Device:Fuse', 2, 'discrete'],
+    ['SW1', 'Switch:SW_Push', 2, 'discrete'],
+    ['CP1', 'Device:CP', 2, 'discrete'],
+    ['R?', 'Device:R', 2, 'passive'],
+    ['RN1', 'Device:R_Network04', 8, 'passive'],
+    ['MH1', 'Mechanical:MountingHole', 1, 'mechanical'],
+    ['MH2', 'Other:Thing', 1, 'mechanical'],
+    ['J1', 'Other:Thing', 4, 'connector'],
+    ['P_USB', 'Other:Thing', 4, 'connector'],
+    ['U1', 'MCU_Module:Thing', 20, 'ic'],
+  ])('%s %s (%i pins) is %s', (ref, lib, pins, cls) => {
+    expect(classifyPart(sym(ref, lib), pins).class).toBe(cls);
+  });
+
+  it('keeps discretes out of the pinout', () => {
+    expect(isPinoutWorthy('discrete')).toBe(false);
+    expect(isPinoutWorthy('mechanical')).toBe(false);
+  });
+});
+
+describe('field pickers', () => {
+  const withFields = (fields: Record<string, string>) => ({ fields }) as Parameters<typeof mpnOf>[0];
+  it('reads manufacturer and LCSC, and treats placeholders as empty', () => {
+    expect(manufacturerOf(withFields({ Manufacturer: 'TI' }))).toBe('TI');
+    expect(lcscOf(withFields({ 'LCSC Part': 'C25804' }))).toBe('C25804');
+    for (const v of ['~', '-', 'N/A', 'TBD', '  ']) expect(mpnOf(withFields({ MPN: v })), v).toBe('');
+  });
+
+  it('keeps a pipe or newline in an MPN from splitting the BOM row', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const sch = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const text = await readFile(sch, 'utf8');
+      const edited = text.replace(
+        '(property "Datasheet" "~" (at 88.9 95.25 0)',
+        '(property "MPN" "AB|CD" (at 88.9 95.25 0)\n      (effects (font (size 1.27 1.27)) hide)\n    )\n    (property "Datasheet" "~" (at 88.9 95.25 0)',
+      );
+      expect(edited).not.toBe(text);
+      await writeFile(sch, edited, 'utf8');
+      await runInit({ repoRoot: repo, installHooks: false });
+      const bom = await readFile(path.join(repo, 'docs', 'BOM.md'), 'utf8');
+      expect(bom).toContain('| R1 | 10k | Resistor_SMD:R_0603_1608Metric | AB/CD |');
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('BOM-excluded parts and drift', () => {
+  async function exclude(repo: string, flag: string): Promise<void> {
+    const sch = path.join(repo, 'hardware', 'open-key.kicad_sch');
+    const text = await readFile(sch, 'utf8');
+    const edited = text.replace(
+      /\(in_bom yes\)(\s+\(on_board yes\)\s+\(dnp no\)\s+\(fields_autoplaced yes\)\s+\(uuid "0d0d0d0d-0000-4000-8000-000000000001"\))/,
+      `${flag}$1`,
+    );
+    expect(edited).not.toBe(text);
+    await writeFile(sch, edited, 'utf8');
+  }
+
+  it('reads (in_bom no) and omits the part from BOM.md without drift', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await exclude(repo, '(in_bom no)');
+      const sch = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      expect((await listSymbols(sch)).find((s) => s.ref === 'R1')!.inBom).toBe(false);
+      await runInit({ repoRoot: repo, installHooks: false });
+      expect(await readFile(path.join(repo, 'docs', 'BOM.md'), 'utf8')).not.toMatch(/\| R1 \|/);
+      expect((await checkDrift(repo, 'docs/', 'hardware/open-key.kicad_sch')).filter((d) => d.claim.includes('R1'))).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('flags a BOM row for a part now excluded from the BOM', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, installHooks: false });
+      await exclude(repo, '(in_bom no)');
+      const drift = await checkDrift(repo, 'docs/', 'hardware/open-key.kicad_sch');
+      expect(drift).toContainEqual(expect.objectContaining({ doc: 'BOM.md', claim: 'R1 orderable' }));
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('netlist is the source of truth for the graph (findings 3 and 4)', () => {
+  const NETLIST = `(export (version E)
+    (components
+      (comp (ref "R1") (value "10k") (footprint "Resistor_SMD:R_0603_1608Metric")
+        (libsource (lib "Device") (part "R")) (sheetpath (names "/") (tstamps "/"))
+        (tstamps "0d0d0d0d-0000-4000-8000-000000000001"))
+      (comp (ref "C20") (value "1u") (footprint "")
+        (libsource (lib "Device") (part "C")) (sheetpath (names "/sub") (tstamps "/aa/"))
+        (tstamps "11111111-0000-4000-8000-000000000020"))
+      (comp (ref "U2") (value "74LS125") (footprint "")
+        (libsource (lib "74xx") (part "74LS125")) (sheetpath (names "/") (tstamps "/"))
+        (tstamps "11111111-0000-4000-8000-000000000002")
+        (units (unit (name "A") (pins (pin (num "1")))) (unit (name "B") (pins (pin (num "4"))))))
+      (comp (ref "U2") (value "74LS125") (footprint "")
+        (libsource (lib "74xx") (part "74LS125")) (sheetpath (names "/") (tstamps "/"))
+        (tstamps "11111111-0000-4000-8000-000000000002")))
+    (nets
+      (net (code "1") (name "{slash}sub{slash}VCC") (class "Default")
+        (node (ref "R1") (pin "1") (pintype "passive"))
+        (node (ref "C20") (pin "1") (pintype "passive"))
+        (node (ref "U2") (pin "1") (pinfunction "A") (pintype "input")))
+      (net (code "2") (name "Net-(R1-Pad2)") (class "Default")
+        (node (ref "R1") (pin "2") (pintype "passive"))
+        (node (ref "U2") (pin "4") (pintype "input")))))`;
+
+  it('builds one part per netlist component and names every pin net as in nets[]', async () => {
+    const symbols = await listSymbols(SCH);
+    const pins = await pinNets(SCH);
+    const graph = buildGraph(symbols, pins, parseNetlist(NETLIST), [], '10.0.0', null);
+    expect(graph.generated.partial).toBe(false);
+    expect(graph.parts.map((p) => p.ref)).toEqual(['C20', 'R1', 'U2']);
+    const names = new Set(graph.nets.map((n) => n.name));
+    expect(names.has('/sub/VCC')).toBe(true);
+    for (const part of graph.parts) for (const pin of part.pins) expect(names.has(pin.net!), `${part.ref}:${pin.num}`).toBe(true);
+    const r1 = graph.parts.find((p) => p.ref === 'R1')!;
+    expect(r1.pins.map((p) => [p.num, p.net])).toEqual([['1', '/sub/VCC'], ['2', 'Net-(R1-Pad2)']]);
+    expect(r1.uuid).toBe('0d0d0d0d-0000-4000-8000-000000000001');
+    expect(r1.pins[0]!.type).toBe('passive');
+    expect(graph.parts.find((p) => p.ref === 'U2')!.units).toEqual([
+      { name: 'A', pins: ['1'] },
+      { name: 'B', pins: ['4'] },
+    ]);
+  });
+
+  it('collapses multi-unit symbols to one part per ref without a netlist', async () => {
+    const symbols = await listSymbols(SCH);
+    const u1 = symbols.find((s) => s.ref === 'U1')!;
+    const graph = buildGraph([...symbols, { ...u1, unit: 2 }], await pinNets(SCH), null, [], null, 'x');
+    expect(graph.parts.filter((p) => p.ref === 'U1')).toHaveLength(1);
+    expect(graph.generated.partial).toBe(true);
+  });
+
+  it('undoes KiCad net-name escapes', () => {
+    expect(unescapeNetName('{slash}a{slash}B{dblquote}')).toBe('/a/B"');
+    expect(unescapeNetName('{unknown}')).toBe('{unknown}');
+  });
+
+  it('parseNetlist keeps libpart descriptions, sheet files and unit fallbacks', () => {
+    const nl = parseNetlist(`(export (libparts (libpart (lib "Device") (part "R") (description "Resistor")))
+      (components (comp (ref "R1") (value "1k") (libsource (lib "Device") (part "R"))
+        (property (name "Sheetfile") (value "sub.kicad_sch")) (units (unit (name "A") (pins (pin (num "1")))))))
+      (nets))`);
+    expect(nl.parts[0]).toMatchObject({ description: 'Resistor', sheetFile: 'sub.kicad_sch', sheet: '/' });
+    expect(nl.parts[0]!.units).toEqual([{ name: 'A', pins: ['1'] }]);
+  });
+});
+
+describe('graph freshness covers every sheet (finding 5)', () => {
+  async function legibilityRepo(): Promise<{ repo: string; cleanup: () => Promise<void> }> {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-graph-'));
+    const dir = path.join(FIXTURE, '..', 'legibility');
+    await cp(path.join(dir, 'ugly.kicad_sch'), path.join(repo, 'ugly.kicad_sch'));
+    await cp(path.join(dir, 'ugly-sub.kicad_sch'), path.join(repo, 'ugly-sub.kicad_sch'));
+    return { repo, cleanup: () => rm(repo, { recursive: true, force: true }) };
+  }
+
+  it('returns the graph while fresh and null once a sub-sheet changes', async () => {
+    const { repo, cleanup } = await legibilityRepo();
+    try {
+      expect(await readFreshGraph(repo, 'ugly.kicad_sch')).toBeNull(); // missing
+      const graph = await extractDesignGraph(repo, 'ugly.kicad_sch');
+      expect(graph.generated.sources.map((s) => s.path)).toEqual(['ugly-sub.kicad_sch', 'ugly.kicad_sch']);
+      await writeDesignGraph(repo, graph);
+      expect(await readFreshGraph(repo, 'ugly.kicad_sch')).not.toBeNull();
+      const sub = path.join(repo, 'ugly-sub.kicad_sch');
+      await writeFile(sub, (await readFile(sub, 'utf8')).replace('"R7"', '"XR7"'), 'utf8');
+      expect(await readFreshGraph(repo, 'ugly.kicad_sch')).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+
+  it('returns null for unreadable, version-mismatched and source-less graphs', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const rel = 'hardware/open-key.kicad_sch';
+      const graph = await extractDesignGraph(repo, rel);
+      await writeFile(graphPath(repo), '{not json', 'utf8').catch(async () => {
+        await writeDesignGraph(repo, graph);
+        await writeFile(graphPath(repo), '{not json', 'utf8');
+      });
+      expect(await readFreshGraph(repo, rel)).toBeNull();
+      await writeDesignGraph(repo, { ...graph, version: DESIGN_GRAPH_VERSION + 1 });
+      expect(await readFreshGraph(repo, rel)).toBeNull();
+      await writeDesignGraph(repo, graph);
+      expect(await readFreshGraph(repo, rel)).not.toBeNull();
+      expect(await readFreshGraph(repo, 'hardware/missing.kicad_sch')).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+});
+
+describe('graph file is a gitignored cache (finding 7)', () => {
+  it('init and ingest write identical bytes and git ignores the file', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, installHooks: false });
+      const afterInit = await readFile(graphPath(repo), 'utf8');
+      expect(await readFile(path.join(repo, '.gitignore'), 'utf8')).toContain('.copperhead/design-graph.json');
+      expect((await execa('git', ['check-ignore', '.copperhead/design-graph.json'], { cwd: repo })).stdout).toBeTruthy();
+      await writeDesignGraph(repo, await extractDesignGraph(repo, 'hardware/open-key.kicad_sch'));
+      expect(await readFile(graphPath(repo), 'utf8')).toBe(afterInit);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+});
+
+describe('copperhead ingest', () => {
+  const ROOT = path.join(path.dirname(FIXTURE), '..', '..');
+  const run = (repo: string, ...args: string[]) =>
+    execa('npx', ['tsx', 'src/cli.ts', '--repo', repo, ...args], { cwd: ROOT, reject: false, env: { NO_COLOR: '1' } });
+
+  it('exits 1 when no schematic is configured', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-ingest-'));
+    try {
+      const res = await run(dir, 'ingest');
+      expect(res.exitCode).toBe(1);
+      expect(res.stderr).toContain('copperhead init');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('prints the graph as JSON under --json', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, installHooks: false });
+      const res = await run(repo, '--json', 'ingest');
+      expect(res.exitCode).toBe(0);
+      expect((JSON.parse(res.stdout) as { version: number }).version).toBe(DESIGN_GRAPH_VERSION);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+});
+
+describe('draft BOM cross-check skips excluded parts (finding 8)', () => {
+  it('does not demand a BOM.md row for a DNP part', async () => {
+    const { validateIntent, parseIntent } = await import('../src/kicad/draft/ir.js');
+    const { SymbolSource } = await import('../src/kicad/draft/symsource.js');
+    const here = path.dirname(FIXTURE);
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-irskip-'));
+    try {
+      await cp(path.join(here, 'draft', 'docs'), path.join(repo, 'docs'), { recursive: true });
+      const { intent } = parseIntent(await readFile(path.join(here, 'draft', 'schematic.intent.json'), 'utf8'));
+      const ref = intent!.parts[0]!.ref;
+      const bom = path.join(repo, 'docs', 'BOM.md');
+      const rows = (await readFile(bom, 'utf8')).split('\n');
+      await writeFile(bom, rows.filter((l) => l.split('|')[1]?.trim() !== ref).join('\n'), 'utf8');
+      const src = new SymbolSource(repo, [path.join(here, 'symlib')]);
+      const text = (r: { findings: { detail: string }[] }) => r.findings.map((f) => f.detail).join('\n');
+      expect(text(await validateIntent(intent!, src, path.join(repo, 'docs')))).toContain(`${ref} is not a BOM.md row`);
+      expect(text(await validateIntent(intent!, src, path.join(repo, 'docs'), undefined, new Set([ref])))).not.toContain(
+        `${ref} is not a BOM.md row`,
+      );
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
 });

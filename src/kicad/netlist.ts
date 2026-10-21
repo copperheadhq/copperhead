@@ -69,6 +69,16 @@ export interface Netlist {
   nets: NetlistNet[];
 }
 
+const NET_ESCAPES: Record<string, string> = {
+  slash: '/', dblquote: '"', quote: "'", lt: '<', gt: '>', backslash: '\\', bar: '|',
+  comma: ',', colon: ':', semicolon: ';', brace: '{', space: ' ', tab: '\t', return: '\r', newline: '\n',
+};
+
+/** KiCad escapes reserved characters in exported net names as `{slash}`, `{dblquote}`, and so on. */
+export function unescapeNetName(name: string): string {
+  return name.replace(/\{([a-z]+)\}/g, (m, k: string) => NET_ESCAPES[k] ?? m);
+}
+
 function cleanDatasheet(v: string | undefined): string {
   if (!v) return '';
   const t = v.trim();
@@ -141,19 +151,11 @@ export function parseNetlist(text: string): Netlist {
       if (!libDescription) libDescription = atom(child(lp, 'description'), 1) ?? '';
     }
     const libSourceDesc = atom(child(ls, 'description'), 1) ?? '';
-    const sheetFile =
-      atom(child(c, 'Sheetfile'), 1) ??
-      atom(child(c, 'Sheetname'), 1) ??
-      '';
-    // Property-style sheet names carried as generic properties.
-    const props = child(c, 'properties');
-    let propSheetFile = '';
-    if (props) {
-      for (const p of children(props, 'property')) {
-        const n = atom(child(p, 'name'), 1) ?? atom(p, 1) ?? '';
-        const v = atom(child(p, 'value'), 1) ?? atom(p, 2) ?? '';
-        if (n.toLowerCase() === 'sheetfile' || n.toLowerCase() === 'sheetname') propSheetFile = v;
-      }
+    // KiCad writes the sheet as plain `(property (name "Sheetfile") (value ...))` children of `comp`.
+    let sheetFile = '';
+    for (const p of children(c, 'property')) {
+      const n = (atom(child(p, 'name'), 1) ?? '').toLowerCase();
+      if (n === 'sheetfile' || (n === 'sheetname' && !sheetFile)) sheetFile = atom(child(p, 'value'), 1) ?? '';
     }
     parts.push({
       ref: atom(child(c, 'ref'), 1) ?? '',
@@ -165,14 +167,14 @@ export function parseNetlist(text: string): Netlist {
       fields,
       datasheet: cleanDatasheet(fields['Datasheet']) || libDatasheet,
       description: libSourceDesc || libDescription,
-      sheetFile: sheetFile || propSheetFile,
+      sheetFile,
       units: readUnits(c),
     });
   }
   return {
     parts,
     nets: (nets ? children(nets, 'net') : []).map((n) => ({
-      name: atom(child(n, 'name'), 1) ?? '',
+      name: unescapeNetName(atom(child(n, 'name'), 1) ?? ''),
       netclass: atom(child(n, 'class'), 1) ?? 'Default',
       nodes: children(n, 'node').map((nd) => ({
         ref: atom(child(nd, 'ref'), 1) ?? '',

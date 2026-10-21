@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { emitSchematic } from '../emit.js';
-import { parseSexp, child, isList } from '../sexp.js';
+import { parseSexp, child, isList, listSymbols } from '../sexp.js';
 import { childSpans, listEnd } from '../spans.js';
 import { SymbolSource } from './symsource.js';
 import type { FootprintResolver } from '../footprints.js';
@@ -68,7 +68,14 @@ export async function draftSchematicToText(opts: SchematicDraftOptions): Promise
   // docsDir may arrive repo-relative (config.docs); resolve against the repo
   const docsDir =
     opts.docsDir === undefined || opts.docsDir === null ? null : path.resolve(opts.repoRoot, opts.docsDir);
-  const { ok, findings, validated } = await validateIntent(intent, symsource, docsDir, opts.footprints);
+  // init leaves DNP and BOM-excluded parts out of BOM.md, so the BOM cross-check must not demand them
+  const skipBomRefs = new Set<string>();
+  try {
+    for (const s of await listSymbols(path.join(opts.repoRoot, opts.schematic))) if (s.dnp || !s.inBom) skipBomRefs.add(s.ref);
+  } catch {
+    // no schematic yet (create pipeline): nothing to skip
+  }
+  const { ok, findings, validated } = await validateIntent(intent, symsource, docsDir, opts.footprints, skipBomRefs);
   if (!ok || !validated) return { ok: false, findings, message: formatIrFindings(findings) };
 
   const projectName = path.basename(opts.schematic).replace(/\.kicad_sch$/, '');

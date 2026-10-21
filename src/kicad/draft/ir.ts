@@ -172,6 +172,8 @@ export async function validateIntent(
   symsource: SymbolSource,
   docsDir: string | null,
   footprints?: FootprintResolver,
+  /** Refs the schematic marks DNP or BOM-excluded: init omits them from BOM.md, so a missing row is expected. */
+  skipBomRefs?: ReadonlySet<string>,
 ): Promise<{ ok: boolean; findings: IrFinding[]; validated: ValidatedIntent | null }> {
   const findings: IrFinding[] = [];
   const warnings: string[] = [];
@@ -447,6 +449,7 @@ export async function validateIntent(
         );
       }
       if (bomValue === undefined) {
+        if (skipBomRefs?.has(p.ref)) continue;
         add(`${p.ref} is not a BOM.md row; add it to the BOM or drop it from the intent`);
         continue;
       }

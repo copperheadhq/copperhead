@@ -7,8 +7,10 @@
 - D3: A part with no MPN is reported as having no MPN in the graph (`mpn: ''`). The BOM scaffold keeps the UNVERIFIED placeholder for missing MPNs so existing drift and export behavior (which treat it as missing) is unchanged. Real MPNs from schematic fields are preserved verbatim.
 - D4: DNP and BOM-excluded parts are omitted from BOM.md and skipped by drift. Rationale: they must never become orderable rows, and their intentional absence is not drift.
 - D5: Classification is derived from library category, footprint family, and pin count, with raw evidence kept (`classEvidence`). Pinout-worthy means ic or connector. Passives (2-pin R/C/L) and mechanicals stay out of the pinout.
-- D6: The graph is a derived artifact with source hashes. Readers treat a missing, version-mismatched, or stale graph as absent. Nothing commits to it as a second source of truth.
-- D7: Dynamic imports for `kicad-cli` access from scaffold and design-graph. Rationale: avoids a static cycle (`cli` imports `scaffold`; both need the netlist exporter). The `check` module graph never imports a provider or the agent loop.
+- D6: The graph is a derived, gitignored cache with a sha256 per sheet file. Readers treat a missing, version-mismatched, or stale graph (any sheet hash or the set of sheets differs) as absent. Nothing commits to it as a second source of truth. `init` and `ingest` share one extraction path so they write the same bytes.
+- D8: With a netlist, parts and pin nets come from it (one part per component, pin `net` is a name in `nets[]`); the schematic parse adds DNP and BOM flags and pin names. Without one, parts collapse to one per refdes and the graph is `partial`.
+- D9: `Power` is a class only for the exact library nickname; small discretes are class `discrete` and stay out of PINOUT.md.
+- D7: Dynamic imports for `kicad-cli` access from scaffold and design-graph. Rationale: keeps `kicad-cli` out of the static import graph of `check`, which never imports a provider or the agent loop. (There is no import cycle to avoid.)
 
 ## Shape (v1, schematic only)
 

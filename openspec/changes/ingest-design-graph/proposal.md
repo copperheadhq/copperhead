@@ -13,21 +13,22 @@ This change is pipeline step 1 for the hybrid board review (#247) and the fix fo
 - `src/kicad/netlist.ts` graduates from `test/support/netlist.ts` with extended fields (fields, datasheet, pintype, pinfunction, netclass, tstamps, units, sheet file). The test helper re-exports from the product module so corpus tooling and product share one extractor.
 - Drift skips DNP and BOM-excluded symbols when checking for missing BOM rows, so their intentional absence is not flagged.
 - SPEC AC-1.2 and AC-1.3 updated; CLI surface documents `ingest`.
+- Part and pin identity come from the netlist when produced; every sheet file is hashed for freshness; the graph file is a gitignored cache.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `design-graph-ingest`: the normalized graph shape, classification, MPN preservation, DNP handling, and the `ingest` command.
+- `design-graph-ingest`: the normalized graph shape, netlist-first parts and connectivity, classification, freshness, and the gitignored cache.
 
 ### Modified Capabilities
 
-- `cli-surface`: the CLI gains the `ingest` command.
-- `init-scaffold`: BOM and PINOUT generation from enriched symbols.
+- `cli-surface`: the CLI gains the `ingest` command (new requirement).
+- `docs-memory`: `init` scaffolds BOM and PINOUT from enriched symbols (AC-1.2, AC-1.3), and drift and the draft BOM cross-check honour DNP and BOM-excluded parts.
 
 ## Impact
 
 - Code: `src/kicad/sexp.ts` (fields, datasheet, dnp, inBom), `src/kicad/netlist.ts` (new), `src/kicad/design-graph.ts` (new), `src/memory/scaffold.ts`, `src/memory/drift.ts`, `src/cli.ts`.
-- Tests: `test/design-graph.test.ts` (9 tests), existing offline suite stays green.
+- Tests: `test/design-graph.test.ts`, existing offline suite stays green.
 - Dependencies: none new. Board stats and pos ingestion stays a follow-up; the graph carries `board: null` in v1.
 - Unchanged contracts: `check` stays LLM-free and network-free; the s-expression parser stays read-only; edits still use anchored text replace.

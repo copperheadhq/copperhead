@@ -28,6 +28,6 @@
 
 ## 6. Verification
 
-- [x] 6.1 `test/design-graph.test.ts` (9 tests: fields, MPN preservation, DNP omission and drift, classification, netlist identity fields, graph build, init graph write, graceful extract)
+- [x] 6.1 `test/design-graph.test.ts` (fields, MPN preservation, DNP omission and drift, classification, netlist identity fields and escapes, netlist-first graph, freshness, init graph write, fallback, ingest CLI)
 - [x] 6.2 `npm run typecheck` clean; offline subset green (design-graph, sexp, bom-table, bom-export, docs-drift, cli-surface)
 - [x] 6.3 SPEC AC-1.2 and AC-1.3 updated; CLI surface documents `ingest`

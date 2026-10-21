@@ -3,8 +3,7 @@ import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from '../kicad/sexp.js';
-import { classifyPart, isPinoutWorthy, mpnOf, buildGraph, writeDesignGraph } from '../kicad/design-graph.js';
-import { parseNetlist } from '../kicad/netlist.js';
+import { classifyPart, isPinoutWorthy, mpnOf, extractDesignGraph, writeDesignGraph } from '../kicad/design-graph.js';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
 import { resolveInRepo } from '../util/paths.js';
 
@@ -34,6 +33,9 @@ async function findKicadFiles(searchRoot: string): Promise<{ sch: string | null;
   return { sch, pcb };
 }
 
+/** One-line, pipe-free table cell: a newline or `|` in a field would shift the BOM columns. */
+const cell = (v: string): string => v.replace(/\s*[\r\n]+\s*/g, ' ').replace(/\|/g, '/').trim();
+
 function bomTable(symbols: SchematicSymbol[]): string {
   // DNP and BOM-excluded parts never become orderable rows (issue #248 gap 3).
   // Parts that carry a real MPN in the schematic keep it. Parts with no MPN
@@ -41,7 +43,7 @@ function bomTable(symbols: SchematicSymbol[]): string {
   // (which treat it as missing) is unchanged.
   const orderable = symbols.filter((s) => !s.dnp && s.inBom);
   const rows = orderable.map((s) => {
-    const mpn = mpnOf(s);
+    const mpn = cell(mpnOf(s));
     if (mpn) return `| ${s.ref} | ${s.value} | ${s.footprint} | ${mpn} | from schematic fields by copperhead init |`;
     return `| ${s.ref} | ${s.value} | ${s.footprint} | UNVERIFIED | extracted from schematic by copperhead init |`;
   });
@@ -158,6 +160,13 @@ One directory per \`do\`/\`create\`/\`sync\` run: \`transcript.jsonl\` (full aud
 trail) and \`summary.md\` (human-readable: request, plan, files touched,
 verification results, decisions, open obligations). Both redact secrets at
 write time. This directory is gitignored.
+
+## design-graph.json
+
+Normalized design graph written by \`copperhead init\` and \`copperhead ingest\`: parts,
+pins and nets, taken from the \`kicad-cli\` netlist when it can be produced. A derived
+cache (gitignored): it records a hash of every schematic sheet and is ignored once any
+sheet changes. Re-run \`copperhead ingest\` to refresh it.
 `;
 }
 
@@ -214,33 +223,14 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
   const projectName = path.basename(sch, '.kicad_sch');
   const docs = generateDocs(projectName, symbols, pins);
 
-  // Normalized design graph (issue #248): derived artifact with source
-  // hashes, always refreshed on init. Uses the kicad-cli netlist when it can
-  // be produced, falls back to the s-expression parse when it cannot, so
-  // offline runs without kicad-cli still scaffold.
+  // Normalized design graph (issue #248): a derived, gitignored cache with
+  // source hashes, refreshed on init through the same path as `ingest` so the
+  // two write identical bytes. A failure here never blocks docs scaffolding;
+  // consumers treat a missing graph as absent.
   try {
-    const schRel = path.relative(repoRoot, sch);
-    const schText = await readFile(sch, 'utf8');
-    let netlist = null;
-    let kicadCli: string | null = null;
-    let partialReason: string | null = null;
-    try {
-      const { exportNetlist } = await import('../kicad/cli.js');
-      netlist = parseNetlist(await exportNetlist(sch));
-    } catch (err) {
-      partialReason = String((err as Error).message).slice(0, 300);
-    }
-    const graph = buildGraph(
-      symbols,
-      pins,
-      netlist,
-      [{ path: schRel, sha256: sha(schText) }],
-      kicadCli,
-      partialReason,
-    );
-    await writeDesignGraph(repoRoot, graph);
-  } catch {
-    // Graph write never blocks docs scaffolding; check surfaces drift.
+    await writeDesignGraph(repoRoot, await extractDesignGraph(repoRoot, path.relative(repoRoot, sch)));
+  } catch (err) {
+    console.error(`copperhead: could not write .copperhead/design-graph.json: ${(err as Error).message}`);
   }
 
   const docsDir = path.join(repoRoot, config.docs);

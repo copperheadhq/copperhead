@@ -72,6 +72,12 @@ export async function checkDrift(repoRoot: string, docsDir: string, schematic: s
         mismatches.push({ doc: 'BOM.md', claim: `${ref} exists`, actual: `${ref} not in schematic` });
         continue;
       }
+      // `export bom` trusts this gate, so an orderable row for a part the
+      // schematic now marks DNP or BOM-excluded must not pass.
+      if (sym.dnp || !sym.inBom) {
+        mismatches.push({ doc: 'BOM.md', claim: `${ref} orderable`, actual: `${ref} is DNP or excluded from the BOM in schematic` });
+        continue;
+      }
       // Compare on the semantic value, not the byte-exact string: `Ihold≥3A` and
       // `Ihold>=3A` are the same value written two ways (#I11). Raw `!==` flagged
       // them as drift and whack-a-moled the agent across finish attempts.
