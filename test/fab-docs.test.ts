@@ -185,7 +185,7 @@ describe('runCheck --fab documentation gate wiring (#182)', () => {
       expect(noLayoutRes.ok).toBe(false);
       expect(noLayoutRes.fab?.docs.violations[0]).toEqual({
         claim: 'release-ready',
-        actual: 'missing',
+        actual: 'LAYOUT.md missing',
         location: 'docs/LAYOUT.md',
       });
       expect(noLayoutLogs).toContain('fab: routing, BOM, sch/PCB match, output freshness not yet checked');
