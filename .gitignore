@@ -10,5 +10,6 @@ docs/.astro/
 docs/dist/
 demo-runs/
 manual-tests/runs/
+pipeline-run-logs/
 *.tgz
 .npmrc
