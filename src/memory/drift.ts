@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol } from '../kicad/sexp.js';
+import { resolveInRepo, SandboxError } from '../util/paths.js';
 import {
   parseCanonicalRows,
   parseBomTable,
@@ -147,42 +148,88 @@ export interface BriefProvenanceStatus {
   current: string;
 }
 
-function resolveBriefFile(repoRoot: string, docsDir: string, recordedPath: string): string | null {
-  const candidates = [
-    path.resolve(repoRoot, recordedPath),
-    path.join(repoRoot, docsDir, path.basename(recordedPath)),
-    path.join(repoRoot, docsDir, 'BRIEF.md'),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+function resolveBriefFile(
+  repoRoot: string,
+  docsDir: string,
+  recordedPath: string,
+): { path: string | null; outsideRepo: boolean } {
+  const candidates: string[] = [];
+
+  if (recordedPath.startsWith('external:')) {
+    const extName = path.basename(recordedPath.slice('external:'.length).trim());
+    if (extName) {
+      candidates.push(resolveInRepo(repoRoot, path.join(docsDir, extName)));
+    }
+    candidates.push(resolveInRepo(repoRoot, path.join(docsDir, 'BRIEF.md')));
+  } else {
+    try {
+      candidates.push(resolveInRepo(repoRoot, recordedPath));
+    } catch (err) {
+      if (err instanceof SandboxError) {
+        return { path: null, outsideRepo: true };
+      }
+      throw err;
+    }
+    candidates.push(resolveInRepo(repoRoot, path.join(docsDir, path.basename(recordedPath))));
+    candidates.push(resolveInRepo(repoRoot, path.join(docsDir, 'BRIEF.md')));
   }
-  return null;
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return { path: candidate, outsideRepo: false };
+  }
+  return { path: null, outsideRepo: false };
 }
 
 export async function checkBriefProvenance(
   repoRoot: string,
   docsDir: string,
 ): Promise<BriefProvenanceStatus | null> {
-  const shaFile = path.join(repoRoot, docsDir, 'BRIEF.sha256');
+  const shaFile = resolveInRepo(repoRoot, path.join(docsDir, 'BRIEF.sha256'));
   if (!existsSync(shaFile)) return null;
 
   const raw = await readFile(shaFile, 'utf8');
   const briefMatch = raw.match(/^brief:\s*(.+)$/m);
   const shaMatch = raw.match(/^sha256:\s*([0-9a-fA-F]+)$/m);
   const originMatch = raw.match(/^origin_sha256:\s*([0-9a-fA-F]+)$/m);
-  const reconciledMatch = raw.match(/^reconciled_sha256:\s*([0-9a-fA-F]+)$/m);
 
-  if (!shaMatch) return null;
+  const defaultPath = path.posix.join(docsDir.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
+  const recordedPath = briefMatch?.[1]?.trim() || defaultPath;
 
-  const recordedPath = briefMatch?.[1]?.trim() || path.join(docsDir, 'BRIEF.md');
-  const origin = (originMatch?.[1] ?? shaMatch[1]!).trim();
-  const recorded = (reconciledMatch?.[1] ?? shaMatch[1]!).trim();
+  if (!shaMatch) {
+    return {
+      ok: false,
+      path: recordedPath,
+      recorded: 'invalid',
+      origin: 'invalid',
+      current: 'invalid',
+    };
+  }
 
-  const resolvedBrief = resolveBriefFile(repoRoot, docsDir, recordedPath);
-  if (!resolvedBrief) return null;
+  const origin = (originMatch?.[1] ?? shaMatch[1]!).trim().toLowerCase();
+  const recorded = shaMatch[1]!.trim().toLowerCase();
+
+  const resolved = resolveBriefFile(repoRoot, docsDir, recordedPath);
+  if (resolved.outsideRepo) {
+    return {
+      ok: false,
+      path: recordedPath,
+      recorded,
+      origin,
+      current: 'outside-repo',
+    };
+  }
+  if (!resolved.path) {
+    return {
+      ok: false,
+      path: recordedPath,
+      recorded,
+      origin,
+      current: 'missing',
+    };
+  }
 
   const current = createHash('sha256')
-    .update(await readFile(resolvedBrief))
+    .update(await readFile(resolved.path))
     .digest('hex');
 
   return {
@@ -199,11 +246,13 @@ export async function reconcileBriefHash(
   docsDir: string,
   briefMeta?: { path: string; sha256: string },
 ): Promise<BriefProvenanceStatus> {
-  const shaFile = path.join(repoRoot, docsDir, 'BRIEF.sha256');
+  const shaFile = resolveInRepo(repoRoot, path.join(docsDir, 'BRIEF.sha256'));
   await mkdir(path.dirname(shaFile), { recursive: true });
 
-  let existingPath = briefMeta?.path ?? path.join(docsDir, 'BRIEF.md');
+  const defaultPath = path.posix.join(docsDir.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
+  let existingPath = briefMeta?.path ?? defaultPath;
   let originSha: string | null = null;
+  let previousSha: string | null = null;
 
   if (existsSync(shaFile)) {
     const raw = await readFile(shaFile, 'utf8');
@@ -211,17 +260,21 @@ export async function reconcileBriefHash(
     const shaMatch = raw.match(/^sha256:\s*([0-9a-fA-F]+)$/m);
     const originMatch = raw.match(/^origin_sha256:\s*([0-9a-fA-F]+)$/m);
     if (!briefMeta?.path && briefMatch?.[1]) existingPath = briefMatch[1].trim();
-    originSha = (originMatch?.[1] ?? shaMatch?.[1] ?? '').trim() || null;
+    previousSha = shaMatch?.[1]?.trim().toLowerCase() || null;
+    originSha = (originMatch?.[1] ?? shaMatch?.[1] ?? '').trim().toLowerCase() || null;
   }
 
-  let currentSha = briefMeta?.sha256;
+  let currentSha = briefMeta?.sha256?.trim().toLowerCase();
   if (!currentSha) {
-    const resolvedBrief = resolveBriefFile(repoRoot, docsDir, existingPath);
-    if (!resolvedBrief) {
+    const resolved = resolveBriefFile(repoRoot, docsDir, existingPath);
+    if (resolved.outsideRepo) {
+      throw new SandboxError(`cannot reconcile brief provenance: path escapes repository (${existingPath})`);
+    }
+    if (!resolved.path) {
       throw new Error(`cannot reconcile brief provenance: brief file not found (${existingPath})`);
     }
     currentSha = createHash('sha256')
-      .update(await readFile(resolvedBrief))
+      .update(await readFile(resolved.path))
       .digest('hex');
   }
 
@@ -231,6 +284,26 @@ export async function reconcileBriefHash(
     lines.push(`origin_sha256: ${finalOrigin}`);
   }
   await writeFile(shaFile, lines.join('\n') + '\n', 'utf8');
+
+  if (previousSha && previousSha !== currentSha) {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const decisionsPath = resolveInRepo(repoRoot, path.join(docsDir, 'DECISIONS.md'));
+    if (existsSync(decisionsPath)) {
+      const decText = await readFile(decisionsPath, 'utf8');
+      const decEntry = `\n## ${dateStr} — sync-brief\n- **Decision**: Reconciled brief provenance for \`${existingPath}\` (\`${previousSha.slice(0, 8)}\` -> \`${currentSha.slice(0, 8)}\`).\n- **Why**: Design state verified against updated brief.\n- **Affects**: ${existingPath}, BRIEF.sha256\n`;
+      if (!decText.includes(currentSha.slice(0, 8))) {
+        await writeFile(decisionsPath, decText.trimEnd() + '\n' + decEntry, 'utf8');
+      }
+    }
+    const changelogPath = resolveInRepo(repoRoot, path.join(docsDir, 'CHANGELOG.md'));
+    if (existsSync(changelogPath)) {
+      const chgText = await readFile(changelogPath, 'utf8');
+      const chgEntry = `\n## ${dateStr} — sync --brief\n- **Request**: Reconcile brief provenance (${existingPath})\n- **Files**: ${existingPath}, BRIEF.sha256\n- **Verification**: sha256 ${previousSha.slice(0, 8)} -> ${currentSha.slice(0, 8)} (origin ${finalOrigin.slice(0, 8)})\n`;
+      if (!chgText.includes(currentSha.slice(0, 8))) {
+        await writeFile(changelogPath, chgText.trimEnd() + '\n' + chgEntry, 'utf8');
+      }
+    }
+  }
 
   return {
     ok: true,
