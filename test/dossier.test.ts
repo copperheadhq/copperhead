@@ -347,14 +347,14 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
             '| Refdes | Value | Footprint | MPN |',
             '| --- | --- | --- | --- |',
             '| U1 | SN74LVC1G17 | Package_TO_SOT_SMD:SOT-23-5 | UNVERIFIED: SN74LVC1G17 |',
-            '| Y1 | 8M | Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm | — |',
+            '| Y1 | 8M | Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm |  |',
           ].join('\n'),
           'utf8',
         );
         const incOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
         expect(incOut).toContain('INCOMPLETE: some BOM parts were not verified');
         expect(incOut).not.toContain('OK:');
-        expect(incOut).toContain('NOT SEARCHED (name under 3 chars): Y1 (8M)');
+        expect(incOut).toContain('NOT SEARCHED (name shorter than 3 chars): Y1 (8M)');
 
         await writeFile(
           path.join(repo, 'docs', 'BOM.md'),
