@@ -309,7 +309,7 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       const substrOut = await dispatchTool(ctx(), 'search_symbols', { query: 'LVC1G17' });
       expect(substrOut).toContain('Logic:SN74LVC1G17 (substring match)');
 
-      const nearMissOut = await dispatchTool(ctx(), 'search_symbols', { query: 'SN74LVC1G1X' });
+      const nearMissOut = await dispatchTool(ctx(), 'search_symbols', { query: 'SN74LVC1GA17' });
       expect(nearMissOut).toContain('Logic:SN74LVC1G17 (family wildcard / near-miss)');
 
       const espDir = await mkdtemp(path.join(tmpdir(), 'ch-esp-tier-'));
