@@ -158,3 +158,123 @@ export function checkForbiddenPins(
   }
   return violations;
 }
+
+/**
+ * Evidence citation attached to a general engineering constraint (#232).
+ * Validated deterministically against locally cached/committed files with
+ * zero network calls.
+ */
+export interface ConstraintEvidence {
+  /** Repo-relative path to the cached datasheet, app note, or spec document. */
+  path: string;
+  /** Optional expected SHA-256 hex digest of the cached evidence file. */
+  sha256?: string;
+  /** Optional section or page locator (for diagnostics). */
+  section?: string;
+  /** Verbatim quote from the cached evidence supporting the constraint bound. */
+  quote: string;
+  /** Optional explicit numeric literals cited from the quote. */
+  numbers?: (string | number)[];
+}
+
+export interface EvidenceBackedConstraint extends Constraint {
+  evidence?: ConstraintEvidence;
+}
+
+function normalizeWs(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function isWithinRepo(repoRoot: string, candidatePath: string): boolean {
+  const rootResolved = path.resolve(repoRoot);
+  const resolved = path.resolve(rootResolved, candidatePath);
+  return resolved === rootResolved || resolved.startsWith(rootResolved + path.sep);
+}
+
+/**
+ * Deterministic, offline verification of general constraint evidence (#232).
+ * Checks that every constraint carrying `evidence` (or a `source` citing a
+ * local file with an attached `evidence` block) resolves inside `repoRoot`,
+ * matches its optional `sha256` digest, contains the verbatim `quote`
+ * (whitespace-normalized), and mentions the constraint's numeric bounds.
+ */
+export async function verifyConstraintEvidence(
+  repoRoot: string,
+  registry: ConstraintRegistry,
+): Promise<ConstraintViolation[]> {
+  const { createHash } = await import('node:crypto');
+  const violations: ConstraintViolation[] = [];
+
+  for (const [key, rawConstraint] of Object.entries(registry)) {
+    const c = rawConstraint as EvidenceBackedConstraint;
+    const ev = c.evidence;
+    if (!ev) continue;
+
+    if (!ev.path || !isWithinRepo(repoRoot, ev.path)) {
+      violations.push({
+        key,
+        description: `evidence path "${ev.path}" escapes the repository root or is empty`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    const fullPath = path.resolve(repoRoot, ev.path);
+    if (!existsSync(fullPath)) {
+      violations.push({
+        key,
+        description: `cached evidence file "${ev.path}" does not exist on disk`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    const buf = await readFile(fullPath);
+    if (ev.sha256) {
+      const actualHash = createHash('sha256').update(buf).digest('hex');
+      if (actualHash.toLowerCase() !== ev.sha256.toLowerCase()) {
+        violations.push({
+          key,
+          description: `evidence file "${ev.path}" sha256 mismatch (expected ${ev.sha256}, got ${actualHash})`,
+          source: c.source,
+        });
+        continue;
+      }
+    }
+
+    const text = buf.toString('utf8');
+    const normDoc = normalizeWs(text);
+    const normQuote = normalizeWs(ev.quote ?? '');
+    if (!normQuote || !normDoc.includes(normQuote)) {
+      violations.push({
+        key,
+        description: `cited quote not found verbatim in "${ev.path}"${ev.section ? ` (${ev.section})` : ''}`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    const requiredNumbers: string[] = [];
+    if (ev.numbers?.length) {
+      for (const n of ev.numbers) requiredNumbers.push(String(n));
+    } else {
+      if (typeof c.min === 'number') requiredNumbers.push(String(c.min));
+      if (typeof c.max === 'number') requiredNumbers.push(String(c.max));
+      if (typeof c.value === 'number') requiredNumbers.push(String(c.value));
+    }
+
+    for (const numStr of requiredNumbers) {
+      const escaped = numStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const numRe = new RegExp(`(?<![0-9.])${escaped}(?![0-9.])`);
+      if (!numRe.test(normQuote)) {
+        violations.push({
+          key,
+          description: `constraint bound "${numStr}" is not present in the cited quote from "${ev.path}"`,
+          source: c.source,
+        });
+      }
+    }
+  }
+
+  return violations;
+}
