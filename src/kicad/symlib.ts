@@ -193,8 +193,19 @@ const MIN_EDIT_MATCH_LEN = 5;
  * so search and cross-library discovery can never disagree about what counts
  * as a near-miss.
  */
+function isTrailingPackageWildcard(mpn: string, wildcardSym: string): boolean {
+  if (mpn.length !== wildcardSym.length || mpn.length < MIN_EDIT_MATCH_LEN) return false;
+  const m = wildcardSym.match(/x+$/);
+  if (!m) return false;
+  const xLen = m[0].length;
+  const prefixLen = wildcardSym.length - xLen;
+  if (prefixLen < MIN_EDIT_MATCH_LEN - 1) return false;
+  return mpn.slice(0, prefixLen) === wildcardSym.slice(0, prefixLen);
+}
+
 function oneEditFamilyVariant(a: string, b: string): boolean {
   if (a.length < MIN_EDIT_MATCH_LEN || b.length < MIN_EDIT_MATCH_LEN) return false;
+  if (isTrailingPackageWildcard(a, b) || isTrailingPackageWildcard(b, a)) return true;
   if (editDistanceWithin(a, b, 1) > 1) return false;
   if (a.length === b.length) {
     for (let i = 0; i < a.length; i++) {
@@ -366,17 +377,25 @@ export async function findSymbolAcrossLibraries(
  * and KiCad's nicknames rarely follow from the part number (TPS61165DBV lives
  * in Driver_LED, AudioJack3 in Connector_Audio, INA226 in Sensor_Energy).
  */
-export async function searchInstalledSymbols(
+export interface RankedInstalledSymbol {
+  libId: string;
+  name: string;
+  /** 0 = exact (separator-insensitive), 1 = prefix, 2 = substring,
+   * 3 = name-inside-query, 4 = family-variant / package wildcard. */
+  rank: number;
+}
+
+export async function searchInstalledSymbolsRanked(
   query: string,
   dirs: string[],
   cap = 24,
-): Promise<string[]> {
+): Promise<RankedInstalledSymbol[]> {
   if (canonSymName(query).length < 2) return [];
   // Rank globally, not per library: a library scanned early contributes only
   // weak matches, and capping in scan order would drop a later library's
   // stronger candidate — the exact case this tool exists to surface, since a
   // caller reaching for it has already guessed the nickname wrong.
-  const hits: { libId: string; rank: number; name: string }[] = [];
+  const hits: RankedInstalledSymbol[] = [];
   for (const [lib, file] of await listInstalledLibraries(dirs)) {
     const names = await libSymbolNames(file);
     if (!names) continue;
@@ -390,7 +409,15 @@ export async function searchInstalledSymbols(
       a.name.length - b.name.length ||
       (a.libId < b.libId ? -1 : a.libId > b.libId ? 1 : 0),
   );
-  return hits.slice(0, cap).map((h) => h.libId);
+  return hits.slice(0, cap);
+}
+
+export async function searchInstalledSymbols(
+  query: string,
+  dirs: string[],
+  cap = 24,
+): Promise<string[]> {
+  return (await searchInstalledSymbolsRanked(query, dirs, cap)).map((h) => h.libId);
 }
 
 /** Collect pins (number, name, electrical type) from a `(symbol …)` node,
