@@ -1,10 +1,19 @@
 import { execa } from 'execa';
-import { existsSync } from 'node:fs';
-import { loadConstraints, type ConstraintRegistry } from '../memory/constraints.js';
+import type { ConstraintRegistry } from '../memory/constraints.js';
 import type { Violation } from './report.js';
+import {
+  defaultCheckerRegistry,
+  evaluateWithChecker,
+  formatCheckerReport,
+  runChecker,
+  type CheckerReport,
+  type CheckerRunner,
+  type VerificationChecker,
+} from './checkers.js';
 
 /**
- * DC power-integrity verification via Ki-PIDA (#176).
+ * DC power-integrity verification via Ki-PIDA (#176), implemented as a plugin
+ * on the external verification checker framework (`src/kicad/checkers.ts`).
  *
  * Checks rail IR/voltage drop, current-density hotspots, thermal rise
  * hotspots, and multi-rail dependency chains against budgets declared in
@@ -56,14 +65,9 @@ export interface PidaTelemetry {
   dependencies?: PidaRailDependencyLink[];
 }
 
-export interface PidaReport {
-  ok: boolean;
-  source: 'power-integrity';
-  violations: Violation[];
-  warnings: Violation[];
-}
+export type PidaReport = CheckerReport<'power-integrity'>;
 
-export type PidaRunner = (boardPath: string) => Promise<PidaTelemetry>;
+export type PidaRunner = CheckerRunner<PidaTelemetry>;
 
 function numericBudget(c: { max?: number; value?: string | number } | undefined): number | null {
   if (!c) return null;
@@ -151,135 +155,6 @@ function detectDependencyCycles(links: PidaRailDependencyLink[]): string[][] {
   return cycles;
 }
 
-/**
- * Evaluate Ki-PIDA telemetry against constraints.json budgets.
- */
-export function evaluatePowerIntegrity(telemetry: PidaTelemetry, budgets: PowerBudgets): PidaReport {
-  const violations: Violation[] = [];
-  const warnings: Violation[] = [];
-
-  for (const r of telemetry.rails ?? []) {
-    const netKey = `power.rails.${r.rail}.drop_max_V`;
-    const budget = budgets.railDropByNetV[r.rail] ?? budgets.railDropMaxV;
-    const budgetKey = budgets.railDropByNetV[r.rail] !== undefined ? netKey : 'power.rail_drop_max_V';
-    if (budget === null || budget === undefined) continue;
-
-    if (r.irDropV > budget) {
-      violations.push({
-        severity: 'error',
-        type: 'ir_drop_exceeded',
-        description: `${r.rail} rail - IR drop ${r.irDropV.toFixed(2)}V exceeds ${budget.toFixed(2)}V budget at ${r.sinkRef} (constraints.json: ${budgetKey})`,
-        items: [
-          {
-            description: `${r.sinkRef} on ${r.rail}`,
-            ...(r.x !== undefined ? { x: r.x } : {}),
-            ...(r.y !== undefined ? { y: r.y } : {}),
-          },
-        ],
-      });
-    } else if (r.irDropV >= budget * 0.9) {
-      warnings.push({
-        severity: 'warning',
-        type: 'ir_drop_near_budget',
-        description: `${r.rail} rail - IR drop ${r.irDropV.toFixed(2)}V is within 10% of ${budget.toFixed(2)}V budget at ${r.sinkRef} (constraints.json: ${budgetKey})`,
-        items: [
-          {
-            description: `${r.sinkRef} on ${r.rail}`,
-            ...(r.x !== undefined ? { x: r.x } : {}),
-            ...(r.y !== undefined ? { y: r.y } : {}),
-          },
-        ],
-      });
-    }
-  }
-
-  if (budgets.currentDensityMaxAmm2 !== null) {
-    for (const cd of telemetry.currentDensity ?? []) {
-      if (cd.currentDensityAmm2 > budgets.currentDensityMaxAmm2) {
-        violations.push({
-          severity: 'error',
-          type: 'current_density_hotspot',
-          description: `${cd.rail} rail on ${cd.layer} - current density ${cd.currentDensityAmm2.toFixed(1)}A/mm2 exceeds ${budgets.currentDensityMaxAmm2.toFixed(1)}A/mm2 budget (constraints.json: power.current_density_max_A_mm2)`,
-          items: [
-            {
-              description: `${cd.rail} (${cd.layer})`,
-              ...(cd.x !== undefined ? { x: cd.x } : {}),
-              ...(cd.y !== undefined ? { y: cd.y } : {}),
-            },
-          ],
-        });
-      }
-    }
-  }
-
-  if (budgets.tempRiseMaxC !== null) {
-    for (const th of telemetry.thermal ?? []) {
-      if (th.tempRiseC > budgets.tempRiseMaxC) {
-        violations.push({
-          severity: 'error',
-          type: 'thermal_hotspot',
-          description: `${th.ref} - temperature rise ${th.tempRiseC.toFixed(1)}C exceeds ${budgets.tempRiseMaxC.toFixed(1)}C budget (constraints.json: power.temp_rise_max_C)`,
-          items: [
-            {
-              description: th.ref,
-              ...(th.x !== undefined ? { x: th.x } : {}),
-              ...(th.y !== undefined ? { y: th.y } : {}),
-            },
-          ],
-        });
-      }
-    }
-  }
-
-  for (const dep of telemetry.dependencies ?? []) {
-    if (!dep.satisfied) {
-      violations.push({
-        severity: 'error',
-        type: 'rail_dependency_broken',
-        description: `${dep.rail} rail dependency on ${dep.dependsOn} is broken${dep.reason ? `: ${dep.reason}` : ''}`,
-        items: [{ description: `${dep.rail} -> ${dep.dependsOn}` }],
-      });
-    }
-  }
-
-  for (const cycle of detectDependencyCycles(telemetry.dependencies ?? [])) {
-    violations.push({
-      severity: 'error',
-      type: 'rail_dependency_cycle',
-      description: `circular power-rail dependency chain: ${cycle.join(' -> ')}`,
-      items: [{ description: cycle.join(' -> ') }],
-    });
-  }
-
-  return {
-    ok: violations.length === 0,
-    source: 'power-integrity',
-    violations,
-    warnings,
-  };
-}
-
-/**
- * Format a DC power-integrity report for human CLI output.
- */
-export function formatPowerIntegrity(report: PidaReport): string {
-  if (report.ok && report.warnings.length === 0) {
-    return 'power-integrity ✓';
-  }
-  const header = report.ok ? 'power-integrity ✓' : 'power-integrity ✗';
-  const lines = [header];
-  for (const v of report.violations) {
-    lines.push(`Violation: ${v.description}`);
-  }
-  for (const w of report.warnings) {
-    lines.push(`Warning: ${w.description}`);
-  }
-  const vWord = report.violations.length === 1 ? 'violation' : 'violations';
-  const wWord = report.warnings.length === 1 ? 'warning' : 'warnings';
-  lines.push(`${report.violations.length} ${vWord}, ${report.warnings.length} ${wWord}`);
-  return lines.join('\n');
-}
-
 export async function defaultPidaRunner(boardPath: string): Promise<PidaTelemetry> {
   const bin = process.env.COPPERHEAD_KIPIDA_BIN?.trim() || 'ki-pida';
   const res = await execa(bin, ['--json', boardPath], { reject: false });
@@ -287,6 +162,137 @@ export async function defaultPidaRunner(boardPath: string): Promise<PidaTelemetr
     throw new Error(res.stderr || res.stdout || `ki-pida exited ${res.exitCode}`);
   }
   return JSON.parse(String(res.stdout ?? '{}')) as PidaTelemetry;
+}
+
+/**
+ * Pluggable `VerificationChecker` definition for Ki-PIDA DC power-integrity.
+ */
+export const powerIntegrityChecker: VerificationChecker<
+  PidaTelemetry,
+  PowerBudgets,
+  'power-integrity'
+> = {
+  id: 'power-integrity',
+  artifact: 'board',
+  extractBudgets: extractPowerBudgets,
+  defaultRunner: defaultPidaRunner,
+  evaluate(telemetry: PidaTelemetry, budgets: PowerBudgets) {
+    const violations: Violation[] = [];
+    const warnings: Violation[] = [];
+
+    for (const r of telemetry.rails ?? []) {
+      const netKey = `power.rails.${r.rail}.drop_max_V`;
+      const budget = budgets.railDropByNetV[r.rail] ?? budgets.railDropMaxV;
+      const budgetKey = budgets.railDropByNetV[r.rail] !== undefined ? netKey : 'power.rail_drop_max_V';
+      if (budget === null || budget === undefined) continue;
+
+      if (r.irDropV > budget) {
+        violations.push({
+          severity: 'error',
+          type: 'ir_drop_exceeded',
+          description: `${r.rail} rail - IR drop ${r.irDropV.toFixed(2)}V exceeds ${budget.toFixed(2)}V budget at ${r.sinkRef} (constraints.json: ${budgetKey})`,
+          items: [
+            {
+              description: `${r.sinkRef} on ${r.rail}`,
+              ...(r.x !== undefined ? { x: r.x } : {}),
+              ...(r.y !== undefined ? { y: r.y } : {}),
+            },
+          ],
+        });
+      } else if (r.irDropV >= budget * 0.9) {
+        warnings.push({
+          severity: 'warning',
+          type: 'ir_drop_near_budget',
+          description: `${r.rail} rail - IR drop ${r.irDropV.toFixed(2)}V is within 10% of ${budget.toFixed(2)}V budget at ${r.sinkRef} (constraints.json: ${budgetKey})`,
+          items: [
+            {
+              description: `${r.sinkRef} on ${r.rail}`,
+              ...(r.x !== undefined ? { x: r.x } : {}),
+              ...(r.y !== undefined ? { y: r.y } : {}),
+            },
+          ],
+        });
+      }
+    }
+
+    if (budgets.currentDensityMaxAmm2 !== null) {
+      for (const cd of telemetry.currentDensity ?? []) {
+        if (cd.currentDensityAmm2 > budgets.currentDensityMaxAmm2) {
+          violations.push({
+            severity: 'error',
+            type: 'current_density_hotspot',
+            description: `${cd.rail} rail on ${cd.layer} - current density ${cd.currentDensityAmm2.toFixed(1)}A/mm2 exceeds ${budgets.currentDensityMaxAmm2.toFixed(1)}A/mm2 budget (constraints.json: power.current_density_max_A_mm2)`,
+            items: [
+              {
+                description: `${cd.rail} (${cd.layer})`,
+                ...(cd.x !== undefined ? { x: cd.x } : {}),
+                ...(cd.y !== undefined ? { y: cd.y } : {}),
+              },
+            ],
+          });
+        }
+      }
+    }
+
+    if (budgets.tempRiseMaxC !== null) {
+      for (const th of telemetry.thermal ?? []) {
+        if (th.tempRiseC > budgets.tempRiseMaxC) {
+          violations.push({
+            severity: 'error',
+            type: 'thermal_hotspot',
+            description: `${th.ref} - temperature rise ${th.tempRiseC.toFixed(1)}C exceeds ${budgets.tempRiseMaxC.toFixed(1)}C budget (constraints.json: power.temp_rise_max_C)`,
+            items: [
+              {
+                description: th.ref,
+                ...(th.x !== undefined ? { x: th.x } : {}),
+                ...(th.y !== undefined ? { y: th.y } : {}),
+              },
+            ],
+          });
+        }
+      }
+    }
+
+    for (const dep of telemetry.dependencies ?? []) {
+      if (!dep.satisfied) {
+        violations.push({
+          severity: 'error',
+          type: 'rail_dependency_broken',
+          description: `${dep.rail} rail dependency on ${dep.dependsOn} is broken${dep.reason ? `: ${dep.reason}` : ''}`,
+          items: [{ description: `${dep.rail} -> ${dep.dependsOn}` }],
+        });
+      }
+    }
+
+    for (const cycle of detectDependencyCycles(telemetry.dependencies ?? [])) {
+      violations.push({
+        severity: 'error',
+        type: 'rail_dependency_cycle',
+        description: `circular power-rail dependency chain: ${cycle.join(' -> ')}`,
+        items: [{ description: cycle.join(' -> ') }],
+      });
+    }
+
+    return { violations, warnings };
+  },
+};
+
+if (!defaultCheckerRegistry.get('power-integrity')) {
+  defaultCheckerRegistry.register(powerIntegrityChecker);
+}
+
+/**
+ * Evaluate Ki-PIDA telemetry against constraints.json budgets.
+ */
+export function evaluatePowerIntegrity(telemetry: PidaTelemetry, budgets: PowerBudgets): PidaReport {
+  return evaluateWithChecker(powerIntegrityChecker, telemetry, budgets);
+}
+
+/**
+ * Format a DC power-integrity report for human CLI output.
+ */
+export function formatPowerIntegrity(report: PidaReport): string {
+  return formatCheckerReport(report);
 }
 
 /**
@@ -298,11 +304,5 @@ export async function runPowerIntegrity(
   repoRoot: string,
   runner: PidaRunner = defaultPidaRunner,
 ): Promise<PidaReport> {
-  if (!existsSync(boardPath)) {
-    throw new Error(`board file not found: ${boardPath}`);
-  }
-  const registry = await loadConstraints(repoRoot);
-  const budgets = extractPowerBudgets(registry);
-  const telemetry = await runner(boardPath);
-  return evaluatePowerIntegrity(telemetry, budgets);
+  return runChecker(powerIntegrityChecker, boardPath, repoRoot, runner);
 }
