@@ -17,7 +17,7 @@ const POWER_NET_PATTERN =
   /^(?:(?:A|D|P)?GND[A-Za-z0-9_]*|VSS[A-Za-z0-9_]*|AVSS[A-Za-z0-9_]*|VCC[A-Za-z0-9_]*|VDD[A-Za-z0-9_]*|AVDD[A-Za-z0-9_]*|VREF[A-Za-z0-9_]*|VSYS[A-Za-z0-9_]*|VBAT[A-Za-z0-9_]*|VBUS[A-Za-z0-9_]*|3V3(?:_[A-Za-z0-9_]+)?|5V(?:_[A-Za-z0-9_]+)?|1V8(?:_[A-Za-z0-9_]+)?|12V(?:_[A-Za-z0-9_]+)?|[+-]\d+(?:V\d*|\.\d+V?)(?:_[A-Za-z0-9_]+)?|PWR_FLAG|NC|unconnected-.*)$/i;
 
 const GPIO_SEGMENT_PATTERN =
-  /^(?:GPIO\d+|GP\d+|P[A-K]\d+|P\d+[._]\d+|DIO\d+|IO\d+|AIN\d+|ADC\d+)$/i;
+  /^(?:GPIO\d+|GP\d+|P[A-K]\d+|P\d+[._]\d+|DIO\d+|IO\d+)$/i;
 
 const MCU_HINT_PATTERN =
   /(?:MCU|ESP32|STM32|RP2040|RP2350|NRF\d|ATMEGA|ATTINY|SAMD|ATSAM|PIC\d|CH32|GD32|LPC\d|MSP430|CORTEX)/i;
