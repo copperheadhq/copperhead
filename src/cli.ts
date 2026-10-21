@@ -8,7 +8,7 @@ import { pickModel } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
-import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
+import { syncVerify, syncResolve, formatSyncReport, checkBriefProvenance, reconcileBriefHash } from './commands/sync.js';
 import { runCreate } from './commands/create.js';
 import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
@@ -381,20 +381,54 @@ program
   .action(async (opts: { model?: string; dryRun?: boolean; brief?: boolean }) => {
     const repo = repoOf(program.opts());
     try {
-      if (opts.brief && !opts.dryRun) {
-        const config = await loadConfig(repo);
-        const { reconcileBriefHash } = await import('./commands/sync.js');
+      const config = await loadConfig(repo);
+      const report = await syncVerify(repo);
+      const json = Boolean(program.opts().json);
+      if (opts.brief && opts.dryRun) {
+        const brief = await checkBriefProvenance(repo, config.docs);
+        if (json) {
+          console.log(JSON.stringify({ ...report, brief }, null, 2));
+        } else {
+          console.log(formatSyncReport(report));
+          if (brief) {
+            console.log(
+              brief.ok
+                ? `brief dry-run: ${brief.path} already reconciled (${brief.recorded.slice(0, 8)})`
+                : `brief dry-run: would reconcile ${brief.path} (${brief.recorded.slice(0, 8)} -> ${brief.current.slice(0, 8)}, origin ${brief.origin.slice(0, 8)})`,
+            );
+          } else {
+            console.log('brief dry-run: no BRIEF.sha256 present');
+          }
+        }
+        process.exit(report.violations.length ? 2 : 0);
+      }
+      if (opts.brief) {
+        if (report.violations.length) {
+          if (json) console.log(JSON.stringify(report, null, 2));
+          else console.log(formatSyncReport(report));
+          process.exit(2);
+        }
+        const briefStatus = await checkBriefProvenance(repo, config.docs);
+        const nonBriefItems = report.resolvable.filter(
+          (i) => !(briefStatus && i.doc === briefStatus.path && i.claim.startsWith('brief sha256 ')),
+        );
+        if (nonBriefItems.length || opts.model) {
+          const kicadVer = await kicadCliVersion();
+          const { model, source } = resolveModel(opts.model, config);
+          const res = await syncResolve(repo, report, model, json ? () => {} : (s) => console.log(s), {
+            renderer: rendererOf(),
+            meta: { command: 'sync', modelSource: source, version, kicadCliVersion: kicadVer },
+          });
+          if (!res.ok) process.exit(1);
+        }
         const reconciled = await reconcileBriefHash(repo, config.docs);
-        if (program.opts().json) {
+        if (json) {
           console.log(JSON.stringify(reconciled, null, 2));
         } else {
           console.log(`brief ✓ reconciled ${reconciled.path} (${reconciled.recorded.slice(0, 8)})`);
         }
         process.exit(0);
       }
-      const kicadVer = await kicadCliVersion();
-      const report = await syncVerify(repo);
-      const json = Boolean(program.opts().json);
       if (json) console.log(JSON.stringify(report, null, 2));
       else console.log(formatSyncReport(report));
       if (opts.dryRun) {
@@ -407,7 +441,7 @@ program
       if (!report.resolvable.length) {
         process.exit(0);
       }
-      const config = await loadConfig(repo);
+      const kicadVer = await kicadCliVersion();
       const { model, source } = resolveModel(opts.model, config);
       const res = await syncResolve(repo, report, model, json ? () => {} : (s) => console.log(s), {
         renderer: rendererOf(),

@@ -21,7 +21,7 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
-  brief?: BriefProvenanceStatus;
+  brief: BriefProvenanceStatus | null;
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -125,11 +125,19 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
 
   const brief = await checkBriefProvenance(repoRoot, config.docs);
   if (brief) {
-    log(
-      brief.ok
-        ? 'brief ✓'
-        : `brief ✗ ${brief.path} changed since the design was last reconciled (${brief.recorded.slice(0, 8)} -> ${brief.current.slice(0, 8)})`,
-    );
+    if (brief.ok) {
+      log('brief ✓');
+    } else if (brief.current === 'outside-repo') {
+      log(`brief ✗ ${brief.path} resolves outside the repository`);
+    } else if (brief.current === 'missing') {
+      log(`brief ✗ ${brief.path} is missing (expected sha256 ${brief.recorded.slice(0, 8)})`);
+    } else if (brief.current === 'invalid') {
+      log(`brief ✗ ${brief.path} is malformed (missing sha256 line)`);
+    } else {
+      log(
+        `brief ✗ ${brief.path} changed since the design was last reconciled (${brief.recorded.slice(0, 8)} -> ${brief.current.slice(0, 8)})`,
+      );
+    }
   }
 
   const ok =
@@ -148,6 +156,6 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,
-    ...(brief ? { brief } : {}),
+    brief,
   };
 }

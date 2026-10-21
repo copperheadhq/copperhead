@@ -182,13 +182,14 @@ With `--json`, prints `{ ok, checks: [{ name, status, detail, hint? }] }`.
 Verifies the whole design state and resolves drift. Two phases: a deterministic verify phase, then an LLM resolve phase.
 
 ```bash
-copperhead sync [--model <model>] [--dry-run]
+copperhead sync [--model <model>] [--dry-run] [--brief]
 ```
 
 | Option | Description |
 | --- | --- |
 | `--model <model>` | Model for the resolve phase. |
 | `--dry-run` | Print the inconsistency report and write nothing. |
+| `--brief` | Verify design state and reconcile `BRIEF.sha256` with the current brief (preserving `origin_sha256`). |
 
 | Exit code | Meaning |
 | --- | --- |

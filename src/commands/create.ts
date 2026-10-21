@@ -95,6 +95,7 @@ export async function writeBriefHash(
   repoRoot: string,
   docsDir: string,
   briefMeta: { path: string; sha256: string },
+  briefContent?: string,
 ): Promise<void> {
   const file = path.join(repoRoot, docsDir, 'BRIEF.sha256');
 
@@ -104,7 +105,7 @@ export async function writeBriefHash(
     await writeFile(
       file,
       `brief: ${briefMeta.path}
-sha256: ${briefMeta.sha256}
+sha256: ${briefMeta.sha256.trim().toLowerCase()}
 `,
       {
         encoding: 'utf8',
@@ -114,6 +115,19 @@ sha256: ${briefMeta.sha256}
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code !== 'EEXIST') throw err;
+  }
+
+  if (
+    briefContent !== undefined &&
+    (briefMeta.path.startsWith('external:') || !existsSync(path.join(repoRoot, briefMeta.path)))
+  ) {
+    const inRepoBrief = path.join(repoRoot, docsDir, 'BRIEF.md');
+    try {
+      await writeFile(inRepoBrief, briefContent, { encoding: 'utf8', flag: 'wx' });
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      if (e.code !== 'EEXIST') throw err;
+    }
   }
 }
 
@@ -1036,7 +1050,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       completed.push(stage.name);
       if (stage.name === 'spec-seed') {
         try {
-          await writeBriefHash(opts.repoRoot, config.docs, briefMeta);
+          await writeBriefHash(opts.repoRoot, config.docs, briefMeta, brief);
         } catch (err) {
           opts.log(
             `warning: could not record brief provenance (${(err as Error).message})`,
@@ -1266,7 +1280,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     completed.push(stage.name);
     if (stage.name === 'spec-seed') {
       try {
-        await writeBriefHash(opts.repoRoot, config.docs, briefMeta);
+        await writeBriefHash(opts.repoRoot, config.docs, briefMeta, brief);
       } catch (err) {
         opts.log(
           `warning: could not record brief provenance (${(err as Error).message})`,
