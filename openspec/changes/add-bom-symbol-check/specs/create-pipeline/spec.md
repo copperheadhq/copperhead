@@ -1,6 +1,6 @@
 # create-pipeline — Delta Spec
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Stage 3 availability probing
 
