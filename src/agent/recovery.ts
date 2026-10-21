@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Msg, Provider } from './types.js';
-import { resolveLibrarySymbol, searchInstalledSymbols, symbolSearchDirs, listInstalledLibraries } from '../kicad/symlib.js';
+import { resolveLibrarySymbol, searchInstalledSymbolsRanked, symbolSearchDirs, listInstalledLibraries } from '../kicad/symlib.js';
 
 /**
  * How many times a hung provider turn is retried before the run gives up. One
