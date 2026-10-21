@@ -408,7 +408,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'search_symbols',
       description:
-        'Search EVERY installed KiCad symbol library for a part or symbol name; returns matching lib_ids as Lib:Name, exact matches first. Library nicknames rarely follow from the part number (TPS61165DBV is in Driver_LED, AudioJack3 in Connector_Audio, INA226 in Sensor_Energy), so a failed single-library probe proves nothing about availability — use this before concluding a part has no symbol, and before committing any active part to the BOM: a part is only drawable if its symbol appears here.',
+        'Search EVERY installed KiCad symbol library for a part or symbol name; returns exact matches, then approximate candidates in a separately labelled section; only an exact match proves the named part is drawable. Library nicknames rarely follow from the part number (TPS61165DBV is in Driver_LED, AudioJack3 in Connector_Audio, INA226 in Sensor_Energy), so a failed single-library probe proves nothing about availability — use this before concluding a part has no symbol, and before committing any active part to the BOM.',
       parameters: {
         type: 'object',
         properties: {
