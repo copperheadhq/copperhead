@@ -22,7 +22,6 @@ import {
   parseSpares,
   ExportError,
 } from './commands/export.js';
-import { checkFirmwareDrift, formatFirmwareCheckResult } from './kicad/firmware.js';
 import { DEFAULT_BOARDS, DEFAULT_SPARES } from './kicad/bom-export.js';
 import { runAgentLoop, type BudgetExhaustedStats } from './agent/loop.js';
 import { makeRenderer } from './agent/render.js';
@@ -168,18 +167,8 @@ const checkAction = async (opts?: { firmware?: boolean | string; ref?: string })
   const repo = repoOf(program.opts());
   const json = Boolean(program.opts().json);
   try {
-    if (opts?.firmware) {
-      const headerPath = typeof opts.firmware === 'string' ? opts.firmware : undefined;
-      const fwRes = await checkFirmwareDrift(repo, {
-        ...(headerPath ? { headerPath } : {}),
-        ...(opts.ref ? { ref: opts.ref } : {}),
-      });
-      if (json) console.log(JSON.stringify(fwRes, null, 2));
-      else console.log(formatFirmwareCheckResult(fwRes));
-      process.exit(fwRes.ok ? 0 : 1);
-    }
     await kicadCliVersion();
-    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s));
+    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s), opts);
     if (json) console.log(JSON.stringify(res, null, 2));
     process.exit(res.ok ? 0 : 1);
   } catch (err) {

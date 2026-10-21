@@ -245,3 +245,17 @@ These are npm scripts in a copperhead checkout, not installed CLI commands.
 | `npm run build` | Compiles to `dist/`. |
 
 Pass `create` flags through after `--`, for example `npm run demo:simple -- --model claude`. Override the target directory with `COPPERHEAD_DEMO_DIR`.
+
+## `copperhead export firmware`
+
+Generates a deterministic C pinout header (`#define PIN_<NET> <PIN>`) from the schematic pin/net mapping. Makes **no LLM calls and no network requests**.
+
+```bash
+copperhead export firmware [--target c] [--out <path>] [--ref <refdes>]
+```
+
+| Option | Description |
+| --- | --- |
+| `--target <lang>` | Target language (`c`, default: `c`). |
+| `--out <path>` | Output header path relative to repo root (default: `firmware/inc/pinout.h`). |
+| `--ref <refdes>` | MCU reference designator filter (default: `U*` / `IC*`). |
