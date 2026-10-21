@@ -115,3 +115,13 @@ export function parseSpares(value: string): number {
   }
   return n;
 }
+
+export {
+  runExportFirmware,
+  parseFirmwareTarget,
+  DEFAULT_FIRMWARE_HEADER,
+  FIRMWARE_TARGETS,
+  type FirmwareTarget,
+  type ExportFirmwareOptions,
+  type ExportFirmwareResult,
+} from '../kicad/firmware.js';
