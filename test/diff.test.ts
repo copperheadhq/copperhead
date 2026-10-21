@@ -52,7 +52,7 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
     expect(formatDiffReport(res)).toBe('No electrical changes since HEAD~1');
   });
 
-  it('summarizes added/modified/removed components, connection edits, renamed/merged nets, and affected constraints', () => {
+  it('summarizes added/modified/removed components, surviving-component connection edits, renamed/merged nets, and affected constraints', () => {
     const before = {
       symbols: [
         {
@@ -66,6 +66,16 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
           unit: 1,
         },
         {
+          ref: 'J1',
+          value: 'Conn_01x02',
+          footprint: 'Connector_PinHeader:PinHeader_1x02',
+          libId: 'Connector:Conn_01x02',
+          sheet: '/',
+          at: { x: 0, y: 0, rot: 0 },
+          uuid: 'j1',
+          unit: 1,
+        },
+        {
           ref: 'C4',
           value: '100n',
           footprint: 'Capacitor_SMD:C_0402',
@@ -76,12 +86,14 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
           unit: 1,
         },
       ],
-      nets: ['KEY_DAH', 'DEBUG_UART', 'GND', 'POWER_IN'],
+      nets: ['KEY_DAH', 'DEBUG_UART', 'GND', 'POWER_IN', '+3V3'],
       pins: [
         { ref: 'U1', pinNumber: '14', pinName: 'GPIO14', net: 'KEY_DAH' },
         { ref: 'U1', pinNumber: '1', pinName: 'GND', net: 'GND' },
+        { ref: 'J1', pinNumber: '1', pinName: 'GND', net: 'GND' },
         { ref: 'U1', pinNumber: '2', pinName: 'VIN', net: 'POWER_IN' },
-        { ref: 'C4', pinNumber: '1', pinName: '~', net: 'GND' },
+        { ref: 'J1', pinNumber: '2', pinName: 'VBUS', net: 'POWER_IN' },
+        { ref: 'C4', pinNumber: '1', pinName: '~', net: '+3V3' },
       ],
     };
     const after = {
@@ -97,6 +109,16 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
           unit: 1,
         },
         {
+          ref: 'J1',
+          value: 'Conn_01x02',
+          footprint: 'Connector_PinHeader:PinHeader_1x02',
+          libId: 'Connector:Conn_01x02',
+          sheet: '/',
+          at: { x: 0, y: 0, rot: 0 },
+          uuid: 'j1',
+          unit: 1,
+        },
+        {
           ref: 'R8',
           value: '10k',
           footprint: 'Resistor_SMD:R_0603',
@@ -107,18 +129,30 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
           unit: 1,
         },
       ],
-      nets: ['KEY_DASH', 'STATUS_LED', 'GPIO_PULLUP', 'GND'],
+      nets: ['KEY_DASH', 'STATUS_LED', 'GPIO_PULLUP', 'GND', '+3V3'],
       pins: [
         { ref: 'U1', pinNumber: '14', pinName: 'GPIO14', net: 'KEY_DASH' },
         { ref: 'U1', pinNumber: '1', pinName: 'GND', net: 'GND' },
+        { ref: 'J1', pinNumber: '1', pinName: 'GND', net: 'GND' },
         { ref: 'U1', pinNumber: '2', pinName: 'VIN', net: 'GND' },
+        { ref: 'J1', pinNumber: '2', pinName: 'VBUS', net: 'GND' },
         { ref: 'R8', pinNumber: '1', pinName: '~', net: 'GPIO_PULLUP' },
+        // Added component R8 also connects to renamed net KEY_DASH: rename must still be detected!
+        { ref: 'R8', pinNumber: '2', pinName: '~', net: 'KEY_DASH' },
       ],
     };
     const constraints = {
       'pins.strapping': {
         source: 'docs/CONSTRAINTS.md',
-        affects: ['U1.GPIO14', 'KEY_DAH'],
+        affects: ['U1.14', 'KEY_DAH'],
+      },
+      'pins.unrelated_u1_10': {
+        source: 'docs/CONSTRAINTS.md',
+        affects: ['U1.10', 'U1.100'],
+      },
+      'power.rail_3v3': {
+        source: 'docs/POWER.md',
+        affects: ['+3V3'],
       },
       'power.sleep_current_uA': {
         max: 50,
@@ -139,9 +173,11 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
         value: '10k',
         footprint: 'Resistor_SMD:R_0603',
         libId: 'Device:R',
-        nets: ['GPIO_PULLUP'],
+        nets: ['GPIO_PULLUP', 'KEY_DASH'],
       },
     ]);
+    // Added component R8 and removed component C4 must not flood connections.changes
+    expect(res.connections.changes.some((c) => c.ref === 'R8' || c.ref === 'C4')).toBe(false);
     expect(res.components.modified).toEqual([
       {
         ref: 'U1',
@@ -159,11 +195,15 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
     expect(res.nets.added).toEqual(['GPIO_PULLUP', 'STATUS_LED']);
     expect(res.nets.removed).toEqual(['DEBUG_UART', 'POWER_IN']);
     expect(res.connections.mergedNets).toEqual([{ nets: ['GND', 'POWER_IN'], into: 'GND' }]);
-    expect(res.affectedConstraints).toEqual(['pins.strapping', 'power.sleep_current_uA']);
+    expect(res.affectedConstraints).toEqual([
+      'pins.strapping',
+      'power.rail_3v3',
+      'power.sleep_current_uA',
+    ]);
 
     const text = formatDiffReport(res);
     expect(text).toContain('Electrical changes since HEAD~1');
-    expect(text).toContain('+ R8 10k -> GPIO_PULLUP');
+    expect(text).toContain('+ R8 10k -> GPIO_PULLUP, KEY_DASH');
     expect(text).toContain('~ U1 footprint changed');
     expect(text).toContain('- C4 removed');
     expect(text).toContain('+ U1.GPIO14 connected to KEY_DASH');
@@ -174,10 +214,40 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
     expect(text).toContain('Removed: DEBUG_UART');
     expect(text).toContain('- pins.strapping');
   });
+
+  it('does not report a false-positive net merge when a single pin is rewired to GND', () => {
+    const before = {
+      symbols: [
+        { ref: 'U1', value: 'MCU', footprint: 'FP', libId: 'L:U', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: '1', unit: 1 },
+        { ref: 'R1', value: '10k', footprint: 'FP', libId: 'L:R', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: '2', unit: 1 },
+      ],
+      nets: ['GND', 'SINGLE_PIN_NET'],
+      pins: [
+        { ref: 'U1', pinNumber: '1', pinName: 'GND', net: 'GND' },
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: 'GND' },
+        { ref: 'U1', pinNumber: '2', pinName: 'EN', net: 'SINGLE_PIN_NET' },
+      ],
+    };
+    const after = {
+      symbols: before.symbols,
+      nets: ['GND'],
+      pins: [
+        { ref: 'U1', pinNumber: '1', pinName: 'GND', net: 'GND' },
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: 'GND' },
+        { ref: 'U1', pinNumber: '2', pinName: 'EN', net: 'GND' },
+      ],
+    };
+    const res = diffSnapshots('HEAD~1', 'board.kicad_sch', before, after, {
+      'pin.u1_10': { source: 'docs/PINOUT.md', affects: ['U1.10'] },
+      'pin.u1_2': { source: 'docs/PINOUT.md', affects: ['U1.2'] },
+    });
+    expect(res.connections.mergedNets).toEqual([]);
+    expect(res.affectedConstraints).toEqual(['pin.u1_2']);
+  });
 });
 
 describe('runDiff and `copperhead diff` CLI integration', () => {
-  it('compares working tree against HEAD and matches `copperhead diff --json`', async () => {
+  it('compares dirty working tree against HEAD and clean post-commit tree against HEAD~1 by default', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo, force: false, installHooks: false });
@@ -194,7 +264,9 @@ describe('runDiff and `copperhead diff` CLI integration', () => {
       const edited = raw.replace('(property "Value" "10k"', '(property "Value" "4.7k"');
       await writeFile(schPath, edited, 'utf8');
 
-      const dirtyRes = await runDiff(repo, { base: 'HEAD' });
+      // Dirty working tree: default base resolves to HEAD
+      const dirtyRes = await runDiff(repo);
+      expect(dirtyRes.base).toBe('HEAD');
       expect(dirtyRes.hasChanges).toBe(true);
       expect(dirtyRes.components.modified).toEqual([
         {
@@ -220,16 +292,47 @@ describe('runDiff and `copperhead diff` CLI integration', () => {
       expect(cliText.exitCode).toBe(0);
       expect(cliText.stdout).toContain('~ R1 value changed (10k -> 4.7k)');
       expect(cliText.stdout).toContain('- supply.decoupling');
+
+      // Commit the schematic edit: now working tree matches HEAD, so default base is HEAD~1
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-m', 'update R1 to 4.7k'], { cwd: repo });
+      const postCommitRes = await runDiff(repo);
+      expect(postCommitRes.base).toBe('HEAD~1');
+      expect(postCommitRes.hasChanges).toBe(true);
+      expect(postCommitRes.components.modified[0]?.ref).toBe('R1');
     } finally {
       await cleanup();
     }
   }, 60_000);
 
-  it('rejects an unknown git revision with DiffError', async () => {
+  it('rejects unknown or flag-like git revisions with DiffError', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo, force: false, installHooks: false });
       await expect(runDiff(repo, { base: 'nonexistent-ref-9999' })).rejects.toThrow(DiffError);
+      await expect(runDiff(repo, { base: '--output=/tmp/evil' })).rejects.toThrow(DiffError);
+      await expect(runDiff(repo, { base: '-q' })).rejects.toThrow(DiffError);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('rejects historical sub-sheet paths that escape the repository sandbox', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, force: false, installHooks: false });
+      const schPath = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const raw = await readFile(schPath, 'utf8');
+      const malicious = raw.replace(
+        /\)\s*$/,
+        '  (sheet (at 0 0) (size 10 10) (property "Sheetfile" "../../outside.kicad_sch" (at 0 0 0)))
+)
+',
+      );
+      await writeFile(schPath, malicious, 'utf8');
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-m', 'subsheet traversal'], { cwd: repo });
+      await expect(runDiff(repo, { base: 'HEAD' })).rejects.toThrow(/escapes repository/);
     } finally {
       await cleanup();
     }

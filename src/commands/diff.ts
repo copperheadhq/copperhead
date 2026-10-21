@@ -1,12 +1,11 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { execa } from 'execa';
 import { loadConfig } from '../config.js';
 import {
   children,
-  child,
   isList,
   listNets,
   listSymbols,
@@ -14,11 +13,11 @@ import {
   pinNets,
   type PinNet,
   type SchematicSymbol,
-  type SexpNode,
 } from '../kicad/sexp.js';
 import { normalizeFootprint, normalizeValue } from '../memory/bom-table.js';
 import { loadConstraints, type ConstraintRegistry } from '../memory/constraints.js';
 import { fileAtCommit } from '../util/git.js';
+import { resolveInRepo, SandboxError } from '../util/paths.js';
 
 export class DiffError extends Error {
   constructor(message: string) {
@@ -115,22 +114,71 @@ function sheetSubfiles(text: string): string[] {
   return out;
 }
 
-async function verifyRevision(repoRoot: string, rev: string): Promise<void> {
-  const res = await execa('git', ['rev-parse', '--verify', `${rev}^{commit}`], {
+async function verifyRevision(repoRoot: string, rev: string): Promise<string> {
+  const trimmed = rev.trim();
+  if (!trimmed || trimmed.startsWith('-')) {
+    throw new DiffError(`cannot resolve git revision "${rev}"`);
+  }
+  const res = await execa('git', ['rev-parse', '--verify', '--end-of-options', `${trimmed}^{commit}`], {
     cwd: repoRoot,
     reject: false,
   });
-  if (res.exitCode !== 0) {
+  if (res.exitCode !== 0 || !res.stdout.trim()) {
     throw new DiffError(`cannot resolve git revision "${rev}"`);
   }
+  return res.stdout.trim();
 }
 
-async function snapshotAtCommit(
+async function resolveDefaultBase(repoRoot: string, schematicRel: string): Promise<string> {
+  const headRes = await execa('git', ['rev-parse', '--verify', '--end-of-options', 'HEAD^{commit}'], {
+    cwd: repoRoot,
+    reject: false,
+  });
+  if (headRes.exitCode !== 0) {
+    throw new DiffError('cannot resolve git revision "HEAD"');
+  }
+  const headSha = headRes.stdout.trim();
+  const normRel = schematicRel.split(path.sep).join('/');
+  const headContent = await fileAtCommit(repoRoot, headSha, normRel);
+  const workPath = resolveInRepo(repoRoot, schematicRel);
+  if (existsSync(workPath)) {
+    const workContent = await readFile(workPath, 'utf8');
+    if (headContent !== null && workContent !== headContent) {
+      return 'HEAD';
+    }
+  }
+  const parentRes = await execa('git', ['rev-parse', '--verify', '--end-of-options', 'HEAD~1^{commit}'], {
+    cwd: repoRoot,
+    reject: false,
+  });
+  return parentRes.exitCode === 0 ? 'HEAD~1' : 'HEAD';
+}
+
+async function listCommitSymSupportFiles(repoRoot: string, commitSha: string): Promise<string[]> {
+  const res = await execa('git', ['ls-tree', '-r', '--name-only', commitSha, '--'], {
+    cwd: repoRoot,
+    reject: false,
+  });
+  if (res.exitCode !== 0 || !res.stdout) return [];
+  return res.stdout
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(
+      (f) =>
+        f.length > 0 &&
+        (path.posix.basename(f) === 'sym-lib-table' ||
+          f.endsWith('.kicad_sym') ||
+          f.endsWith('.kicad_pro')),
+    );
+}
+
+export async function snapshotAtCommit(
   repoRoot: string,
-  commit: string,
+  commitSha: string,
   schematicRel: string,
 ): Promise<ElectricalSnapshot> {
-  const rootBytes = await fileAtCommit(repoRoot, commit, schematicRel);
+  const normSchematic = schematicRel.split(path.sep).join('/');
+  const rootBytes = await fileAtCommit(repoRoot, commitSha, normSchematic);
   if (rootBytes === null) {
     return { symbols: [], nets: [], pins: [] };
   }
@@ -141,9 +189,18 @@ async function snapshotAtCommit(
       const norm = relPath.split(path.sep).join('/');
       if (visited.has(norm)) return;
       visited.add(norm);
-      const content = await fileAtCommit(repoRoot, commit, norm);
+      let dest: string;
+      try {
+        dest = resolveInRepo(tempRoot, norm);
+        resolveInRepo(repoRoot, norm);
+      } catch (err) {
+        if (err instanceof SandboxError) {
+          throw new DiffError(`schematic sub-sheet path escapes repository: ${relPath}`);
+        }
+        throw err;
+      }
+      const content = await fileAtCommit(repoRoot, commitSha, norm);
       if (content === null) return;
-      const dest = path.join(tempRoot, norm);
       await mkdir(path.dirname(dest), { recursive: true });
       await writeFile(dest, content, 'utf8');
       for (const sub of sheetSubfiles(content)) {
@@ -151,8 +208,21 @@ async function snapshotAtCommit(
         await materialize(subRel);
       }
     };
-    await materialize(schematicRel);
-    const rootSch = path.join(tempRoot, schematicRel);
+    await materialize(normSchematic);
+    for (const supportRel of await listCommitSymSupportFiles(repoRoot, commitSha)) {
+      if (visited.has(supportRel)) continue;
+      let dest: string;
+      try {
+        dest = resolveInRepo(tempRoot, supportRel);
+      } catch {
+        continue;
+      }
+      const content = await fileAtCommit(repoRoot, commitSha, supportRel);
+      if (content === null) continue;
+      await mkdir(path.dirname(dest), { recursive: true });
+      await writeFile(dest, content, 'utf8');
+    }
+    const rootSch = resolveInRepo(tempRoot, normSchematic);
     const [symbols, nets, pins] = await Promise.all([
       listSymbols(rootSch),
       listNets(rootSch),
@@ -165,7 +235,15 @@ async function snapshotAtCommit(
 }
 
 async function snapshotWorkingTree(repoRoot: string, schematicRel: string): Promise<ElectricalSnapshot> {
-  const rootSch = path.join(repoRoot, schematicRel);
+  let rootSch: string;
+  try {
+    rootSch = resolveInRepo(repoRoot, schematicRel);
+  } catch (err) {
+    if (err instanceof SandboxError) {
+      throw new DiffError(`schematic path escapes repository: ${schematicRel}`);
+    }
+    throw err;
+  }
   if (!existsSync(rootSch)) {
     throw new DiffError(`schematic not found at ${schematicRel}`);
   }
@@ -193,6 +271,12 @@ function formatPinLabel(p: PinNet): string {
   return `${p.ref}.${suffix}`;
 }
 
+function hasTokenMatch(target: string, token: string): boolean {
+  if (!token) return false;
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![A-Za-z0-9_.:])${escaped}(?![A-Za-z0-9_.:])`, 'i').test(target);
+}
+
 function matchAffectedConstraints(
   registry: ConstraintRegistry,
   touchedRefs: Set<string>,
@@ -200,27 +284,26 @@ function matchAffectedConstraints(
   touchedPins: Set<string>,
 ): string[] {
   const matched: string[] = [];
-  const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   for (const [key, constraint] of Object.entries(registry)) {
     const targets = [...(constraint.affects ?? []), ...(constraint.deferred ?? [])];
     let hit = false;
     for (const target of targets) {
       for (const ref of touchedRefs) {
-        if (new RegExp(`\\b${escape(ref)}\\b`, 'i').test(target)) {
+        if (hasTokenMatch(target, ref)) {
           hit = true;
           break;
         }
       }
       if (hit) break;
       for (const net of touchedNets) {
-        if (new RegExp(`\\b${escape(net)}\\b`, 'i').test(target)) {
+        if (hasTokenMatch(target, net)) {
           hit = true;
           break;
         }
       }
       if (hit) break;
       for (const pin of touchedPins) {
-        if (target.toLowerCase().includes(pin.toLowerCase())) {
+        if (hasTokenMatch(target, pin)) {
           hit = true;
           break;
         }
@@ -241,6 +324,17 @@ export function diffSnapshots(
 ): DiffResult {
   const beforeSyms = collapseSymbols(before.symbols);
   const afterSyms = collapseSymbols(after.symbols);
+
+  const beforeNetsByRef = new Map<string, Set<string>>();
+  for (const p of before.pins) {
+    if (!p.net) continue;
+    let set = beforeNetsByRef.get(p.ref);
+    if (!set) {
+      set = new Set<string>();
+      beforeNetsByRef.set(p.ref, set);
+    }
+    set.add(p.net);
+  }
 
   const afterNetsByRef = new Map<string, Set<string>>();
   for (const p of after.pins) {
@@ -286,6 +380,7 @@ export function diffSnapshots(
         libId: b.libId,
       });
       touchedRefs.add(ref);
+      for (const n of beforeNetsByRef.get(ref) ?? []) touchedNets.add(n);
     } else if (b && a) {
       const changes: ComponentFieldChange[] = [];
       if (normalizeValue(b.value) !== normalizeValue(a.value)) {
@@ -315,6 +410,11 @@ export function diffSnapshots(
   for (const k of allPinKeys) {
     const bp = beforePins.get(k);
     const ap = afterPins.get(k);
+    const ref = (ap ?? bp)!.ref;
+    // Pin connection changes under Connections: apply only to surviving
+    // components; added/removed components are already summarized under Components:.
+    if (!beforeSyms.has(ref) || !afterSyms.has(ref)) continue;
+
     const bNet = bp?.net ?? null;
     const aNet = ap?.net ?? null;
     if (bNet === aNet) continue;
@@ -351,8 +451,8 @@ export function diffSnapshots(
     }
   }
 
-  // Detect merged nets: two distinct nets in `before` whose pins now sit on a
-  // single shared net in `after`.
+  // Detect merged nets: two distinct multi-pin nets in `before` whose surviving
+  // pins now sit on a single shared net in `after`.
   const beforeNetPins = new Map<string, Set<string>>();
   for (const p of before.pins) {
     if (!p.net) continue;
@@ -374,15 +474,25 @@ export function diffSnapshots(
     s.add(pinKey(p));
   }
 
+  const survivingPinKeys = (pins: Set<string> | undefined): string[] => {
+    if (!pins) return [];
+    return [...pins]
+      .filter((pk) => {
+        const r = pk.split(':')[0]!;
+        return beforeSyms.has(r) && afterSyms.has(r);
+      })
+      .sort();
+  };
+
   const mergedNets: NetMergeWarning[] = [];
   const seenMergePairs = new Set<string>();
   for (const [afterNet, aPins] of afterNetPins.entries()) {
     const contributingBeforeNets: string[] = [];
     for (const [bNet, bPins] of beforeNetPins.entries()) {
-      const survivingPins = [...bPins].filter((pk) => afterSyms.has(pk.split(':')[0]!));
-      if (survivingPins.length === 0) continue;
+      const survivingPins = survivingPinKeys(bPins);
+      if (survivingPins.length < 2) continue;
       const overlap = survivingPins.filter((pk) => aPins.has(pk));
-      if (overlap.length > 0 && overlap.length === survivingPins.length) {
+      if (overlap.length >= 2 && overlap.length === survivingPins.length) {
         contributingBeforeNets.push(bNet);
       }
     }
@@ -414,14 +524,14 @@ export function diffSnapshots(
   const matchedAdded = new Set<string>();
 
   for (const oldNet of rawRemovedNets) {
-    const oldPins = beforeNetPins.get(oldNet);
-    if (!oldPins || oldPins.size === 0) continue;
-    const oldSig = [...oldPins].sort().join(',');
+    const oldSurviving = survivingPinKeys(beforeNetPins.get(oldNet));
+    const oldSig = oldSurviving.length > 0 ? oldSurviving.join(',') : [...(beforeNetPins.get(oldNet) ?? [])].sort().join(',');
+    if (!oldSig) continue;
     for (const newNet of rawAddedNets) {
       if (matchedAdded.has(newNet)) continue;
-      const newPins = afterNetPins.get(newNet);
-      if (!newPins || newPins.size === 0) continue;
-      const newSig = [...newPins].sort().join(',');
+      const newSurviving = survivingPinKeys(afterNetPins.get(newNet));
+      const newSig = newSurviving.length > 0 ? newSurviving.join(',') : [...(afterNetPins.get(newNet) ?? [])].sort().join(',');
+      if (!newSig) continue;
       if (oldSig === newSig) {
         renamed.push({ from: oldNet, to: newNet });
         matchedRemoved.add(oldNet);
@@ -481,14 +591,14 @@ export async function runDiff(
   repoRoot: string,
   opts: { base?: string } = {},
 ): Promise<DiffResult> {
-  const base = opts.base ?? 'HEAD';
   const config = await loadConfig(repoRoot);
   if (!config.schematic) {
     throw new DiffError('no schematic configured (run copperhead init)');
   }
-  await verifyRevision(repoRoot, base);
+  const base = opts.base ?? (await resolveDefaultBase(repoRoot, config.schematic));
+  const commitSha = await verifyRevision(repoRoot, base);
   const [before, after, constraints] = await Promise.all([
-    snapshotAtCommit(repoRoot, base, config.schematic),
+    snapshotAtCommit(repoRoot, commitSha, config.schematic),
     snapshotWorkingTree(repoRoot, config.schematic),
     loadConstraints(repoRoot),
   ]);

@@ -184,12 +184,12 @@ program
 program
   .command('diff')
   .description('summarize electrical changes (components, connections, nets, affected constraints) since a git revision')
-  .option('--base <rev>', 'git revision to compare against', 'HEAD')
-  .action(async (opts: { base: string }) => {
+  .option('--base <rev>', 'git revision to compare against (default: HEAD when dirty, else HEAD~1)')
+  .action(async (opts: { base?: string }) => {
     const repo = repoOf(program.opts());
     const json = Boolean(program.opts().json);
     try {
-      const res = await runDiff(repo, { base: opts.base });
+      const res = await runDiff(repo, opts.base !== undefined ? { base: opts.base } : {});
       if (json) {
         console.log(JSON.stringify(res, null, 2));
       } else {

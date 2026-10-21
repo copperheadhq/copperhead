@@ -149,6 +149,20 @@ copperhead score schematic --file path/to/any.kicad_sch
 
 Prints the quantitative legibility score: a 0-100 composite with the per-metric breakdown (crossings, bends, wire length, alignment, spacing uniformity, symmetry, balance, and more). Error-severity legibility findings cap the composite. Advisory by design: the exit code never depends on the score. Makes no LLM calls and no network requests.
 
+## `copperhead diff`
+
+Deterministic electrical change review: compares the working-tree schematic against a git revision and summarizes component, pin-connection, net, and constraint changes while ignoring coordinate/UUID churn. Makes **no LLM calls and no network requests**.
+
+```bash
+copperhead diff [--base <rev>]
+```
+
+| Option | Description |
+| --- | --- |
+| `--base <rev>` | Git revision to compare against (default: `HEAD` when the schematic has uncommitted edits, else `HEAD~1`, or `HEAD` on an initial commit). |
+
+With `--json`, prints `{ base, schematic, hasChanges, components, connections, nets, affectedConstraints }`.
+
 ## `copperhead doctor`
 
 ```bash
