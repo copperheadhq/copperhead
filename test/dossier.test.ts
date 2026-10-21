@@ -301,6 +301,43 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       expect(out).toContain('no installed symbol matches "ZZZQ9999XY"');
       expect(out).toContain('not capturable on this machine as named');
     });
+
+    it('check_bom_symbols audits docs/BOM.md rows against installed libraries in one pass (#196)', async () => {
+      const repo = await mkdtemp(path.join(tmpdir(), 'ch-bom-sym-'));
+      try {
+        await mkdir(path.join(repo, 'docs'), { recursive: true });
+        await writeFile(
+          path.join(repo, 'docs', 'BOM.md'),
+          [
+            '| Refdes | Value | Footprint | MPN |',
+            '| --- | --- | --- | --- |',
+            '| U1 | SN74LVC1G17 | Package_TO_SOT_SMD:SOT-23-5 | UNVERIFIED: SN74LVC1G17 |',
+            '| U2 | ESP32-C3-MINI-1 | RF_Module:ESP32-C3-MINI-1 | UNVERIFIED: ESP32-C3-MINI-1 |',
+          ].join('\n'),
+          'utf8',
+        );
+        const repoCtx: RunContext = { ...ctx(), repoRoot: repo };
+        const missOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
+        expect(missOut).toContain('MISS: 1 BOM part group(s) have no installed KiCad symbol');
+        expect(missOut).toContain('U1 (SN74LVC1G17): Logic:SN74LVC1G17');
+        expect(missOut).toContain('U2 (ESP32-C3-MINI-1): NO INSTALLED SYMBOL matches');
+
+        await writeFile(
+          path.join(repo, 'docs', 'BOM.md'),
+          [
+            '| Refdes | Value | Footprint | MPN |',
+            '| --- | --- | --- | --- |',
+            '| U1 | SN74LVC1G17 | Package_TO_SOT_SMD:SOT-23-5 | UNVERIFIED: SN74LVC1G17 |',
+          ].join('\n'),
+          'utf8',
+        );
+        const okOut = await dispatchTool(repoCtx, 'check_bom_symbols', {});
+        expect(okOut).toContain('OK: every checked BOM.md part resolves to an installed KiCad symbol:');
+        expect(okOut).toContain('U1 (SN74LVC1G17): Logic:SN74LVC1G17');
+      } finally {
+        await rm(repo, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('verify_symbols counts wrong-library findings as issues', () => {
