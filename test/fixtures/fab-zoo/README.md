@@ -1,12 +1,13 @@
-# Fab Release Gate — Broken Fixture Zoo (`add-fab-release-gate` Task 4.1)
+# Fab Release Gate: Broken Fixture Zoo (`add-fab-release-gate` Task 4.1)
 
-Minimal single-fault variants derived from `test/fixtures/open-key/`, each breaking exactly one fabrication release gate invariant while leaving `test/fixtures/open-key/` itself ERC/DRC clean:
+Minimal single-fault variants derived from `test/fixtures/open-key/` and the routed baseline board `_base/hardware/open-key.kicad_pcb`, each breaking one fabrication release gate invariant while leaving `test/fixtures/open-key/` untouched:
 
-| Variant directory | Broken artifact | Single fault introduced | Gate check that catches it |
+| Variant directory | Broken artifact | Single fault introduced vs. `_base` / `open-key` | Gate check that catches it |
 | --- | --- | --- | --- |
-| `unrouted-net/` | `open-key.kicad_pcb`, `drc-unrouted-net.json` | Net `KEY_DAH` between `R2` pad 1 and `U1` pad 5 is left unrouted (`unconnected_items` count = 1). | `fab.routing` (Routing completeness check) |
-| `mpn-less-bom/` | `BOM.md` | Row `R2` (`1k`, `Resistor_SMD:R_0603_1608Metric`) has an empty MPN cell while `R1` and `U1` carry valid MPNs. | `fab.bom` (BOM readiness check — always `fail`) |
-| `unverified-bom/` | `BOM.md` | All rows carry MPNs and footprints, but `U1` (`ESP32-S3-MINI-1-N8`) is flagged `UNVERIFIED`. | `fab.bom` (BOM readiness check — `warn` by default, `fail` under `--strict`) |
-| `refdes-mismatch/` | `open-key.kicad_pcb` | Component `R2` is present in `open-key.kicad_sch` but omitted from `open-key.kicad_pcb` (only `R1` and `U1` placed). | `fab.schPcbMatch` (Schematic-to-PCB refdes parity check) |
-| `footprint-mismatch/` | `open-key.kicad_pcb` | `R2` is placed on the board with `Resistor_SMD:R_0805_2012Metric` while `open-key.kicad_sch` specifies `Resistor_SMD:R_0603_1608Metric`. | `fab.schPcbMatch` (Schematic-to-PCB footprint assignment check) |
-| `missing-draft-quality/` | `LAYOUT.md` | `LAYOUT.md` documents board dimensions and placement notes but omits the required `## Draft quality` section. | `fab.docs` (`checkDocumentationPresence`) |
+| `_base/` | `hardware/open-key.kicad_pcb` | Routed baseline board (`R1`, `R2`, `U1` with `3V3`, `EN`, `GND`, and `KEY_DAH` routed on `F.Cu` and full 20-layer table preserved). | Baseline (0 unconnected nets) |
+| `unrouted-net/` | `hardware/open-key.kicad_pcb`, `drc-unrouted-net.json` | Derived from `_base` by removing only the `KEY_DAH` (`net 4`) copper segments between `R2` pad 1 and `U1` pad 5 (`3V3`, `EN`, `GND` remain routed). | `fab.routing` *(planned)* |
+| `mpn-less-bom/` | `docs/BOM.md` | Row `R2` (`1k`, `Resistor_SMD:R_0603_1608Metric`) has an empty MPN cell while `R1` and `U1` carry valid MPNs. | `fab.bom` *(planned)* |
+| `unverified-bom/` | `docs/BOM.md` | All rows carry MPNs and footprints, with `U1` (`ESP32-S3-MINI-1-N8`) flagged `UNVERIFIED`. | `fab.bom` *(planned)* |
+| `refdes-mismatch/` | `hardware/open-key.kicad_pcb` | Derived from `_base` by removing only `R2` and its connected segments while `R2` remains in `open-key.kicad_sch`. | `fab.schPcbMatch` *(planned)* |
+| `footprint-mismatch/` | `hardware/open-key.kicad_pcb` | Derived from `_base` by changing only `R2`'s footprint ID to `Resistor_SMD:R_0805_2012Metric` (vs. `Resistor_SMD:R_0603_1608Metric` in `open-key.kicad_sch`). | `fab.schPcbMatch` *(planned)* |
+| `missing-draft-quality/` | `docs/LAYOUT.md` | `docs/LAYOUT.md` documents board dimensions and placement notes but omits the required `## Draft quality` section. | `fab.docs` (`checkDocumentationPresence` in `src/kicad/fab.ts`) |
