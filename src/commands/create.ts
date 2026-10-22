@@ -166,6 +166,47 @@ export async function partSelectionDocGap(root: string, docs: string): Promise<s
   return selected ? null : 'BOM.md has no selected MPN in its MPN column. Put the actual part number alone in MPN and keep the UNVERIFIED qualification in Rationale; an UNVERIFIED-prefixed MPN is not the required selected-part field.';
 }
 
+/**
+ * Stock KiCad libraries with nothing programmable in them (#377). Only these
+ * can waive firmware: a part from any other library, a project library
+ * included (`fixture:ESP32-S3-MINI`), may hold code, so an unknown part never
+ * excuses the stage.
+ */
+const NON_PROGRAMMABLE_LIB =
+  /^(Device|Connector(_\w+)?|Diode(_\w+)?|Transistor_\w+|Regulator_\w+|Mechanical|power|Power_Protection|LED|Switch|Jumper|Graphic|Amplifier_Operational|Amplifier_Instrumentation|Comparator|Reference_Voltage|Relay|Timer)$/;
+
+/**
+ * The schematic's parts that could hold firmware, by the library their symbol
+ * comes from; null when there is no schematic to read, which waives nothing.
+ */
+async function programmableParts(root: string): Promise<string[] | null> {
+  try {
+    const config = await loadConfig(root);
+    if (!config.schematic) return null;
+    const p = path.join(root, config.schematic);
+    if (!existsSync(p)) return null;
+    const symbols = await listSymbols(p);
+    if (!symbols.length) return null;
+    return symbols.filter((s) => !NON_PROGRAMMABLE_LIB.test(s.libId.split(':')[0] ?? '')).map((s) => `${s.ref} (${s.libId})`);
+  } catch {
+    return null;
+  }
+}
+
+/** firmware/README.md opens with "# No firmware" and says why below it. */
+async function noFirmwareReadme(root: string): Promise<boolean> {
+  const p = path.join(root, 'firmware', 'README.md');
+  if (!existsSync(p)) return false;
+  // an HTML comment, one line or many, closed or not, is not a written reason
+  const lines = (await readFile(p, 'utf8'))
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<!--[\s\S]*$/, '')
+    .split(/\r?\n/);
+  const first = lines.findIndex((l) => l.trim());
+  if (first < 0 || !/^#\s+No firmware\b/i.test(lines[first]!.trim())) return false;
+  return lines.slice(first + 1).some((l) => l.trim() && !l.trim().startsWith('#'));
+}
+
 export const STAGES: Stage[] = [
   {
     name: 'spec-seed',
@@ -293,10 +334,18 @@ export const STAGES: Stage[] = [
   },
   {
     name: 'firmware',
-    isComplete: async (root, docs) =>
-      await hasFirmwareSource(path.join(root, 'firmware')) || await firmwareNotApplicable(root, docs),
+    isComplete: async (root, docs) => {
+      // Keep nonempty source and the exact-identity evidence path from this PR.
+      if (await hasFirmwareSource(path.join(root, 'firmware')) || await firmwareNotApplicable(root, docs)) return true;
+      // Preserve upstream's separate stock-library waiver and README format.
+      if (!(await noFirmwareReadme(root))) return false;
+      const parts = await programmableParts(root);
+      return parts !== null && parts.length === 0;
+    },
     prompt: (_brief, docs) =>
-      `Stage 7: firmware applicability and scaffold. For a design with a programmable component, generate firmware/ for the chosen MCU HAL: pins.h generated from ${path.posix.join(docs, 'PINOUT.md')} (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md. For a genuinely non-programmable design, do not invent an MCU or dummy source files. Instead, write firmware/README.md with exactly these three nonblank lines: "# Firmware not applicable", "Programmable components: none", and "Reason: <a concrete explanation of the hardware-only operation>". This evidence is accepted only with a nonempty, ERC-clean, BOM/PINOUT-consistent schematic using only these reviewed non-firmware symbols: ${[...NON_PROGRAMMABLE_SYMBOLS].join(", ")}. Unknown/custom symbols and unreviewed ICs are unsupported, not assumed non-programmable. The Reason must be concrete, at least 20 characters, and contain no TODO, TBD or placeholder text. The README records the completed firmware stage; all other stages and checks still apply.`,
+      `Stage 7: firmware applicability and scaffold. For a design with a programmable component, generate firmware/ for the chosen MCU HAL: pins.h generated from ${path.posix.join(docs, 'PINOUT.md')} (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md. For a genuinely non-programmable design, do not invent an MCU or dummy source files. Instead, write firmware/README.md with exactly these three nonblank lines: "# Firmware not applicable", "Programmable components: none", and "Reason: <a concrete explanation of the hardware-only operation>". This evidence is accepted only with a nonempty, ERC-clean, BOM/PINOUT-consistent schematic using only these reviewed non-firmware symbols: ${[...NON_PROGRAMMABLE_SYMBOLS].join(", ")}. Unknown/custom symbols and unreviewed ICs are unsupported, not assumed non-programmable. The Reason must be concrete, at least 20 characters, and contain no TODO, TBD or placeholder text. The README records the completed firmware stage; all other stages and checks still apply.` +
+      "\n\nAlternatively, the stock-library waiver is supported: " +
+      'Only if the board has nothing programmable on it (every schematic symbol comes from a stock non-programmable KiCad library: Device, Connector*, Diode*, Transistor_*, Regulator_*, Mechanical, power, Power_Protection, LED, Switch, Jumper, Graphic, Amplifier_Operational, Amplifier_Instrumentation, Comparator, Reference_Voltage, Relay, Timer) do not invent code: write firmware/README.md beginning with the heading "# No firmware" and, below it, why, citing the documents that record it (SPEC.md, SUBSYSTEMS.md). The stage gate reads the schematic: a part from any other library, a project library included, still needs source.',
   },
   {
     name: 'devplan',
@@ -523,7 +572,7 @@ async function layoutDraftGap(root: string, docs: string, opts: { drcFailed?: bo
   return null;
 }
 
-async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
+export async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
   if (stageName === 'outputs') return (await outputsPackageGap(root, await loadConfig(root))) ?? generic;
   if (stageName === 'spec-seed') {
@@ -540,6 +589,16 @@ async function contractGapDetail(stageName: string, root: string, config: Copper
         `the part-selection contract is not met: ${fixable.length} BOM.md footprint(s) do not resolve to an installed footprint — ` +
         fixable.map((m) => `${m.ref} ${m.footprint || '(none)'}${m.near.length ? ` (installed: ${m.near.slice(0, 3).join(', ')})` : ''}`).join('; ') +
         '; call check_footprints on every Footprint cell and use exact installed ids'
+      );
+    }
+  }
+  if (stageName === 'firmware' && (await noFirmwareReadme(root))) {
+    const parts = await programmableParts(root);
+    if (parts === null) return 'the firmware contract is not met: firmware/README.md says "No firmware", but no schematic with parts could be read to confirm it, so the stage needs source files under firmware/';
+    if (parts.length) {
+      return (
+        `the firmware contract is not met: firmware/README.md says "No firmware", but these schematic parts are not from a stock non-programmable library: ${parts.join(', ')}; ` +
+        'if one of them is programmable, write firmware source for it under firmware/; if none of them holds firmware, they are outside the waiver list, so stop for a human rather than inventing code'
       );
     }
   }

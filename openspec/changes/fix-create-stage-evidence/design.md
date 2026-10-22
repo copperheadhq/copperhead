@@ -141,3 +141,14 @@ power verification tolerates observed save defaults and exactly known historical
 graphics, not arbitrary reserved-prefix bodies. Counterfeit pin/geometry tests
 remain active. New normative deltas live only in this change; older proposals
 carry a single cross-reference without duplicate archive requirements.
+
+### Upstream firmware-waiver merge compatibility
+
+Upstream AC-15.45 adds a separate `# No firmware` README format backed by its
+stock non-programmable library list. Preserve that format and its diagnostics
+alongside this change's exact-identity three-field declaration. The strict
+format still requires its ERC, drift and BOM/PINOUT evidence; the stock-library
+format does not inherit reviewed Power_Management exceptions. Both retain
+nonempty source checks and the existing explicit toolchain build gate. The two
+formats are tested separately, including rejection when their eligibility
+rules are mixed. This reconciliation adds no new library or symbol identities.

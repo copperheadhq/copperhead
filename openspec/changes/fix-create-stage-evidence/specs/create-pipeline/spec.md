@@ -24,7 +24,7 @@ The spec-seed prompt SHALL name the existing Budget or Budgets document requirem
 
 ### Requirement: Evidence-backed firmware applicability
 
-The firmware stage SHALL retain all eight pipeline stages and accept either nonempty supported source or a strict hardware-only declaration supported by a nonempty, ERC-clean, drift-clean schematic and populated BOM/PINOUT tables. Only reviewed exact non-programmable symbol identities SHALL qualify for N/A.
+The firmware stage SHALL retain all eight pipeline stages and accept either nonempty supported source or a strict hardware-only declaration supported by a nonempty, ERC-clean, drift-clean schematic and populated BOM/PINOUT tables. Only reviewed exact non-programmable symbol identities SHALL qualify for this strict N/A declaration. The separate `# No firmware` format SHALL retain AC-15.45.
 
 #### Scenario: Supported hardware-only declaration
 
@@ -36,6 +36,12 @@ The firmware stage SHALL retain all eight pipeline stages and accept either none
 - **WHEN** a declaration is missing, ambiguous or a placeholder, or the design has an MCU, unknown/custom symbol, empty schematic, drift or ERC errors
 - **THEN** the N/A path remains incomplete
 - **AND** another unreviewed Power_Management identity is not accepted because its name resembles a reviewed part
+
+#### Scenario: Firmware declaration formats retain separate evidence rules
+
+- **WHEN** a strict declaration lacks ERC, drift or BOM/PINOUT evidence
+- **THEN** stock-library membership SHALL NOT make that declaration complete
+- **AND** a `# No firmware` declaration SHALL NOT inherit exact-identity exceptions outside its stock-library list
 
 #### Scenario: Empty firmware source
 

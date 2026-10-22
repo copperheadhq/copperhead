@@ -81,7 +81,7 @@ Eight stages, each one a full `do` loop with its own prompt and gate. A stage th
 | 4. Schematic | The `.kicad_sch`, sheet by sheet, ERC clean after each |
 | 5. Layout | First-draft placement and critical routing, DRC clean |
 | 6. Outputs | `outputs/`: gerbers, drill, DXF, STEP, SVG, `BOM.csv` |
-| 7. Firmware | `firmware/` scaffold with `pins.h` generated from `PINOUT.md` |
+| 7. Firmware | `firmware/` scaffold with `pins.h` generated from `PINOUT.md`; on a board with nothing programmable, a `firmware/README.md` that opens `# No firmware` and says why |
 | 8. Dev plan | `docs/DEVPLAN.md`: bring-up order, test points, risks |
 
 The pipeline is resumable. Stage completion is inferred from repo state, so if a stage fails, fix what it complained about and rerun the same command: it skips past what is already done and picks up at the first incomplete stage.

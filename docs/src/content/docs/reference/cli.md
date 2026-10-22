@@ -226,7 +226,7 @@ Each stage is a full `do` loop with its own prompt and gate. Stage completion is
 | 4 | `schematic` | The `.kicad_sch`, ERC clean after each sheet |
 | 5 | `layout` | Draft placement and critical routing, DRC clean, plus a `## Draft quality` section in `LAYOUT.md` |
 | 6 | `outputs` | `outputs/`: gerbers, drill, DXF, STEP, SVG, `BOM.csv` |
-| 7 | `firmware` | `firmware/` scaffold, `pins.h` generated from `PINOUT.md` |
+| 7 | `firmware` | `firmware/` scaffold, `pins.h` generated from `PINOUT.md`; on a board with nothing programmable, a `firmware/README.md` that opens `# No firmware` and says why |
 | 8 | `devplan` | `docs/DEVPLAN.md` |
 
 Stages build on each other's uncommitted state, so `create` runs them as if `--allow-dirty` were set.
