@@ -74,7 +74,11 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     }
   }
   for (const [budget, value] of Object.entries(config.budgets)) {
-    if (!Object.keys(registry).some((k) => k.endsWith(budget))) {
+    // Match the whole key or its final dot-separated segment, but not any
+    // suffix: `endsWith` let an unrelated key such as `power.unit_cost` satisfy
+    // a `cost` budget. Budget names are free-form and may themselves be dotted,
+    // in which case they match their own key exactly.
+    if (!Object.keys(registry).some((k) => k === budget || k.split('.').pop() === budget)) {
       resolvable.push({
         kind: 'dual-write',
         doc: '.copperhead/config.json',
@@ -103,12 +107,16 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     }
   }
 
-  // coverage: docs the transparency layer expects
+  // coverage: docs the transparency layer expects.
+  // `config.docs` is not normalised on load, so it may carry a trailing
+  // separator, be nested, or be empty (docs at the repo root). Joining handles
+  // all of those; concatenating produced `docsDECISIONS.md` for "docs", and
+  // stripping then templating produced a root-absolute `/DECISIONS.md` for "".
   for (const name of ['DECISIONS.md', 'CHANGELOG.md']) {
     if (!existsSync(path.join(docsDir, name))) {
       resolvable.push({
         kind: 'coverage',
-        doc: `${config.docs}${name}`,
+        doc: path.posix.join(config.docs.replace(/\\/g, '/'), name),
         claim: 'exists (transparency layer)',
         actual: 'missing',
         resolution: 'scaffold it (copperhead init creates it)',
