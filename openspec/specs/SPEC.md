@@ -297,7 +297,8 @@ copperhead skill run <name> [--scope power|all] [--model …]
 
 copperhead check          (alias: copperhead verify)
     Run ERC + DRC + doc-drift + brief-freshness check; exit non-zero on violations,
-    stale briefs, or unknown brief reconciliation state. No LLM calls. CI-safe.
+    stale briefs, or corrupt/mismatched brief reconciliation state. Legacy brief
+    provenance without a reconciliation record is advisory. No LLM calls. CI-safe.
 
 copperhead sync [--dry-run]
 copperhead sync --brief [--dry-run]
@@ -496,7 +497,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-1.4** Re-running `init` on the same repo exits 0 and changes no hand-edited file (idempotent). With modified docs and no `--force`, it refuses and lists what it would overwrite.
 - **AC-1.5** On a repo with no `.kicad_sch`, exits non-zero with a clear message (no stack trace).
 - **AC-1.6** A complete successful `create` records the initial repository-local brief as reconciled only after every stage and the final check pass; it never changes the immutable origin record.
-- **AC-1.7** `create --brief` rejects a brief outside the target repository before starting the pipeline, calling a provider, or writing project files.
+- **AC-1.7** `create --brief` rejects a brief outside the target repository before starting the pipeline, calling a provider, or writing project files. Demo setup copies its packaged brief into the demo repository before invoking create.
 
 ### AC-2 · `copperhead check`
 
@@ -506,7 +507,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
 - **AC-2.6** A repository-local brief matching its last-reconciled record reports `brief: current`; a changed brief reports `stale` and makes `ok` false.
-- **AC-2.7** A repository with origin provenance but missing, corrupt, or untrackable reconciliation state reports `unknown` and exits non-zero. No brief and no origin record reports `not-applicable`.
+- **AC-2.7** A matching repository-local origin without a reconciliation record, an external origin without a reconciliation record, or a conventional brief without origin reports non-failing `legacy` with an actionable hint. A changed origin brief reports `stale`; corrupt, mismatched, missing-file, or untrackable reconciliation state reports `unknown` and exits non-zero. No brief and no origin record reports `not-applicable`.
 - **AC-2.8** `--json` includes stable brief status, recorded/current hashes, and any explicit declines. A declined item is visible and is not described as implemented.
 - **AC-2.9** Brief freshness checking reads local files and Git objects only; it remains deterministic, read-only, LLM-free, and network-free.
 
@@ -547,7 +548,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-7.3 (never resolve a violation silently)** With an inconsistency that reflects a requirement violation (e.g. a part whose leakage breaks the sleep-current budget), `sync` does **not** rewrite either side to agree; it flags the violation with both sides and the governing spec/budget, and exits non-zero.
 - **AC-7.4 (dry run)** `sync --dry-run` prints every detected inconsistency (doc, claim, actual, proposed resolution) and writes nothing (`git status` unchanged).
 - **AC-7.5 (clean and idempotent)** On a consistent repo, `sync` exits 0 with "no inconsistencies", makes no edits and no commit; running `sync` twice in a row makes the second run a no-op.
-- **AC-7.6 (brief preview)** `sync --brief --dry-run` prints a deterministic diff from the last reconciled brief, or a recoverable legacy origin, without calling a provider or changing the worktree.
+- **AC-7.6 (brief preview)** `sync --brief --dry-run` prints a deterministic diff from the last reconciled brief, or a recoverable legacy origin. External-origin legacy state reports the comparison as unavailable and exits 0. The command makes no provider calls and does not change the worktree.
 - **AC-7.7 (explicit brief outcomes)** `sync --brief` requires an unambiguous applied or declined decision with rationale for every changed block; unresolved or conflicting decisions cannot finish.
 - **AC-7.8 (brief state advances after gates)** The separate reconciliation record is written in the verified run's pre-commit path and commits with the work. Failed, refused, interrupted, source-changed, or commit-failed runs leave the prior record unchanged. `BRIEF.sha256` remains write-once.
 - **AC-7.9 (declines remain visible)** A declined brief block stays visible in later check output and is never represented as implemented.

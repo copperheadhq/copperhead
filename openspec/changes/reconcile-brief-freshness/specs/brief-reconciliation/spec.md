@@ -8,7 +8,7 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 
 #### Scenario: Initial project creation records a baseline
 
-- **WHEN** all create stages and the final check succeed for a tracked repository-local brief that matches the immutable origin
+- **WHEN** all create stages and the final check succeed for a repository-local brief matching the immutable origin, including a packaged demo brief copied into the repository before create
 - **THEN** the system records that brief as the last reconciled version without changing the origin hash
 
 #### Scenario: Failed or incomplete work does not advance the baseline
@@ -19,11 +19,16 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 #### Scenario: Create rejects an external brief before work starts
 
 - **WHEN** `create --brief` points to a file outside the target repository
-- **THEN** create exits before starting a stage or provider call and writes no project files or brief provenance
+- **THEN** create exits before starting a stage, calling a provider, or writing project files
+
+#### Scenario: Demo copies its packaged brief before create
+
+- **WHEN** `copperhead demo` or `scripts/demo-simple.sh` uses a packaged brief outside the demo repository
+- **THEN** demo copies the brief into `<docsDir>/BRIEF.md`, refuses to overwrite different existing content, commits the local brief, and invokes create with that repository-local path
 
 ### Requirement: Check reports brief freshness
 
-`copperhead check` SHALL compare the configured current brief with its last reconciled identity. A known mismatch SHALL be reported as stale. Missing, corrupt, or untrackable reconciliation state for a project with brief provenance SHALL be reported as unknown. Stale and unknown status SHALL be included in JSON and make the default check result fail. Brief checks SHALL be deterministic, LLM-free, and network-free. A project with no brief and no origin record SHALL report not applicable.
+`copperhead check` SHALL compare the configured brief with its last-reconciled identity. Mismatches SHALL be stale. Corrupt or mismatched records and unavailable repository-local origins SHALL be unknown and fail. The legacy cases below SHALL be advisory. Brief checks SHALL be deterministic, LLM-free, and network-free. With no brief or origin, the result SHALL be not applicable.
 
 #### Scenario: Brief matches last reconciled version
 
@@ -35,10 +40,25 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 - **WHEN** the current brief hash differs from the last-reconciled hash
 - **THEN** check reports `stale`, includes both hashes, and returns a failing result
 
-#### Scenario: Legacy repository has only an origin record
+#### Scenario: Matching legacy origin has no reconciliation record
 
-- **WHEN** origin provenance exists but no last-reconciled record exists
-- **THEN** check reports `unknown` and returns a failing result, even if the current hash matches the origin
+- **WHEN** the current repository-local brief matches its origin provenance but no last-reconciled record exists
+- **THEN** check reports `legacy` and returns a non-failing advisory result
+
+#### Scenario: Legacy external origin has no reconciliation record
+
+- **WHEN** origin provenance points to an external brief and no last-reconciled record exists
+- **THEN** check reports `legacy` and returns a non-failing advisory result without attempting to read outside the repository
+
+#### Scenario: Changed legacy origin
+
+- **WHEN** the repository-local brief differs from its immutable origin and no last-reconciled record exists
+- **THEN** check reports `stale` and returns a failing result
+
+#### Scenario: Conventional brief has no origin provenance
+
+- **WHEN** the configured conventional brief exists without origin or reconciliation records
+- **THEN** check reports `legacy` and returns a non-failing advisory result
 
 #### Scenario: Reconciliation contains declined changes
 
@@ -63,6 +83,11 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 
 - **WHEN** the legacy origin text cannot be recovered and verified from local Git history
 - **THEN** the command reports that comparison is unavailable and leaves the record unchanged
+
+#### Scenario: External-origin legacy preview is unavailable
+
+- **WHEN** `sync --brief --dry-run` is run for an external origin without a reconciliation record
+- **THEN** it reports the comparison as unavailable, exits successfully, and leaves the repository unchanged
 
 ### Requirement: Reconcile each changed brief item through gated tools
 

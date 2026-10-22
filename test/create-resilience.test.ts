@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 // scripted recovery diagnosis, no live provider.
 const mockRunAgentLoop = vi.hoisted(() => vi.fn<(opts: RunOptions) => Promise<RunResult>>());
 const mockDiagnose = vi.hoisted(() => vi.fn());
+const mockRunCheck = vi.hoisted(() => vi.fn());
 
 vi.mock('../src/agent/loop.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -26,9 +27,11 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
   transcriptExcerpt: async () => '',
 }));
 vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: '' }) }));
-vi.mock('../src/commands/check.js', () => ({ runCheck: async () => ({ ok: true }) }));
+vi.mock('../src/commands/check.js', () => ({ runCheck: mockRunCheck }));
 
-import { runCreate } from '../src/commands/create.js';
+import { runCreate, STAGES, writeBriefHash } from '../src/commands/create.js';
+import { runDemo, scaffoldDemoRepo } from '../src/commands/demo.js';
+import { briefSha256, inspectBriefFreshness } from '../src/memory/brief-reconciliation.js';
 
 /** A successful mocked run result (one attempt worth of stats). */
 function ok(): RunResult {
@@ -77,6 +80,8 @@ let prevKey: string | undefined;
 beforeEach(() => {
   mockRunAgentLoop.mockReset();
   mockDiagnose.mockReset();
+  mockRunCheck.mockReset();
+  mockRunCheck.mockResolvedValue({ ok: true });
   mockDiagnose.mockResolvedValue({ verdict: 'abort', reason: 'default: stop' });
   prevKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = 'sk-test-dummy';
@@ -279,14 +284,13 @@ describe('create pipeline resilience (review F3)', () => {
     }
   });
 
-  it('rejects an external brief before starting create or writing provenance', async () => {
+  it('rejects an external brief before create starts or writes provenance', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     let externalDir: string | undefined;
     try {
       externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
       const externalBrief = path.join(externalDir, 'outside-brief.md');
       await writeFile(externalBrief, '# external\n', 'utf8');
-      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
       const messages: string[] = [];
       const res = await runCreate({
         repoRoot: repo,
@@ -317,6 +321,102 @@ describe('create pipeline resilience (review F3)', () => {
       if (externalDir) {
         await rm(externalDir, { recursive: true, force: true });
       }
+      await cleanup();
+    }
+  });
+
+  it('does not overwrite a different demo brief when given an external source', async () => {
+    let demoDir: string | undefined;
+    let externalDir: string | undefined;
+    try {
+      demoDir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
+      externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
+      const externalBrief = path.join(externalDir, 'outside-brief.md');
+      await writeFile(externalBrief, '# external\n', 'utf8');
+      await scaffoldDemoRepo(demoDir);
+      await mkdir(path.join(demoDir, 'docs'), { recursive: true });
+      await writeFile(path.join(demoDir, 'docs', 'BRIEF.md'), '# existing\n', 'utf8');
+
+      await expect(runDemo({
+        model: 'gpt-5', modelSource: 'explicit', version: 'test', kicadCliVersion: 'test',
+        demoDir, briefPath: externalBrief, log: () => {}, renderer: {} as never,
+      })).rejects.toThrow(/refusing to overwrite/);
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+      expect(await readFile(path.join(demoDir, 'docs', 'BRIEF.md'), 'utf8')).toBe('# existing\n');
+    } finally {
+      if (demoDir) await rm(demoDir, { recursive: true, force: true });
+      if (externalDir) await rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('copies the packaged demo brief into the repo before running create', async () => {
+    let demoDir: string | undefined;
+    let externalDir: string | undefined;
+    try {
+      demoDir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
+      externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
+      const externalBrief = path.join(externalDir, 'demo-brief.md');
+      await writeFile(externalBrief, '# Demo brief\n', 'utf8');
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('spec-seed')) await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+
+      await runDemo({
+        model: 'gpt-5',
+        modelSource: 'explicit',
+        version: 'test',
+        kicadCliVersion: 'test',
+        demoDir,
+        briefPath: externalBrief,
+        log: () => {},
+        renderer: {} as never,
+      });
+
+      expect(mockRunAgentLoop).toHaveBeenCalled();
+      expect(mockRunAgentLoop.mock.calls[0]![0].request).toContain('spec-seed');
+      expect(await readFile(path.join(demoDir, 'docs', 'BRIEF.md'), 'utf8')).toBe('# Demo brief\n');
+      expect(await execa('git', ['show', 'HEAD:docs/BRIEF.md'], { cwd: demoDir }).then(({ stdout }) => stdout)).toBe('# Demo brief');
+    } finally {
+      if (demoDir) await rm(demoDir, { recursive: true, force: true });
+      if (externalDir) await rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('creates and commits the initial brief record using the typed legacy reason code', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const originalChecks = STAGES.map((stage) => stage.isComplete);
+    try {
+      const briefPath = path.join(repo, 'docs', 'BRIEF.md');
+      await mkdir(path.dirname(briefPath), { recursive: true });
+      const brief = '# Create baseline\n';
+      await writeFile(briefPath, brief, 'utf8');
+      await writeBriefHash(repo, 'docs', { path: 'docs/BRIEF.md', sha256: briefSha256(brief) });
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'add tracked brief'], { cwd: repo });
+
+      STAGES.forEach((stage) => { stage.isComplete = () => true; });
+      const allChecksPass = {
+        ok: true,
+        erc: { ok: true, violations: 0 },
+        drc: { ok: true, violations: 0, unrouted: 0, intrinsic: 0 },
+        drift: { ok: true, mismatches: [] },
+        openspec: { ok: true, detail: '' },
+        constraints: { ok: true, violations: [] },
+      };
+      mockRunCheck
+        .mockResolvedValueOnce({ ...allChecksPass, ok: false, brief: { status: 'legacy', reasonCode: 'legacy-origin-without-reconciliation' } })
+        .mockResolvedValueOnce({ ...allChecksPass, brief: { status: 'current' } });
+
+      const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });
+      const { stdout: committedRecord } = await execa('git', ['show', 'HEAD:.copperhead/brief-reconciliation.json'], { cwd: repo });
+      const freshness = await inspectBriefFreshness(repo, 'docs');
+
+      expect(result.ok).toBe(true);
+      expect(JSON.parse(committedRecord)).toMatchObject({ briefPath: 'docs/BRIEF.md', sha256: briefSha256(brief) });
+      expect(freshness).toMatchObject({ status: 'current', ok: true, currentSha256: briefSha256(brief) });
+    } finally {
+      STAGES.forEach((stage, index) => { stage.isComplete = originalChecks[index]!; });
       await cleanup();
     }
   });

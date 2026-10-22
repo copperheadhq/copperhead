@@ -182,15 +182,13 @@ export function validateBriefDecisions(
   const outcomes = new Map<string, { outcome: 'applied' | 'declined'; rationale: string }>();
   const conflicts = new Set<string>();
   for (const entry of decisions) {
-    if (!entry.trimStart().startsWith('brief:')) continue;
-    const match = /^brief:(B[1-9]\d*) (applied|declined) \| why:([\s\S]*)$/.exec(entry);
-    if (!match || !expected.has(match[1]!)) {
-      return { ok: false, detail: `invalid brief decision entry: ${entry.split('\n')[0]}` };
-    }
+    if (!entry.trimStart().toLowerCase().startsWith('brief')) continue;
+    const match = /^brief\s*:\s*(B[1-9]\d*)\s+(applied|declined)\s*\|\s*why\s*:\s*([\s\S]*)$/i.exec(entry.trim());
+    if (!match || !expected.has(match[1]!)) continue;
     const rationale = match[3]!.trim();
-    if (!rationale) return { ok: false, detail: `${match[1]} has no rationale` };
+    if (!rationale) continue;
     const prior = outcomes.get(match[1]!);
-    const outcome = match[2] as 'applied' | 'declined';
+    const outcome = match[2]!.toLowerCase() as 'applied' | 'declined';
     if (prior && prior.outcome !== outcome) conflicts.add(match[1]!);
     outcomes.set(match[1]!, { outcome, rationale });
   }
@@ -246,7 +244,7 @@ ${item.after || '(no lines)'}`)
     ...(extras?.provider ? { provider: extras.provider } : {}),
     ...(extras?.renderer ? { renderer: extras.renderer } : {}),
     ...(extras?.meta ? { meta: extras.meta } : {}),
-    ...(briefIsDirty ? { allowDirty: true, preTouched: [path.join(repoRoot, briefPath)] } : {}),
+    ...(briefIsDirty ? { allowDirty: true, preTouched: [briefPath] } : {}),
     stageGate: async (ctx: RunContext) => {
       const checked = validateBriefDecisions(ctx.decisions, itemIds);
       return checked.ok ? null : `brief reconciliation is incomplete: ${checked.detail}`;
@@ -276,7 +274,7 @@ ${item.after || '(no lines)'}`)
         ),
       };
       await writeReconciliationRecord(repoRoot, record);
-      ctx.filesTouched.add(path.join(repoRoot, '.copperhead', 'brief-reconciliation.json'));
+      ctx.filesTouched.add('.copperhead/brief-reconciliation.json');
     },
   });
   return { ok: res.outcome === 'success', run: res };

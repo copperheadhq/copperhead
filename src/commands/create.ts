@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile, mkdir, writeFile, readdir, rm, realpath } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import { execa } from 'execa';
 import { loadConfig, resolveCompatSettings } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
@@ -37,7 +36,7 @@ import { symbolSearchDirs } from '../kicad/symlib.js';
 import { draftQualitySection, isDraftQualityHeading, isFilledDraftQuality } from '../kicad/fab.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
-import { initialReconciliationRecord, writeReconciliationRecord } from '../memory/brief-reconciliation.js';
+import { briefSha256, initialReconciliationRecord, writeReconciliationRecord } from '../memory/brief-reconciliation.js';
 import { emitCreateJlcpcbBom } from './export.js';
 
 /**
@@ -1069,7 +1068,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       : relativeBrief;
   const briefMeta = {
     path: briefPath,
-    sha256: createHash('sha256').update(brief).digest('hex'),
+    sha256: briefSha256(brief),
   };
   const config = await loadConfig(opts.repoRoot);
   // Fail fast on a nearly-full disk (4.1): a create run writes fab outputs and
@@ -1374,8 +1373,8 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
   let check = await runCheck(opts.repoRoot, opts.log);
   const stateFile = path.join(opts.repoRoot, '.copperhead', 'brief-reconciliation.json');
   const onlyInitialBriefIsUnverified =
-    check.brief.status === 'unknown' &&
-    check.brief.detail?.startsWith('no last-reconciled brief record') &&
+    check.brief?.status === 'legacy' &&
+    (check.brief.reasonCode === 'legacy-origin-without-reconciliation' || check.brief.reasonCode === 'legacy-external-origin') &&
     !existsSync(stateFile) &&
     (check.erc?.ok ?? true) &&
     (check.drc?.ok ?? true) &&

@@ -49,6 +49,8 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   } else if (brief.status === 'not-applicable') {
     log('brief skipped (no brief provenance configured)');
+  } else if (brief.status === 'legacy') {
+    log(`brief legacy (${brief.path ?? 'external path'}): ${brief.detail ?? 'complete create to establish tracked provenance'}`);
   } else {
     const hashes = brief.status === 'stale'
       ? `recorded ${brief.reconciledSha256?.slice(0, 12) ?? 'unknown'}, current ${brief.currentSha256?.slice(0, 12) ?? 'unknown'}`
