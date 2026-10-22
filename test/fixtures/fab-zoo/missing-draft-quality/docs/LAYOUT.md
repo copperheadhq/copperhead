@@ -2,7 +2,7 @@
 
 ## Board dimensions
 
-40 mm × 30 mm, 2-layer 1.6 mm FR-4.
+40 mm x 30 mm, 2-layer 1.6 mm FR-4.
 
 ## Placement notes
 
