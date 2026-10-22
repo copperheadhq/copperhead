@@ -248,6 +248,25 @@ The entire tool (agent core, prompts, tools) is public under Apache-2.0, built o
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and workflow. Note that your first pull request requires signing the [Contributor License Agreement](.github/cla/CLA.md); a bot posts instructions on the PR and signing is a one-time comment.
 
+## Export profile compatibility
+
+The `export_outputs` tool defaults to generic KiCad exports. It supports a board
+without a schematic/BOM and reports real files, source hashes and a generic
+`fabrication.zip`. Missing or incomplete ordering BOMs are reported separately; this partial export does not complete the full `create` stage.
+Generic output does not verify manufacturer settings or copper-zone fills.
+
+To opt into the bounded KiCad 9 JLC checks, set
+`"outputProfile": "jlcpcb-kicad9-2026-09-24"` in `.copperhead/config.json`.
+That profile requires a schematic and ordering BOM and rejects copper-fill
+zones and other KiCad major versions. Failures never select a generic fallback.
+Omit the key or use `"generic"` for ordinary exports. Unknown values fail.
+
+Stage 6 still requires complete Gerbers/drill, DXF/STEP, board and schematic SVGs,
+ordering BOM, archive and matching source/file hashes. Existing outputs without
+an `export-manifest.json`, or after a profile switch, require a fresh
+`export_outputs` call. Resume never invents prior verification. Both paths are
+draft outputs without manufacturer acceptance or fabrication release.
+
 ## Project layout
 
 - [`AGENTS.md`](AGENTS.md): repository instructions loaded automatically by Codex and compatible coding agents; [`CLAUDE.md`](CLAUDE.md) provides the corresponding Claude Code guidance

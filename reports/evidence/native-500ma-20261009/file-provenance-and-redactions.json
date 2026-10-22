@@ -1,0 +1,3668 @@
+{
+  "scope": "Only files intended for publication review; originals remain privately preserved. Original hashes refer to existing bytes before this evidence preparation.",
+  "files": [
+    {
+      "source": "logs/native-500ma-architecture-v8-20261008.log",
+      "published_path": "live-cli/native-500ma-architecture-v8-20261008.filtered.log",
+      "original_sha256": "9a37b864bfc14731ac5a9307e29c8ead0b5b34ca11a5ea51df1e2919f82abbec",
+      "published_sha256": "9757a670367d4c760a1eb99fb3f9b6103eae342223bf8e646ac56c6f6ef1084e",
+      "original_bytes": 2674,
+      "published_bytes": 1566,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            21,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32
+          ],
+          "removed_line_count": 6,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-architecture-v9-20261008.log",
+      "published_path": "live-cli/native-500ma-architecture-v9-20261008.filtered.log",
+      "original_sha256": "c03fc1e604267db523b480148d4bb16a6381d080897fe05f29b529174e3a7a66",
+      "published_sha256": "f5b0a6397597d358d1d011c4cb1ecef6aa4cf53865eab4c292d90d304f02c7a6",
+      "original_bytes": 9009,
+      "published_bytes": 4419,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            19,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            72,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            104,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118
+          ],
+          "removed_line_count": 44,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-devplan-v20-20261008.log",
+      "published_path": "live-cli/native-500ma-devplan-v20-20261008.filtered.log",
+      "original_sha256": "65f67c10a30bd946554ef19b9d8985fbd91b74fa20522316888da4d1e81129e1",
+      "published_sha256": "91d6602835c7299d6060daadade7f334089c99082eb30311f6be94f4b2c5c2f5",
+      "original_bytes": 2672,
+      "published_bytes": 1707,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            19,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38
+          ],
+          "removed_line_count": 10,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-devplan-v21-20261009.log",
+      "published_path": "live-cli/native-500ma-devplan-v21-20261009.filtered.log",
+      "original_sha256": "b057c9da21df00897c23d3d2aaa05b1cab12e4e1c810201875b372bf32f559ab",
+      "published_sha256": "7efa6fbc02ed6df8af0e85bdfad44ae907cd3ad987bb0f3562bcf918e3b153d7",
+      "original_bytes": 8132,
+      "published_bytes": 5410,
+      "redaction_rules": [
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            29,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126
+          ],
+          "removed_line_count": 27,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-firmware-v19-20261008.log",
+      "published_path": "live-cli/native-500ma-firmware-v19-20261008.filtered.log",
+      "original_sha256": "c1257f19d3b162f1c5590eb7718d1e7f9abd1f38775fce9959eb00f14534a0c0",
+      "published_sha256": "b32dadcc8c1b774373f64af8970cd25412d19e1a79dac77a6b32605d179271b1",
+      "original_bytes": 7757,
+      "published_bytes": 4292,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            25,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            87,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106
+          ],
+          "removed_line_count": 31,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-layout-v15-20261008.log",
+      "published_path": "live-cli/native-500ma-layout-v15-20261008.filtered.log",
+      "original_sha256": "a1e361e6070a6f68b4b18abd89725db2e9a7dd61386e4fd8ab5a8ec6dede683b",
+      "published_sha256": "f27f0dcb469ee997ffc6cd01d1945d74ed5cc8675bc9f1a7e099b4ea9c9418bf",
+      "original_bytes": 11061,
+      "published_bytes": 6040,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            23,
+            25,
+            26,
+            27,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            72,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            92,
+            93,
+            94,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            143,
+            144,
+            145,
+            146,
+            147,
+            148,
+            149,
+            150,
+            151,
+            152,
+            153,
+            154,
+            155,
+            156,
+            157,
+            158,
+            159,
+            160
+          ],
+          "removed_line_count": 48,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-layout-v16-20261008.log",
+      "published_path": "live-cli/native-500ma-layout-v16-20261008.filtered.log",
+      "original_sha256": "b9e87a4c1aaf8a837fc13296ee57bc6d9f766d086913010ce4fc3b6933e532d0",
+      "published_sha256": "d6e2bcb8fb409ec5e52677e008405c70222d7662b5a9dcab34f640b174e95e9a",
+      "original_bytes": 10930,
+      "published_bytes": 5185,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 5
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            20,
+            22,
+            23,
+            24,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            52,
+            53,
+            54,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            126,
+            132,
+            133,
+            134,
+            135,
+            136,
+            137,
+            138,
+            139,
+            140,
+            141,
+            142,
+            143
+          ],
+          "removed_line_count": 52,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-outputs-v17-20261008.log",
+      "published_path": "live-cli/native-500ma-outputs-v17-20261008.filtered.log",
+      "original_sha256": "dd691bd99390b3d6fa89b223d82faba516e9337474b47fe8827bbf6c5d610e51",
+      "published_sha256": "7f6d0ae02e1cadf7bde66535872436efcc9423b98f2e2b9f5eec945b6347e7dd",
+      "original_bytes": 12079,
+      "published_bytes": 6436,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 5
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            43,
+            44,
+            45,
+            46,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            108,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            142,
+            143,
+            146,
+            152,
+            153,
+            154,
+            155,
+            156,
+            157,
+            158,
+            159,
+            160,
+            161,
+            162,
+            163
+          ],
+          "removed_line_count": 56,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-outputs-v18-20261008.log",
+      "published_path": "live-cli/native-500ma-outputs-v18-20261008.filtered.log",
+      "original_sha256": "d68ac5eb22b241f253d8cd17968c8a35cc7e31eacca5142f7a5b5bc8f0520ce6",
+      "published_sha256": "16b62a1ec1fabc44914c1a9cbc486bd3e7f95d30b25b4f79d85c20d267ac1a26",
+      "original_bytes": 8461,
+      "published_bytes": 4272,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            100,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118
+          ],
+          "removed_line_count": 43,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-parts-v10-20261008.log",
+      "published_path": "live-cli/native-500ma-parts-v10-20261008.filtered.log",
+      "original_sha256": "42df189a54998bfc96b12988bef57b8b8fa8861d96a2baa3a146db590303c54d",
+      "published_sha256": "0577149cb3bbe651c7123b8f598166bf7f42fe8a660e562df4d46ca90ddc43ac",
+      "original_bytes": 10556,
+      "published_bytes": 4468,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 2
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            21,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            84,
+            85,
+            88,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102
+          ],
+          "removed_line_count": 40,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-parts-v11-20261008.log",
+      "published_path": "live-cli/native-500ma-parts-v11-20261008.filtered.log",
+      "original_sha256": "9c43d943f7392c13abfc1e298189c948eafa783984de94cc864cb2e46ea2d5e5",
+      "published_sha256": "7e10877ac8cc11f7ead53ce54900c9d04256e053f61f7572a25b3af7b0c3e9ed",
+      "original_bytes": 11567,
+      "published_bytes": 4812,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            27,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            113,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127
+          ],
+          "removed_line_count": 41,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-parts-v12-20261008.log",
+      "published_path": "live-cli/native-500ma-parts-v12-20261008.filtered.log",
+      "original_sha256": "26d2889a8392113401c8bb748bd7d9d27822ab6eed37285ee198e96d146dd724",
+      "published_sha256": "e02b22ec0c999bd61d0ed793c55288f01a53f082bb87f7fe75134c4c96af2496",
+      "original_bytes": 17981,
+      "published_bytes": 6516,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            29,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            141,
+            142,
+            143,
+            144,
+            145,
+            146,
+            147,
+            148,
+            149,
+            150,
+            151,
+            152,
+            153,
+            154,
+            155,
+            156,
+            157,
+            158,
+            159,
+            160,
+            161,
+            162,
+            177,
+            178,
+            179,
+            180,
+            181,
+            182,
+            183,
+            184,
+            185,
+            186,
+            187,
+            194,
+            200,
+            201,
+            202,
+            203,
+            204,
+            205,
+            206,
+            207,
+            208,
+            209
+          ],
+          "removed_line_count": 98,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-schematic-v13-20261008.log",
+      "published_path": "live-cli/native-500ma-schematic-v13-20261008.filtered.log",
+      "original_sha256": "22dc96e734c675838c2586a6ac1e2b103f8fc955a735accf49d99734e57ae3e2",
+      "published_sha256": "aa599d502d834a4ef3fc63f8f8220eb580e55b6df057ecf36dd0306dc8dae7cc",
+      "original_bytes": 14062,
+      "published_bytes": 6240,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            22,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            52,
+            53,
+            54,
+            55,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            125,
+            126,
+            127,
+            128,
+            136,
+            137,
+            138,
+            139,
+            140,
+            141,
+            142,
+            143,
+            144,
+            145,
+            146,
+            150,
+            153,
+            159,
+            160,
+            161,
+            162,
+            163,
+            164,
+            165,
+            166,
+            167,
+            168
+          ],
+          "removed_line_count": 79,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-schematic-v14-20261008.log",
+      "published_path": "live-cli/native-500ma-schematic-v14-20261008.filtered.log",
+      "original_sha256": "c20b517c000a13f89f7dad8f624ea58bf839e787c3988b002e15deadecf1e5af",
+      "published_sha256": "4b95ab15147d2749f3138eca6508e71dbdcbdcab31af43ce96d3c9eef864a15b",
+      "original_bytes": 11548,
+      "published_bytes": 4549,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            18,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            44,
+            45,
+            46,
+            47,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            92,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131,
+            132,
+            133,
+            140,
+            146,
+            147,
+            148,
+            149,
+            150,
+            151,
+            152,
+            153,
+            154,
+            155,
+            156
+          ],
+          "removed_line_count": 81,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-spec-v7-20261008.log",
+      "published_path": "live-cli/native-500ma-spec-v7-20261008.filtered.log",
+      "original_sha256": "dc96cee8c19773b2ab6f5739a6d02bf9a6dacfd6e2bfee439d039937bc60f851",
+      "published_sha256": "c246f5cc27f2b8f84fd9dcfdfa56ec467022e3b6c6f7240b6b73f34b05e5af04",
+      "original_bytes": 15036,
+      "published_bytes": 5427,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        },
+        {
+          "rule": "cli-structural-line-allowlist",
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131,
+            132,
+            133,
+            139,
+            140,
+            141,
+            142,
+            143,
+            144,
+            145,
+            146,
+            147,
+            154,
+            160,
+            161,
+            162,
+            163,
+            164,
+            165,
+            166,
+            167
+          ],
+          "removed_line_count": 72,
+          "detail": "Retain CLI stage/environment/timing/selected-verification/commit/terminal lines. Remove all model free-text plans, narrative, decisions, file-content previews and non-allowlisted tool output."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-architecture-v8-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-architecture-v8-20261008.meta.json",
+      "original_sha256": "74c004065d3f88e83571dd649ddd96a8faf5ae8ace8a866c826a3aafd5b498f5",
+      "published_sha256": "024ea54330fd0e645569d9bf8b1b492dd34c9a4bf9d3ddca4879ebd7a4ba832c",
+      "original_bytes": 1516,
+      "published_bytes": 1384,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-architecture-v9-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-architecture-v9-20261008.meta.json",
+      "original_sha256": "8e7ab85d8c380ee91d7e7d48174ac7997a754a212d84c2686ee3221a22995ec6",
+      "published_sha256": "ac21c9ac8a7d1bcc93299cdab7a6e78c8dc48dd0ec02eee2b94e78ca25be8f45",
+      "original_bytes": 1669,
+      "published_bytes": 1537,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-devplan-v20-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-devplan-v20-20261008.meta.json",
+      "original_sha256": "7fedb7f2e4e1e78966abe63a5954d329ca485391e3657d9b393d88983fd0e49f",
+      "published_sha256": "30fd940eb47f76b5ca6f39742716a1631ac44af4da50fb510ff214d643a43311",
+      "original_bytes": 1733,
+      "published_bytes": 1601,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-devplan-v21-20261009.meta.json",
+      "published_path": "live-cli/native-500ma-devplan-v21-20261009.meta.json",
+      "original_sha256": "fbb09d2b24e6170faac1a4321d247ac9239b80a76a7008718e750fdd9cbd2df5",
+      "published_sha256": "b66bc60a796fda37e4d8b1119f7257d332cdb1ba7599105e24940acda03ba6e3",
+      "original_bytes": 1732,
+      "published_bytes": 1600,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-firmware-v19-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-firmware-v19-20261008.meta.json",
+      "original_sha256": "b2dbc05da4f26e722b20ca3426fca1cc37a96927ddf1b818ea2a2cb8777c65bd",
+      "published_sha256": "4e988ab3365738cc8c1cc3d9ff1b7c40cc64e176dca14766f3f884215e203ca5",
+      "original_bytes": 1735,
+      "published_bytes": 1603,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-layout-v15-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-layout-v15-20261008.meta.json",
+      "original_sha256": "2b95fef647e6b84e00d10e8843f6b680535b12e9ada31563c3ea37a8a66fffac",
+      "published_sha256": "426e7adfef8fc6397527a8345453190b9760e4080c96e7a750e5e7af020ef999",
+      "original_bytes": 1586,
+      "published_bytes": 1454,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-layout-v16-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-layout-v16-20261008.meta.json",
+      "original_sha256": "a6b6a498c2de467c144954a3ec724d467a60ec6e2bca39297579b1ee7b02086a",
+      "published_sha256": "6db63344107f7d7aff9cdeba0847bc792f46811f484a4a1bf3397bc6b5f55562",
+      "original_bytes": 1728,
+      "published_bytes": 1596,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-outputs-v17-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-outputs-v17-20261008.meta.json",
+      "original_sha256": "18ce087d4c5f33d2407bdab515cada27862bed6bce612d36a53c3968594f4b21",
+      "published_sha256": "72d771df2ee5e112879b117412e72b1943f91a26c571321919c879f33d66210b",
+      "original_bytes": 1731,
+      "published_bytes": 1599,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-outputs-v18-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-outputs-v18-20261008.meta.json",
+      "original_sha256": "98de813db17527b641f7520693cbd3552f0fedf8fa01a2112c3b11cfbfe03b37",
+      "published_sha256": "a1943b0eeb561fc538af8a1117be009a65581ded00c39f273bb75f874fa6db90",
+      "original_bytes": 1732,
+      "published_bytes": 1600,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-parts-v10-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-parts-v10-20261008.meta.json",
+      "original_sha256": "f7fd1b7c2256ddeeeb1780fe586ad4c360f09369bb197640ede12b9a66383eb3",
+      "published_sha256": "8fb9014afd4e14142cd8629724e140fef6302f88dd582c62b9669c8475a4b529",
+      "original_bytes": 1651,
+      "published_bytes": 1519,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-parts-v11-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-parts-v11-20261008.meta.json",
+      "original_sha256": "bba6671ac62b16c3df63b119af1c2af7669bcd97c4affbf56cee06589f9b161a",
+      "published_sha256": "6a63aaa0ce711fdafa16e7c24716332692742a98761b0010a52d97edc205b0ad",
+      "original_bytes": 1645,
+      "published_bytes": 1513,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-parts-v12-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-parts-v12-20261008.meta.json",
+      "original_sha256": "518ffae98bacfc42c5f8f2845e7673479b0ac9c9a19288d159dd6e5776aec343",
+      "published_sha256": "a353c9260fc4ea3c0ff02462b0e0895d5b3a34344f1b8148b1c6654ac786f83a",
+      "original_bytes": 1724,
+      "published_bytes": 1592,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-schematic-v13-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-schematic-v13-20261008.meta.json",
+      "original_sha256": "57c8e025336d7ef3cd8c7bbff070c5004bf2c7d2de2afe1921db6bd325e8cbe3",
+      "published_sha256": "c244ccc8fa9a8c671ce1a4785769c1c70518ef7fb0aba5f2b54c2f09ab8137af",
+      "original_bytes": 1736,
+      "published_bytes": 1604,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-schematic-v14-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-schematic-v14-20261008.meta.json",
+      "original_sha256": "c6ba28a6188e9a9e716b3e8cfb0c43d28005daf2626db5a4cdbe887b55afb763",
+      "published_sha256": "941daf07ff08cb3ea9fc633918d23635d949662c92ea38384ba4e1b32373c994",
+      "original_bytes": 1740,
+      "published_bytes": 1608,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "logs/native-500ma-spec-v7-20261008.meta.json",
+      "published_path": "live-cli/native-500ma-spec-v7-20261008.meta.json",
+      "original_sha256": "c7db4970b9dfc698046216f0cfd796a7b3badf21537385f6040a64da9df5fbc6",
+      "published_sha256": "bc89a992b6c0cb806199432641d993df05f5c3c7f3f1bf289f44d4b6f415892c",
+      "original_bytes": 1611,
+      "published_bytes": 1479,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 6
+        },
+        {
+          "rule": "runtime-install-prefix",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T19-34-57-581Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T19-34-57-581Z/summary.filtered.md",
+      "original_sha256": "a0efd1e605ef379702ba20a8f67f1bd7a9e2af64b3d9bbaeac4343460e970802",
+      "published_sha256": "59e50a52b8fa9ea6740445280046e8600a4e7eda9997e5d772abb16d789bb99e",
+      "original_bytes": 32070,
+      "published_bytes": 1166,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49
+          ],
+          "removed_line_count": 100,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T19-52-18-288Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T19-52-18-288Z/summary.filtered.md",
+      "original_sha256": "ba86c9be2dcb6f25adb6e109a74e949cebd955902072221108d04aa76f79d22f",
+      "published_sha256": "983b6bbb5e85da3d56e4b9d51b1f4a027127eb102f2e3dbdac365cdf74567592",
+      "original_bytes": 1317,
+      "published_bytes": 1102,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42
+          ],
+          "removed_line_count": 15,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-16-53-044Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T20-16-53-044Z/summary.filtered.md",
+      "original_sha256": "2d64a3c92f40921eb8ae46638da3c32c230b273c162e18a5e3463343cccb29e8",
+      "published_sha256": "bbe4670f2f8497146cd64751bb1ecc165698118de304fd1937043dd6874dfb29",
+      "original_bytes": 5813,
+      "published_bytes": 1165,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "removed_line_count": 28,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-27-55-776Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T20-27-55-776Z/summary.filtered.md",
+      "original_sha256": "329cf72d3fed2afba75ffb138bdea3ce592245d80628e4e714412f4f5b9df6b1",
+      "published_sha256": "6ac463c24ee4d57c1e34a082d74750f9a35f064bb94e706797cd54179a385678",
+      "original_bytes": 1315,
+      "published_bytes": 1098,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42
+          ],
+          "removed_line_count": 15,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-28-22-172Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T20-28-22-172Z/summary.filtered.md",
+      "original_sha256": "cad701a7214c350798ab621a6948c41bf3d9bbbc942cfc97bba2f4f25a79a802",
+      "published_sha256": "580a5bdf6a2e72856b430b600a94761f58bd8781bc8a90211683aa3c6664e151",
+      "original_bytes": 2876,
+      "published_bytes": 1164,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43
+          ],
+          "removed_line_count": 15,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-48-03-753Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T20-48-03-753Z/summary.filtered.md",
+      "original_sha256": "bc725b9ca757d98e4ce229634945b1b2022001c7b578414e24edc90350047bb4",
+      "published_sha256": "ce70beefcc2e503ebb286c9c3242fe8091988d00062f8a02752ce2690fb1ce2f",
+      "original_bytes": 3868,
+      "published_bytes": 1166,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "removed_line_count": 19,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T21-16-42-319Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T21-16-42-319Z/summary.filtered.md",
+      "original_sha256": "836f3f4d35294b4b35e7c94e1709dc16901d390755b170fce6487d3a0e978def",
+      "published_sha256": "27772ecb42877011cac57de43286ec3cc1c794aa57ecfcadc7b4e1901f69aaf6",
+      "original_bytes": 37456,
+      "published_bytes": 1157,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ],
+          "removed_line_count": 143,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T21-36-25-799Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T21-36-25-799Z/summary.filtered.md",
+      "original_sha256": "911db33de975024eb15ae972276e2a6586d09e0c75131427fe1ded75999fcc5d",
+      "published_sha256": "dab494057a3df523165ef3feadb2ad3785c132e7f1d3c2eb953345cf50dba30b",
+      "original_bytes": 1463,
+      "published_bytes": 1251,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42
+          ],
+          "removed_line_count": 15,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T21-37-03-866Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T21-37-03-866Z/summary.filtered.md",
+      "original_sha256": "a277d7070a2e8f0ea936451b5cee2d93694b7a6cf80d26f7bc41a5378a0137be",
+      "published_sha256": "0d7a61c2d403fcf51065e77192d945478d7228b173f85e5f12b64c4c0c8fe142",
+      "original_bytes": 8493,
+      "published_bytes": 1329,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43
+          ],
+          "removed_line_count": 32,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-04-18-436Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T22-04-18-436Z/summary.filtered.md",
+      "original_sha256": "5de125f545193b92567ef0c42a451805166f22dd55dd16213e6aeb56345de4dc",
+      "published_sha256": "baf5278518935f0db86ced4a9fb3fa313a6bc5b6e8d752d5dad26961c30d440e",
+      "original_bytes": 6816,
+      "published_bytes": 1331,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51
+          ],
+          "removed_line_count": 34,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-13-28-295Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T22-13-28-295Z/summary.filtered.md",
+      "original_sha256": "80082519467dcd3e3220441cc526ab4a2bb665bb693c424b02f8d3bc2e4430d8",
+      "published_sha256": "2a990421669fb951a39ea72f837ab8f04e3b784853bd6011570621d4fef4006c",
+      "original_bytes": 2155,
+      "published_bytes": 1261,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42
+          ],
+          "removed_line_count": 22,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-45-04-814Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T22-45-04-814Z/summary.filtered.md",
+      "original_sha256": "f73450c78eb97ba8e8249bec9d2006e35d71352b4fe7c8fe0687099313724408",
+      "published_sha256": "a8ec10a6475306548ec3726f881b2cccf21adb618c16982d331f32f5dd4224f1",
+      "original_bytes": 3718,
+      "published_bytes": 1330,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50
+          ],
+          "removed_line_count": 21,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-56-31-710Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T22-56-31-710Z/summary.filtered.md",
+      "original_sha256": "c010bd85ed904a0611d5fa1ed3fd0985b846f456cc8c7be91c74560ad4e45cbe",
+      "published_sha256": "97e25fb038739830dd962a2d8add9cf7bbc2e0fd5b09cd6bcb3db42b5e883b8f",
+      "original_bytes": 1442,
+      "published_bytes": 1232,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42
+          ],
+          "removed_line_count": 15,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-58-28-594Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T22-58-28-594Z/summary.filtered.md",
+      "original_sha256": "6f21d00f9976296f7cabd99f2d401efdabbada73ede550155cdd2d502e1259a9",
+      "published_sha256": "cc14e61a95ed6bfb124cf56896ab9b53f1344f302fd76a89854a2e76225a196d",
+      "original_bytes": 5123,
+      "published_bytes": 1331,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43
+          ],
+          "removed_line_count": 23,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-42-05-337Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T23-42-05-337Z/summary.filtered.md",
+      "original_sha256": "3015763c9f40ab8bd5c39121ed08ca107ef4c0f0327df0059875bc183b647de1",
+      "published_sha256": "c8e2eeac504fb8948ebda38e7e63d8c84ce284eb2460635a1d1a37f762c4c236",
+      "original_bytes": 4085,
+      "published_bytes": 1310,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49
+          ],
+          "removed_line_count": 25,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-50-09-244Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T23-50-09-244Z/summary.filtered.md",
+      "original_sha256": "a4eb66a8c6bcc1c2f1ed50226057e48563acc153bcb531abd1864bd986ff3620",
+      "published_sha256": "c305d34c41dfb6f62451b46ba898cacfcc073f5dc9030641e7539f7350b085c8",
+      "original_bytes": 1462,
+      "published_bytes": 1251,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42
+          ],
+          "removed_line_count": 15,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-50-46-598Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T23-50-46-598Z/summary.filtered.md",
+      "original_sha256": "5384ef3791bc358c283e94dd1be0ddd1d211b40a79226de5980dc140c73749e7",
+      "published_sha256": "67446abd61a1cf89d554cabe79ef1ee134cc01374bbd8b27a53f3bc1dbbd872b",
+      "original_bytes": 2946,
+      "published_bytes": 1330,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "removed_line_count": 17,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-57-38-394Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T23-57-38-394Z/summary.filtered.md",
+      "original_sha256": "b3bc24ff8eeb046179ede9b3d0db44487cf032d4e8a7c27903e5d046622a8894",
+      "published_sha256": "2fa3ebffbf8b5571f6283fb2a5f94b2bfa7619c3235ba8493b464303764f9aa0",
+      "original_bytes": 1390,
+      "published_bytes": 1234,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42
+          ],
+          "removed_line_count": 15,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-57-59-418Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-08T23-57-59-418Z/summary.filtered.md",
+      "original_sha256": "7cc403c2a01c1213fcceff876f445fdc0f3737d3fff6dcf0fd20819ac5d6289f",
+      "published_sha256": "7ac735981932d1947ce7344dd61afeac0ac2ba7ae6aecfff858dfd3a0c9b280d",
+      "original_bytes": 1389,
+      "published_bytes": 1233,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42
+          ],
+          "removed_line_count": 15,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-09T00-00-15-353Z/summary.md",
+      "published_path": "native-run-summaries/2026-10-09T00-00-15-353Z/summary.filtered.md",
+      "original_sha256": "8091879c97e2e08fa2352bf71fc254734af38b854565a2b8823ef26165bd96d4",
+      "published_sha256": "e932244090b18595dfb29f5821615ca7515480190128572add84d3be57c37562",
+      "original_bytes": 5114,
+      "published_bytes": 1307,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        },
+        {
+          "rule": "summary-section-allowlist",
+          "retained_sections": [
+            "preamble",
+            "Environment",
+            "Run stats",
+            "Verification"
+          ],
+          "retained_original_line_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46
+          ],
+          "removed_line_count": 24,
+          "detail": "Remove Plan, Decisions, Detail, Files touched, and free-form open-obligation sections. Preserve original summary privately."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/report.json",
+      "published_path": "native-final-report/report.json",
+      "original_sha256": "55930984f35a984a2eff53f436835af78105026ecf3eb19a99ed95b76d4b10b7",
+      "published_sha256": "55930984f35a984a2eff53f436835af78105026ecf3eb19a99ed95b76d4b10b7",
+      "original_bytes": 1917,
+      "published_bytes": 1917,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/REPORT.md",
+      "published_path": "native-final-report/REPORT.md",
+      "original_sha256": "5faac9205ee7671072c47bab5f5dce3eb3cd3689c08634b4deb1b1fd8336fcdf",
+      "published_sha256": "5faac9205ee7671072c47bab5f5dce3eb3cd3689c08634b4deb1b1fd8336fcdf",
+      "original_bytes": 832,
+      "published_bytes": 832,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T19-34-57-581Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T19-34-57-581Z.filtered.jsonl",
+      "original_sha256": "3b561eef61e025f59978966da3172b9581df3ea40fab27416776fd35df0f93b2",
+      "published_sha256": "108d8f495e13233ea9d620ee7173674771ad9f7b5202818ca72e45434f608834",
+      "original_bytes": 225117,
+      "published_bytes": 1713,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T19-52-18-288Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T19-52-18-288Z.filtered.jsonl",
+      "original_sha256": "af1b417da458c45ed2031bcce54a8d3fe55da8e448204a9d70d05f6aeaf32ec3",
+      "published_sha256": "275ab220c083d1ec25cd1f1e60aa19471e2f33d4a0f66c6b5454f9894fee02c1",
+      "original_bytes": 1527,
+      "published_bytes": 740,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T19-56-56-701Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T19-56-56-701Z.filtered.jsonl",
+      "original_sha256": "4d6725455956a586b2a6c826d3556615b712191775cee358ce5975af295feed4",
+      "published_sha256": "de3fb03ec8f4272fb86996c1cf06f92367c275ae0d65b7caae6f36bb92a8ea30",
+      "original_bytes": 12309,
+      "published_bytes": 801,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-16-53-044Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T20-16-53-044Z.filtered.jsonl",
+      "original_sha256": "2c8fceedbea385474c4c0dc4cd1aa0a2e92db8e2ad88cbbff15e2a62eb8dbe3c",
+      "published_sha256": "b14fe5c7c7b6a1c31742a55d634923f49ca74bfd287dd52ac58e1867fc7eedef",
+      "original_bytes": 162343,
+      "published_bytes": 1768,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-27-55-776Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T20-27-55-776Z.filtered.jsonl",
+      "original_sha256": "aa8e9e41f04afcdede174aaaba2ac818d9ff6ba221da28a9ed8d4969c656a499",
+      "published_sha256": "b65a93c8ca67b008ed77c515065c5af4ab61094521ba46c8ddc4acc8897df4b7",
+      "original_bytes": 1424,
+      "published_bytes": 752,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-28-22-172Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T20-28-22-172Z.filtered.jsonl",
+      "original_sha256": "a847cd418e41b9a83da7f62a707ed0105548d673d6e7d73fa409ce7b95a2f695",
+      "published_sha256": "bfe564df0bc878deb71db665f1734a4cc2fa0765adfaed4efc61bd02714d0f5d",
+      "original_bytes": 56341,
+      "published_bytes": 1332,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-48-03-753Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T20-48-03-753Z.filtered.jsonl",
+      "original_sha256": "a293cf231319eceb6e63097c0d8f5d9bbfc615e41438ca3d25f8ac8f94623f34",
+      "published_sha256": "ed3a81889bdfdab727100fbd406c768af405641a402b4e6ea9aec4274f72b2d3",
+      "original_bytes": 50748,
+      "published_bytes": 1068,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T21-16-42-319Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T21-16-42-319Z.filtered.jsonl",
+      "original_sha256": "15cc0b1333577a107e9ba6a00ecdf7b1d6f3c40601991caf798ec7c1b022cae3",
+      "published_sha256": "35b1d8cc79b4ea78f51d8f0c5dc69623f8d0bb1eb1e9ca1754687c6e5ed1bd2f",
+      "original_bytes": 634036,
+      "published_bytes": 1934,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T21-36-25-799Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T21-36-25-799Z.filtered.jsonl",
+      "original_sha256": "42d7290d23b6fabd2276a194b1c682fd861df6fac221b51638382312f430e2de",
+      "published_sha256": "04bbc3c9b3d5f40e2770537a710fc9d9be362a44ebed84014953ab0184d63fe1",
+      "original_bytes": 1678,
+      "published_bytes": 893,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T21-37-03-866Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T21-37-03-866Z.filtered.jsonl",
+      "original_sha256": "09a3073a69b9b2cc30b3785e97158b65ccaa3c87bbf7d6dc7a965945f0e64fb6",
+      "published_sha256": "7908b19c33660523a5375998e92693ccc6441449bbb947a2651415ccf6f38a4d",
+      "original_bytes": 466747,
+      "published_bytes": 3904,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-04-18-436Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T22-04-18-436Z.filtered.jsonl",
+      "original_sha256": "3cf0aab3e698b31f4d3ea73063769352a3ac3fdd8c8a87d9b55bd069410e8ffe",
+      "published_sha256": "3bd915e2aa49ad4080ab45ec088c8208526af2f2eea41e648a724417adc21aec",
+      "original_bytes": 283121,
+      "published_bytes": 2729,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-13-28-295Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T22-13-28-295Z.filtered.jsonl",
+      "original_sha256": "95418661fd33747af02018a811f56a42e336e136e056cb4cece1a36f1ce9ae11",
+      "published_sha256": "3b56a9872277fa78d3d3f8279babfaff086ca3ebb32db4b2b0c4d7ada309a2b9",
+      "original_bytes": 1690,
+      "published_bytes": 902,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-14-53-162Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T22-14-53-162Z.filtered.jsonl",
+      "original_sha256": "3c9b4373aac18e790a499762fed70cf1def29dfd8d4c97439cb6e9f3cd9559bb",
+      "published_sha256": "0f36ad9a5917043fb29a34640cb0a60db272d30e987727d94904207ab6116912",
+      "original_bytes": 346821,
+      "published_bytes": 3142,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-45-04-814Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T22-45-04-814Z.filtered.jsonl",
+      "original_sha256": "a6204abb0097652cbf745c7854d2a787342c46dca4981e56f211439c1ef5f029",
+      "published_sha256": "3f8aa53de06e8530c586f8bb829610f5b373ba8f94b712409bc1bd880f60e66a",
+      "original_bytes": 232442,
+      "published_bytes": 3234,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-56-31-710Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T22-56-31-710Z.filtered.jsonl",
+      "original_sha256": "f9ef0772bad77a5d4278cabe188120567761b3afb532910ba2123c1f36192162",
+      "published_sha256": "c8f7ae7061995e84bd0c83b9ea5127eb262b664289a81a43a0fd0bc03381668e",
+      "original_bytes": 1555,
+      "published_bytes": 889,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-58-28-594Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T22-58-28-594Z.filtered.jsonl",
+      "original_sha256": "9a1b2bd7400349183694e322fb3327c8d593101b071713af2c4d26b7b77e8326",
+      "published_sha256": "bca674241ae24b9bed56499fd390a2798a14bccbdb63efef32119c31fa68d42b",
+      "original_bytes": 166085,
+      "published_bytes": 2048,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-42-05-337Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T23-42-05-337Z.filtered.jsonl",
+      "original_sha256": "6b9209865f83bcdfccf3a475b69704befef4ab41ea2da4b0d42ccf724fd1adde",
+      "published_sha256": "50be8e6c1e894606828916e71f20d5aea92eac9d5aff1b2842022fdcfd38d64f",
+      "original_bytes": 141501,
+      "published_bytes": 2317,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-50-09-244Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T23-50-09-244Z.filtered.jsonl",
+      "original_sha256": "57227cad4e6ba641e678d856a524a1df09db51c6d7d6cc95e9fee3c8504607ae",
+      "published_sha256": "2d11cb321ea112c0b52f3b87220e367dbeaf1be009ba4f3a1ae7fe979111283f",
+      "original_bytes": 1677,
+      "published_bytes": 893,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-50-46-598Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T23-50-46-598Z.filtered.jsonl",
+      "original_sha256": "d66439f4f4cd3c4bd5130777154185ad2b4bfd707eebef066f91535a3d132477",
+      "published_sha256": "a40eb305a2e30ae209e542dea0f9f5961f064a24ce3034eb35a3984ec0a260d0",
+      "original_bytes": 91535,
+      "published_bytes": 3004,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-57-38-394Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T23-57-38-394Z.filtered.jsonl",
+      "original_sha256": "6c6048599a89dc6f6428edd758eb20ff3356d390d4e35e04c4439512e00b5c0f",
+      "published_sha256": "2fc49739f5e571e3b66889cd2318ee5dc36c70a15506bdb0fca255733eb4a4e9",
+      "original_bytes": 1503,
+      "published_bytes": 891,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-57-59-418Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-08T23-57-59-418Z.filtered.jsonl",
+      "original_sha256": "180175609362e69d9151b34203cf546e3c97fe5eef391f23e4d5f3e4ca6e50d3",
+      "published_sha256": "d10b03904eec945d9ef24450cff44ee790664732e59034708483faf0823478ac",
+      "original_bytes": 1502,
+      "published_bytes": 890,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-09T00-00-15-353Z/transcript.jsonl",
+      "published_path": "native-gate-events/2026-10-09T00-00-15-353Z.filtered.jsonl",
+      "original_sha256": "b68e4933ba814dfca29043df170caaa651d1d2130f441bff046a2a18b296a380",
+      "published_sha256": "35ea55c71537632eb37355a0f7e163d26cb091dae470a5452d6f759a62b2dbaf",
+      "original_bytes": 232169,
+      "published_bytes": 3604,
+      "redaction_rules": [
+        {
+          "rule": "event-allowlist",
+          "detail": "Retain lifecycle/commit/terminal events and gate tool names/results only. Exclude assistant/user content, model requests/responses, file-read/write bodies, tool arguments and envelopes."
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "diagnostics/layout-v15-raw/drc.json",
+      "published_path": "raw-kicad/layout-v15-raw/drc.json",
+      "original_sha256": "a69183fdee3fa5abaf0a32e3db326a6da7171ee1ae1949b94a4529c2b9d92983",
+      "published_sha256": "a69183fdee3fa5abaf0a32e3db326a6da7171ee1ae1949b94a4529c2b9d92983",
+      "original_bytes": 3654,
+      "published_bytes": 3654,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "diagnostics/layout-v15-raw/stderr.txt",
+      "published_path": "raw-kicad/layout-v15-raw/stderr.txt",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "published_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "published_bytes": 0,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "diagnostics/layout-v15-raw/stdout.txt",
+      "published_path": "raw-kicad/layout-v15-raw/stdout.txt",
+      "original_sha256": "dd7f6662fcd33e1a0a741a0f2ae3c0d641ca7a91d5937963b627d505d6dc583f",
+      "published_sha256": "71ccd68eb381472fd09a678aae74dbe19fdfbd1fcacc7bfb730ac234fb04d996",
+      "original_bytes": 166,
+      "published_bytes": 152,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "diagnostics/layout-v15-raw/verification.json",
+      "published_path": "raw-kicad/layout-v15-raw/verification.json",
+      "original_sha256": "6181a4449dd75c711950da1433b444bf6ad48dc968a70bf5e03f5878c75228e2",
+      "published_sha256": "904c71c365d760c0a25e2159a6c663ee269e482d4e861e1fc806e48b104cf1ff",
+      "original_bytes": 1885,
+      "published_bytes": 1857,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 2
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "diagnostics/layout-v16-raw/drc.json",
+      "published_path": "raw-kicad/layout-v16-raw/drc.json",
+      "original_sha256": "5a7523243f8b1345cb8be58443312f9ae983d1d7c4a80e95eef6c26ba1ea298f",
+      "published_sha256": "5a7523243f8b1345cb8be58443312f9ae983d1d7c4a80e95eef6c26ba1ea298f",
+      "original_bytes": 3654,
+      "published_bytes": 3654,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "diagnostics/layout-v16-raw/stderr.txt",
+      "published_path": "raw-kicad/layout-v16-raw/stderr.txt",
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "published_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "original_bytes": 0,
+      "published_bytes": 0,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "diagnostics/layout-v16-raw/stdout.txt",
+      "published_path": "raw-kicad/layout-v16-raw/stdout.txt",
+      "original_sha256": "5f2897cc7f9b6fd12d7489203a8c1efd1a1f093cdfa6941c1e987aba556f51c2",
+      "published_sha256": "11a9b057b6ad2f3348b558ce7724bc46e5ca1b307572066f005e4f1120aa41bc",
+      "original_bytes": 166,
+      "published_bytes": 152,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 1
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "diagnostics/layout-v16-raw/verification.json",
+      "published_path": "raw-kicad/layout-v16-raw/verification.json",
+      "original_sha256": "65ee12f4a948f5e422b3b66dc9096116cf49c7265377187395bc84ee79ce6444",
+      "published_sha256": "9bf547b49cdc83e0cb90d37253b5109e66bcec9a93fc0439757874ef624dda61",
+      "original_bytes": 1775,
+      "published_bytes": 1747,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 2
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "source-manifest.json",
+      "published_path": "historical-runtime-manifests/source-manifest.json",
+      "original_sha256": "d2a685dac5f131a4160abad32a57806979ab6494539f8b7ca337c3373088854b",
+      "published_sha256": "afeafa6f2aa578db25f9c679c42be4c6b8d96f9fe2fb2239fa2e3c4b361395a0",
+      "original_bytes": 1341,
+      "published_bytes": 1285,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "source-manifest.v1.json",
+      "published_path": "historical-runtime-manifests/source-manifest.v1.json",
+      "original_sha256": "d2a685dac5f131a4160abad32a57806979ab6494539f8b7ca337c3373088854b",
+      "published_sha256": "afeafa6f2aa578db25f9c679c42be4c6b8d96f9fe2fb2239fa2e3c4b361395a0",
+      "original_bytes": 1341,
+      "published_bytes": 1285,
+      "redaction_rules": [
+        {
+          "rule": "cloud-workspace-path",
+          "count": 4
+        }
+      ],
+      "unchanged_bytes": false
+    },
+    {
+      "source": "source-manifest.v4.json",
+      "published_path": "historical-runtime-manifests/source-manifest.v4.json",
+      "original_sha256": "3ccad0f6a08ea706f08690232a279b0822e0b5fb77adedebda24de317b9f839a",
+      "published_sha256": "3ccad0f6a08ea706f08690232a279b0822e0b5fb77adedebda24de317b9f839a",
+      "original_bytes": 1008,
+      "published_bytes": 1008,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "source-manifest.v7.json",
+      "published_path": "historical-runtime-manifests/source-manifest.v7.json",
+      "original_sha256": "2aee51e663a1095fea34ecb270571b8d46435e533e289a738edb4b31611f9f66",
+      "published_sha256": "2aee51e663a1095fea34ecb270571b8d46435e533e289a738edb4b31611f9f66",
+      "original_bytes": 1234,
+      "published_bytes": 1234,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "source-manifest.v8.json",
+      "published_path": "historical-runtime-manifests/source-manifest.v8.json",
+      "original_sha256": "07c6b69adb2bfc920aebc0c2e2f8f07edeffa83041a409b8d632c889d418aab9",
+      "published_sha256": "07c6b69adb2bfc920aebc0c2e2f8f07edeffa83041a409b8d632c889d418aab9",
+      "original_bytes": 1603,
+      "published_bytes": 1603,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    },
+    {
+      "source": "logs/native-devplan-id-fix-evidence.json",
+      "published_path": "historical-runtime-manifests/native-devplan-id-fix-evidence.json",
+      "original_sha256": "d15014f02d8d92723a0e645405eae5c0e2c36b12508c430bbdd7e3dab2db5219",
+      "published_sha256": "d15014f02d8d92723a0e645405eae5c0e2c36b12508c430bbdd7e3dab2db5219",
+      "original_bytes": 656,
+      "published_bytes": 656,
+      "redaction_rules": [],
+      "unchanged_bytes": true
+    }
+  ],
+  "private_only_exclusions": [
+    "All raw native requests, responses and adapter presentation/supplement content",
+    "Full unfiltered transcripts",
+    "Design Git bundle and source worktree snapshots/diff",
+    "Private task research and historical stage archives"
+  ],
+  "missing_originals": [
+    "Two interrupted runs have transcript but no summary/terminal record",
+    "No standalone raw ERC JSON located in the scoped source task tree",
+    "No original final-audit raw DRC JSON located; preserved v16 raw DRC is tied to the exact final board SHA-256",
+    "No immutable, complete per-stage patched runtime snapshot located"
+  ],
+  "generated_files": [
+    {
+      "published_path": "README.md",
+      "original_sha256": null,
+      "published_sha256": "70331c78ea8fe933858a2531cd595a8ac4d1555ad96f297d1a21c4a834916b88",
+      "published_bytes": 6640,
+      "redaction_rules": [
+        {
+          "rule": "new-audit-artifact",
+          "detail": "New static inventory/audit from original records; not original execution output. Source records are named in the artifact."
+        }
+      ]
+    },
+    {
+      "published_path": "adapter-record-binding-audit.json",
+      "original_sha256": null,
+      "published_sha256": "3884a28dfd27b0a17abc15b159a2c61e69a93073d45e26d5bdca986e525baf2f",
+      "published_bytes": 5620,
+      "redaction_rules": [
+        {
+          "rule": "new-audit-artifact",
+          "detail": "New static inventory/audit from original records; not original execution output. Source records are named in the artifact."
+        }
+      ]
+    },
+    {
+      "published_path": "design-git-proof-chain.json",
+      "original_sha256": null,
+      "published_sha256": "404ef0757e594b336f480444736da843cc5be14b13badd5efa86816d5cdeb475",
+      "published_bytes": 22587,
+      "redaction_rules": [
+        {
+          "rule": "new-audit-artifact",
+          "detail": "New static inventory/audit from original records; not original execution output. Source records are named in the artifact."
+        }
+      ]
+    },
+    {
+      "published_path": "runtime-and-library-provenance.json",
+      "original_sha256": null,
+      "published_sha256": "95fbd10d87467fd59e4a35bb6baf74874cdf25af8ffaccf7f109df89e78f9638",
+      "published_bytes": 4839,
+      "redaction_rules": [
+        {
+          "rule": "new-audit-artifact",
+          "detail": "New static inventory/audit from original records; not original execution output. Source records are named in the artifact."
+        }
+      ]
+    },
+    {
+      "published_path": "runtime-manifest-current-comparison.json",
+      "original_sha256": null,
+      "published_sha256": "4463470db18e8e640b1c0b912441d63216ff55296ed654f6df349e93d0625899",
+      "published_bytes": 8905,
+      "redaction_rules": [
+        {
+          "rule": "new-audit-artifact",
+          "detail": "New static inventory/audit from original records; not original execution output. Source records are named in the artifact."
+        }
+      ]
+    }
+  ],
+  "manifest_self_hash": "Recorded in SHA256SUMS to avoid recursive self-hashing."
+}

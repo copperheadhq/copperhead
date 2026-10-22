@@ -1,0 +1,30 @@
+# Stage6 draft outputs package
+
+Change: export-stage6-draft-outputs. Generated exclusively through export_outputs from the current design using selected outputProfile=generic and KiCad9.0.9. All export jobs succeeded. No hardware source, selected part, value, pin, footprint or budget changed. Rationale: package the existing experimental draft for review without implying acceptance.
+
+## Artifacts
+
+- outputs/gerbers/:21 Gerber/job files and the Excellon drill file.
+- outputs/fabrication.zip: generated archive,107494 bytes.
+- outputs/outline.dxf/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-Edge_Cuts.dxf: outline export.
+- outputs/board.step: STEP board/outline export.
+- outputs/board.svg: board render.
+- outputs/renders/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.svg: schematic render.
+- outputs/BOM.csv: ordering-format Refdes,MPN,Qty table derived from docs/BOM.md; readback matches all39 board refdes and selected MPNs, each Qty1. Qualification status remains UNVERIFIED in BOM.md; no stock, price or procurement acceptance is inferred.
+- outputs/export-manifest.json: generated schema1,state complete,profile generic,KiCad9.0.9; records SHA256 for BOM.md and the KiCad PCB/project/schematic sources and28 generated artifact files. Never hand-edit the manifest or generated exports.
+
+Rationale: preserve actual exporter paths, including the DXF directory and schematic render location, rather than inventing normalized filenames.
+
+## Export policy
+
+Stage6 exports use the selected generic profile; profile settings, zone fills and manufacturer acceptance are not verified. Every export must succeed and current source/file hashes must match the generated export-manifest.json before completion. Missing legacy manifests, source/output changes or a profile change require rerunning export_outputs; never fabricate evidence or switch profiles to bypass a failure. Only explicit outputProfile=jlcpcb-kicad9-2026-09-24 selects KiCad9 JLC checks and jlcpcb.zip; that profile rejects copper-fill zones and unsupported versions without fallback. These are draft outputs, never manufacturer acceptance or fabrication release. Rationale: export success and integrity do not establish manufacturer suitability.
+
+## Stage8 order-plan review
+
+Stage8 inspected the generated manifest:complete/generic/KiCad9.0.9,4 source hashes and28 artifact entries; profile verification not-requested,zone fill/manufacturer acceptance not-verified. No export source or generated file changes in this documentation review. Stored hashes require current completion-gate validation. docs/DEVPLAN.md now blocks ordering this93-unrouted draft as functional and defines future routing/power/RF/package/process review and export-regeneration gates. A later changed revision must be re-exported and inspected before purchase; this stage neither places an order nor releases fabrication.zip. Rationale: retain exporter evidence while making prototype ordering conditional on actual engineering readiness.
+
+## Verification and boundaries
+
+Current run: ERC clean; DRC clean with93 connections still unrouted; drift clean; legibility0 errors and2 long-wire advisories. Exporter reports all requested jobs complete. Manifest and CSV were read back; current source/file hash consistency is enforced by the completion gate, rather than inferred from the manifest's stored hashes alone.
+
+The board cannot operate as submitted. Complete routing, converter/ESD ground-plane and return optimization, RF15mm reconciliation, source/module/cable/mechanical qualification, startup/recycle<=450mA, reset behavior,82% conversion target, per-part leakage/current remain open. Stage7 subsequently passed a real ESP-IDF firmware build with two independent identical ELF/bin outputs; docs/DEVPLAN.md and .copperhead/firmware-build/receipt.json record that evidence. It does not qualify the exported hardware. All SPEC budgets and UNVERIFIED MPN status remain unchanged. Rationale: generated draft fabrication data does not resolve the engineering work recorded in LAYOUT.md,BOM.md and SPEC.md.

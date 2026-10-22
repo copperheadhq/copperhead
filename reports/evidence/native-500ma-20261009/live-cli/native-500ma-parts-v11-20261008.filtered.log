@@ -1,0 +1,86 @@
+stage spec-seed: already complete (resuming past it)
+stage architecture: already complete (resuming past it)
+stage part-selection: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage part-selection (3/8) · model experimental-native:native-500ma-parts-v11-20261008 (experimental-native, via flag) · turns ≤5 · master@18296f0 clean
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  … still working — 4m00s elapsed (no output yet)
+  … still working — 4m15s elapsed (no output yet)
+  … still working — 4m30s elapsed (no output yet)
+  … still working — 4m45s elapsed (no output yet)
+  … still working — 5m00s elapsed (no output yet)
+  … still working — 5m15s elapsed (no output yet)
+  … still working — 5m30s elapsed (no output yet)
+  … still working — 5m45s elapsed (no output yet)
+  … still working — 6m00s elapsed (no output yet)
+  … still working — 6m15s elapsed (no output yet)
+  … still working — 6m30s elapsed (no output yet)
+  … still working — 6m45s elapsed (no output yet)
+  … still working — 7m00s elapsed (no output yet)
+  … still working — 7m15s elapsed (no output yet)
+  … still working — 7m30s elapsed (no output yet)
+  … still working — 7m45s elapsed (no output yet)
+  … still working — 8m00s elapsed (no output yet)
+  … still working — 8m15s elapsed (no output yet)
+  … still working — 8m30s elapsed (no output yet)
+  … still working — 8m45s elapsed (no output yet)
+  … still working — 9m00s elapsed (no output yet)
+  … still working — 9m15s elapsed (no output yet)
+  … still working — 9m30s elapsed (no output yet)
+  … still working — 9m45s elapsed (no output yet)
+stage part-selection: the run ended as "failure" (provider-error): provider turns timed out 1× (no response or progress for 10m00s each); exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage             Wall  Turns  Out tok  Cache
+  --------------  ------  -----  -------  -----
+  spec-seed            —      —        —      —
+  architecture         —      —        —      —
+  part-selection  16m59s      2        0     0%
+  --------------  ------  -----  -------  -----
+  TOTAL           16m59s      2        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

@@ -1,0 +1,16 @@
+# Protected USB-C input
+## Requirements
+The device SHALL use only documented adequate USB-C 5V power at 4.75–5.25V and meet docs/SPEC.md Budgets, including <=250mA continuous/<=450mA peak with overhead. It SHALL address short circuit, ESD and controlled startup. No USB data, PD, battery, mains or other voltage input.
+### Scenario: Qualified deployment
+- **Given** a source explicitly advertising USB-C 1.5A/3A or a separately verified adequate supply
+- **When** deployment is authorized
+- **Then** source evidence and advertisement/detection limitations SHALL be documented; Rd alone SHALL NOT be treated as default-current 500mA entitlement.
+### Scenario: Connector capture
+- **Given** USB4125-GF-A standard 1.00mm stakes
+- **When** the connector is captured
+- **Then** A5/CC1 and B5/CC2 SHALL each have separate 5.1k Rd to GND, A9/B9 VBUS, A12/B12 GND and four S1 stakes GND; no CC short or data contacts; stock 6P symbol and exact standard footprint SHALL be verified without pad/drill reductions.
+### Scenario: Protection acceptance
+- **Given** startup or short circuit
+- **When** the Stage3-selected UNVERIFIED TPS259533DSGR and support parts in docs/BOM.md are engineered
+- **Then** active-low enable, approximately0.49A nominal fault-limit tolerance, losses, capacitors, ESD/clamp and controlled startup/inrush SHALL be reconciled; protection thresholds SHALL NOT be claimed as an operating450mA hard cap.
+- **And** replacement of the initial TPS2553 candidate SHALL retain all original budgets and document installed symbol/pin/footprint compatibility and adjustable-slew rationale.

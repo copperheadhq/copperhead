@@ -1,0 +1,12 @@
+# Tasks
+
+- [x] Write the overall prose flow: qualified USB-C 5V source through protection and controlled startup into a 3.3V buck, powering MCU, SHT40, and external OLED; shared 100kHz I2C; manual reset/boot and external 3.3V UART; MCU PCB antenna.
+- [x] Describe protected input and regulation with 4.75–5.25V input, <=250mA continuous/<=450mA peak input, >=600mA buck rating, nominal 3.3V within 3.0–3.6V, and >=75% assumed efficiency acceptance floor.
+- [x] Include the rail allocations: MCU 150mA continuous/400mA transient, OLED 50mA, heater-disabled sensor 2mA, other loads 20mA; derived simultaneous totals 222mA/472mA. Explain the 437.2mA conversion estimate and approximately 12.8mA remaining before overhead, without claiming compliance or reducing requirements.
+- [x] Describe MCU/programming and connectivity without assigning pins; require GPIO2/8/9 strapping review before assignments, RTC review when relevant, labeled UART orientation, and no target back-power.
+- [x] Describe sensing and display/UI with shared 100kHz I2C, verified addresses and aggregate pullups/rise time, heater always off, 1Hz measurement, 2Hz OLED refresh, Celsius/percent RH assumptions, CRC/bus-error invalidation, explicit display error, UART logging, and next-sample retry.
+- [x] Describe RF/mechanics with <=45x40mm envelope, exactly two copper layers, nominal 1.00mm thickness, >=0.25mm hole-to-copper clearance, exact connector pads/drills, 0–40C non-condensing ambient, >=10mm sensor heat separation where practicable, manufacturer antenna keepout on both layers, and assumed additional 15mm clearance pending reconciliation.
+- [x] Describe firmware and acceptance using supplied ESP-IDF5.5.3/GCC14.2.0, required dependencies, fixed explicit version deferred, reproducible real build, all later stage gates, and no physical qualification claims.
+- [x] Give a one-line rationale for each architectural decision and intentional omission; retain candidate-only status and avoid invented availability, prices, pins, or evidence.
+- [x] Update decisions/changelog and record any new decisions or constraints using tools available after validation.
+- [x] Review architecture against every SPEC.md constraint, run check_drift, resolve synchronization obligations, and finish Stage 2 only after required gates pass.

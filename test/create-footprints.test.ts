@@ -24,7 +24,7 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
 vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: '' }) }));
 vi.mock('../src/commands/check.js', () => ({ runCheck: async () => ({ ok: true }) }));
 
-import { runCreate } from '../src/commands/create.js';
+import { runCreate, partSelectionDocGap, STAGES } from '../src/commands/create.js';
 
 function ok(): RunResult {
   return {
@@ -91,6 +91,50 @@ afterEach(async () => {
 const stagesRun = (): string[] => mockRunAgentLoop.mock.calls.map(([o]) => o.request.replace('create pipeline stage: ', ''));
 
 describe('create stops for an uninstalled footprint (#314)', () => {
+  it('explains an UNVERIFIED-prefixed MPN during finish while keeping its qualification in Rationale', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = path.join(repo, 'brief.md');
+      await writeFile(briefPath, '# tiny\n');
+      let gap: string | null | undefined;
+      let correctedGap: string | null | undefined;
+      mockRunAgentLoop.mockImplementation(async opts => {
+        await writeStageDoc(opts.repoRoot, opts.request);
+        if (opts.request.includes('part-selection')) {
+          const file = path.join(repo, 'docs', 'BOM.md');
+          const flagged = BOM.replace(' | RC0603FR-0710KL | bias |', ' | UNVERIFIED: RC0603FR-0710KL | bias |')
+            .replace(' | ESP32-C3-MINI-1-N4 | module |', ' | UNVERIFIED: ESP32-C3-MINI-1-N4 | module |');
+          await writeFile(file, flagged);
+          gap = await opts.stageGate?.();
+          await writeFile(file, BOM.replace('| bias |', '| UNVERIFIED: bias |'));
+          correctedGap = await opts.stageGate?.();
+        }
+        return ok();
+      });
+      await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });
+      expect(gap).toContain('actual part number alone in MPN');
+      expect(gap).toContain('UNVERIFIED qualification in Rationale');
+      expect(correctedGap).toBeNull();
+      expect(STAGES.find(s => s.name === 'part-selection')!.prompt('', 'docs')).toContain('never an UNVERIFIED prefix');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('keeps rejecting missing or placeholder-only part selection', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      expect(await partSelectionDocGap(repo, 'absent')).toContain('is missing');
+      await mkdir(path.join(repo, 'notes'), { recursive: true });
+      await writeFile(path.join(repo, 'notes', 'BOM.md'), '# BOM\n');
+      expect(await partSelectionDocGap(repo, 'notes')).toContain('no selected component rows');
+      await writeFile(path.join(repo, 'notes', 'BOM.md'), BOM.replace('RC0603FR-0710KL', 'UNVERIFIED').replace('ESP32-C3-MINI-1-N4', 'UNVERIFIED'));
+      expect(await partSelectionDocGap(repo, 'notes')).toContain('no selected MPN');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('stops before the schematic stage with an actionable message, then resumes once the library is installed', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

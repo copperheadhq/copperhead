@@ -1,0 +1,21 @@
+ERC ✓
+DRC ✓
+drift ✓
+legibility: 1 error, 5 advisory finding(s) across 1 sheet(s):
+  1. [error] unlabeled-group @ / (118, 102) refs: Keyer — group caption "Keyer" names nothing in SUBSYSTEMS.md or BOM.md; use a documented name (e.g. "Sheet /")
+  2. [advisory] label-orientation @ / (88.9, 91.44) refs: 3V3 — label "3V3" is rotated 90° where a horizontal label would collide with nothing; draw it horizontal
+  3. [advisory] label-orientation @ / (88.9, 99.06) refs: EN — label "EN" is rotated 270° where a horizontal label would collide with nothing; draw it horizontal
+  4. [advisory] label-orientation @ / (96.52, 106.68) refs: KEY_DAH — label "KEY_DAH" is rotated 90° where a horizontal label would collide with nothing; draw it horizontal
+  5. [advisory] label-orientation @ / (96.52, 114.3) refs: GND — label "GND" is rotated 270° where a horizontal label would collide with nothing; draw it horizontal
+  6. [advisory] low-utilization @ / (118, 102) refs: / — content occupies 0.06 of the usable frame (threshold 0.5); paper "A5" would fit this content
+legibility score: 40/100 (capped: 1 error-severity legibility finding(s) cap the composite below the known-good floor (85))
+[master 9c7e76f] scaffold docs
+ 9 files changed, 116 insertions(+), 1 deletion(-)
+ create mode 100644 .copperhead/README.md
+ create mode 100644 docs/BOM.md
+ create mode 100644 docs/CHANGELOG.md
+ create mode 100644 docs/DECISIONS.md
+ create mode 100644 docs/LAYOUT.md
+ create mode 100644 docs/PINOUT.md
+ create mode 100644 docs/SPEC.md
+ create mode 100644 docs/SUBSYSTEMS.md

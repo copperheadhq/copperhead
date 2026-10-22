@@ -1,0 +1,54 @@
+# Run summary
+
+- **Request:** create pipeline stage: part-selection
+- **Outcome:** success
+- **OpenSpec change:** repair-part-selection-bom
+- **Tokens:** 1091379 in / 18091 out
+
+## Environment
+
+- **Run:** 2026-10-11T19-31-00-550Z · create · started 2026-10-11T19:31:00.560Z · autonomous
+- **Stage:** part-selection (3/8)
+- **Brief:** external:BRIEF.md (sha256 13aa827a7b68…)
+- **Model:** codex:gpt-6.1-sol (codex, via flag)
+- **copperhead:** v0.11.0-local-compat-bom-fix at <HOME>/Documents/Codex/2026-10-09/<TASK>/copperhead-j1-drc
+- **Tooling:** kicad-cli 9.0.9 · node v24.21.0 · linux-x64
+- **Config:** schematic null · board null · docs docs/ · maxTurns 22 · maxRepairCycles 5 · budgets {}
+- **Repo:** master@5ccb92e8241ba9d4f9ef62364885a779932007dd · clean · pre-commit hook absent
+- **Memory:** 39 open constraint(s) · 3 prior run(s)
+
+## Run stats
+
+- **Exit path:** done
+- **Turns:** 5 / 22
+- **Repair cycles:** 0 / 5
+- **Tokens:** 1091.4k in / 18.1k out
+- **Duration:** 4m10s
+- **Per turn:** 1: 35922/914 · 2: 84039/1594 · 3: 195819/4649 · 4: 322272/5360 · 5: 453327/5574
+
+## Plan
+
+I’ll inspect the saved BOM and installed symbols, repair any capture or current-accounting gaps, and synchronize affected design docs. This stage changes documentation only. Key risks are exact package pin functions, unverified leakage limits, and the narrow peak-input margin; all existing budgets remain intact.
+
+## Files touched
+
+- docs/BOM.md
+- docs/SPEC.md
+- docs/SUBSYSTEMS.md
+- docs/CHANGELOG.md
+- docs/DECISIONS.md
+- openspec/changes/repair-part-selection-bom/tasks.md
+
+## Verification
+
+- ERC: not run
+- DRC: not run
+- legibility: not run
+- score: not run
+
+## Decisions
+
+- Retain the39-row Stage3 BOM capture contract after fresh installed-symbol and endpoint checks; correct PG holdoff claims and explicitly flag buck output-capacitor startup qualification. | why: TI PG floats when the buck is off, and enable delay does not slow its output soft-start; library endpoints and assumed current ceilings must not be represented as electrical compliance.
+- [affects] power.stage3_recovery_qualification affects docs/BOM.md: changed: corrected PG claim and added recovery evidence, anonymous-function prerequisites and explicit startup qualification risk.
+- [affects] power.stage3_recovery_qualification affects docs/SPEC.md: changed: added Stage3 recovery qualification limits preserving all budgets.
+- [affects] power.stage3_recovery_qualification affects docs/SUBSYSTEMS.md: changed: synchronized Stage3 recovery startup/reset and manufacturer-function qualification limits.

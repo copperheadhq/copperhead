@@ -30,3 +30,5 @@
 - **Tests**: golden-file tests per supplier format from the fixture BOM; quantity arithmetic unit tests; warnings-footer and exclusion tests.
 - **Dependencies**: none new (CSV emission is trivial string work; no network).
 - **Unchanged contracts**: `check` untouched; agent loop untouched; BOM.md remains the human-readable source of truth.
+
+Related create completion/export follow-up: [fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md).

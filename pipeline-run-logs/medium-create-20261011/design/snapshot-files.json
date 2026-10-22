@@ -1,0 +1,457 @@
+[
+  {
+    "published": "configuration.json",
+    "restoreAs": ".copperhead/config.json",
+    "sha256": "b7214ee0017f67b5b1ebe12e5ab4bdbb26984038eadbc34625f151fdd538af96"
+  },
+  {
+    "published": "docs/BOM.md.txt",
+    "restoreAs": "docs/BOM.md",
+    "sha256": "79d7e181447eb5e9194683554090e51d6f53861d4f7c637a452cff81fe9b2251"
+  },
+  {
+    "published": "docs/BRIEF.sha256",
+    "restoreAs": "docs/BRIEF.sha256",
+    "sha256": "21352fb8ae4ca4417492c6e927ffe11645b29e4357d1a1bf1c52fdf1a2f846c0"
+  },
+  {
+    "published": "docs/CHANGELOG.md.txt",
+    "restoreAs": "docs/CHANGELOG.md",
+    "sha256": "ead155c6386993835f5ed3037ada6c6dcaec00e10e8647cf03100dad030abf20"
+  },
+  {
+    "published": "docs/DECISIONS.md.txt",
+    "restoreAs": "docs/DECISIONS.md",
+    "sha256": "ffb3e33ed318a72d1d152c682f86fa7f3938767fba2594466dc0726aaeb694e7"
+  },
+  {
+    "published": "docs/DEVPLAN.md.txt",
+    "restoreAs": "docs/DEVPLAN.md",
+    "sha256": "362199e8dd38bdd1b0aa31641870b086ddfd3f843f866bf402dde00c13268faf"
+  },
+  {
+    "published": "docs/LAYOUT.md.txt",
+    "restoreAs": "docs/LAYOUT.md",
+    "sha256": "28470aeaafed9278c3754dec2b097578aa34be49f310a48bab1fbe4286e296b2"
+  },
+  {
+    "published": "docs/OUTPUTS.md.txt",
+    "restoreAs": "docs/OUTPUTS.md",
+    "sha256": "9554b191809f0a89f23e0b25e779cfac0ef336132c86a21e0d782edf3d171c39"
+  },
+  {
+    "published": "docs/PINOUT.md.txt",
+    "restoreAs": "docs/PINOUT.md",
+    "sha256": "63260f9d6da22585ddb92d93276cd130131728fd3260d438e2c9c3ad650bb6d6"
+  },
+  {
+    "published": "docs/SPEC.md.txt",
+    "restoreAs": "docs/SPEC.md",
+    "sha256": "4b23b41aa364d64a59eedda60307ffd5a12d4d6b581ebb152e0e7d8a1c95c5db"
+  },
+  {
+    "published": "docs/SUBSYSTEMS.md.txt",
+    "restoreAs": "docs/SUBSYSTEMS.md",
+    "sha256": "41e0c1b3c759e397698868bb75cc1a570840594bcc286d7537b74f6e0308c824"
+  },
+  {
+    "published": "firmware/CMakeLists.txt",
+    "restoreAs": "firmware/CMakeLists.txt",
+    "sha256": "cb3344c0351ace934f60c042708ab42b475b34a3b56e5ed51836e4d3e74e87db"
+  },
+  {
+    "published": "firmware/README.md.txt",
+    "restoreAs": "firmware/README.md",
+    "sha256": "ce87dabb32be790f82a83b83c8cd3c13768852e447241720da58ff1c6c16a428"
+  },
+  {
+    "published": "firmware/main/CMakeLists.txt",
+    "restoreAs": "firmware/main/CMakeLists.txt",
+    "sha256": "2378a8e2a4351f946627f1630b5c82b3a5e47405336cc26d6af831b9750796c5"
+  },
+  {
+    "published": "firmware/main/app_main.c",
+    "restoreAs": "firmware/main/app_main.c",
+    "sha256": "b1433967062b2768f04beb438f8fceb5584f6fa229593c973bdff3ea3b829417"
+  },
+  {
+    "published": "firmware/main/board_hal.c",
+    "restoreAs": "firmware/main/board_hal.c",
+    "sha256": "fa86d7a669e06bb7bdd1336993a1f000ddbc56d39ba6c3d6e0a2a39a9c3feb8c"
+  },
+  {
+    "published": "firmware/main/board_hal.h",
+    "restoreAs": "firmware/main/board_hal.h",
+    "sha256": "e827c0287a7e230375d6f1a1c77f81f86036580cbc8d4ad2d283b76860300bb5"
+  },
+  {
+    "published": "firmware/main/drivers.c",
+    "restoreAs": "firmware/main/drivers.c",
+    "sha256": "ba6bcb57bd6ddb5cc9ddb9c04e835d0c178d99617aefecc1789716eb40fe4aaf"
+  },
+  {
+    "published": "firmware/main/drivers.h",
+    "restoreAs": "firmware/main/drivers.h",
+    "sha256": "f25ca329e829b2e95d2075b19587b928bb4824958ce1dc186ae0a8747488512b"
+  },
+  {
+    "published": "firmware/pins.h",
+    "restoreAs": "firmware/pins.h",
+    "sha256": "d5a9ba66847bd9156e46524934d02246a436848aabc499449d511a1cb3613a8e"
+  },
+  {
+    "published": "firmware/sdkconfig.defaults",
+    "restoreAs": "firmware/sdkconfig.defaults",
+    "sha256": "345c2b073b4637fb7417b184f5e7380d6465614e17837768af7d8c93de798b78"
+  },
+  {
+    "published": "firmware/tools/generate_pins.py",
+    "restoreAs": "firmware/tools/generate_pins.py",
+    "sha256": "d4599f7c1deaa32f8c3aeaa74551d10b19a7d59bdc59902c581d26b14a89b469"
+  },
+  {
+    "published": "fp-lib-table",
+    "restoreAs": "fp-lib-table",
+    "sha256": "b8b1560e81ef46b5e7408e5e06bdcd013e16959b2ef80d320fca6f0a7fd53fc0"
+  },
+  {
+    "published": "libraries/Capacitor_SMD.pretty/C_0603_1608Metric.kicad_mod",
+    "restoreAs": "libraries/Capacitor_SMD.pretty/C_0603_1608Metric.kicad_mod",
+    "sha256": "86a101f1dbc512aa9a73532f4b837db141edd5bded65094b0d13dca3fc3f6c68"
+  },
+  {
+    "published": "libraries/Capacitor_SMD.pretty/C_0805_2012Metric.kicad_mod",
+    "restoreAs": "libraries/Capacitor_SMD.pretty/C_0805_2012Metric.kicad_mod",
+    "sha256": "1e9871a31457c9d9932d22edb68ed91c275a6270066239b08d192eead990c301"
+  },
+  {
+    "published": "libraries/Capacitor_SMD.pretty/C_1210_3225Metric.kicad_mod",
+    "restoreAs": "libraries/Capacitor_SMD.pretty/C_1210_3225Metric.kicad_mod",
+    "sha256": "dc1d0a7bce3d19e41856e1e02896abcc84ef4ee752999c7f4162f4519df9d5f8"
+  },
+  {
+    "published": "libraries/Connector_USB.pretty/USB_C_Receptacle_GCT_USB4125-xx-x_6P_TopMnt_Horizontal.kicad_mod",
+    "restoreAs": "libraries/Connector_USB.pretty/USB_C_Receptacle_GCT_USB4125-xx-x_6P_TopMnt_Horizontal.kicad_mod",
+    "sha256": "9fb596ebefc36034832fb31117444e6437efbcfe358b92b8103c9c6612866ae3"
+  },
+  {
+    "published": "libraries/CopperheadLocal.kicad_sym",
+    "restoreAs": "libraries/CopperheadLocal.kicad_sym",
+    "sha256": "afbcd636b0d85aa167dd13dee9cb3c41f32450145d39fbb62c7257b9d1fef334"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/ESP32-C3-MINI-1-N4X.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/ESP32-C3-MINI-1-N4X.kicad_mod",
+    "sha256": "5d137d1f52b5e268b83fd4218ab0663e0b301fba169b1e74b765375893691aa1"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/SMAJ6.0A_Littelfuse_DO214AC.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/SMAJ6.0A_Littelfuse_DO214AC.kicad_mod",
+    "sha256": "b2c5e2dfde44ae2abe96ba44cecb5cc7769cfdce5d2e28785952c98547bccf14"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/SN74LVC2G125DCUR_DCU0008A.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/SN74LVC2G125DCUR_DCU0008A.kicad_mod",
+    "sha256": "34528ebd38cd8d21bcae3353bd934646aab301e7bb4f837ef29297f977afebc5"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/Samtec_TSW_103_07_G_S.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/Samtec_TSW_103_07_G_S.kicad_mod",
+    "sha256": "094bf4c45d067a526469333b4390f232c970407fa8bfb72bac3b7472df9dc65f"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/Samtec_TSW_104_07_G_S.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/Samtec_TSW_104_07_G_S.kicad_mod",
+    "sha256": "d280e0ec80f7965f0630dcf5f5356debc5514b758da7a58256b818a76a509cf7"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/TL3342F160QG.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/TL3342F160QG.kicad_mod",
+    "sha256": "b9e5f55f3b2c0e13ffaad4b149242947249345a8c631cede90ab61e0b5484472"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/TPD1S414YZR_YZ0012_C02.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/TPD1S414YZR_YZ0012_C02.kicad_mod",
+    "sha256": "685f01c277af35d1bbb35cecffdeff3a13cfda4ddb60ccc7f1ce09057ba8fcd8"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/TPD2E2U06DRL_DRL0005A.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/TPD2E2U06DRL_DRL0005A.kicad_mod",
+    "sha256": "ab4f2a04d7f6c9aa1a4e52d5be4dd91d75cf3c8b92bef58b145e63ec3e110aee"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/TPS22918DBVR_DBV0006A.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/TPS22918DBVR_DBV0006A.kicad_mod",
+    "sha256": "f5f81a29314dd1b1dd7245c0f2404d5fd8f383a0f8f2c939d484f339695a8c10"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/TPS2553DBVR_DBV0006A.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/TPS2553DBVR_DBV0006A.kicad_mod",
+    "sha256": "fc1b1b1ff420c0261560a6fba6c3a0e0a669d3a3bed929bd24431e2a9d1a0b44"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/TPS259470ARPWR_RPW0010A.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/TPS259470ARPWR_RPW0010A.kicad_mod",
+    "sha256": "c26a8ca81056c4bfd5ddf9054d1cfa11c312a814215ce9919ad744000ec852dd"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/TPS259533DSGR_DSG0008A.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/TPS259533DSGR_DSG0008A.kicad_mod",
+    "sha256": "9f07a20d0b27e9fb4452b19b3e164d1beef45b07881ccf05a6fe2cd76ef8a150"
+  },
+  {
+    "published": "libraries/CopperheadLocal.pretty/TPS62162DSGR_DSG0008A.kicad_mod",
+    "restoreAs": "libraries/CopperheadLocal.pretty/TPS62162DSGR_DSG0008A.kicad_mod",
+    "sha256": "d24f1f123257ce450c6202e31bad36dd82c08f02ebcbd524efe2e5419e2b0bad"
+  },
+  {
+    "published": "libraries/Diode_SMD.pretty/D_SMA.kicad_mod",
+    "restoreAs": "libraries/Diode_SMD.pretty/D_SMA.kicad_mod",
+    "sha256": "b3365739de128e75186439cbdda353beab3ccfd08fa7a6fe407b6d779d922129"
+  },
+  {
+    "published": "libraries/Inductor_SMD.pretty/L_Coilcraft_XxL4020.kicad_mod",
+    "restoreAs": "libraries/Inductor_SMD.pretty/L_Coilcraft_XxL4020.kicad_mod",
+    "sha256": "f95cdebd0beb21da3838720b8e51529d8150ba9aa4c98ea158e5d914b5281811"
+  },
+  {
+    "published": "libraries/Package_TO_SOT_SMD.pretty/SOT-23.kicad_mod",
+    "restoreAs": "libraries/Package_TO_SOT_SMD.pretty/SOT-23.kicad_mod",
+    "sha256": "5fbcd830e62b2a7096210c50f4507b6110c79a844412200da276e0ee2e27ed14"
+  },
+  {
+    "published": "libraries/Resistor_SMD.pretty/R_0603_1608Metric.kicad_mod",
+    "restoreAs": "libraries/Resistor_SMD.pretty/R_0603_1608Metric.kicad_mod",
+    "sha256": "32e6f926b4be772aeabae6060210133fbf78854a3fe12ca7011b4916ed49f134"
+  },
+  {
+    "published": "libraries/Sensor_Humidity.pretty/Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad.kicad_mod",
+    "restoreAs": "libraries/Sensor_Humidity.pretty/Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad.kicad_mod",
+    "sha256": "e242ffa52cc8bb477de27f05ff72b410ec30b3d8bcd80196427893dda08f52ca"
+  },
+  {
+    "published": "libraries/licenses/Espressif-LICENSE.md.txt",
+    "restoreAs": "libraries/licenses/Espressif-LICENSE.md",
+    "sha256": "6eb43c2548ac6714db47ccbd62354bd194e918f606b071a5e9893680b941d75a"
+  },
+  {
+    "published": "libraries/licenses/KiCad-attribution.md.txt",
+    "restoreAs": "libraries/licenses/KiCad-attribution.md",
+    "sha256": "c75c8e76264f084801105b302ec59695184396fa64d198b20b0ac062f9558bb7"
+  },
+  {
+    "published": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_dru",
+    "restoreAs": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_dru",
+    "sha256": "8af4ab1d0852653e7c593e0a0c563b8e92c3a955ea72a91e6333fa1f364fc480"
+  },
+  {
+    "published": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb",
+    "restoreAs": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb",
+    "sha256": "e2e2dc560ef3ec97ba531bd226ef4cd65260ff30f594c3d5383c6034ce2f3912"
+  },
+  {
+    "published": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pro",
+    "restoreAs": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pro",
+    "sha256": "4543afaae8fd9625b155db8930f8ae629a3156a9690a64ae026b31ec3331607c"
+  },
+  {
+    "published": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch",
+    "restoreAs": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch",
+    "sha256": "8f669f04057bcd5e4a884075e0cb8e66af91fe35c769bbeaf18aca04e15205d9"
+  },
+  {
+    "published": "openspec/changes/capture-stage4-schematic/proposal.md.txt",
+    "restoreAs": "openspec/changes/capture-stage4-schematic/proposal.md",
+    "sha256": "e7e5a34f6a63b6d74021ab9290926c24eba46892001e712bfc3ba5fbf8ae691e"
+  },
+  {
+    "published": "openspec/changes/capture-stage4-schematic/tasks.md.txt",
+    "restoreAs": "openspec/changes/capture-stage4-schematic/tasks.md",
+    "sha256": "e116fcc7332fd48dd448c856c4a87fbb3cdb04e02db37729d70d09451338ae16"
+  },
+  {
+    "published": "openspec/changes/correct-part-selection-mpn-format/proposal.md.txt",
+    "restoreAs": "openspec/changes/correct-part-selection-mpn-format/proposal.md",
+    "sha256": "787a969d3f62412330d17dab40233eb8e1234ffbb490eccaea780506f2ecdd02"
+  },
+  {
+    "published": "openspec/changes/correct-part-selection-mpn-format/tasks.md.txt",
+    "restoreAs": "openspec/changes/correct-part-selection-mpn-format/tasks.md",
+    "sha256": "adcb4d5e9edf80d498dccaf43e9270b6bbaff6415ee682d738594f5f0262d458"
+  },
+  {
+    "published": "openspec/changes/document-subsystem-architecture/proposal.md.txt",
+    "restoreAs": "openspec/changes/document-subsystem-architecture/proposal.md",
+    "sha256": "262cbdb11cf853c32dbcf61cdcfc9ff96b2542a0a35d25f486ec0c17d2a0db1e"
+  },
+  {
+    "published": "openspec/changes/document-subsystem-architecture/tasks.md.txt",
+    "restoreAs": "openspec/changes/document-subsystem-architecture/tasks.md",
+    "sha256": "314ab1ff215bbf57b7cc54825b1580d897bdf116dac7a1a02f1985c06f992f94"
+  },
+  {
+    "published": "openspec/changes/export-stage6-draft-outputs/proposal.md.txt",
+    "restoreAs": "openspec/changes/export-stage6-draft-outputs/proposal.md",
+    "sha256": "226b7a17ec6b3bf91fe14c3998547f0c5c52e7b39510cf6107b0075046ea0539"
+  },
+  {
+    "published": "openspec/changes/export-stage6-draft-outputs/tasks.md.txt",
+    "restoreAs": "openspec/changes/export-stage6-draft-outputs/tasks.md",
+    "sha256": "71163e8c2bd138645551352d33da27af4283a9cc9178d0aae9527ce1c7734a82"
+  },
+  {
+    "published": "openspec/changes/implement-stage7-firmware/proposal.md.txt",
+    "restoreAs": "openspec/changes/implement-stage7-firmware/proposal.md",
+    "sha256": "75f1f2b3eeb1e9bff4d5659ffe5bb22eceac2a3d209c4ce0f6afa6d869f2e0d5"
+  },
+  {
+    "published": "openspec/changes/implement-stage7-firmware/tasks.md.txt",
+    "restoreAs": "openspec/changes/implement-stage7-firmware/tasks.md",
+    "sha256": "f3e1bd948c60d05304e794f4d9356254b24fd844201728b0f7b813cb32738b49"
+  },
+  {
+    "published": "openspec/changes/place-route-stage5-layout-draft/proposal.md.txt",
+    "restoreAs": "openspec/changes/place-route-stage5-layout-draft/proposal.md",
+    "sha256": "4f8b999786285fbcdbb2cddd7b9b37b7ccbe336aca9048b7815886f2aec4511f"
+  },
+  {
+    "published": "openspec/changes/place-route-stage5-layout-draft/tasks.md.txt",
+    "restoreAs": "openspec/changes/place-route-stage5-layout-draft/tasks.md",
+    "sha256": "5aa01df1348a22560d17eb55325ef8e8d2a9f6d630a3f25c6aae91f3bd08099d"
+  },
+  {
+    "published": "openspec/changes/repair-part-selection-bom/proposal.md.txt",
+    "restoreAs": "openspec/changes/repair-part-selection-bom/proposal.md",
+    "sha256": "d7576128661560e86c5257862944d249b956dbb09039aedbf8f4d29ac323bbec"
+  },
+  {
+    "published": "openspec/changes/repair-part-selection-bom/tasks.md.txt",
+    "restoreAs": "openspec/changes/repair-part-selection-bom/tasks.md",
+    "sha256": "d24863325a04af6351891d7273e8d1a2fe15e23438c8dc7f6b86f34e172864f9"
+  },
+  {
+    "published": "openspec/changes/review-stage8-development-plan/proposal.md.txt",
+    "restoreAs": "openspec/changes/review-stage8-development-plan/proposal.md",
+    "sha256": "6555601ec0acf319763f030e8803ae30b35dc3606e607208d2ba4a82875d5bfb"
+  },
+  {
+    "published": "openspec/changes/review-stage8-development-plan/tasks.md.txt",
+    "restoreAs": "openspec/changes/review-stage8-development-plan/tasks.md",
+    "sha256": "7f05af5c258a1e1ef6336bfe650c1ceee331a75ad8592d45f6208bce80e98724"
+  },
+  {
+    "published": "openspec/changes/seed-device-requirements/proposal.md.txt",
+    "restoreAs": "openspec/changes/seed-device-requirements/proposal.md",
+    "sha256": "fbd284e0cd1e2ad567b04ecda768676534a0f6ca4f797ae229939f9ce9c0682c"
+  },
+  {
+    "published": "openspec/changes/seed-device-requirements/tasks.md.txt",
+    "restoreAs": "openspec/changes/seed-device-requirements/tasks.md",
+    "sha256": "59300a1f467606706e4bd03cab3676f0a1b4ac690790c7d009123bce5f3dbb61"
+  },
+  {
+    "published": "openspec/changes/select-capturable-parts/proposal.md.txt",
+    "restoreAs": "openspec/changes/select-capturable-parts/proposal.md",
+    "sha256": "945ccd47435d2a2b6738659143b9236f4891f271160f0381bf9626c543c887ee"
+  },
+  {
+    "published": "openspec/changes/select-capturable-parts/tasks.md.txt",
+    "restoreAs": "openspec/changes/select-capturable-parts/tasks.md",
+    "sha256": "8c72ed91382c96d294cf7f7d48349e9158889da232a4b8304939966639c977f2"
+  },
+  {
+    "published": "openspec/specs/display/spec.md.txt",
+    "restoreAs": "openspec/specs/display/spec.md",
+    "sha256": "ac09c0ff18738dc389881de51c78622169a73174846968dde5e2326791e10672"
+  },
+  {
+    "published": "openspec/specs/firmware-workflow/spec.md.txt",
+    "restoreAs": "openspec/specs/firmware-workflow/spec.md",
+    "sha256": "8f16d211dd46d5211cc149c842a2cf9d98466ef00312cef501a3ea977808457a"
+  },
+  {
+    "published": "openspec/specs/mcu-programming/spec.md.txt",
+    "restoreAs": "openspec/specs/mcu-programming/spec.md",
+    "sha256": "212f16767ae8f231addc58abfbd219f1b7b20d07954539cef48783aa8c88273a"
+  },
+  {
+    "published": "openspec/specs/protected-input/spec.md.txt",
+    "restoreAs": "openspec/specs/protected-input/spec.md",
+    "sha256": "27a37773da4b0be9d921cd2b3b714c368df6e4410e24b43ee855bc89840368a2"
+  },
+  {
+    "published": "openspec/specs/regulation/spec.md.txt",
+    "restoreAs": "openspec/specs/regulation/spec.md",
+    "sha256": "5b49cf5aa610732cc46688e33134ec335c6d6857b56d18af611824e9a10144ce"
+  },
+  {
+    "published": "openspec/specs/rf-mechanics/spec.md.txt",
+    "restoreAs": "openspec/specs/rf-mechanics/spec.md",
+    "sha256": "7d4715ccf571c8eff95567c719d55a84b516b3b3e50158309838d4a9e980c3e2"
+  },
+  {
+    "published": "openspec/specs/sensing/spec.md.txt",
+    "restoreAs": "openspec/specs/sensing/spec.md",
+    "sha256": "a6954b6664c083402437697ab63b1137d9452552d2e194725e3d610705ecac02"
+  },
+  {
+    "published": "runtime-constraints.json",
+    "restoreAs": ".copperhead/constraints.json",
+    "sha256": "a9ca8f300dad6e3d6d5255552437d396c52253f58e8bddbaf303bbc0eeb698e2"
+  },
+  {
+    "published": "schematic.intent.json",
+    "restoreAs": "schematic.intent.json",
+    "sha256": "00ad6f928e1554aaee9720d83a716321fce49ad552072b31d5d14da32e2e523d"
+  },
+  {
+    "published": "sym-lib-cache/74xGxx.kicad_sym",
+    "restoreAs": "sym-lib-cache/74xGxx.kicad_sym",
+    "sha256": "8473e19efebaa1429e7ea4f6a8b9245e08ba168d4ad1b0af0f374eca1b98350c"
+  },
+  {
+    "published": "sym-lib-cache/Connector.kicad_sym",
+    "restoreAs": "sym-lib-cache/Connector.kicad_sym",
+    "sha256": "f4093bcedb1025ae3d6bfc11522b33b1f899db0e46110af5dcd82b66b10eb6a2"
+  },
+  {
+    "published": "sym-lib-cache/Connector_Generic.kicad_sym",
+    "restoreAs": "sym-lib-cache/Connector_Generic.kicad_sym",
+    "sha256": "898d4162ecb0144a0c1ac17207dd307c9e12812f46730255b3d43998e739c3ba"
+  },
+  {
+    "published": "sym-lib-cache/Device.kicad_sym",
+    "restoreAs": "sym-lib-cache/Device.kicad_sym",
+    "sha256": "c012a36665481927adf2111cf54e022b5d49ede3709a8fb29697733c0069650f"
+  },
+  {
+    "published": "sym-lib-cache/Power_Protection.kicad_sym",
+    "restoreAs": "sym-lib-cache/Power_Protection.kicad_sym",
+    "sha256": "890b073a785a955f086eb6bf9f7915a8cd0a69a352cca8f4bb0d339eeb4ac962"
+  },
+  {
+    "published": "sym-lib-cache/Regulator_Switching.kicad_sym",
+    "restoreAs": "sym-lib-cache/Regulator_Switching.kicad_sym",
+    "sha256": "bfb98b692e0f2e52a5278c4dda6ec6c2098a811d769b26a9ef4580fe0c84b787"
+  },
+  {
+    "published": "sym-lib-cache/Sensor_Humidity.kicad_sym",
+    "restoreAs": "sym-lib-cache/Sensor_Humidity.kicad_sym",
+    "sha256": "51414e26dfafd521781bd2e78a8cd4b4a92aff442920aa7da62afac252995c7d"
+  },
+  {
+    "published": "sym-lib-cache/Switch.kicad_sym",
+    "restoreAs": "sym-lib-cache/Switch.kicad_sym",
+    "sha256": "a4864360689dcd7d3eb87142f6c8211b3957a64d388664a7dda813fe8bee8e18"
+  },
+  {
+    "published": "sym-lib-cache/copperhead_power.kicad_sym",
+    "restoreAs": "sym-lib-cache/copperhead_power.kicad_sym",
+    "sha256": "04f46ad92d89446acb6d7c00c455e7b3ff50218b7ce75a8c3ab498342bd91df1"
+  },
+  {
+    "published": "sym-lib-table",
+    "restoreAs": "sym-lib-table",
+    "sha256": "5552d4fe04db2b2a8741ba4859f18ad40903c40856f0369b7b9e21776574c9bd"
+  }
+]

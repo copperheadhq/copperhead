@@ -1,0 +1,107 @@
+stage spec-seed: already complete (resuming past it)
+stage architecture: already complete (resuming past it)
+stage part-selection: already complete (resuming past it)
+stage schematic: already complete (resuming past it)
+stage layout-draft: already complete (resuming past it)
+stage outputs: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage outputs (6/8) · model experimental-native:native-500ma-outputs-v17-20261008 (experimental-native, via flag) · turns ≤5 · master@7852a36 clean
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  … still working — 4m00s elapsed (no output yet)
+  … still working — 4m15s elapsed (no output yet)
+  … still working — 4m30s elapsed (no output yet)
+  … still working — 4m45s elapsed (no output yet)
+  … still working — 5m00s elapsed (no output yet)
+  … still working — 5m15s elapsed (no output yet)
+  … still working — 5m30s elapsed (no output yet)
+  … still working — 5m45s elapsed (no output yet)
+  … still working — 6m00s elapsed (no output yet)
+  … still working — 6m15s elapsed (no output yet)
+  … still working — 6m30s elapsed (no output yet)
+  … still working — 6m45s elapsed (no output yet)
+  … still working — 7m00s elapsed (no output yet)
+  … still working — 7m15s elapsed (no output yet)
+  … still working — 7m30s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+  [run_drc] DRC: clean
+  [run_erc] ERC: clean
+  [check_drift] drift: clean
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+[turn 4/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  [check_drift] drift: clean
+[turn 5/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  … still working — 4m00s elapsed (no output yet)
+  [check_drift] drift: clean
+  [finish] refusal recorded; run will end
+stage outputs: the run ended as "refused" (refused): Cannot complete the original Stage 6 JLC-profile requirement: export_outputs exposes only generic Gerber/drill defaults, no verified profile selection, and its single MixedPlating drill differs from current supplied JLC separate-PTH/NPTH guidance. All standard categories did export successfully; real nested DXF and Eeschema SVG paths and ten-refdes BOM were verified. Path-label defects do not mean missing exports. Native ERC/drift and original DRC gate were clean, with four raw J1 intrinsic errors retained. Generated 40.1 x 30.1 job-size metadata and inch-scaled DXF require reconciliation; no source geometry, constraint or gate was weakened. Preserve the actual refusal/rollback outcome. No fabrication, procurement, supplier acceptance, visual or physical qualification is claimed.; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage             Wall  Turns  Out tok  Cache
+  --------------  ------  -----  -------  -----
+  spec-seed            —      —        —      —
+  architecture         —      —        —      —
+  part-selection       —      —        —      —
+  schematic            —      —        —      —
+  layout-draft         —      —        —      —
+  outputs         18m45s      5        0     0%
+  --------------  ------  -----  -------  -----
+  TOTAL           18m45s      5        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

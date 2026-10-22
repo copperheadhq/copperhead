@@ -1,0 +1,8 @@
+created docs/SPEC.md
+created docs/BOM.md
+created docs/PINOUT.md
+created docs/SUBSYSTEMS.md
+created docs/LAYOUT.md
+created docs/DECISIONS.md
+created docs/CHANGELOG.md
+created .git/hooks/pre-commit

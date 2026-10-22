@@ -1,0 +1,94 @@
+# Run summary
+
+- **Request:** create pipeline stage: spec-seed
+- **Outcome:** success
+- **OpenSpec change:** seed-device-requirements
+- **Tokens:** 644420 in / 48281 out
+
+## Environment
+
+- **Run:** 2026-10-11T19-07-40-308Z · create · started 2026-10-11T19:07:40.318Z · autonomous
+- **Stage:** spec-seed (1/8)
+- **Brief:** external:BRIEF.md (sha256 13aa827a7b68…)
+- **Model:** codex:gpt-6.1-sol (codex, via flag)
+- **copperhead:** v0.11.0-local-compat-bom-fix at <HOME>/Documents/Codex/2026-10-09/<TASK>/copperhead-j1-drc
+- **Tooling:** kicad-cli 9.0.9 · node v24.21.0 · linux-x64
+- **Config:** schematic null · board null · docs docs/ · maxTurns 16 · maxRepairCycles 5 · budgets {}
+- **Repo:** master@650d1b6876ede38f1570579cc7210e894bd01dd6 · dirty (1 uncommitted) · pre-commit hook absent
+- **Memory:** 0 open constraint(s) · 0 prior run(s)
+
+## Run stats
+
+- **Exit path:** done
+- **Turns:** 6 / 16
+- **Repair cycles:** 0 / 5
+- **Tokens:** 644.4k in / 48.3k out
+- **Duration:** 6m48s
+- **Per turn:** 1: 18514/1324 · 2: 42229/1475 · 3: 71501/10074 · 4: 114869/10273 · 5: 168496/12488 · 6: 228811/12647
+
+## Plan
+
+Stage 1 will seed docs/SPEC.md and, if present, openspec/specs/ with capability requirements and Given/When/Then scenarios. Preserve every supplied budget and unresolved verification item; mark unstated defaults ASSUMED. Main risks are the tight peak input margin, USB-C source entitlement, antenna/mechanical fit, and unverified candidate pins/packages. No hardware acceptance or compiled firmware claim will be made.
+
+## Files touched
+
+- docs/SPEC.md
+- openspec/specs/protected-input/spec.md
+- openspec/specs/regulation/spec.md
+- openspec/specs/mcu-programming/spec.md
+- openspec/specs/sensing/spec.md
+- openspec/specs/display/spec.md
+- openspec/specs/rf-mechanics/spec.md
+- openspec/specs/firmware-workflow/spec.md
+- docs/CHANGELOG.md
+- docs/DECISIONS.md
+- openspec/changes/seed-device-requirements/tasks.md
+
+## Verification
+
+- ERC: not run
+- DRC: not run
+- legibility: not run
+- score: not run
+
+## Decisions
+
+- Seed requirements only; retain supplied parts as candidates and all eight later stage gates. | why: Manufacturer existence and installed libraries do not establish package/pin compatibility, supply availability or board acceptance.
+- Keep input and rail budgets intact and flag narrow peak margin for later reconciliation; use documented source qualification pending verified detection architecture (ASSUMED). | why: 437.2mA before upstream overhead leaves about12.8mA and passive Rd does not establish default-current entitlement.
+- ASSUMED initial firmware uses supplied ESP-IDF5.5.3; Celsius/percent RH display, invalid/error/log/next-sample-retry behavior, and continuous-operation usage model. | why: Use the supplied build environment and make failures visible without inventing a sleep budget or claiming a build.
+- ASSUMED direct shell-to-GND connection for the four S1 stakes, pending protection/EMC review. | why: Implement the required grounded shell without inventing an isolation network.
+- [affects] power.input_voltage_V affects docs/SPEC.md: changed: Budgets states 4.75–5.25V adequate 5V source.
+- [affects] power.input_continuous_mA affects docs/SPEC.md: changed: Budgets preserves <=250mA input including overhead as target.
+- [affects] power.input_peak_mA affects docs/SPEC.md: changed: Budgets preserves <=450mA peak including overhead as target.
+- [affects] power.mcu_continuous_mA affects docs/SPEC.md: changed: Budgets preserves <=150mA MCU allocation and mode verification.
+- [affects] power.mcu_transient_mA affects docs/SPEC.md: changed: Budgets preserves <=400mA MCU transient allocation and peak verification.
+- [affects] power.oled_mA affects docs/SPEC.md: changed: Budgets preserves <=50mA OLED target without vendor-guarantee claim.
+- [affects] power.sensor_mA affects docs/SPEC.md: changed: Budgets preserves <=2mA sensor heater-off allocation.
+- [affects] power.other_3v3_mA affects docs/SPEC.md: changed: Budgets preserves <=20mA other rail loads.
+- [affects] power.rail_continuous_mA affects docs/SPEC.md: changed: Budgets labels 222mA as derived allocation sum, not measurement.
+- [affects] power.rail_peak_mA affects docs/SPEC.md: changed: Budgets labels 472mA as preliminary derived allocation sum.
+- [affects] power.buck_rating_mA affects docs/SPEC.md: changed: Budgets requires >=600mA buck with later transient/thermal verification.
+- [affects] power.rail_voltage_V affects docs/SPEC.md: changed: Budgets requires nominal3.3V within3.0–3.6V under startup/radio/display load.
+- [affects] power.efficiency_percent affects docs/SPEC.md: changed: Budgets marks >=75% efficiency ASSUMED requiring verification.
+- [affects] power.conversion_margin affects docs/SPEC.md: changed: Budgets records437.2mA estimate/about12.8mA pre-overhead margin and unresolved reconciliation.
+- [affects] power.usage_assumption affects docs/SPEC.md: changed: continuous operation ASSUMED; no invented sleep budget; quiescent/leakage included.
+- [affects] usb.source_policy affects docs/SPEC.md: changed: qualified source deployment and detection limitation ASSUMED; prohibited inputs and no default500mA entitlement explicit.
+- [affects] usb.protection affects docs/SPEC.md: changed: short circuit/ESD/controlled startup required, TPS2553 engineering unresolved, nominal500mA not hard cap.
+- [affects] usb.connector_mapping affects docs/SPEC.md: changed: exact connector mapping, separate5.1k Rd, grounded stakes, stock6P/exact standard footprint and unchanged geometry required.
+- [affects] usb.shell_ground_policy affects docs/SPEC.md: changed: direct shell-to-GND implementation explicitly ASSUMED pending protection/EMC review.
+- [affects] interface.i2c affects docs/SPEC.md: changed:100kHz shared3.3V I2C with parallel pullup/capacitance/address checks required.
+- [affects] sensing.display_behavior affects docs/SPEC.md: changed:1Hz heater-off sensing/2Hz rendering/errors preserved; units and invalid/error/log/retry defaults ASSUMED.
+- [affects] mcu.programming_strapping affects docs/SPEC.md: changed: strapping/RTC checks before assignment and manual controls/labeled3.3V UART/no back-power required.
+- [affects] mechanical.envelope affects docs/SPEC.md: changed: <=45x40mm envelope preserved.
+- [affects] mechanical.copper_layers affects docs/SPEC.md: changed: exactly two copper layers preserved.
+- [affects] mechanical.nominal_thickness_mm affects docs/SPEC.md: changed: nominal1.00mm for standard GCT stakes preserved; no invented tolerance.
+- [affects] mechanical.hole_to_copper_mm affects docs/SPEC.md: changed: >=0.25mm clearance and unchanged exact geometry enforced.
+- [affects] environment.ambient_C affects docs/SPEC.md: changed:0–40C non-condensing indoor environment preserved.
+- [affects] mechanical.sensor_heat_separation_mm affects docs/SPEC.md: changed: >=10mm where practicable with conflicts reported preserved.
+- [affects] rf.antenna_policy affects docs/SPEC.md: changed: edge antenna/manufacturer keepout on both layers and later mechanical fit checks preserved.
+- [affects] rf.in_plane_clearance_mm affects docs/SPEC.md: changed: additional15mm clearance target ASSUMED pending guidelines/outline reconciliation.
+- [affects] parts.candidate_evidence affects docs/SPEC.md: changed: all six candidates and source URLs retained, later pin/package/library checks unresolved and unsupported sourcing claims prohibited.
+- [affects] firmware.real_build affects docs/SPEC.md: changed: mandatory real firmware/build, cache paths/dependencies/cadences/version requirement preserved; initial supplied SDK ASSUMED, no build claimed.
+- [affects] workflow.stage_gates affects docs/SPEC.md: changed: experimental provenance, all eight gates, tools/output profile and later verification retained without acceptance claims.
+- [affects] workflow.run_limits affects docs/SPEC.md: changed: supplied deadline/timeouts and prohibited operations preserved without independent clock-verification claim.
+- [affects] requirements.unstated_defaults affects docs/SPEC.md: changed: unresolved engineering listed; later defaults require explicit ASSUMED label/rationale/constraint and contradictions cannot reduce requirements.

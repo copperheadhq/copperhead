@@ -1,0 +1,105 @@
+{
+  "audit_type": "New static inventory; no project execution or model rerun",
+  "surviving_files": {
+    "early_adapter_source": {
+      "path": "archives/before-request-20min-20261008T211043Z/experimental-native.ts",
+      "sha256": "b9956e98ed49c8e6436430a8ec7fe5990bd9e62b5dbcfc8bd11c6aa8068c14ce",
+      "bytes": 24404
+    },
+    "early_adapter_compiled": {
+      "path": "archives/before-request-20min-20261008T211043Z/experimental-native.dist.js",
+      "sha256": "16277ee5311cf9c5674cad14fa35e9dbeda3df1ea92b01cd9db0370a5965fc64",
+      "bytes": 24223
+    },
+    "early_supervisor": {
+      "path": "archives/before-request-20min-20261008T211043Z/run-native-trial.py",
+      "sha256": "2a1df228d96698d92398976280a9d16731c8d620ccf936b15fef6624ffa9c79d",
+      "bytes": 7400
+    },
+    "before_devplan_adapter_source": {
+      "path": "archives/before-native-devplan-id-20261008T235918Z/src/agent/providers/experimental-native.ts",
+      "sha256": "d2408421a5ee3f9e44d350d956544092e26a43fcd75177b7eaa6ae6d22d64c80",
+      "bytes": 24429
+    },
+    "current_adapter_source": {
+      "path": "repo/src/agent/providers/experimental-native.ts",
+      "sha256": "a9b9e46b77c78f96b1831c1ce5a9966d92341e6b6b4ad034b74095632fe53789",
+      "bytes": 24428
+    },
+    "current_adapter_compiled": {
+      "path": "repo/dist/agent/providers/experimental-native.js",
+      "sha256": "6d00351262caf6d10090ae9b79a180166983e52e4e7ab36e7bace7469a0c306b",
+      "bytes": 24247
+    },
+    "current_supervisor": {
+      "path": "run-native-trial.py",
+      "sha256": "1a6f36237f3a89a8dd65abb21bacb26d99113e6041d45f87cbded5378f29111c",
+      "bytes": 7625
+    },
+    "initial_supervisor": {
+      "path": "run-native-trial.v1.py",
+      "sha256": "1f9748262bc5822fc5f47ee731dab67bb17b3a70ee227955fbff93a0cae0f863",
+      "bytes": 5301
+    },
+    "v8_create_source": {
+      "path": "diagnostics/public-contract-fix/src/commands/create.ts",
+      "sha256": "6f402d49605f904e8ec30ad970aa94b18118d36fc037283ddb68afd8b3814c3a",
+      "bytes": 68786
+    },
+    "v8_create_compiled": {
+      "path": "diagnostics/public-contract-fix/dist/commands/create.js",
+      "sha256": "9f1a25f93fa6771cb2783c485b41ac81d384145144efb24863429cc452a0c249",
+      "bytes": 69193
+    },
+    "package_lock": {
+      "path": "repo/package-lock.json",
+      "sha256": "5c315fb8fce845d53f2160bfa41d5b098b0e4a7f98e9ad158314219bc574947d",
+      "bytes": 164006
+    },
+    "output_manifest": {
+      "path": "designs/native-500ma-spec-v7-20261008/outputs/export-manifest.json",
+      "sha256": "20830b98f767d7226227e26cdf709bbe89cb82a1f3dc97b0598551e3cd4c86c1",
+      "bytes": 5050
+    },
+    "project_symbol_table": {
+      "path": "designs/native-500ma-spec-v7-20261008/sym-lib-table",
+      "sha256": "1aba5a6fd64c757d5538a95d81e559cf5d47fa53da2833bc8ba6c7c595f87a33",
+      "bytes": 738
+    },
+    "footprint_library_table": {
+      "path": "xdg/config/kicad/9.0/fp-lib-table",
+      "sha256": "6897bde8930d0ff7e7cffbfa5c27393c8769fca0bbef6cf06294e4fdc2642ffd",
+      "bytes": 22094
+    }
+  },
+  "early_exact_recovery": [
+    "Early adapter TypeScript and compiled JS match source-manifest.v4/v7/v8.",
+    "Baseline create.ts plus retained spec-seed-contract-fix.patch can reconstruct the v4/v7 source hash df71b23f448165bb04e467efe07a8d7a21945f77cc2705ba14bc14a748edcb9f; this is source recovery, not an original runtime snapshot.",
+    "diagnostics/public-contract-fix preserves the v8 create.ts and compiled create.js hashes.",
+    "Before-devplan adapter source preserves the request-TTL change; native-devplan-id-fix.experimental-only.patch records the subsequent dev-plan to devplan correction."
+  ],
+  "not_frozen": [
+    "Immutable whole runtime for each stage",
+    "Historical whole dist tree for every stage",
+    "Exact installed node_modules dependency bytes",
+    "Node and KiCad executable bytes",
+    "Complete external footprint and 3D libraries"
+  ],
+  "library_evidence": {
+    "local_symbol_libraries": [
+      "Connector",
+      "Connector_Generic",
+      "Device",
+      "Power_Management",
+      "copperhead_power"
+    ],
+    "external_footprints": "Retained fp-lib-table references KICAD9_FOOTPRINT_DIR; upstream footprint-library version and full bytes are not frozen.",
+    "embedded_pcb_footprint_instances": 10,
+    "all_manifest_inputs_match": true,
+    "manifest_input_count": 4,
+    "all_manifest_outputs_match": true,
+    "manifest_output_count": 18
+  },
+  "archival_scope": "All 20 prior stage tarballs inspected contain design/run/log evidence, not full source/build runtime snapshots; prior top-level ZIPs do not contain the experimental runtime.",
+  "current_environment_note": "Retained runtime checkouts use a shared node_modules symlink outside the scoped task tree; it was not followed or represented as a frozen historical environment."
+}

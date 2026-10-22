@@ -1,0 +1,14 @@
+# Proposal: review-stage8-development-plan
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+Stage8 requires a substantive review of actual design artifacts and build/export evidence; the Stage7 candidate plan is input, not proof that this final review occurred.
+
+## What Changes
+
+- Substantively improve docs/DEVPLAN.md with evidence-grounded status, ordered bring-up, numbered measurement nodes and first-meter checks.
+- Add prioritized risks, acceptance gates and a prototype-order plan that blocks fabrication of the currently incomplete board.
+- Synchronize applicable documentation and decision/constraint records without changing engineering artifacts or weakening budgets.
+- Record actual final-stage changes and verification for the normal stage commit.

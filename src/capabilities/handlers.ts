@@ -1,8 +1,10 @@
+import { exportOutputsPackage } from '../commands/outputs.js';
+import { buildFirmware } from '../commands/firmware-build.js';
 import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
-import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
+import { runErc, runDrc, unroutedCount, exportSvg, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
@@ -19,6 +21,22 @@ import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RunContext } from '../agent/context.js';
 import { corruptionError, markTouched, str } from './helpers.js';
+
+/** Unexpected post-write failures must never leave an untracked mutation. */
+async function rollbackMutationError(ctx: RunContext, rel: string, abs: string, before: string, error: unknown): Promise<never> {
+  // Register before attempting restoration: even a failed/partial write must
+  // invalidate the old check and leave verification obligations open. Keep
+  // this conservative state after restoration because the probe did not finish.
+  markTouched(ctx, rel);
+  const reason = error instanceof Error ? error.message : String(error);
+  try {
+    await writeFile(abs, before, 'utf8');
+  } catch (rollbackError) {
+    const rollbackReason = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+    throw new Error(`${rel}: post-write validation failed: ${reason}; rollback failed: ${rollbackReason}. The file may remain modified; the change is tracked and requires verification.`, { cause: error });
+  }
+  throw new Error(`${rel}: post-write validation failed: ${reason}; mutation REVERTED. Verification obligations remain open.`, { cause: error });
+}
 
 /**
  * Findings that say nothing about whether a repair worked: silkscreen text (cosmetic,
@@ -104,10 +122,24 @@ export interface HandlerOutcome {
 export interface HandlerDef {
   schema: ToolSchema;
   requiresUnlock: boolean;
+  availableWhen?: (ctx: RunContext) => boolean;
   handler: (ctx: RunContext, args: Record<string, unknown>) => Promise<string | HandlerOutcome>;
 }
 
 export const HANDLERS: HandlerDef[] = [
+  {
+    schema: {
+      name: 'build_firmware',
+      description: 'Build current ESP-IDF firmware with the operator-selected installed SDK. Copies source and PINOUT into isolated repository scratch directories, runs only idf.py build (no install/flash), records real logs and source/binary hashes. When reproducibility was explicitly requested, performs two independent builds and requires identical ELF/bin outputs. Enable CONFIG_APP_REPRODUCIBLE_BUILD and a fixed PROJECT_VER for reproducibility. Repair actual failures and re-run after source/PINOUT edits; source presence or compiler availability is not build proof.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+    requiresUnlock: true,
+    availableWhen: ctx => Boolean(ctx.firmwareToolchain),
+    handler: async (ctx) => {
+      if (!ctx.firmwareToolchain) throw new Error('No operator-selected firmware toolchain; default behavior is unchanged.');
+      return buildFirmware(ctx.repoRoot, ctx.config.docs, ctx.firmwareToolchain);
+    },
+  },
   {
     schema: {
       name: 'read_file',
@@ -290,20 +322,24 @@ export const HANDLERS: HandlerDef[] = [
         args.replace_all === true,
       );
       if (before !== null) {
-        const loadErr = await kicadLoadError(abs);
-        if (loadErr) {
-          const after = await readFile(abs, 'utf8');
-          await writeFile(abs, before, 'utf8');
-          if (await kicadLoadError(abs)) {
-            // The file was already unloadable before this edit. Reverting
-            // would deadlock incremental repair (every partial fix undone
-            // unless one edit fixes the whole file), so keep the edit and
-            // keep the pressure on with the probe output.
-            await writeFile(abs, after, 'utf8');
-            markTouched(ctx, rel);
-            return `${res}\nnote: ${rel} was already unloadable before this edit, so the edit is KEPT. Keep repairing until it loads. kicad-cli says:\n${loadErr}`;
+        try {
+          const loadErr = await kicadLoadError(abs);
+          if (loadErr) {
+            const after = await readFile(abs, 'utf8');
+            await writeFile(abs, before, 'utf8');
+            if (await kicadLoadError(abs)) {
+              // The file was already unloadable before this edit. Reverting
+              // would deadlock incremental repair (every partial fix undone
+              // unless one edit fixes the whole file), so keep the edit and
+              // keep the pressure on with the probe output.
+              await writeFile(abs, after, 'utf8');
+              markTouched(ctx, rel);
+              return `${res}\nnote: ${rel} was already unloadable before this edit, so the edit is KEPT. Keep repairing until it loads. kicad-cli says:\n${loadErr}`;
+            }
+            return `edit REVERTED: it would make ${rel} unloadable in KiCad. kicad-cli says:\n${loadErr}\nRe-read the surrounding file text and make a smaller, syntactically complete edit.`;
           }
-          return `edit REVERTED: it would make ${rel} unloadable in KiCad. kicad-cli says:\n${loadErr}\nRe-read the surrounding file text and make a smaller, syntactically complete edit.`;
+        } catch (error) {
+          return rollbackMutationError(ctx, rel, abs, before, error);
         }
       }
       markTouched(ctx, rel);
@@ -344,10 +380,14 @@ export const HANDLERS: HandlerDef[] = [
         return `not moved: ${(e as Error).message}`;
       }
       await writeFile(abs, after, 'utf8');
-      const loadErr = await kicadLoadError(abs);
-      if (loadErr) {
-        await writeFile(abs, before, 'utf8');
-        return `move REVERTED: the board would not load in KiCad. kicad-cli says:\n${loadErr}`;
+      try {
+        const loadErr = await kicadLoadError(abs);
+        if (loadErr) {
+          await writeFile(abs, before, 'utf8');
+          return `move REVERTED: the board would not load in KiCad. kicad-cli says:\n${loadErr}`;
+        }
+      } catch (error) {
+        return rollbackMutationError(ctx, rel, abs, before, error);
       }
       markTouched(ctx, rel);
       return `moved ${ref} to (${x}, ${y})${rotation === undefined ? '' : ` at ${rotation}°`}; pads and text turned with it. Run run_drc after this batch of moves.`;
@@ -520,7 +560,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'verify_symbols',
       description:
-        "Cross-check every lib_symbols entry in the schematic against the KiCad symbol library installed on this machine. Reports pins that diverge from the real part (wrong count, name, or electrical type) and lib_ids that do not exist in the current KiCad version (with the closest real names). ERC cannot catch these — a symbol whose lib_id claims to be a canonical part but whose pins are wrong passes ERC while being wrong. Run this after capturing symbols and reconcile every finding.",
+        "Cross-check library parts against the installed KiCad symbols and engine-generated power definitions against their exact generating templates. Reports pins that diverge from the real part (wrong count, name, or electrical type) and lib_ids that do not exist in the current KiCad version (with the closest real names). ERC cannot catch these — a symbol whose lib_id claims to be a canonical part but whose pins are wrong passes ERC while being wrong. Run this after capturing symbols and reconcile every finding.",
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: false,
@@ -531,7 +571,7 @@ export const HANDLERS: HandlerDef[] = [
         path.join(ctx.repoRoot, ctx.config.schematic),
       );
       if (!findings.length) {
-        return { ok: true, text: `verify_symbols: ${checked} symbol(s) match the installed KiCad library. No divergences.` };
+        return { ok: true, text: `verify_symbols: ${checked} symbol(s) match the installed libraries or exact engine power templates. No divergences.` };
       }
       const lines = findings.map((f) => `  - [${f.kind}] ${f.detail}`);
       // 'no-library' is the *unverifiable* bucket (counted in `skipped`), not a
@@ -687,21 +727,23 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'export_outputs',
       description:
-        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Reports per-artifact success/failure.',
+        'Export the fabrication package into outputs/: gerbers+drill, DXF outline, STEP, SVG renders. Defaults to generic KiCad exports, including board-only projects. Generates a source-bound manifest and ZIP; BOM.csv when BOM.md exists. Set outputProfile in .copperhead/config.json to jlcpcb-kicad9-2026-09-24 to opt into KiCad 9 JLC settings checks, which reject copper-fill zones and unsupported versions. Generic export does not verify zone fills or manufacturer settings. Reports real file paths; never implies manufacturer acceptance.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: true,
     handler: async (ctx) => {
       if (!ctx.config.board) return 'no board configured';
-      const outDir = path.join(ctx.repoRoot, 'outputs');
-      await mkdir(outDir, { recursive: true });
-      const res = await exportFab(
-        path.join(ctx.repoRoot, ctx.config.board),
-        ctx.config.schematic ? path.join(ctx.repoRoot, ctx.config.schematic) : null,
-        outDir,
-      );
+      const res = await exportOutputsPackage(ctx.repoRoot, ctx.config);
       ctx.filesTouched.add('outputs/');
-      const lines = [`produced: ${res.produced.join(', ') || '(none)'}`];
+      const lines = [
+        `produced: ${res.produced.join(', ') || '(none)'}`,
+        ...res.files.map((file) => `${file.artifact}: outputs/${file.path} (${file.bytes} bytes)`),
+        ctx.config.outputProfile === 'jlcpcb-kicad9-2026-09-24'
+          ? `JLC KiCad 9 settings/package checks: ${res.failed.length === 0 ? 'passed' : 'incomplete'}`
+          : `generic export jobs: ${res.failed.length === 0 ? 'complete' : 'incomplete'}; manufacturer profile and zone fills: not verified`,
+        'manufacturer acceptance: not verified; no fabrication release; BOM verification status remains in BOM.md',
+      ];
+      for (const warning of res.warnings ?? []) lines.push(`WARNING ${warning}`);
       for (const f of res.failed) lines.push(`FAILED ${f.artifact}: ${f.reason}`);
       return { ok: res.failed.length === 0, text: lines.join('\n') };
     },

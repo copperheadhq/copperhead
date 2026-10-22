@@ -140,7 +140,7 @@ export interface Bounds {
  * included), and visible silkscreen text sized by the instance's own refdes
  * and value, so a packed neighbour or the board edge never clips its silk.
  */
-export function footprintBounds(modText: string, labels: { ref?: string; value?: string } = {}): Bounds {
+export function footprintBounds(modText: string, labels: { ref?: string; value?: string; conservativeText?: boolean } = {}): Bounds {
   const root = parseSexp(modText)[0];
   const all: Bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   const grow = (b: Bounds, x: number, y: number): void => {
@@ -172,10 +172,18 @@ export function footprintBounds(modText: string, labels: { ref?: string; value?:
       const kind = (atom(item, 1) ?? '').toLowerCase();
       const label = kind === 'reference' ? (labels.ref ?? atom(item, 2)) : kind === 'value' ? (labels.value ?? atom(item, 2)) : atom(item, 2);
       if (hidden || !at || !size || !label || !layer.endsWith('.SilkS')) continue;
-      // a rough box: KiCad's stroke font is about 0.8 x height per glyph
-      const half = { w: (label.length * size[0] * 0.8) / 2, h: size[1] / 2 };
-      grow(all, at[0] - half.w, at[1] - half.h);
-      grow(all, at[0] + half.w, at[1] + half.h);
+      // Reserve the widest stroke-font glyphs and stroke thickness, rather
+      // than an average glyph width (which under-packs descriptive refdes).
+      const font = child(child(item, 'effects') ?? [], 'font') ?? [];
+      const stroke = parseFloat(atom(child(font, 'thickness'), 1) ?? '0.15');
+      const conservative = labels.conservativeText === true;
+      const half = { w: (label.length * size[0] * (conservative ? 1.5 : 0.8) + (conservative ? stroke : 0)) / 2,
+        h: (size[1] + (conservative ? stroke : 0)) / 2 };
+      const angle = conservative ? (parseFloat(atom(child(item, 'at'), 3) ?? '0') * Math.PI) / 180 : 0;
+      const rotated = { w: Math.abs(Math.cos(angle)) * half.w + Math.abs(Math.sin(angle)) * half.h,
+        h: Math.abs(Math.sin(angle)) * half.w + Math.abs(Math.cos(angle)) * half.h };
+      grow(all, at[0] - rotated.w, at[1] - rotated.h);
+      grow(all, at[0] + rotated.w, at[1] + rotated.h);
       continue;
     }
     if (typeof tag !== 'string' || !/^fp_(line|rect|circle|arc|poly)$/.test(tag)) continue;
@@ -196,6 +204,38 @@ export function footprintBounds(modText: string, labels: { ref?: string; value?:
     for (const [x, y] of pts) if (Number.isFinite(x) && Number.isFinite(y)) grow(all, x, y);
   }
   return Number.isFinite(all.minX) ? all : { minX: -1, minY: -1, maxX: 1, maxY: 1 };
+}
+
+/** Position visible instance reference fields clear of the footprint itself.
+ * Only field placement/font metadata changes; library pads, graphics and
+ * embedded keepouts remain untouched. Packing uses these same prepared bytes.
+ */
+export function placeReferenceAboveFootprint(modText: string): string {
+  const open = /\((?:footprint|module)[\s"]/.exec(modText)?.index ?? -1;
+  if (open < 0) return modText;
+  const bb = footprintBounds(modText, { ref: '', conservativeText: true });
+  let text = modText;
+  for (const span of childSpans(modText, open).reverse()) {
+    if (span.tag !== 'property' && span.tag !== 'fp_text') continue;
+    const field = modText.slice(span.start, span.end);
+    const node = parseSexp(field)[0];
+    if (!node || !isList(node) || (atom(node, 1) ?? '').toLowerCase() !== 'reference') continue;
+    const hidden = atom(child(node, 'hide'), 1) === 'yes' || node.includes('hide') || child(child(node, 'effects') ?? [], 'hide');
+    if (hidden || !(atom(child(node, 'layer'), 1) ?? '').endsWith('.SilkS')) continue;
+    const font = child(child(node, 'effects') ?? [], 'font') ?? [];
+    const size = child(font, 'size');
+    if (!size || !child(node, 'at')) continue;
+    const sx = Math.max(0.8, parseFloat(atom(size, 1) ?? '1'));
+    const sy = Math.max(0.8, parseFloat(atom(size, 2) ?? '1'));
+    const stroke = parseFloat(atom(child(font, 'thickness'), 1) ?? '0.15');
+    const x = (bb.minX + bb.maxX) / 2;
+    const y = bb.minY - (sy + stroke) / 2 - 0.5;
+    const next = field.replace(/\(at\s+[-\d.]+\s+[-\d.]+(?:\s+[-\d.]+)?\)/, `(at ${num(x)} ${num(y)})`)
+      .replace(/\(size\s+[-\d.]+\s+[-\d.]+\)/, `(size ${num(sx)} ${num(sy)})`)
+      .replace(/\s*\(justify\s+[^()]*\)/, '');
+    text = text.slice(0, span.start) + next + text.slice(span.end);
+  }
+  return text;
 }
 
 // ---- instantiation ----------------------------------------------------------
@@ -566,6 +606,8 @@ export interface PopulateOptions {
   board: string;
   resolver?: FootprintResolver;
   env?: NodeJS.ProcessEnv;
+  /** Opt-in reference clearance; library mode preserves existing placements. */
+  referencePlacement?: 'library' | 'clearance';
 }
 
 /**
@@ -635,7 +677,11 @@ export async function populateBoard(opts: PopulateOptions): Promise<PopulateResu
   }
   if (mismatches.length) throw new PadMismatchError(mismatches);
 
-  const boundsOf = new Map(netlist.parts.map((p) => [p.ref, footprintBounds(mods.get(p.footprint)!.text, { ref: p.ref, value: p.value })]));
+  const clearance = opts.referencePlacement === 'clearance';
+  const prepared = new Map([...mods].map(([id, mod]) => [id, clearance ? placeReferenceAboveFootprint(mod.text) : mod.text]));
+  const boundsOf = new Map(netlist.parts.map((p) => [p.ref, footprintBounds(prepared.get(p.footprint)!, {
+    ref: p.ref, value: p.value, conservativeText: clearance,
+  })]));
 
   // biggest first: the module anchors the pack; ties by refdes for stability
   const order = [...netlist.parts].sort((a, b) => {
@@ -672,7 +718,7 @@ export async function populateBoard(opts: PopulateOptions): Promise<PopulateResu
 
   const blocks = order.map((p, i) => {
     const bb = boundsOf.get(p.ref)!;
-    return instantiateFootprint(mods.get(p.footprint)!.text, {
+    return instantiateFootprint(prepared.get(p.footprint)!, {
       fpId: p.footprint,
       ref: p.ref,
       value: p.value,

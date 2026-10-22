@@ -1,0 +1,9 @@
+{
+  "actualRunBriefSHA256": "13aa827a7b68f31f33e40c479b7c7b264ae08ebf896231c9ab45241d236d1d01",
+  "requirementsExcerptSHA256": "9691d9571a63d13d6e064d24a247e1d46b24d9a5536a1286b12bc0d809aa76cf",
+  "notByteIdenticalToRunInput": true,
+  "omitted": "Operator authorization and machine-specific runtime guidance. Hardware requirements and manufacturer pointers retained.",
+  "initialInputCommit": "650d1b6876ede38f1570579cc7210e894bd01dd6",
+  "initialGeneratedArtifactsAbsent": true,
+  "inputScope": "Normative component libraries/manufacturer inputs and configuration, not a precompleted BOM, wiring intent, board, firmware or development plan."
+}
