@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -113,6 +113,8 @@ describe('copperhead create without a git setup (bug-report path)', () => {
     const { dir, cleanup } = await tempDir();
     try {
       await writeFile(path.join(dir, 'brief.md'), 'A tiny USB macro keypad', 'utf8');
+      // Focus this test on Git preflight, independently of the OpenSpec CLI.
+      await mkdir(path.join(dir, 'openspec'));
       await execa('git', ['init', '-q'], { cwd: dir });
       await expect(runCreate(createOpts(dir))).rejects.toThrow(/repository has no commits/);
     } finally {
@@ -124,6 +126,7 @@ describe('copperhead create without a git setup (bug-report path)', () => {
     const { dir, cleanup } = await tempDir();
     try {
       await writeFile(path.join(dir, 'brief.md'), 'A tiny USB macro keypad', 'utf8');
+      await mkdir(path.join(dir, 'openspec'));
       await expect(runCreate(createOpts(dir))).rejects.toThrow(/not a git repository/);
     } finally {
       await cleanup();
