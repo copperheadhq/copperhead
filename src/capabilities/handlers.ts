@@ -322,6 +322,8 @@ export const HANDLERS: HandlerDef[] = [
           x: { type: 'number', description: 'footprint origin X in mm (board coordinates)' },
           y: { type: 'number', description: 'footprint origin Y in mm (board coordinates, Y down)' },
           rotation: { type: 'number', description: 'absolute rotation in degrees (0, 90, 180, 270); omit to keep the current one' },
+          label_x: { type: 'number', description: 'Reference text X in mm (board coordinates); give with label_y to place the refdes label, e.g. to clear a silkscreen finding. The tool converts it to the footprint\'s rotated frame' },
+          label_y: { type: 'number', description: 'Reference text Y in mm (board coordinates, Y down); give with label_x' },
         },
         required: ['ref', 'x', 'y'],
       },
@@ -335,11 +337,14 @@ export const HANDLERS: HandlerDef[] = [
       const y = Number(args.y);
       const rotation = args.rotation === undefined ? undefined : Number(args.rotation);
       if (![x, y, rotation ?? 0].every(Number.isFinite)) return 'x, y (and rotation if given) must be numbers';
+      if ((args.label_x === undefined) !== (args.label_y === undefined)) return 'give label_x and label_y together, or neither';
+      const label = args.label_x === undefined ? undefined : { x: Number(args.label_x), y: Number(args.label_y) };
+      if (label && ![label.x, label.y].every(Number.isFinite)) return 'label_x and label_y must be numbers';
       const abs = resolveInRepo(ctx.repoRoot, rel);
       const before = await readFile(abs, 'utf8');
       let after: string;
       try {
-        after = moveFootprint(before, ref, x, y, rotation);
+        after = moveFootprint(before, ref, x, y, rotation, label);
       } catch (e) {
         return `not moved: ${(e as Error).message}`;
       }
@@ -350,7 +355,8 @@ export const HANDLERS: HandlerDef[] = [
         return `move REVERTED: the board would not load in KiCad. kicad-cli says:\n${loadErr}`;
       }
       markTouched(ctx, rel);
-      return `moved ${ref} to (${x}, ${y})${rotation === undefined ? '' : ` at ${rotation}°`}; pads and text turned with it. Run run_drc after this batch of moves.`;
+      const placed = label ? ` Reference text at (${label.x}, ${label.y}).` : '';
+      return `moved ${ref} to (${x}, ${y})${rotation === undefined ? '' : ` at ${rotation}°`}; pads and text turned with it.${placed} Run run_drc after this batch of moves.`;
     },
   },
   {

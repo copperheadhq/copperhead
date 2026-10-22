@@ -192,6 +192,15 @@ Layout SHALL place parts with a `move_footprint` tool (refdes, x, y, optional ab
 - **WHEN** only the footprint's own angle is edited
 - **THEN** DRC reports `lib_footprint_mismatch`, the findings inside the part fail, and the stage cannot finish
 
+### Requirement: Reference text placed in board coordinates
+
+Given optional `label_x` and `label_y` in board coordinates, `move_footprint` SHALL place the footprint's Reference text there, converting the point into the footprint's stored rotated frame (`local = R(-θ)·(board - origin)`) with the origin and angle the same call sets. The layout-draft prompt SHALL send refdes label fixes, such as a silkscreen finding on a Reference, to `move_footprint` rather than to `edit_file`.
+
+#### Scenario: A label is placed in board coordinates
+
+- **WHEN** R2 is turned to 270 degrees and given `label_x` and `label_y` in the same `move_footprint` call
+- **THEN** KiCad reads R2's Reference text at that board point, on either side of the board and at any of the four angles
+
 ### Requirement: Strict layout-draft completion
 
 The layout-draft stage SHALL complete only when the board's (refdes, footprint id) pairs equal the schematic netlist's exactly, every pad of those parts is on its schematic netlist net, the board passes DRC, and LAYOUT.md has its `## Draft quality` section, numbered (`## 4. Draft quality`) or not, with something written under it: the placeholder comment `copperhead init` scaffolds SHALL NOT count, and the first such section is the one read, as the fab documentation gate reads it. The stage prompt SHALL tell the agent the parts are already placed and that it moves footprints and routes, never adding, deleting, or rewriting a footprint, pad, or net.
