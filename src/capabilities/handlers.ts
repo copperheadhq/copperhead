@@ -928,7 +928,7 @@ export const HANDLERS: HandlerDef[] = [
       // that throws is reported, never treated as met (#310: finish must not approve
       // what the pipeline then rejects).
       if (!problems.length && ctx.stageGate) {
-        const gap = await ctx.stageGate().catch((e: unknown) => `the stage contract could not be checked: ${(e as Error).message}`);
+        const gap = await ctx.stageGate(ctx).catch((e: unknown) => `the stage contract could not be checked: ${(e as Error).message}`);
         if (gap) problems.push(gap);
       }
       if (problems.length) {
