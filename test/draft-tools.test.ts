@@ -7,6 +7,7 @@ import { dispatchTool, type RunContext } from '../src/agent/tools.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { STAGES } from '../src/commands/create.js';
+import { useSeededKicadConfig } from './helpers.js';
 
 /**
  * Agent-tool and pipeline wiring for the drafting engine: draft_schematic,
@@ -15,6 +16,8 @@ import { STAGES } from '../src/commands/create.js';
  * libraries; after the first draft the vendored cache makes everything
  * hermetic (no installed libs consulted).
  */
+
+useSeededKicadConfig();
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SYMLIB = path.join(HERE, 'fixtures', 'symlib');
