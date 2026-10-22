@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from '../kicad/sexp.js';
+import { classifyPart, isPinoutWorthy, mpnOf, extractDesignGraph, writeDesignGraph } from '../kicad/design-graph.js';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
 import { resolveInRepo } from '../util/paths.js';
 
@@ -32,10 +33,20 @@ async function findKicadFiles(searchRoot: string): Promise<{ sch: string | null;
   return { sch, pcb };
 }
 
+/** One-line, pipe-free table cell: a newline or `|` in a field would shift the BOM columns. */
+const cell = (v: string): string => v.replace(/\s*[\r\n]+\s*/g, ' ').replace(/\|/g, '/').trim();
+
 function bomTable(symbols: SchematicSymbol[]): string {
-  const rows = symbols.map(
-    (s) => `| ${s.ref} | ${s.value} | ${s.footprint} | UNVERIFIED | extracted from schematic by copperhead init |`,
-  );
+  // DNP and BOM-excluded parts never become orderable rows (issue #248 gap 3).
+  // Parts that carry a real MPN in the schematic keep it. Parts with no MPN
+  // keep the UNVERIFIED placeholder so existing drift and export behavior
+  // (which treat it as missing) is unchanged.
+  const orderable = symbols.filter((s) => !s.dnp && s.inBom);
+  const rows = orderable.map((s) => {
+    const mpn = cell(mpnOf(s));
+    if (mpn) return `| ${s.ref} | ${s.value} | ${s.footprint} | ${mpn} | from schematic fields by copperhead init |`;
+    return `| ${s.ref} | ${s.value} | ${s.footprint} | UNVERIFIED | extracted from schematic by copperhead init |`;
+  });
   return ['| Refdes | Value | Footprint | MPN | Rationale |', '|---|---|---|---|---|', ...rows].join('\n');
 }
 
@@ -49,8 +60,17 @@ function generateDocs(
   symbols: SchematicSymbol[],
   pins: PinNet[],
 ): Record<string, string> {
-  const mcuRefs = new Set(symbols.filter((s) => s.ref.startsWith('U')).map((s) => s.ref));
-  const mcuPins = pins.filter((p) => mcuRefs.has(p.ref));
+  // Chip classification is derived, not prefixed (issue #248 gap 4). The old
+  // `ref.startsWith('U')` rule missed connectors, regulators addressed as
+  // VR1, MOSFETs, and crystals, while any U-prefixed part counted as a chip.
+  const pinsByRef = new Map<string, number>();
+  for (const p of pins) pinsByRef.set(p.ref, (pinsByRef.get(p.ref) ?? 0) + 1);
+  const worthy = new Set(
+    symbols
+      .filter((s) => isPinoutWorthy(classifyPart(s, pinsByRef.get(s.ref) ?? 0).class))
+      .map((s) => s.ref),
+  );
+  const pinoutPins = pins.filter((p) => worthy.has(p.ref));
   return {
     'SPEC.md': `# ${projectName} — Specification
 
@@ -82,7 +102,7 @@ ${bomTable(symbols)}
 Pin assignment extracted from the schematic. Check strapping/RTC notes before
 reassigning pins.
 
-${pinoutTable(mcuPins.length ? mcuPins : pins)}
+${pinoutTable(pinoutPins.length ? pinoutPins : pins)}
 `,
     'SUBSYSTEMS.md': `# Subsystems
 
@@ -140,6 +160,13 @@ One directory per \`do\`/\`create\`/\`sync\` run: \`transcript.jsonl\` (full aud
 trail) and \`summary.md\` (human-readable: request, plan, files touched,
 verification results, decisions, open obligations). Both redact secrets at
 write time. This directory is gitignored.
+
+## design-graph.json
+
+Normalized design graph written by \`copperhead init\` and \`copperhead ingest\`: parts,
+pins and nets, taken from the \`kicad-cli\` netlist when it can be produced. A derived
+cache (gitignored): it records a hash of every schematic sheet and is ignored once any
+sheet changes. Re-run \`copperhead ingest\` to refresh it.
 `;
 }
 
@@ -195,6 +222,16 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
   const pins = await pinNets(sch);
   const projectName = path.basename(sch, '.kicad_sch');
   const docs = generateDocs(projectName, symbols, pins);
+
+  // Normalized design graph (issue #248): a derived, gitignored cache with
+  // source hashes, refreshed on init through the same path as `ingest` so the
+  // two write identical bytes. A failure here never blocks docs scaffolding;
+  // consumers treat a missing graph as absent.
+  try {
+    await writeDesignGraph(repoRoot, await extractDesignGraph(repoRoot, path.relative(repoRoot, sch)));
+  } catch (err) {
+    console.error(`copperhead: could not write .copperhead/design-graph.json: ${(err as Error).message}`);
+  }
 
   const docsDir = path.join(repoRoot, config.docs);
   await mkdir(docsDir, { recursive: true });

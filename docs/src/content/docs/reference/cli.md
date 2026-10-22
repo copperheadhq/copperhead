@@ -18,6 +18,7 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `repl` (default) | [Edit an existing board](/workflows/edit-existing-board/) | Yes | Interactive agent shell; each prompt is one `do`-equivalent run. |
 | `demo` | [Simple demo](/getting-started/demo/) | Tour no / pipeline yes | Tour of what copperhead does, or run the USB-C breakout create pipeline. |
 | `init` | Setup | No | Scaffolds `docs/` from an existing schematic. |
+| `ingest` | Setup | No | Writes the normalized design graph from the schematic. |
 | `check` (`verify`) | Either | No | ERC, DRC, drift, constraints, spec validation. CI-safe. |
 | `do` | [Edit an existing board](/workflows/edit-existing-board/) | Yes | One change: propose, edit, verify, propagate, commit. |
 | `create` | [Design from a brief](/workflows/create-from-brief/) | Yes | Full pipeline from a markdown brief to an output package. |
