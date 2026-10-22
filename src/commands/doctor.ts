@@ -14,7 +14,7 @@ import {
   type CopperheadConfig,
 } from '../config.js';
 import { kicadCliVersion, MIN_KICAD_MAJOR } from '../kicad/cli.js';
-import { redactSecrets } from '../util/redact.js';
+import { redactSecrets, sanitizeEndpoint } from '../util/redact.js';
 import { isNotFoundError } from '../util/preflight.js';
 
 const execFileP = promisify(execFile);
@@ -207,22 +207,9 @@ export function checkCredential(
       };
     }
     const settings = compat ?? { apiKeyEnv: DEFAULT_API_KEY_ENV };
-    // Display only: some endpoints embed a credential in the URL itself (a
-    // query param, userinfo) — Gemini's compat endpoint does this with
-    // ?key=.... redactSecrets covers known key shapes, but a key embedded in
-    // a URL query isn't reliably one of them, so drop the query and userinfo
-    // entirely rather than pattern-matching, regardless of shape.
-    // isLocalEndpoint() below still runs against the raw settings.baseURL,
-    // never this.
-    const where = (() => {
-      if (!settings.baseURL) return '(no baseURL configured)';
-      try {
-        const u = new URL(settings.baseURL);
-        return `${u.origin}${u.pathname}`;
-      } catch {
-        return redactSecrets(settings.baseURL);
-      }
-    })();
+    // Display only. isLocalEndpoint() below still runs against the raw
+    // settings.baseURL, never the sanitized form.
+    const where = sanitizeEndpoint(settings.baseURL);
     if (!settings.baseURL) {
       return {
         name: 'provider',

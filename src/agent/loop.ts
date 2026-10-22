@@ -26,6 +26,7 @@ import { ObligationsLedger } from './ledger.js';
 import { markTouched } from '../capabilities/helpers.js';
 import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun } from '../util/git.js';
 import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
+import { sanitizeEndpoint } from '../util/redact.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import { OpenAIProvider } from './providers/openai.js';
@@ -118,9 +119,13 @@ export async function makeProvider(
     // provider that silently sends the literal string "gpt-5" (OpenAIProvider's
     // own default) to a host that almost certainly does not serve it.
     if (!compatModel) {
+      // sanitizeEndpoint, not the raw settings.baseURL: some endpoints embed
+      // a credential in the URL itself (Gemini's compat endpoint does this
+      // with ?key=...), and this message reaches the user's terminal
+      // unredacted (cli.ts prints a caught error's .message directly).
       throw new Error(
         settings.baseURL
-          ? `compat requires a model id; use "compat:<model-id>" (endpoint ${settings.baseURL} is configured, but has no default model)`
+          ? `compat requires a model id; use "compat:<model-id>" (endpoint ${sanitizeEndpoint(settings.baseURL)} is configured, but has no default model)`
           : 'compat requires a model id and an endpoint; use "compat:<model-id>" and set baseURL (COPPERHEAD_BASE_URL or .copperhead/config.json)',
       );
     }

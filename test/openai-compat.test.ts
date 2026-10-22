@@ -252,6 +252,26 @@ describe('makeProvider — compat routing', () => {
     });
   });
 
+  it('does not leak a credential embedded in baseURL through the bare-compat error (regression)', async () => {
+    // Bug: this error message interpolated settings.baseURL raw, and cli.ts
+    // prints a caught error's .message straight to stderr with no
+    // redaction. An endpoint that embeds its credential in the URL itself
+    // (Gemini's compat endpoint does this with ?key=...) would leak it the
+    // moment a user ran bare `compat` against a configured endpoint.
+    const leaky = { baseURL: 'https://example.com/v1?key=shouldNotLeakThisValue', apiKeyEnv: 'X_API_KEY' };
+    await withKey(async () => {
+      let message = '';
+      try {
+        await makeProvider('compat', false, leaky);
+      } catch (err) {
+        message = (err as Error).message;
+      }
+      expect(message).toMatch(/requires a model id/);
+      expect(message).not.toContain('shouldNotLeakThisValue');
+      expect(message).toContain('https://example.com/v1');
+    });
+  });
+
   it('refuses compat:<model-id> with no endpoint configured — no silent fallback to real OpenAI (regression)', async () => {
     // Bug: a model id alone skipped the guard entirely, so `new OpenAIProvider`
     // was built with no baseURL and fell back to its own default client —
