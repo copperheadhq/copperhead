@@ -70,6 +70,7 @@ The names are yours. copperhead passes them through verbatim and expects the uni
 | `COPPERHEAD_MODEL` | Default model. Overrides config, overridden by `--model`. |
 | `COPPERHEAD_CODEX_PATH` | Optional path to a `codex` executable. Defaults to `codex` on `PATH`; the SDK-bundled launcher is a fallback. |
 | `COPPERHEAD_CURSOR_PATH` | Optional path to the Cursor Agent CLI (`agent` / `cursor-agent`). Defaults to `agent` on `PATH`. |
+| `COPPERHEAD_CC_TRACE` | Optional directory. When set, each `claude-code` turn writes its prompt and every non-partial Agent SDK message to `turn-N.jsonl` there, plus the Claude Code CLI's debug log to `turn-N.cli.log`. For diagnosing turns that fail with an opaque `[ede_diagnostic]` error result. The files contain the full prompt (design files included). Off by default. |
 | `COPPERHEAD_BASE_URL` | Optional. Overrides `baseURL`. Only the `compat` route reads it, so it never redirects a `gpt-5` run. |
 | `COPPERHEAD_API_KEY_ENV` | Optional. Overrides `apiKeyEnv`, e.g. `GROQ_API_KEY`. |
 | `NO_COLOR` | Optional. Disables ANSI colors in `doctor` output; colors are also skipped automatically when stdout is not a terminal. |
