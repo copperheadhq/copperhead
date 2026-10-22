@@ -6,7 +6,7 @@ import path from 'node:path';
 import { resolveInRepo, SandboxError, isKicadFile } from '../src/util/paths.js';
 import { redactSecrets } from '../src/util/redact.js';
 import { withRetry } from '../src/util/retry.js';
-import { toolWriteFile, toolEditFile, toolSearch } from '../src/agent/filetools.js';
+import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../src/agent/filetools.js';
 import { Transcript } from '../src/agent/transcript.js';
 import { isDirty, hasCommits, snapshot, restore } from '../src/util/git.js';
 import { PreflightError } from '../src/util/preflight.js';
@@ -161,6 +161,36 @@ describe('secret redaction (AC-4.1)', () => {
 });
 
 describe('file tools', () => {
+  it('edit_file keeps CRLF when an exact anchor ends on the CR of a CRLF pair', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.kicad_pcb');
+    const src = '(kicad_pcb\r\n\t\t(property "Reference" "R1"\r\n\t\t\t(at 0 -1.43 0)\r\n\t\t)\r\n)\r\n';
+
+    await writeFile(file, src, 'utf8');
+    const excerpt = (await toolReadFile(dir, 'f.kicad_pcb', 2, 3))
+      .split('\n')
+      .map((l) => l.replace(/^\d+: /, ''))
+      .join('\n');
+    expect(excerpt).toBe('\t\t(property "Reference" "R1"\r\n\t\t\t(at 0 -1.43 0)\r');
+
+    await toolEditFile(dir, 'f.kicad_pcb', excerpt, excerpt.replace('-1.43', '-2.00'));
+    expect(await readFile(file, 'utf8')).toBe(src.replace('-1.43', '-2.00'));
+
+    await writeFile(file, src, 'utf8');
+    await toolEditFile(dir, 'f.kicad_pcb', '\t\t\t(at 0 -1.43 0)\r', '\t\t\t(at 0 -1.43 0)\r\n\t\t\t(layer "F.SilkS")\r');
+    expect(await readFile(file, 'utf8')).toBe(src.replace('(at 0 -1.43 0)\r\n', '(at 0 -1.43 0)\r\n\t\t\t(layer "F.SilkS")\r\n'));
+  });
+
+  it('edit_file falls back to LF when the file has no line breaks', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    await writeFile(file, 'foo', 'utf8');
+
+    await toolEditFile(dir, 'f.txt', 'foo', 'foo\nbar');
+
+    expect(await readFile(file, 'utf8')).toBe('foo\nbar');
+  });
+
   it('write_file refuses KiCad files and overwrites', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     await expect(toolWriteFile(dir, 'x.kicad_sch', 'nope')).rejects.toThrow(/refuses KiCad/);

@@ -55,12 +55,22 @@ export async function toolEditFile(
   const l0 = oldString.split(/\r\n|\n|\r/);
   const l1 = newString.split(/\r\n|\n|\r/);
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const runAnchorRegex = <T>(run: () => T): T => {
+    try {
+      return run();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(`edit_file: anchor too long (${l0.length} lines) in ${p}; use a shorter unique excerpt`);
+      }
+      throw error;
+    }
+  };
   const normalizedRe = new RegExp(l0.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g');
   // A leading LF in an anchor must not match only the LF half of a CRLF pair.
   // Let normalizedRe match the whole break in that case.
-  const exactPattern = `${oldString.startsWith('\n') ? '(?<!\\r)' : ''}${esc(oldString)}`;
+  const exactPattern = `${oldString.startsWith('\n') ? '(?<!\\r)' : ''}${esc(oldString)}${oldString.endsWith('\r') ? '(?!\\n)' : ''}`;
   const exactRe = new RegExp(exactPattern, 'g');
-  const re = text.includes(oldString) && new RegExp(exactPattern).test(text) ? exactRe : normalizedRe;
+  const re = text.includes(oldString) && runAnchorRegex(() => new RegExp(exactPattern).test(text)) ? exactRe : normalizedRe;
   let lastBreak: string | undefined;
   const breakAtOrAfter = (at: number) => {
     const nextBreak = text.slice(at).match(/\r\n|\r(?!\n)|\n/);
@@ -74,10 +84,10 @@ export async function toolEditFile(
 
   if (replaceAll) {
     let count = 0;
-    const out = text.replace(normalizedRe, (match, at: number) => {
+    const out = runAnchorRegex(() => text.replace(normalizedRe, (match, at: number) => {
       count++;
       return replacementFor(match, at);
-    });
+    }));
     if (count === 0) {
       throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
     }
@@ -85,7 +95,7 @@ export async function toolEditFile(
     return `edited ${p} (${count} occurrence(s) replaced)`;
   }
 
-  const matches = [...text.matchAll(re)];
+  const matches = runAnchorRegex(() => [...text.matchAll(re)]);
   if (matches.length === 0) {
     throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
   }
