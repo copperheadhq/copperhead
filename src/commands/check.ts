@@ -11,6 +11,7 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { inspectBriefFreshness, type BriefFreshness } from '../memory/brief-reconciliation.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -23,6 +24,7 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  brief: BriefFreshness;
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -42,6 +44,20 @@ export interface CheckResult {
 export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   libraryCache.attach(repoRoot);
+  const brief = await inspectBriefFreshness(repoRoot, config.docs);
+  if (brief.status === 'current') {
+    log(`brief ✓ current (${brief.currentSha256?.slice(0, 12) ?? 'hash unavailable'})`);
+    for (const refused of brief.refused) {
+      log(`brief declined ${refused.id} at ${refused.briefSha256.slice(0, 12)}: ${refused.change} (reason: ${refused.rationale})`);
+    }
+  } else if (brief.status === 'not-applicable') {
+    log('brief skipped (no brief provenance configured)');
+  } else {
+    const hashes = brief.status === 'stale'
+      ? `recorded ${brief.reconciledSha256?.slice(0, 12) ?? 'unknown'}, current ${brief.currentSha256?.slice(0, 12) ?? 'unknown'}`
+      : `origin ${brief.originSha256?.slice(0, 12) ?? 'unknown'}, current ${brief.currentSha256?.slice(0, 12) ?? 'unknown'}`;
+    log(`brief ${brief.status} (${hashes}): ${brief.detail ?? 'see reconciliation report'}`);
+  }
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
 
@@ -137,7 +153,8 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    brief.ok;
 
   return {
     ok,
@@ -146,6 +163,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    brief,
     legibility,
   };
 }

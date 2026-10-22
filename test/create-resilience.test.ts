@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execa } from 'execa';
@@ -278,7 +279,7 @@ describe('create pipeline resilience (review F3)', () => {
     }
   });
 
-  it('records external brief provenance without leaking an absolute path', async () => {
+  it('rejects an external brief before starting create or writing provenance', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     let externalDir: string | undefined;
     try {
@@ -286,24 +287,32 @@ describe('create pipeline resilience (review F3)', () => {
       const externalBrief = path.join(externalDir, 'outside-brief.md');
       await writeFile(externalBrief, '# external\n', 'utf8');
       await mkdir(path.join(repo, '.copperhead'), { recursive: true });
-      mockRunAgentLoop.mockImplementation(async (opts) => {
-        await writeStageDoc(opts.repoRoot, opts.request);
-        return ok();
-      });
+      const messages: string[] = [];
       const res = await runCreate({
         repoRoot: repo,
         briefPath: externalBrief,
         model: 'gpt-5',
-        log: () => {},
+        log: (message) => messages.push(message),
       });
-      expect(res.completed).toContain('spec-seed');
-      const briefHash = await readFile(
-        path.join(repo, 'docs', 'BRIEF.sha256'),
-        'utf8',
-      );
+      expect(res).toEqual({ ok: false, completed: [] });
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+      expect(existsSync(path.join(repo, 'docs', 'BRIEF.sha256'))).toBe(false);
+      expect(messages.join('\n')).toContain('inside the target repository');
+      expect(messages.join('\n')).not.toContain(externalBrief);
 
-      expect(briefHash).toContain('brief: external:outside-brief.md');
-      expect(briefHash).not.toContain(externalBrief);
+      const cli = await execa(process.execPath, [
+        '--import',
+        path.resolve('node_modules/tsx/dist/loader.mjs'),
+        path.resolve('src/cli.ts'),
+        '--repo',
+        repo,
+        'create',
+        '--brief',
+        externalBrief,
+      ], { cwd: process.cwd(), reject: false });
+      expect(cli.exitCode).toBe(1);
+      expect(cli.stderr).toContain('inside the target repository');
+      expect(cli.stderr).not.toContain(externalBrief);
     } finally {
       if (externalDir) {
         await rm(externalDir, { recursive: true, force: true });

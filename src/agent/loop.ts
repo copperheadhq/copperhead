@@ -105,7 +105,9 @@ export interface RunOptions {
    * told it is done by the tool and not done by the gate (#310). Returns null when
    * met, else what is missing.
    */
-  stageGate?: () => Promise<string | null>;
+  stageGate?: (ctx: RunContext) => Promise<string | null>;
+  /** Atomic caller bookkeeping after verification and before the run commit. */
+  beforeCommit?: (ctx: RunContext) => Promise<void>;
 }
 
 export interface RunResult {
@@ -760,7 +762,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
 
     if (ctx.finishRequest) {
       const { outcome, summary, blockers = [], unverifiedBlockers = [] } = ctx.finishRequest;
-      const files = [...ctx.filesTouched];
+      let files = [...ctx.filesTouched];
       if (outcome === 'refuse') {
         const listed = [
           ...blockers.map((b) => ({ ...b, verified: true })),
@@ -863,6 +865,13 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           stats: runStats,
           cacheHits: cacheHits(),
         };
+      }
+
+      try {
+        await opts.beforeCommit?.(ctx);
+        files = [...ctx.filesTouched];
+      } catch (err) {
+        return fail(`pre-commit action failed: ${(err as Error).message}`, 'commit-failed');
       }
 
       // Bookkeeping must never cost the verified design its commit (2.1): the
