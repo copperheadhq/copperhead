@@ -6,15 +6,16 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile, readFile, readdir, appendFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, appendFile, realpath } from 'node:fs/promises';
 import { execa } from 'execa';
+import { loadConfig } from '../config.js';
 import type { ProgressRenderer } from '../agent/render.js';
 import type { RunMetaInput } from '../agent/runmeta.js';
 import type { BudgetExhaustedStats } from '../agent/loop.js';
 import { copper, dim, ok } from '../agent/theme.js';
 import { traceRule } from '../agent/animate.js';
 import { shortPath } from '../util/paths.js';
-import { runCreate } from './create.js';
+import { isRepositoryLocalBrief, runCreate } from './create.js';
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DEFAULT_BRIEF = path.join(PKG_ROOT, 'examples/simple/usb-c-breakout.md');
@@ -56,6 +57,47 @@ export function defaultDemoDir(): string {
 
 /** Marker identifying a directory scaffolded by `copperhead demo`. */
 const DEMO_MARKER = path.join('.copperhead', 'demo-repo');
+
+function isWithinDirectory(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return Boolean(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+async function prepareDemoBrief(demoDir: string, inputPath: string, docsDir: string, log: (line: string) => void): Promise<string> {
+  const root = await realpath(demoDir);
+  let briefPath: string;
+  if (await isRepositoryLocalBrief(root, inputPath)) {
+    briefPath = await realpath(path.resolve(inputPath));
+  } else {
+    const source = await realpath(inputPath);
+    const text = await readFile(source, 'utf8');
+    const destination = path.resolve(root, docsDir, 'BRIEF.md');
+    if (!isWithinDirectory(root, destination)) throw new Error('configured docs directory resolves outside the demo repository');
+    const parent = path.dirname(destination);
+    await mkdir(parent, { recursive: true });
+    const parentReal = await realpath(parent);
+    if (parentReal !== path.resolve(root, docsDir) || (parentReal !== root && !isWithinDirectory(root, parentReal))) {
+      throw new Error('configured docs directory resolves outside the demo repository');
+    }
+    if (existsSync(destination)) {
+      if (!(await isRepositoryLocalBrief(root, destination))) throw new Error('existing demo brief is not a safe repository-local file');
+      if ((await readFile(destination, 'utf8')) !== text) {
+        throw new Error(`refusing to overwrite ${path.relative(root, destination).split(path.sep).join('/')} because it contains different content`);
+      }
+      log(`external brief matches existing ${path.relative(root, destination).split(path.sep).join('/')}`);
+    } else {
+      await writeFile(destination, text, { encoding: 'utf8', flag: 'wx' });
+      log(`copied external brief to ${path.relative(root, destination).split(path.sep).join('/')}`);
+    }
+    briefPath = await realpath(destination);
+  }
+
+  const relativePath = path.relative(root, briefPath).split(path.sep).join('/');
+  await execa('git', ['add', '--', relativePath], { cwd: root });
+  const staged = await execa('git', ['diff', '--cached', '--quiet', '--', relativePath], { cwd: root, reject: false });
+  if (staged.exitCode !== 0) await execa('git', ['commit', '-q', '-m', 'demo: add product brief'], { cwd: root });
+  return briefPath;
+}
 
 /**
  * Prepare a clean-enough git repo for the create pipeline (git init, ignore
@@ -170,9 +212,12 @@ export async function runDemo(opts: DemoOptions): Promise<{ ok: boolean; demoDir
   log(ok('  scaffold ready'));
   log('');
 
+  const config = await loadConfig(demoDir);
+  const demoBriefPath = await prepareDemoBrief(demoDir, briefPath, config.docs, log);
+
   const res = await runCreate({
     repoRoot: demoDir,
-    briefPath,
+    briefPath: demoBriefPath,
     model: opts.model,
     interactive: opts.interactive ?? false,
     ...(opts.onBudgetExhausted ? { onBudgetExhausted: opts.onBudgetExhausted } : {}),

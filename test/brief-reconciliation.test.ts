@@ -158,7 +158,7 @@ describe('brief reconciliation state', () => {
     expect(refusal.rationale).not.toContain('sk-example_1234567890');
   });
 
-  it('reports legacy origin provenance as unknown even when its hash matches', async () => {
+  it('reports a matching legacy origin as a non-failing advisory', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const brief = '# Keyer\n\nRequirements:\n- BLE keyboard\n';
@@ -166,10 +166,48 @@ describe('brief reconciliation state', () => {
 
       const result = await inspectBriefFreshness(repo, 'docs');
 
-      expect(result.status).toBe('unknown');
-      expect(result.ok).toBe(false);
+      expect(result).toMatchObject({ status: 'legacy', ok: true, reasonCode: 'legacy-origin-without-reconciliation' });
       expect(result.currentSha256).toBe(briefSha256(brief));
       expect(result.reconciledSha256).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('keeps external-origin legacy repositories green, including sync dry-run', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const externalHash = briefSha256('# External brief\n');
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(path.join(repo, 'docs', 'BRIEF.sha256'), `brief: external:brief.md\nsha256: ${externalHash}\n`, 'utf8');
+      await commit(repo, 'add external brief provenance');
+
+      const result = await inspectBriefFreshness(repo, 'docs');
+      const cli = await execa(process.execPath, [
+        '--import', 'tsx', path.join(process.cwd(), 'src', 'cli.ts'), '--repo', repo,
+        'sync', '--brief', '--dry-run',
+      ], { cwd: process.cwd(), reject: false });
+
+      expect(result).toMatchObject({ status: 'legacy', ok: true, reasonCode: 'legacy-external-origin' });
+      expect(cli.exitCode).toBe(0);
+      expect(cli.stdout).toContain('brief reconciliation: legacy');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('fails stale when a repository-local brief copy differs from an external origin hash', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const original = '# External brief\n';
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(path.join(repo, 'docs', 'BRIEF.md'), '# Changed copy\n', 'utf8');
+      await writeFile(path.join(repo, 'docs', 'BRIEF.sha256'), `brief: external:brief.md\nsha256: ${briefSha256(original)}\n`, 'utf8');
+      await commit(repo, 'add changed copy of external brief');
+
+      const result = await inspectBriefFreshness(repo, 'docs');
+
+      expect(result).toMatchObject({ status: 'stale', ok: false, originSha256: briefSha256(original), currentSha256: briefSha256('# Changed copy\n') });
     } finally {
       await cleanup();
     }
@@ -185,6 +223,9 @@ describe('brief reconciliation state', () => {
       const current = await inspectBriefFreshness(repo, 'docs');
       expect(current).toMatchObject({ status: 'current' });
       expect(current.ok).toBe(true);
+      const comparison = await compareBrief(repo, 'docs');
+      expect(comparison.status).toBe('current');
+      expect(comparison.detail).toBeUndefined();
 
       await writeFile(path.join(repo, 'docs', 'BRIEF.md'), `${brief}- Bottom-side labels\n`, 'utf8');
       const stale = await inspectBriefFreshness(repo, 'docs');
@@ -204,10 +245,10 @@ describe('brief reconciliation state', () => {
       await installBriefOrigin(repo, original);
 
       const unknownCli = await runCheckCli(repo, true);
-      expect(unknownCli.exitCode).toBe(1);
+      expect(unknownCli.exitCode).toBe(0);
       expect(JSON.parse(unknownCli.stdout)).toMatchObject({
-        ok: false,
-        brief: { status: 'unknown' },
+        ok: true,
+        brief: { status: 'legacy', ok: true },
       });
 
       await recordForCurrentBrief(repo, original);
@@ -340,14 +381,31 @@ describe('brief reconciliation state', () => {
     }
   });
 
-  it('does not claim a clean result when a conventional brief lacks origin provenance', async () => {
+  it('reports a conventional brief without origin provenance as a non-failing legacy advisory', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await mkdir(path.join(repo, 'docs'), { recursive: true });
       await writeFile(path.join(repo, 'docs', 'BRIEF.md'), '# Keyer\n', 'utf8');
       const result = await inspectBriefFreshness(repo, 'docs');
-      expect(result.status).toBe('unknown');
-      expect(result.ok).toBe(false);
+      expect(result).toMatchObject({ status: 'legacy', ok: true, reasonCode: 'legacy-brief-without-origin' });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('normalizes CRLF brief content with core.autocrlf enabled before creating its initial record', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await execa('git', ['config', 'core.autocrlf', 'true'], { cwd: repo });
+      const brief = '# Keyer\r\n\r\n- BLE keyboard\r\n';
+      await installBriefOrigin(repo, brief);
+      const record = await initialReconciliationRecord(repo, 'docs', {
+        path: 'docs/BRIEF.md',
+        sha256: briefSha256(brief),
+      });
+
+      expect(record).not.toBeNull();
+      expect(record?.sha256).toBe(briefSha256(brief));
     } finally {
       await cleanup();
     }
@@ -379,6 +437,14 @@ describe('brief reconciliation decisions', () => {
     expect(validateBriefDecisions(['brief:B1 applied | why:Done.'], ['B1', 'B2']).ok).toBe(false);
     expect(validateBriefDecisions(['brief:B1 applied | why:Done.', 'brief:B1 declined | why:Changed my mind.'], ['B1']).ok).toBe(false);
     expect(validateBriefDecisions(['brief:B1 applied | why:'], ['B1']).ok).toBe(false);
+    expect(validateBriefDecisions([
+      'brief:B1 Applied',
+      'brief:B1 applied ',
+      'brief: B1 declined',
+      'brief:B1 applied (partial)',
+      'brief:B1 Applied | why: x',
+      'brief:B1 applied | why: y',
+    ], ['B1']).ok).toBe(true);
   });
 });
 
@@ -409,6 +475,9 @@ describe('sync --brief with an edited source brief', () => {
       expect(result.run.outcome, `${log.join('\n')}\n${provider.lastFinishResult ?? ''}`).toBe('success');
       expect(freshness).toMatchObject({ status: 'current', currentSha256: briefSha256(changed) });
       expect(committedBrief).toBe(changed.trimEnd());
+      const changelog = await readFile(path.join(repo, 'docs', 'CHANGELOG.md'), 'utf8');
+      expect(changelog).not.toContain(repo);
+      expect(changelog).toContain('.copperhead/brief-reconciliation.json');
       expect((await execa('git', ['status', '--short'], { cwd: repo })).stdout).toBe('');
     } finally {
       await cleanup();

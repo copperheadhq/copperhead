@@ -28,11 +28,14 @@ These previews are AI-generated concept renders, not KiCad outputs. They can com
 ## Running one
 
 ```bash
-mkdir my-board && cd my-board && git init
-copperhead create --brief ../copperhead/examples/simple/usb-c-breakout.md
+mkdir my-board && cd my-board && git init && git commit --allow-empty -m "baseline"
+mkdir -p docs
+cp ../copperhead/examples/simple/usb-c-breakout.md docs/BRIEF.md
+git add docs/BRIEF.md && git commit -m "add product brief"
+copperhead create --brief docs/BRIEF.md
 ```
 
-The pipeline is resumable. If a stage fails, rerun the same command and it picks up where it stopped.
+The brief path must be inside the target repository. The pipeline is resumable. If a stage fails, rerun the same command and it picks up where it stopped.
 
 Start with a simple brief the first time you point copperhead at anything. The hard briefs exercise the parts of the loop most likely to need a human pushing back, especially budget refusals and part substitutions.
 

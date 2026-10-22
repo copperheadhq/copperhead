@@ -26,7 +26,8 @@ export interface BriefReconciliationRecord {
 }
 
 export interface BriefFreshness {
-  status: 'current' | 'stale' | 'unknown' | 'not-applicable';
+  status: 'current' | 'stale' | 'unknown' | 'legacy' | 'not-applicable';
+  reasonCode?: 'legacy-origin-without-reconciliation' | 'legacy-external-origin' | 'legacy-brief-without-origin' | 'invalid-origin' | 'invalid-record';
   ok: boolean;
   path: string | null;
   reconciledSha256: string | null;
@@ -43,7 +44,7 @@ export interface BriefChange {
 }
 
 export interface BriefComparison {
-  status: 'current' | 'stale' | 'unknown';
+  status: 'current' | 'stale' | 'unknown' | 'legacy';
   path: string | null;
   baseline: 'reconciled' | 'origin' | null;
   currentSha256: string | null;
@@ -65,7 +66,11 @@ interface ReadResult<T> {
 }
 
 function hashText(text: string): string {
-  return createHash('sha256').update(text).digest('hex');
+  return createHash('sha256').update(text.replace(/\r\n?/g, '\n')).digest('hex');
+}
+
+function gitOptions(repoRoot: string) {
+  return { cwd: repoRoot, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
 }
 
 function insideRepoPath(repoRoot: string, relativePath: string): string | null {
@@ -173,7 +178,7 @@ async function readRecord(repoRoot: string): Promise<ReadResult<BriefReconciliat
     }
     const baseline = await gitBlob(repoRoot, record.gitBlob);
     if (!baseline || hashText(baseline) !== record.sha256) {
-      return { value: null, detail: 'recorded brief baseline is unavailable or corrupt' };
+      return { value: null, detail: 'recorded brief baseline is unavailable or corrupt locally; Git lazy fetching is disabled to keep check network-free' };
     }
     return { value: record };
   } catch {
@@ -183,7 +188,7 @@ async function readRecord(repoRoot: string): Promise<ReadResult<BriefReconciliat
 
 async function gitBlob(repoRoot: string, oid: string): Promise<string | null> {
   try {
-    const { stdout } = await execa('git', ['cat-file', 'blob', oid], { cwd: repoRoot, stripFinalNewline: false });
+    const { stdout } = await execa('git', ['cat-file', 'blob', oid], { ...gitOptions(repoRoot), stripFinalNewline: false });
     return stdout;
   } catch {
     return null;
@@ -192,7 +197,7 @@ async function gitBlob(repoRoot: string, oid: string): Promise<string | null> {
 
 async function blobAtCommit(repoRoot: string, commit: string, relativePath: string): Promise<{ oid: string; text: string } | null> {
   try {
-    const { stdout } = await execa('git', ['ls-tree', '-z', commit, '--', `:(literal)${relativePath}`], { cwd: repoRoot });
+    const { stdout } = await execa('git', ['ls-tree', '-z', commit, '--', `:(literal)${relativePath}`], gitOptions(repoRoot));
     const entry = stdout.split('\0').find(Boolean);
     if (!entry) return null;
     const tab = entry.indexOf('\t');
@@ -217,7 +222,7 @@ async function recoverOriginBlob(
   const safePath = insideRepoPath(repoRoot, relativePath);
   if (!safePath) return null;
   try {
-    const { stdout } = await execa('git', ['log', '--all', '--format=%H', '--', `:(literal)${safePath}`], { cwd: repoRoot });
+    const { stdout } = await execa('git', ['log', '--all', '--format=%H', '--', `:(literal)${safePath}`], gitOptions(repoRoot));
     for (const commit of stdout.split('\n').filter(Boolean)) {
       const blob = await blobAtCommit(repoRoot, commit, safePath);
       if (blob && hashText(blob.text) === expectedSha256) return blob;
@@ -270,7 +275,7 @@ function changedBlocks(before: string, after: string): BriefChange[] {
     }
   }
   flush();
-  if (!blocks.length && before !== after) {
+  if (!blocks.length && before.replace(/\r\n?/g, '\n') !== after.replace(/\r\n?/g, '\n')) {
     blocks.push({ before: ['(line-ending-only change)'], after: ['(line-ending-only change)'] });
   }
   return blocks.map((block, index) => ({
@@ -286,13 +291,14 @@ export async function inspectBriefFreshness(repoRoot: string, docsDir: string): 
   const hasState = existsSync(stateFile);
   const noRefusals: BriefFreshness['refused'] = [];
   if (origin.detail) {
-    return { status: 'unknown', ok: false, path: null, reconciledSha256: null, originSha256: null, currentSha256: null, refused: noRefusals, detail: origin.detail };
+    return { status: 'unknown', ok: false, reasonCode: 'invalid-origin', path: null, reconciledSha256: null, originSha256: null, currentSha256: null, refused: noRefusals, detail: origin.detail };
   }
   const record = await readRecord(repoRoot);
   if (hasState && !record.value) {
     return {
       status: 'unknown',
       ok: false,
+      reasonCode: 'invalid-record',
       path: null,
       reconciledSha256: null,
       originSha256: origin.value?.sha256 ?? null,
@@ -302,8 +308,8 @@ export async function inspectBriefFreshness(repoRoot: string, docsDir: string): 
     };
   }
   if (record.value) {
-    if (!origin.value || record.value.briefPath !== origin.value.briefPath) {
-      return { status: 'unknown', ok: false, path: record.value.briefPath, reconciledSha256: record.value.sha256, originSha256: origin.value?.sha256 ?? null, currentSha256: null, refused: record.value.refusals, detail: 'origin brief provenance is missing or does not match the reconciliation record' };
+    if (!origin.value || (!origin.value.briefPath.startsWith('external:') && record.value.briefPath !== origin.value.briefPath)) {
+      return { status: 'unknown', ok: false, reasonCode: 'invalid-record', path: record.value.briefPath, reconciledSha256: record.value.sha256, originSha256: origin.value?.sha256 ?? null, currentSha256: null, refused: record.value.refusals, detail: 'origin brief provenance is missing or does not match the reconciliation record' };
     }
     const current = await readRepoFile(repoRoot, record.value.briefPath);
     if (!current.value) {
@@ -316,29 +322,55 @@ export async function inspectBriefFreshness(repoRoot: string, docsDir: string): 
       ok: status === 'current',
       path: record.value.briefPath,
       reconciledSha256: record.value.sha256,
-      originSha256: origin.value.sha256,
+      originSha256: origin.value?.sha256 ?? null,
       currentSha256,
       refused: record.value.refusals,
       ...(status === 'stale' ? { detail: 'brief changed since its last reconciliation; run copperhead sync --brief' } : {}),
     };
   }
   if (origin.value) {
+    if (origin.value.briefPath.startsWith('external:')) {
+      const conventionalPath = path.posix.join(docsDir.split(path.sep).join('/'), 'BRIEF.md');
+      const conventional = await readRepoFile(repoRoot, conventionalPath);
+      if (!conventional.value && existsSync(path.join(repoRoot, conventionalPath))) {
+        return { status: 'unknown', ok: false, reasonCode: 'invalid-origin', path: conventionalPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256: null, refused: noRefusals, detail: conventional.detail ?? 'repository-local brief is not trackable' };
+      }
+      if (conventional.value) {
+        const currentSha256 = hashText(conventional.value.text);
+        if (currentSha256 !== origin.value.sha256) {
+          return { status: 'stale', ok: false, path: conventionalPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256, refused: noRefusals, detail: 'repository-local brief differs from its external origin; complete create to establish a tracked baseline' };
+        }
+        return { status: 'legacy', ok: true, reasonCode: 'legacy-external-origin', path: conventionalPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256, refused: noRefusals, detail: 'legacy external brief origin has no reconciliation record; complete copperhead create to establish a tracked baseline' };
+      }
+      return { status: 'legacy', ok: true, reasonCode: 'legacy-external-origin', path: null, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256: null, refused: noRefusals, detail: 'legacy external brief origin has no reconciliation record; copy the brief into the repository and complete copperhead create to establish a tracked baseline' };
+    }
     const current = await readRepoFile(repoRoot, origin.value.briefPath);
+    if (!current.value) {
+      return { status: 'unknown', ok: false, reasonCode: 'invalid-origin', path: origin.value.briefPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256: null, refused: noRefusals, detail: current.detail ?? 'origin brief is unavailable locally' };
+    }
+    const currentSha256 = hashText(current.value.text);
+    if (currentSha256 !== origin.value.sha256) {
+      return { status: 'stale', ok: false, path: origin.value.briefPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256, refused: noRefusals, detail: 'brief changed from its immutable origin; run copperhead sync --brief' };
+    }
     return {
-      status: 'unknown',
-      ok: false,
-      path: origin.value.briefPath.startsWith('external:') ? null : origin.value.briefPath,
+      status: 'legacy',
+      ok: true,
+      reasonCode: 'legacy-origin-without-reconciliation',
+      path: origin.value.briefPath,
       reconciledSha256: null,
       originSha256: origin.value.sha256,
-      currentSha256: current.value ? hashText(current.value.text) : null,
+      currentSha256,
       refused: noRefusals,
-      detail: current.detail ?? 'no last-reconciled brief record; run copperhead sync --brief or complete create',
+      detail: 'legacy origin has no last-reconciled record; run copperhead sync --brief to review changes or complete create to establish the baseline',
     };
   }
   const conventionalPath = path.posix.join(docsDir.split(path.sep).join('/'), 'BRIEF.md');
   const conventional = await readRepoFile(repoRoot, conventionalPath);
-  if (conventional.value || existsSync(path.join(repoRoot, conventionalPath))) {
-    return { status: 'unknown', ok: false, path: conventionalPath, reconciledSha256: null, originSha256: null, currentSha256: conventional.value ? hashText(conventional.value.text) : null, refused: noRefusals, detail: 'brief exists without immutable origin or reconciliation records' };
+  if (conventional.value) {
+    return { status: 'legacy', ok: true, reasonCode: 'legacy-brief-without-origin', path: conventionalPath, reconciledSha256: null, originSha256: null, currentSha256: conventional.value ? hashText(conventional.value.text) : null, refused: noRefusals, detail: 'brief has no origin or reconciliation record; complete create to establish tracked provenance' };
+  }
+  if (existsSync(path.join(repoRoot, conventionalPath))) {
+    return { status: 'unknown', ok: false, reasonCode: 'invalid-origin', path: conventionalPath, reconciledSha256: null, originSha256: null, currentSha256: null, refused: noRefusals, detail: conventional.detail ?? 'repository-local brief is not trackable' };
   }
   return { status: 'not-applicable', ok: true, path: null, reconciledSha256: null, originSha256: null, currentSha256: null, refused: noRefusals };
 }
@@ -350,27 +382,36 @@ export async function compareBrief(repoRoot: string, docsDir: string): Promise<B
   const hasState = existsSync(stateFile);
   const record = await readRecord(repoRoot);
   if (hasState && !record.value) return { status: 'unknown', path: null, baseline: null, currentSha256: null, baselineSha256: null, items: [], refusals: [], detail: record.detail ?? 'brief reconciliation record is invalid' };
-  if (!origin.value) return { status: 'unknown', path: null, baseline: null, currentSha256: null, baselineSha256: null, items: [], refusals: [], detail: 'immutable origin brief provenance is missing' };
-  const briefPath = record.value?.briefPath ?? origin.value.briefPath;
+  if (!record.value && origin.value?.briefPath.startsWith('external:')) {
+    return { status: 'legacy', path: null, baseline: null, currentSha256: null, baselineSha256: origin.value.sha256, items: [], refusals: [], detail: 'external origin brief cannot be compared locally; move it into the repository and complete create to establish a tracked baseline' };
+  }
+  if (!record.value && !origin.value) {
+    const conventionalPath = path.posix.join(docsDir.split(path.sep).join('/'), 'BRIEF.md');
+    const conventional = await readRepoFile(repoRoot, conventionalPath);
+    if (conventional.value) return { status: 'legacy', path: conventionalPath, baseline: null, currentSha256: hashText(conventional.value.text), baselineSha256: null, items: [], currentText: conventional.value.text, refusals: [], detail: 'brief has no origin or reconciliation record; complete create to establish tracked provenance' };
+    return { status: 'unknown', path: null, baseline: null, currentSha256: null, baselineSha256: null, items: [], refusals: [], detail: 'immutable origin brief provenance is missing' };
+  }
+  const briefPath = record.value?.briefPath ?? origin.value!.briefPath;
   const current = await readRepoFile(repoRoot, briefPath);
-  if (!current.value) return { status: 'unknown', path: briefPath.startsWith('external:') ? null : briefPath, baseline: null, currentSha256: null, baselineSha256: record.value?.sha256 ?? origin.value.sha256, items: [], refusals: record.value?.refusals ?? [], detail: current.detail };
+  if (!current.value) return { status: 'unknown', path: briefPath.startsWith('external:') ? null : briefPath, baseline: null, currentSha256: null, baselineSha256: record.value?.sha256 ?? origin.value?.sha256 ?? null, items: [], refusals: record.value?.refusals ?? [], detail: current.detail };
   const currentSha256 = hashText(current.value.text);
   let baseline: { oid: string; text: string } | null = null;
   let baselineKind: BriefComparison['baseline'] = null;
   let baselineSha256: string | null = null;
   if (record.value) {
-    if (record.value.briefPath !== origin.value.briefPath) return { status: 'unknown', path: briefPath, baseline: null, currentSha256, baselineSha256: record.value.sha256, items: [], refusals: record.value.refusals, detail: 'origin brief provenance does not match the reconciliation record' };
+    if (!origin.value || (!origin.value.briefPath.startsWith('external:') && record.value.briefPath !== origin.value.briefPath)) return { status: 'unknown', path: briefPath, baseline: null, currentSha256, baselineSha256: record.value.sha256, items: [], refusals: record.value.refusals, detail: 'origin brief provenance is missing or does not match the reconciliation record' };
     baseline = await gitBlob(repoRoot, record.value.gitBlob).then((text) => text === null ? null : { oid: record.value!.gitBlob, text });
     baselineKind = 'reconciled';
     baselineSha256 = record.value.sha256;
   } else {
-    if (origin.value.briefPath.startsWith('external:')) return { status: 'unknown', path: null, baseline: null, currentSha256, baselineSha256: origin.value.sha256, items: [], refusals: [], detail: 'external origin brief cannot be recovered from repository history' };
+    if (!origin.value) return { status: 'unknown', path: briefPath, baseline: null, currentSha256, baselineSha256: null, items: [], refusals: [], detail: 'immutable origin brief provenance is missing' };
+    if (origin.value.briefPath.startsWith('external:')) return { status: 'legacy', path: null, baseline: null, currentSha256, baselineSha256: origin.value.sha256, items: [], refusals: [], detail: 'external origin brief cannot be compared locally; move it into the repository and complete create to establish a tracked baseline' };
     baseline = await recoverOriginBlob(repoRoot, origin.value.briefPath, origin.value.sha256);
     baselineKind = 'origin';
     baselineSha256 = origin.value.sha256;
   }
   if (!baseline || hashText(baseline.text) !== baselineSha256) {
-    return { status: 'unknown', path: briefPath, baseline: baselineKind, currentSha256, baselineSha256, items: [], refusals: record.value?.refusals ?? [], detail: 'recorded brief baseline is unavailable from local Git history' };
+    return { status: 'unknown', path: briefPath, baseline: baselineKind, currentSha256, baselineSha256, items: [], refusals: record.value?.refusals ?? [], detail: 'recorded brief baseline is unavailable from local Git history; lazy fetching is disabled to keep check network-free' };
   }
   let items: BriefChange[];
   try {
@@ -379,7 +420,7 @@ export async function compareBrief(repoRoot: string, docsDir: string): Promise<B
     return { status: 'unknown', path: briefPath, baseline: baselineKind, currentSha256, baselineSha256, items: [], refusals: record.value?.refusals ?? [], detail: (err as Error).message };
   }
   if (!record.value && items.length === 0) {
-    return { status: 'unknown', path: briefPath, baseline: 'origin', currentSha256, baselineSha256, items, refusals: [], currentText: current.value.text, detail: 'legacy origin matches the brief, but only a complete create can establish the initial reconciliation record' };
+    return { status: 'legacy', path: briefPath, baseline: 'origin', currentSha256, baselineSha256, items, refusals: [], currentText: current.value.text, detail: 'legacy origin matches the brief but has no reconciliation record; complete create to establish the initial baseline' };
   }
   return {
     status: currentSha256 === baselineSha256 ? 'current' : 'stale',
@@ -390,7 +431,7 @@ export async function compareBrief(repoRoot: string, docsDir: string): Promise<B
     items,
     currentText: current.value.text,
     refusals: record.value?.refusals ?? [],
-    ...(items.length ? {} : { detail: 'brief hashes differ only in line-ending representation' }),
+    ...(items.length || currentSha256 === baselineSha256 ? {} : { detail: 'brief hashes differ only in line-ending representation' }),
   };
 }
 
@@ -429,7 +470,9 @@ export async function initialReconciliationRecord(
   if (briefMeta.path.startsWith('external:')) return null;
   const safePath = insideRepoPath(repoRoot, briefMeta.path);
   const origin = await readOrigin(repoRoot, docsDir);
-  if (!safePath || !origin.value || origin.value.briefPath !== safePath || origin.value.sha256 !== briefMeta.sha256) return null;
+  if (!safePath || !origin.value) return null;
+  if (origin.value.sha256 !== briefMeta.sha256) return null;
+  if (!origin.value.briefPath.startsWith('external:') && origin.value.briefPath !== safePath) return null;
   const current = await trackedCurrentBrief(repoRoot, safePath, briefMeta.sha256);
   if (!current) return null;
   return { schemaVersion: 1, briefPath: safePath, sha256: briefMeta.sha256, gitBlob: current.gitBlob, refusals: [] };
@@ -486,6 +529,9 @@ export function addDeclinedOutcomes(
 export function formatBriefComparison(report: BriefComparison): string {
   if (report.status === 'unknown') {
     return `brief reconciliation: unknown${report.detail ? ` (${report.detail})` : ''}`;
+  }
+  if (report.status === 'legacy') {
+    return `brief reconciliation: legacy${report.detail ? ` (${report.detail})` : ''}`;
   }
   if (!report.items.length) {
     return `brief reconciliation: ${report.status}; no changed blocks`;
