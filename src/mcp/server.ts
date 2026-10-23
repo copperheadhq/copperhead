@@ -67,7 +67,7 @@ export type PipelineToolName = (typeof PIPELINE_TOOL_NAMES)[number];
  * whole surface did.
  */
 export const TOOL_SCHEMA_VERSIONS: Record<PipelineToolName, number> = {
-  copperhead_check: 1,
+  copperhead_check: 2,
   copperhead_do: 1,
   copperhead_sync: 1,
   copperhead_init: 1,
@@ -233,7 +233,7 @@ export function createMcpServer(opts: ServerOptions): McpServer {
     {
       title: 'Verify the KiCad project',
       description:
-        'Run ERC, DRC, doc-drift and spec validation on the project. Makes no model call and no network call, ' +
+        'Run ERC, DRC, doc-drift, brief freshness and spec validation on the project. Makes no model call and no network call, ' +
         'and changes nothing. Safe to call at any time, including concurrently.',
       inputSchema: {},
       _meta: { schemaVersion: TOOL_SCHEMA_VERSIONS.copperhead_check },

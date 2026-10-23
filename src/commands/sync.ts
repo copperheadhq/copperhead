@@ -1,14 +1,26 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { execa } from 'execa';
 import { loadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { runAgentLoop, type RunResult } from '../agent/loop.js';
+import type { Provider } from '../agent/types.js';
 import type { RunMetaInput } from '../agent/runmeta.js';
 import type { ProgressRenderer } from '../agent/render.js';
+import type { RunContext } from '../agent/context.js';
+import {
+  addDeclinedOutcomes,
+  compareBrief,
+  formatBriefComparison,
+  loadReconciliationRecord,
+  trackedCurrentBrief,
+  writeReconciliationRecord,
+  type BriefComparison,
+} from '../memory/brief-reconciliation.js';
 
 /**
  * `copperhead sync` (design D14): deterministic verify phase, then an optional
@@ -33,6 +45,19 @@ export interface SyncViolationItem {
 export interface SyncReport {
   resolvable: SyncItem[];
   violations: SyncViolationItem[];
+}
+
+async function dirtyPaths(repoRoot: string): Promise<string[]> {
+  const { stdout } = await execa('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: repoRoot });
+  return stdout.split('\0').filter(Boolean);
+}
+
+function onlyBriefIsModified(entries: string[], briefPath: string): boolean {
+  return entries.length > 0 && entries.every((entry) => {
+    const status = entry.slice(0, 2);
+    const changedPath = entry.slice(3);
+    return changedPath === briefPath && status.includes('M') && [...status].every((char) => char === ' ' || char === 'M');
+  });
 }
 
 export async function syncVerify(repoRoot: string): Promise<SyncReport> {
@@ -142,6 +167,121 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   }
 
   return { resolvable, violations };
+}
+
+export async function syncBriefVerify(repoRoot: string): Promise<BriefComparison> {
+  const config = await loadConfig(repoRoot);
+  return compareBrief(repoRoot, config.docs);
+}
+
+export function validateBriefDecisions(
+  decisions: string[],
+  itemIds: string[],
+): { ok: true; outcomes: { id: string; outcome: 'applied' | 'declined'; rationale: string }[] } | { ok: false; detail: string } {
+  const expected = new Set(itemIds);
+  const outcomes = new Map<string, { outcome: 'applied' | 'declined'; rationale: string }>();
+  const conflicts = new Set<string>();
+  for (const entry of decisions) {
+    if (!entry.trimStart().toLowerCase().startsWith('brief')) continue;
+    const match = /^brief\s*:\s*(B[1-9]\d*)\s+(applied|declined)\s*\|\s*why\s*:\s*([\s\S]*)$/i.exec(entry.trim());
+    if (!match || !expected.has(match[1]!)) continue;
+    const rationale = match[3]!.trim();
+    if (!rationale) continue;
+    const prior = outcomes.get(match[1]!);
+    const outcome = match[2]!.toLowerCase() as 'applied' | 'declined';
+    if (prior && prior.outcome !== outcome) conflicts.add(match[1]!);
+    outcomes.set(match[1]!, { outcome, rationale });
+  }
+  if (conflicts.size) return { ok: false, detail: `conflicting decisions for ${[...conflicts].join(', ')}` };
+  const missing = itemIds.filter((id) => !outcomes.has(id));
+  if (missing.length) return { ok: false, detail: `missing explicit applied/declined decision for ${missing.join(', ')}` };
+  return { ok: true, outcomes: itemIds.map((id) => ({ id, ...outcomes.get(id)! })) };
+}
+
+export async function syncBriefResolve(
+  repoRoot: string,
+  report: BriefComparison,
+  model: string,
+  log: (line: string) => void,
+  extras?: { renderer?: ProgressRenderer; meta?: RunMetaInput; provider?: Provider },
+): Promise<{ ok: boolean; run: RunResult }> {
+  if (report.status === 'unknown' || !report.path || report.currentText === undefined || !report.currentSha256 || !report.items.length) {
+    throw new Error(report.detail ?? 'there are no changed brief blocks to reconcile');
+  }
+  const existingChanges = await dirtyPaths(repoRoot);
+  const briefIsDirty = existingChanges.length > 0 && onlyBriefIsModified(existingChanges, report.path);
+  if (existingChanges.length > 0 && !briefIsDirty) {
+    throw new Error('brief reconciliation requires a clean working tree, except for changes to the configured tracked brief; commit or stash other changes before running sync --brief');
+  }
+  const config = await loadConfig(repoRoot);
+  const itemList = report.items
+    .map((item) => `### ${item.id}
+Before:
+${item.before || '(no lines)'}
+After:
+${item.after || '(no lines)'}`)
+    .join('\n\n');
+  const prompt = [
+    'Reconcile every changed block in the product brief below with the existing design and documentation.',
+    'The immutable origin record stays unchanged. Do not edit the brief file. For each block, either implement the changed requirement using the available gated tools, then record it as applied, or explicitly decline it with a clear rationale.',
+    'Before calling finish(done), call record_decision once for every block. The decision value must be exactly `brief:<ID> applied` or `brief:<ID> declined`, for example `brief:B1 applied`; provide a non-empty rationale. Repeated identical outcomes are acceptable, conflicting outcomes are not.',
+    'A declined outcome is visible to check and does not mean the design implements that requirement. Do not claim it was implemented.',
+    'Run the normal verification tools for all design edits. The reconciliation record advances only after every block has an outcome, all verification and sync obligations pass, and the run commits.',
+    `Comparison baseline: ${report.baseline ?? 'unknown'} (${report.baselineSha256 ?? 'unknown'}). Current brief SHA-256: ${report.currentSha256}.`,
+    `Repository-relative brief: ${report.path}`,
+    `\n## Changed blocks\n${itemList}`,
+    `\n## Current brief\n${report.currentText}`,
+  ].join('\n\n');
+  const itemIds = report.items.map((item) => item.id);
+  const expectedSha = report.currentSha256;
+  const briefPath = report.path;
+  const res = await runAgentLoop({
+    repoRoot,
+    model,
+    request: 'reconcile changed requirements in the product brief',
+    stagePrompt: prompt,
+    log,
+    ...(extras?.provider ? { provider: extras.provider } : {}),
+    ...(extras?.renderer ? { renderer: extras.renderer } : {}),
+    ...(extras?.meta ? { meta: extras.meta } : {}),
+    ...(briefIsDirty ? { allowDirty: true, preTouched: [briefPath] } : {}),
+    stageGate: async (ctx: RunContext) => {
+      const checked = validateBriefDecisions(ctx.decisions, itemIds);
+      return checked.ok ? null : `brief reconciliation is incomplete: ${checked.detail}`;
+    },
+    beforeCommit: async (ctx: RunContext) => {
+      const checked = validateBriefDecisions(ctx.decisions, itemIds);
+      if (!checked.ok) throw new Error(`brief reconciliation is incomplete: ${checked.detail}`);
+      const current = await trackedCurrentBrief(repoRoot, briefPath, expectedSha, { allowWorktreeChange: briefIsDirty });
+      if (!current) throw new Error('brief changed, became untracked, or differs from HEAD during reconciliation; no reconciliation state was written');
+      const existing = await loadReconciliationRecord(repoRoot);
+      const statePath = path.join(repoRoot, '.copperhead', 'brief-reconciliation.json');
+      if (report.baseline === 'origin' && existsSync(statePath)) throw new Error('brief reconciliation state changed during the run');
+      if (report.baseline === 'reconciled' && (!existing || existing.sha256 !== report.baselineSha256)) throw new Error('brief reconciliation state changed during the run');
+      if (existing && existing.briefPath !== briefPath) throw new Error('reconciliation record refers to a different brief path');
+      const record = {
+        schemaVersion: 1 as const,
+        briefPath,
+        sha256: expectedSha,
+        gitBlob: current.gitBlob,
+        refusals: addDeclinedOutcomes(
+          existing?.refusals ?? report.refusals,
+          expectedSha,
+          checked.outcomes.map((outcome) => {
+            const item = report.items.find((entry) => entry.id === outcome.id)!;
+            return { ...outcome, change: item.after || `Removed requirement:\n${item.before}` };
+          }),
+        ),
+      };
+      await writeReconciliationRecord(repoRoot, record);
+      ctx.filesTouched.add('.copperhead/brief-reconciliation.json');
+    },
+  });
+  return { ok: res.outcome === 'success', run: res };
+}
+
+export function formatBriefSyncReport(report: BriefComparison): string {
+  return formatBriefComparison(report);
 }
 
 export function formatSyncReport(report: SyncReport): string {

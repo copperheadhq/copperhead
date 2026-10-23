@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { readFile, mkdir, writeFile, readdir, rm, realpath } from 'node:fs/promises';
+import { execa } from 'execa';
 import { loadConfig, resolveCompatSettings } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
 import { exportNetlist, exportSvg, runDrc, runErc } from '../kicad/cli.js';
@@ -36,6 +36,7 @@ import { symbolSearchDirs } from '../kicad/symlib.js';
 import { draftQualitySection, isDraftQualityHeading, isFilledDraftQuality } from '../kicad/fab.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
+import { briefSha256, initialReconciliationRecord, writeReconciliationRecord } from '../memory/brief-reconciliation.js';
 import { emitCreateJlcpcbBom } from './export.js';
 
 /**
@@ -54,6 +55,32 @@ interface Stage {
 }
 
 const docExists = (repoRoot: string, rel: string) => existsSync(path.join(repoRoot, rel));
+
+export const EXTERNAL_BRIEF_ERROR =
+  'create requires a brief inside the target repository so its freshness can be checked';
+
+function isWithinDirectory(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return Boolean(relative) &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative);
+}
+
+export async function isRepositoryLocalBrief(repoRoot: string, briefPath: string): Promise<boolean> {
+  const rootPath = path.resolve(repoRoot);
+  const briefPathResolved = path.resolve(briefPath);
+  const root = await realpath(rootPath).catch(() => rootPath);
+  const brief = await realpath(briefPathResolved).catch(() => briefPathResolved);
+  if (!isWithinDirectory(root, brief)) return false;
+
+  // The freshness reader deliberately rejects symlinked brief paths because
+  // their tracked identity is ambiguous. Apply that rule before create starts.
+  if (isWithinDirectory(rootPath, briefPathResolved)) {
+    return brief === path.resolve(root, path.relative(rootPath, briefPathResolved));
+  }
+  return briefPathResolved === brief;
+}
 
 async function docHasContent(repoRoot: string, rel: string, marker: string): Promise<boolean> {
   const p = path.join(repoRoot, rel);
@@ -1025,18 +1052,23 @@ async function writeRunReport(opts: CreateOptions, stageCosts: StageCost[]): Pro
 }
 
 export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; completed: string[] }> {
-  const brief = await readFile(path.resolve(opts.briefPath), 'utf8');
+  if (!(await isRepositoryLocalBrief(opts.repoRoot, opts.briefPath))) {
+    opts.log(`${EXTERNAL_BRIEF_ERROR}; move it into the repository and rerun.`);
+    return { ok: false, completed: [] };
+  }
+  const resolvedRepo = await realpath(opts.repoRoot);
+  const resolvedBrief = await realpath(path.resolve(opts.briefPath));
+  const brief = await readFile(resolvedBrief, 'utf8');
   // Hashed from the content already in hand: a brief edited mid-pipeline shows
   // up as a different sha256 in the next stage's metadata (AC-8.1).
-  const resolvedBrief = path.resolve(opts.briefPath);
-  const relativeBrief = path.relative(opts.repoRoot, resolvedBrief);
+  const relativeBrief = path.relative(resolvedRepo, resolvedBrief);
   const briefPath =
     relativeBrief.startsWith('..') || path.isAbsolute(relativeBrief)
       ? `external:${path.basename(resolvedBrief)}`
       : relativeBrief;
   const briefMeta = {
     path: briefPath,
-    sha256: createHash('sha256').update(brief).digest('hex'),
+    sha256: briefSha256(brief),
   };
   const config = await loadConfig(opts.repoRoot);
   // Fail fast on a nearly-full disk (4.1): a create run writes fab outputs and
@@ -1338,7 +1370,44 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     logCumulative(opts, stageCosts);
   }
 
-  const check = await runCheck(opts.repoRoot, opts.log);
+  let check = await runCheck(opts.repoRoot, opts.log);
+  const stateFile = path.join(opts.repoRoot, '.copperhead', 'brief-reconciliation.json');
+  const onlyInitialBriefIsUnverified =
+    check.brief?.status === 'legacy' &&
+    (check.brief.reasonCode === 'legacy-origin-without-reconciliation' || check.brief.reasonCode === 'legacy-external-origin') &&
+    !existsSync(stateFile) &&
+    (check.erc?.ok ?? true) &&
+    (check.drc?.ok ?? true) &&
+    check.drift.ok &&
+    (check.openspec?.ok ?? true) &&
+    check.constraints.ok;
+  if (onlyInitialBriefIsUnverified) {
+    const record = await initialReconciliationRecord(opts.repoRoot, config.docs, briefMeta);
+    if (record) {
+      try {
+        await writeReconciliationRecord(opts.repoRoot, record);
+        const verified = await runCheck(opts.repoRoot, opts.log);
+        if (verified.ok) {
+          try {
+            await commitAll(opts.repoRoot, 'copperhead: record initial brief reconciliation');
+            check = verified;
+          } catch (err) {
+            await rm(stateFile, { force: true });
+            await execa('git', ['reset', '--quiet', '--', '.copperhead/brief-reconciliation.json'], { cwd: opts.repoRoot }).catch(() => {});
+            opts.log(`brief reconciliation record was not committed: ${(err as Error).message}`);
+            check = await runCheck(opts.repoRoot, opts.log);
+          }
+        } else {
+          await rm(stateFile, { force: true });
+          check = verified;
+        }
+      } catch (err) {
+        await rm(stateFile, { force: true }).catch(() => {});
+        opts.log(`brief reconciliation record could not be written: ${(err as Error).message}`);
+        check = await runCheck(opts.repoRoot, opts.log);
+      }
+    }
+  }
   opts.log(
     check.ok
       ? ok('create pipeline complete; all checks green')

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
@@ -13,6 +14,7 @@ import { tmpdir } from 'node:os';
 // scripted recovery diagnosis, no live provider.
 const mockRunAgentLoop = vi.hoisted(() => vi.fn<(opts: RunOptions) => Promise<RunResult>>());
 const mockDiagnose = vi.hoisted(() => vi.fn());
+const mockRunCheck = vi.hoisted(() => vi.fn());
 
 vi.mock('../src/agent/loop.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -25,9 +27,11 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
   transcriptExcerpt: async () => '',
 }));
 vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: '' }) }));
-vi.mock('../src/commands/check.js', () => ({ runCheck: async () => ({ ok: true }) }));
+vi.mock('../src/commands/check.js', () => ({ runCheck: mockRunCheck }));
 
-import { runCreate } from '../src/commands/create.js';
+import { runCreate, STAGES, writeBriefHash } from '../src/commands/create.js';
+import { runDemo, scaffoldDemoRepo } from '../src/commands/demo.js';
+import { briefSha256, inspectBriefFreshness } from '../src/memory/brief-reconciliation.js';
 
 /** A successful mocked run result (one attempt worth of stats). */
 function ok(): RunResult {
@@ -76,6 +80,8 @@ let prevKey: string | undefined;
 beforeEach(() => {
   mockRunAgentLoop.mockReset();
   mockDiagnose.mockReset();
+  mockRunCheck.mockReset();
+  mockRunCheck.mockResolvedValue({ ok: true });
   mockDiagnose.mockResolvedValue({ verdict: 'abort', reason: 'default: stop' });
   prevKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = 'sk-test-dummy';
@@ -278,36 +284,213 @@ describe('create pipeline resilience (review F3)', () => {
     }
   });
 
-  it('records external brief provenance without leaking an absolute path', async () => {
+  it('rejects an external brief before create starts or writes provenance', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     let externalDir: string | undefined;
     try {
       externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
       const externalBrief = path.join(externalDir, 'outside-brief.md');
       await writeFile(externalBrief, '# external\n', 'utf8');
-      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
-      mockRunAgentLoop.mockImplementation(async (opts) => {
-        await writeStageDoc(opts.repoRoot, opts.request);
-        return ok();
-      });
+      const messages: string[] = [];
       const res = await runCreate({
         repoRoot: repo,
         briefPath: externalBrief,
         model: 'gpt-5',
-        log: () => {},
+        log: (message) => messages.push(message),
       });
-      expect(res.completed).toContain('spec-seed');
-      const briefHash = await readFile(
-        path.join(repo, 'docs', 'BRIEF.sha256'),
-        'utf8',
-      );
+      expect(res).toEqual({ ok: false, completed: [] });
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+      expect(existsSync(path.join(repo, 'docs', 'BRIEF.sha256'))).toBe(false);
+      expect(messages.join('\n')).toContain('inside the target repository');
+      expect(messages.join('\n')).not.toContain(externalBrief);
 
-      expect(briefHash).toContain('brief: external:outside-brief.md');
-      expect(briefHash).not.toContain(externalBrief);
+      const cli = await execa(process.execPath, [
+        '--import',
+        'tsx',
+        path.resolve('src/cli.ts'),
+        '--repo',
+        repo,
+        'create',
+        '--brief',
+        externalBrief,
+      ], { cwd: process.cwd(), reject: false });
+      expect(cli.exitCode).toBe(1);
+      expect(cli.stderr).toContain('inside the target repository');
+      expect(cli.stderr).not.toContain(externalBrief);
     } finally {
       if (externalDir) {
         await rm(externalDir, { recursive: true, force: true });
       }
+      await cleanup();
+    }
+  });
+
+  it('does not overwrite a different demo brief when given an external source', async () => {
+    let demoDir: string | undefined;
+    let externalDir: string | undefined;
+    try {
+      demoDir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
+      externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
+      const externalBrief = path.join(externalDir, 'outside-brief.md');
+      await writeFile(externalBrief, '# external\n', 'utf8');
+      await scaffoldDemoRepo(demoDir);
+      await mkdir(path.join(demoDir, 'docs'), { recursive: true });
+      await writeFile(path.join(demoDir, 'docs', 'BRIEF.md'), '# existing\n', 'utf8');
+
+      await expect(runDemo({
+        model: 'gpt-5', modelSource: 'explicit', version: 'test', kicadCliVersion: 'test',
+        demoDir, briefPath: externalBrief, log: () => {}, renderer: {} as never,
+      })).rejects.toThrow(/refusing to overwrite/);
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+      expect(await readFile(path.join(demoDir, 'docs', 'BRIEF.md'), 'utf8')).toBe('# existing\n');
+    } finally {
+      if (demoDir) await rm(demoDir, { recursive: true, force: true });
+      if (externalDir) await rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('copies the packaged demo brief into the repo before running create', async () => {
+    let demoDir: string | undefined;
+    let externalDir: string | undefined;
+    try {
+      demoDir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
+      externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
+      const externalBrief = path.join(externalDir, 'demo-brief.md');
+      await writeFile(externalBrief, '# Demo brief\n', 'utf8');
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('spec-seed')) await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+
+      await runDemo({
+        model: 'gpt-5',
+        modelSource: 'explicit',
+        version: 'test',
+        kicadCliVersion: 'test',
+        demoDir,
+        briefPath: externalBrief,
+        log: () => {},
+        renderer: {} as never,
+      });
+
+      expect(mockRunAgentLoop).toHaveBeenCalled();
+      expect(mockRunAgentLoop.mock.calls[0]![0].request).toContain('spec-seed');
+      expect(await readFile(path.join(demoDir, 'docs', 'BRIEF.md'), 'utf8')).toBe('# Demo brief\n');
+      expect(await execa('git', ['show', 'HEAD:docs/BRIEF.md'], { cwd: demoDir }).then(({ stdout }) => stdout)).toBe('# Demo brief');
+    } finally {
+      if (demoDir) await rm(demoDir, { recursive: true, force: true });
+      if (externalDir) await rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('uses a repository-local demo brief without copying it', async () => {
+    let demoDir: string | undefined;
+    try {
+      demoDir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
+      await scaffoldDemoRepo(demoDir);
+      const localBrief = path.join(demoDir, 'docs', 'BRIEF.md');
+      await mkdir(path.dirname(localBrief), { recursive: true });
+      await writeFile(localBrief, '# Local demo brief\n', 'utf8');
+      await execa('git', ['add', 'docs/BRIEF.md'], { cwd: demoDir });
+      await execa('git', ['commit', '-q', '-m', 'add local demo brief'], { cwd: demoDir });
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('spec-seed')) await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      const messages: string[] = [];
+
+      await runDemo({
+        model: 'gpt-5', modelSource: 'explicit', version: 'test', kicadCliVersion: 'test',
+        demoDir, briefPath: localBrief, log: (line) => messages.push(line), renderer: {} as never,
+      });
+
+      expect(messages.join('\n')).not.toContain('copied external brief to docs/BRIEF.md');
+      expect(messages.join('\n')).not.toContain('external brief matches existing');
+      expect(mockRunAgentLoop).toHaveBeenCalled();
+    } finally {
+      if (demoDir) await rm(demoDir, { recursive: true, force: true });
+    }
+  });
+
+  it('reuses an identical existing demo brief destination', async () => {
+    let demoDir: string | undefined;
+    let externalDir: string | undefined;
+    try {
+      demoDir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
+      externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
+      const externalBrief = path.join(externalDir, 'outside-brief.md');
+      const brief = '# Identical demo brief\n';
+      await writeFile(externalBrief, brief, 'utf8');
+      await scaffoldDemoRepo(demoDir);
+      await mkdir(path.join(demoDir, 'docs'), { recursive: true });
+      await writeFile(path.join(demoDir, 'docs', 'BRIEF.md'), brief, 'utf8');
+      await execa('git', ['add', 'docs/BRIEF.md'], { cwd: demoDir });
+      await execa('git', ['commit', '-q', '-m', 'add existing demo brief'], { cwd: demoDir });
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('spec-seed')) await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      const messages: string[] = [];
+
+      await runDemo({
+        model: 'gpt-5', modelSource: 'explicit', version: 'test', kicadCliVersion: 'test',
+        demoDir, briefPath: externalBrief, log: (line) => messages.push(line), renderer: {} as never,
+      });
+
+      expect(messages.join('\n')).toContain('external brief matches existing docs/BRIEF.md');
+      expect(messages.join('\n')).not.toContain('copied external brief to docs/BRIEF.md');
+      expect(await readFile(path.join(demoDir, 'docs', 'BRIEF.md'), 'utf8')).toBe(brief);
+    } finally {
+      if (demoDir) await rm(demoDir, { recursive: true, force: true });
+      if (externalDir) await rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    {
+      label: 'in-repository',
+      origin: { path: 'docs/BRIEF.md', sha256: briefSha256('# Create baseline\n') },
+      reasonCode: 'legacy-origin-without-reconciliation',
+    },
+    {
+      label: 'external',
+      origin: { path: 'external:brief.md', sha256: briefSha256('# External origin\n') },
+      reasonCode: 'legacy-external-origin',
+    },
+  ])('creates and commits the initial brief record for a legacy $label origin', async ({ origin, reasonCode }) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const originalChecks = STAGES.map((stage) => stage.isComplete);
+    try {
+      const briefPath = path.join(repo, 'docs', 'BRIEF.md');
+      await mkdir(path.dirname(briefPath), { recursive: true });
+      const brief = '# Create baseline\n';
+      await writeFile(briefPath, brief, 'utf8');
+      await writeBriefHash(repo, 'docs', origin);
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'add tracked brief'], { cwd: repo });
+
+      STAGES.forEach((stage) => { stage.isComplete = () => true; });
+      const allChecksPass = {
+        ok: true,
+        erc: { ok: true, violations: 0 },
+        drc: { ok: true, violations: 0, unrouted: 0, intrinsic: 0 },
+        drift: { ok: true, mismatches: [] },
+        openspec: { ok: true, detail: '' },
+        constraints: { ok: true, violations: [] },
+      };
+      mockRunCheck
+        .mockResolvedValueOnce({ ...allChecksPass, ok: true, brief: { status: 'legacy', reasonCode } })
+        .mockResolvedValueOnce({ ...allChecksPass, brief: { status: 'current' } });
+
+      const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });
+      const { stdout: committedRecord } = await execa('git', ['show', 'HEAD:.copperhead/brief-reconciliation.json'], { cwd: repo });
+      const freshness = await inspectBriefFreshness(repo, 'docs');
+
+      expect(result.ok).toBe(true);
+      expect(JSON.parse(committedRecord)).toMatchObject({ briefPath: 'docs/BRIEF.md', sha256: briefSha256(brief) });
+      expect(freshness).toMatchObject({ status: 'current', ok: true, currentSha256: briefSha256(brief) });
+    } finally {
+      STAGES.forEach((stage, index) => { stage.isComplete = originalChecks[index]!; });
       await cleanup();
     }
   });

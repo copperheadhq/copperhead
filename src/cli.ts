@@ -8,8 +8,8 @@ import { pickModel } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
-import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
-import { runCreate } from './commands/create.js';
+import { syncVerify, syncResolve, formatSyncReport, syncBriefVerify, syncBriefResolve, formatBriefSyncReport } from './commands/sync.js';
+import { EXTERNAL_BRIEF_ERROR, isRepositoryLocalBrief, runCreate } from './commands/create.js';
 import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
 import {
@@ -177,7 +177,7 @@ const checkAction = async (): Promise<void> => {
 program
   .command('check')
   .alias('verify')
-  .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
+  .description('ERC + DRC + doc-drift + brief freshness + spec validation; no LLM calls; CI-safe')
   .action(checkAction);
 
 // `draft` and `score` are command groups taking the artifact as a noun
@@ -377,12 +377,32 @@ program
   .description('verify the whole design state for inconsistencies and resolve drift')
   .option('--model <model>', 'model for the resolve phase')
   .option('--dry-run', 'print the inconsistency report, write nothing')
-  .action(async (opts: { model?: string; dryRun?: boolean }) => {
+  .option('--brief', 'preview or reconcile changes to the product brief')
+  .action(async (opts: { model?: string; dryRun?: boolean; brief?: boolean }) => {
     const repo = repoOf(program.opts());
     try {
+      const json = Boolean(program.opts().json);
+      if (opts.brief) {
+        const briefReport = await syncBriefVerify(repo);
+        const briefOutput = { ...briefReport, currentText: undefined };
+        if (opts.dryRun || briefReport.status === 'unknown' || !briefReport.items.length) {
+          if (json) console.log(JSON.stringify(briefOutput, null, 2));
+          else console.log(formatBriefSyncReport(briefReport));
+          process.exit(opts.dryRun && briefReport.status !== 'unknown' ? 0 : briefReport.status === 'current' ? 0 : 1);
+        }
+        if (!json) console.log(formatBriefSyncReport(briefReport));
+        const kicadVer = await kicadCliVersion();
+        const config = await loadConfig(repo);
+        const { model, source } = resolveModel(opts.model, config);
+        const res = await syncBriefResolve(repo, briefReport, model, json ? () => {} : (s) => console.log(s), {
+          renderer: rendererOf(),
+          meta: { command: 'sync', modelSource: source, version, kicadCliVersion: kicadVer },
+        });
+        if (json) console.log(JSON.stringify({ brief: briefOutput, result: res }, null, 2));
+        process.exit(res.ok ? 0 : 1);
+      }
       const kicadVer = await kicadCliVersion();
       const report = await syncVerify(repo);
-      const json = Boolean(program.opts().json);
       if (json) console.log(JSON.stringify(report, null, 2));
       else console.log(formatSyncReport(report));
       if (opts.dryRun) {
@@ -582,6 +602,9 @@ program
   .action(async (opts: { brief: string; model?: string; interactive?: boolean }) => {
     const repo = repoOf(program.opts());
     try {
+      if (!(await isRepositoryLocalBrief(repo, opts.brief))) {
+        throw new Error(`${EXTERNAL_BRIEF_ERROR}; move it into the repository and rerun.`);
+      }
       const kicadVer = await kicadCliVersion();
       const config = await loadConfig(repo);
       const { model, source } = resolveModel(opts.model, config);

@@ -114,10 +114,12 @@ their-board/
 │   ├── BOM.md              # every part: refdes, MPN, value, package, WHY chosen
 │   ├── PINOUT.md           # MCU pin assignment table + strapping/RTC notes
 │   ├── SUBSYSTEMS.md       # per-sheet values & reasoning (regulator, charger…)
-│   ├── BRIEF.sha256        # originating brief path + SHA-256; created on first successful spec-seed run, preserved thereafter
+│   ├── BRIEF.sha256        # immutable originating brief path + SHA-256; created after spec-seed
+│   ├── BRIEF.md            # repository-local current product brief when tracked
 │   └── LAYOUT.md           # placement/routing intent: keepouts, pours, ESD placement
 └── .copperhead/
     ├── config.json         # paths, model, budgets (see §5)
+    ├── brief-reconciliation.json # last successfully reconciled brief identity and explicit declines
     └── runs/               # transcript of each `do` run (audit trail)
 ```
 
@@ -294,10 +296,12 @@ copperhead skill run <name> [--scope power|all] [--model …]
     model, same as `do`. Does not snapshot or commit.
 
 copperhead check          (alias: copperhead verify)
-    Run ERC + DRC + doc-drift check; exit non-zero on violations.
-    No LLM calls. Usable as CI step / pre-commit hook.
+    Run ERC + DRC + doc-drift + brief-freshness check; exit non-zero on violations,
+    stale briefs, or corrupt/mismatched brief reconciliation state. Legacy brief
+    provenance without a reconciliation record is advisory. No LLM calls. CI-safe.
 
 copperhead sync [--dry-run]
+copperhead sync --brief [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs
     schematic, constraints.json vs docs and openspec specs, PINOUT.md vs
     pins.h, DECISIONS/CHANGELOG coverage — then resolve the drift via a
@@ -306,7 +310,8 @@ copperhead sync [--dry-run]
     budgets are ground truth for requirements. An inconsistency that
     implies a requirement violation is flagged for the human, never
     silently rewritten. `--dry-run` prints the full inconsistency report
-    and writes nothing. Idempotent: a second run finds nothing to do.
+    and writes nothing. `sync --brief` previews/reconciles changed brief blocks
+    through the same spec-gated, verified loop; `sync --brief --dry-run` is read-only.
 
 copperhead mcp [--repo <path>]            # EXPERIMENTAL
     Serve the gated pipeline to MCP hosts over stdio as five opaque,
@@ -491,6 +496,8 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-1.3** PINOUT.md contains the MCU's actual pin-to-net assignments parsed from the schematic.
 - **AC-1.4** Re-running `init` on the same repo exits 0 and changes no hand-edited file (idempotent). With modified docs and no `--force`, it refuses and lists what it would overwrite.
 - **AC-1.5** On a repo with no `.kicad_sch`, exits non-zero with a clear message (no stack trace).
+- **AC-1.6** A complete successful `create` records the tracked repository-local brief as reconciled only after every stage and the final check pass, including when an external origin was copied into the repository; it never changes the immutable origin record.
+- **AC-1.7** `create --brief` rejects a brief outside the target repository before starting the pipeline, calling a provider, or writing project files. Demo setup copies its packaged brief into the demo repository before invoking create.
 
 ### AC-2 · `copperhead check`
 
@@ -499,6 +506,10 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+- **AC-2.6** A repository-local brief matching its last-reconciled record reports `brief: current`; a changed brief reports `stale` and makes `ok` false.
+- **AC-2.7** A matching repository-local origin without a reconciliation record, an external origin without a reconciliation record (including a differing repository-local copy), or a conventional brief without origin reports non-failing `legacy` with an actionable `copperhead create --brief <path>` hint. For a differing local copy of an external origin, the hint warns that create accepts the edited copy without reviewing the difference and gives the restore, create, re-apply, then `sync --brief` path to review it. A changed in-repository origin brief reports `stale`; raw, LF-normalized, and CRLF representations of the same origin content match. Corrupt, mismatched, missing-file, or untrackable reconciliation state reports `unknown` and exits non-zero. No brief and no origin record reports `not-applicable`.
+- **AC-2.8** `--json` includes stable brief status, recorded/current hashes, and any explicit declines. A declined item is visible and is not described as implemented.
+- **AC-2.9** Brief freshness checking reads local files and Git objects only; it remains deterministic, read-only, LLM-free, and network-free.
 
 ### AC-3 · `copperhead do` — core loop
 
@@ -509,7 +520,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-3.5 (repair loop)** Given an edit that first produces an ERC violation, the transcript shows: violation parsed → targeted fix → re-run → pass, within `maxRepairCycles`.
 - **AC-3.6 (rollback)** If violations persist after `maxRepairCycles`, working tree equals the pre-run state (`git status` clean, files byte-identical), exit non-zero, transcript path printed.
 - **AC-3.7 (surgical edits)** For every run above: the `.kicad_sch` diff touches only the s-expressions relevant to the change — file not regenerated (assert: < 5% of lines changed for AC-3.1).
-- **AC-3.8 (dirty tree)** With uncommitted changes and no `--allow-dirty`: refuses to start. Holds for `repl` as well as `do`, since `repl` is the default command. With `--allow-dirty`, a rollback restores both the tracked modifications and the untracked files that were present before the run.
+- **AC-3.8 (dirty tree)** With uncommitted changes and no `--allow-dirty`: `do` and `repl` refuse to start. Holds for `repl` as well as `do`, since `repl` is the default command. With `--allow-dirty`, a rollback restores both the tracked modifications and the untracked files that were present before the run. `sync --brief` has a narrow exception: it may allow only the configured tracked brief as the sole pre-existing change, and rollback must preserve that brief.
 - **AC-3.9 (dry run)** `--dry-run` prints the proposed diff and writes nothing.
 - **AC-3.10 (provider parity)** AC-3.1 passes with `--model codex`, `--model gpt-5`, `--model claude`, `--model claude-code`, `--model cursor`, and `--model compat:<id>` when each provider is configured.
 - **AC-3.11 (saved login)** With `--model claude-code`, a logged-in Claude Code (`CLAUDE_CODE_OAUTH_TOKEN` set) and **no** `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`, a `do` run completes through the normal verify/commit path; copperhead reads no credential store; and no key material appears in the transcript, summary, or tree (AC-4.1 holds). A missing optional dependency or an unauthenticated install fails through the rollback path with an actionable error, not a raw stack trace.
@@ -537,6 +548,11 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-7.3 (never resolve a violation silently)** With an inconsistency that reflects a requirement violation (e.g. a part whose leakage breaks the sleep-current budget), `sync` does **not** rewrite either side to agree; it flags the violation with both sides and the governing spec/budget, and exits non-zero.
 - **AC-7.4 (dry run)** `sync --dry-run` prints every detected inconsistency (doc, claim, actual, proposed resolution) and writes nothing (`git status` unchanged).
 - **AC-7.5 (clean and idempotent)** On a consistent repo, `sync` exits 0 with "no inconsistencies", makes no edits and no commit; running `sync` twice in a row makes the second run a no-op.
+- **AC-7.6 (brief preview)** `sync --brief --dry-run` prints a deterministic diff from the last reconciled brief, or a recoverable legacy origin. External-origin legacy state reports the comparison as unavailable and exits 0. The command makes no provider calls and does not change the worktree.
+- **AC-7.7 (explicit brief outcomes)** `sync --brief` requires an unambiguous applied or declined decision with rationale for every changed block; unresolved or conflicting decisions cannot finish.
+- **AC-7.8 (brief state advances after gates)** The separate reconciliation record is written in the verified run's pre-commit path and commits with the work. Failed, refused, interrupted, source-changed, or commit-failed runs leave the prior record unchanged. `BRIEF.sha256` remains write-once.
+- **AC-7.9 (declines remain visible)** A declined brief block stays visible in later check output and is never represented as implemented.
+- **AC-7.10 (edited brief can be reconciled)** `sync --brief` accepts a dirty tree only when the configured tracked brief is its sole pre-existing change. It commits that brief with the new reconciliation record; any other dirty or untracked path is refused, and a failed run preserves the brief and prior record.
 
 ### AC-15 · Turn-budget continue & loop efficiency (issue #15)
 
