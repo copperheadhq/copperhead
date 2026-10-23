@@ -146,9 +146,13 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
         source: 'docs/CONSTRAINTS.md',
         affects: ['U1.14', 'KEY_DAH'],
       },
-      'pins.unrelated_u1_10': {
+      'pins.removed_c4_pin': {
         source: 'docs/CONSTRAINTS.md',
-        affects: ['U1.10', 'U1.100'],
+        affects: ['C4.1'],
+      },
+      'pins.unrelated_j1_10': {
+        source: 'docs/CONSTRAINTS.md',
+        affects: ['J1.10', 'U10.1'],
       },
       'power.rail_3v3': {
         source: 'docs/POWER.md',
@@ -196,6 +200,7 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
     expect(res.nets.removed).toEqual(['DEBUG_UART', 'POWER_IN']);
     expect(res.connections.mergedNets).toEqual([{ nets: ['GND', 'POWER_IN'], into: 'GND' }]);
     expect(res.affectedConstraints).toEqual([
+      'pins.removed_c4_pin',
       'pins.strapping',
       'power.rail_3v3',
       'power.sleep_current_uA',
@@ -245,6 +250,59 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
     expect(res.affectedConstraints).toEqual(['pin.u1_2']);
   });
 });
+
+
+  it('treats SI value prefixes case-sensitively (1M vs 1m) and sorts mergedNets deterministically', () => {
+    const symR1 = {
+      ref: 'R1',
+      value: '1M',
+      footprint: 'Resistor_SMD:R_0603',
+      libId: 'Device:R',
+      sheet: '/',
+      at: { x: 0, y: 0, rot: 0 },
+      uuid: 'r1',
+      unit: 1,
+    };
+    const symR2 = { ...symR1, ref: 'R2', uuid: 'r2' };
+    const symR3 = { ...symR1, ref: 'R3', uuid: 'r3' };
+    const symR4 = { ...symR1, ref: 'R4', uuid: 'r4' };
+    const before = {
+      symbols: [symR1, symR2, symR3, symR4],
+      nets: ['A', 'B', 'C', 'D'],
+      pins: [
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: 'C' },
+        { ref: 'R2', pinNumber: '1', pinName: '~', net: 'C' },
+        { ref: 'R1', pinNumber: '2', pinName: '~', net: 'D' },
+        { ref: 'R2', pinNumber: '2', pinName: '~', net: 'D' },
+        { ref: 'R3', pinNumber: '1', pinName: '~', net: 'A' },
+        { ref: 'R4', pinNumber: '1', pinName: '~', net: 'A' },
+        { ref: 'R3', pinNumber: '2', pinName: '~', net: 'B' },
+        { ref: 'R4', pinNumber: '2', pinName: '~', net: 'B' },
+      ],
+    };
+    const after = {
+      symbols: [{ ...symR1, value: '1m' }, symR2, symR3, symR4],
+      nets: ['A', 'C'],
+      pins: [
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: 'C' },
+        { ref: 'R2', pinNumber: '1', pinName: '~', net: 'C' },
+        { ref: 'R1', pinNumber: '2', pinName: '~', net: 'C' },
+        { ref: 'R2', pinNumber: '2', pinName: '~', net: 'C' },
+        { ref: 'R3', pinNumber: '1', pinName: '~', net: 'A' },
+        { ref: 'R4', pinNumber: '1', pinName: '~', net: 'A' },
+        { ref: 'R3', pinNumber: '2', pinName: '~', net: 'A' },
+        { ref: 'R4', pinNumber: '2', pinName: '~', net: 'A' },
+      ],
+    };
+    const res = diffSnapshots('HEAD~1', 'board.kicad_sch', before, after);
+    expect(res.components.modified).toEqual([
+      { ref: 'R1', changes: [{ field: 'value', before: '1M', after: '1m' }] },
+    ]);
+    expect(res.connections.mergedNets).toEqual([
+      { nets: ['A', 'B'], into: 'A' },
+      { nets: ['C', 'D'], into: 'C' },
+    ]);
+  });
 
 describe('runDiff and `copperhead diff` CLI integration', () => {
   it('compares dirty working tree against HEAD and clean post-commit tree against HEAD~1 by default', async () => {
@@ -335,4 +393,124 @@ describe('runDiff and `copperhead diff` CLI integration', () => {
       await cleanup();
     }
   });
+
+  it('detects wiring changes between unlabeled pins (#304)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, force: false, installHooks: false });
+      const schPath = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const raw = await readFile(schPath, 'utf8');
+      const wired = raw.replace(
+        /\)\s*$/,
+        '  (wire (pts (xy 127 96.52) (xy 127 99.06)) (stroke (width 0) (type default)) (uuid "0f0f0f0f-0000-4000-8000-000000000099"))\n)\n',
+      );
+      await writeFile(schPath, wired, 'utf8');
+      const res = await runDiff(repo, { base: 'HEAD' });
+      expect(res.hasChanges).toBe(true);
+      expect(res.connections.changes).toEqual([
+        {
+          kind: 'connected',
+          ref: 'U1',
+          pinNumber: '3',
+          pinName: 'GPIO0',
+          pinLabel: 'U1.GPIO0',
+          net: '~{U1.3,U1.4}',
+        },
+        {
+          kind: 'connected',
+          ref: 'U1',
+          pinNumber: '4',
+          pinName: 'GPIO3',
+          pinLabel: 'U1.GPIO3',
+          net: '~{U1.3,U1.4}',
+        },
+      ]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('picks HEAD~1 on a clean core.autocrlf checkout and HEAD when only a hierarchical sub-sheet is dirty', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, force: false, installHooks: false });
+      const schPath = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const subPath = path.join(repo, 'hardware', 'sub.kicad_sch');
+      const subBase = `(kicad_sch (version 20231120) (generator "eeschema") (uuid "11111111-0000-4000-8000-000000000001") (lib_symbols) (sheet_instances (path "/" (page "2"))))\n`;
+      await writeFile(subPath, subBase, 'utf8');
+
+      const rootRaw = await readFile(schPath, 'utf8');
+      const withSheet = rootRaw
+        .replace('(property "Value" "10k"', '(property "Value" "22k"')
+        .replace(
+          /\)\s*$/,
+          '  (sheet (at 10 10) (size 10 10) (property "Sheetfile" "sub.kicad_sch" (at 0 0 0)))\n)\n',
+        );
+      await writeFile(schPath, withSheet, 'utf8');
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-m', 'add subsheet and update R1'], { cwd: repo });
+
+      // Simulate Windows CRLF working-tree checkout while git status remains clean
+      await execa('git', ['config', 'core.eol', 'crlf'], { cwd: repo });
+      await execa('git', ['config', 'core.autocrlf', 'true'], { cwd: repo });
+      await execa('git', ['checkout', '--force', 'HEAD'], { cwd: repo });
+      const checkedOut = await readFile(schPath, 'utf8');
+      // Even if git attributes force LF or CRLF, verify CRLF checkout on autocrlf works cleanly
+      const crlfCleanRes = await runDiff(repo);
+      expect(crlfCleanRes.base).toBe('HEAD~1');
+      expect(checkedOut.length).toBeGreaterThan(0);
+
+      // Now make an uncommitted edit ONLY in sub.kicad_sch: default base must be HEAD
+      const subDirty = subBase.replace(
+        '(sheet_instances',
+        '(global_label "SUB_NET" (shape input) (at 20 20 0)) (sheet_instances',
+      );
+      await writeFile(subPath, subDirty, 'utf8');
+      const subDirtyRes = await runDiff(repo);
+      expect(subDirtyRes.base).toBe('HEAD');
+      expect(subDirtyRes.nets.added).toEqual(['SUB_NET']);
+      expect(subDirtyRes.components.modified).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+
+  it('rejects absolute sub-sheet paths, missing committed sub-sheets, and exits 1 from CLI on DiffError', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, force: false, installHooks: false });
+      const schPath = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const raw = await readFile(schPath, 'utf8');
+
+      const absSheet = raw.replace(
+        /\)\s*$/,
+        '  (sheet (at 0 0) (size 10 10) (property "Sheetfile" "/etc/passwd" (at 0 0 0)))\n)\n',
+      );
+      await writeFile(schPath, absSheet, 'utf8');
+      await expect(runDiff(repo, { base: 'HEAD' })).rejects.toThrow(/escapes repository/);
+
+      const missingSub = raw.replace(
+        /\)\s*$/,
+        '  (sheet (at 0 0) (size 10 10) (property "Sheetfile" "untracked.kicad_sch" (at 0 0 0)))\n)\n',
+      );
+      await writeFile(schPath, missingSub, 'utf8');
+      await execa('git', ['add', 'hardware/open-key.kicad_sch'], { cwd: repo });
+      await execa('git', ['commit', '-m', 'reference untracked subsheet'], { cwd: repo });
+      await writeFile(
+        path.join(repo, 'hardware', 'untracked.kicad_sch'),
+        '(kicad_sch (version 20231120) (generator "eeschema") (lib_symbols))\n',
+        'utf8',
+      );
+      await expect(runDiff(repo, { base: 'HEAD' })).rejects.toThrow(DiffError);
+
+      const cliErr = await execa(
+        'npx',
+        ['tsx', 'src/cli.ts', '--repo', repo, 'diff', '--base', 'HEAD'],
+        { cwd: ROOT, reject: false, env: { NO_COLOR: '1' } },
+      );
+      expect(cliErr.exitCode).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
 });

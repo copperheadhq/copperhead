@@ -297,6 +297,17 @@ copperhead check          (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
 
+copperhead diff [--base <rev>] [--json]
+    Deterministic, read-only summary of electrical schematic changes since a
+    git revision (components, surviving-component pin connections including
+    unlabeled multi-pin groups, net renames/merges/additions/removals, and
+    affected constraints). No LLM calls and no network access. Defaults
+    `--base` to `HEAD` when any root or hierarchical sub-sheet has uncommitted
+    edits, or `HEAD~1` on a clean post-commit tree (falling back to `HEAD` on a
+    single-commit repo). Exits 0 on success even when electrical changes are
+    present, and 1 on error; distinct from `copperhead review` (model-assisted
+    grounded design review).
+
 copperhead sync [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs
     schematic, constraints.json vs docs and openspec specs, PINOUT.md vs

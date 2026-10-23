@@ -10,11 +10,12 @@ import {
   listNets,
   listSymbols,
   parseSexp,
-  pinNets,
+  pinNetsWithGroups,
+  type PinGroupNet,
   type PinNet,
   type SchematicSymbol,
 } from '../kicad/sexp.js';
-import { normalizeFootprint, normalizeValue } from '../memory/bom-table.js';
+import { normalizeFootprint } from '../memory/bom-table.js';
 import { loadConstraints, type ConstraintRegistry } from '../memory/constraints.js';
 import { fileAtCommit } from '../util/git.js';
 import { resolveInRepo, SandboxError } from '../util/paths.js';
@@ -92,10 +93,10 @@ export interface DiffResult {
   affectedConstraints: string[];
 }
 
-interface ElectricalSnapshot {
+export interface ElectricalSnapshot {
   symbols: SchematicSymbol[];
   nets: string[];
-  pins: PinNet[];
+  pins: PinGroupNet[];
 }
 
 function sheetSubfiles(text: string): string[] {
@@ -129,6 +130,61 @@ async function verifyRevision(repoRoot: string, rev: string): Promise<string> {
   return res.stdout.trim();
 }
 
+function assertSafeSubsheetRef(sub: string): void {
+  if (path.posix.isAbsolute(sub) || path.win32.isAbsolute(sub)) {
+    throw new DiffError(`schematic sub-sheet path escapes repository: ${sub}`);
+  }
+}
+
+async function collectSheetRelPaths(
+  repoRoot: string,
+  schematicRel: string,
+  headSha: string,
+): Promise<string[]> {
+  const paths = new Set<string>();
+  const walkWork = async (rel: string): Promise<void> => {
+    const norm = rel.split(path.sep).join('/');
+    if (paths.has(norm)) return;
+    let full: string;
+    try {
+      full = resolveInRepo(repoRoot, norm);
+    } catch {
+      return;
+    }
+    paths.add(norm);
+    if (!existsSync(full)) return;
+    const text = await readFile(full, 'utf8');
+    for (const sub of sheetSubfiles(text)) {
+      if (path.posix.isAbsolute(sub) || path.win32.isAbsolute(sub)) continue;
+      const subRel = path.posix.join(path.posix.dirname(norm), sub.split('\\').join('/'));
+      await walkWork(subRel);
+    }
+  };
+  await walkWork(schematicRel);
+
+  const visitedHead = new Set<string>();
+  const walkHead = async (rel: string): Promise<void> => {
+    const norm = rel.split(path.sep).join('/');
+    if (visitedHead.has(norm)) return;
+    visitedHead.add(norm);
+    try {
+      resolveInRepo(repoRoot, norm);
+    } catch {
+      return;
+    }
+    const text = await fileAtCommit(repoRoot, headSha, norm);
+    if (text === null) return;
+    paths.add(norm);
+    for (const sub of sheetSubfiles(text)) {
+      if (path.posix.isAbsolute(sub) || path.win32.isAbsolute(sub)) continue;
+      const subRel = path.posix.join(path.posix.dirname(norm), sub.split('\\').join('/'));
+      await walkHead(subRel);
+    }
+  };
+  await walkHead(schematicRel);
+  return [...paths];
+}
+
 async function resolveDefaultBase(repoRoot: string, schematicRel: string): Promise<string> {
   const headRes = await execa('git', ['rev-parse', '--verify', '--end-of-options', 'HEAD^{commit}'], {
     cwd: repoRoot,
@@ -138,12 +194,13 @@ async function resolveDefaultBase(repoRoot: string, schematicRel: string): Promi
     throw new DiffError('cannot resolve git revision "HEAD"');
   }
   const headSha = headRes.stdout.trim();
-  const normRel = schematicRel.split(path.sep).join('/');
-  const headContent = await fileAtCommit(repoRoot, headSha, normRel);
-  const workPath = resolveInRepo(repoRoot, schematicRel);
-  if (existsSync(workPath)) {
-    const workContent = await readFile(workPath, 'utf8');
-    if (headContent !== null && workContent !== headContent) {
+  const sheetPaths = await collectSheetRelPaths(repoRoot, schematicRel, headSha);
+  if (sheetPaths.length > 0) {
+    const statusRes = await execa('git', ['status', '--porcelain', '--', ...sheetPaths], {
+      cwd: repoRoot,
+      reject: false,
+    });
+    if (statusRes.exitCode === 0 && statusRes.stdout.trim().length > 0) {
       return 'HEAD';
     }
   }
@@ -185,7 +242,7 @@ export async function snapshotAtCommit(
   const tempRoot = await mkdtemp(path.join(tmpdir(), 'copperhead-diff-'));
   try {
     const visited = new Set<string>();
-    const materialize = async (relPath: string): Promise<void> => {
+    const materialize = async (relPath: string, isSubsheet: boolean): Promise<void> => {
       const norm = relPath.split(path.sep).join('/');
       if (visited.has(norm)) return;
       visited.add(norm);
@@ -200,15 +257,24 @@ export async function snapshotAtCommit(
         throw err;
       }
       const content = await fileAtCommit(repoRoot, commitSha, norm);
-      if (content === null) return;
+      if (content === null) {
+        if (isSubsheet) {
+          throw new DiffError(
+            `schematic sub-sheet "${norm}" referenced at ${commitSha.slice(0, 7)} is missing from that commit`,
+          );
+        }
+        return;
+      }
       await mkdir(path.dirname(dest), { recursive: true });
       await writeFile(dest, content, 'utf8');
       for (const sub of sheetSubfiles(content)) {
-        const subRel = path.posix.join(path.posix.dirname(norm), sub);
-        await materialize(subRel);
+        assertSafeSubsheetRef(sub);
+        const subNorm = sub.split('\\').join('/');
+        const subRel = path.posix.join(path.posix.dirname(norm), subNorm);
+        await materialize(subRel, true);
       }
     };
-    await materialize(normSchematic);
+    await materialize(normSchematic, false);
     for (const supportRel of await listCommitSymSupportFiles(repoRoot, commitSha)) {
       if (visited.has(supportRel)) continue;
       let dest: string;
@@ -226,7 +292,7 @@ export async function snapshotAtCommit(
     const [symbols, nets, pins] = await Promise.all([
       listSymbols(rootSch),
       listNets(rootSch),
-      pinNets(rootSch),
+      pinNetsWithGroups(rootSch),
     ]);
     return { symbols, nets, pins };
   } finally {
@@ -234,7 +300,12 @@ export async function snapshotAtCommit(
   }
 }
 
-async function validateWorkingSubsheets(repoRoot: string, schematicRel: string, visited = new Set<string>()): Promise<void> {
+async function validateWorkingSubsheets(
+  repoRoot: string,
+  schematicRel: string,
+  isSubsheet = false,
+  visited = new Set<string>(),
+): Promise<void> {
   const norm = schematicRel.split(path.sep).join('/');
   if (visited.has(norm)) return;
   visited.add(norm);
@@ -247,11 +318,18 @@ async function validateWorkingSubsheets(repoRoot: string, schematicRel: string, 
     }
     throw err;
   }
-  if (!existsSync(fullPath)) return;
+  if (!existsSync(fullPath)) {
+    if (isSubsheet) {
+      throw new DiffError(`schematic sub-sheet not found at ${norm}`);
+    }
+    return;
+  }
   const content = await readFile(fullPath, 'utf8');
   for (const sub of sheetSubfiles(content)) {
-    const subRel = path.posix.join(path.posix.dirname(norm), sub);
-    await validateWorkingSubsheets(repoRoot, subRel, visited);
+    assertSafeSubsheetRef(sub);
+    const subNorm = sub.split('\\').join('/');
+    const subRel = path.posix.join(path.posix.dirname(norm), subNorm);
+    await validateWorkingSubsheets(repoRoot, subRel, true, visited);
   }
 }
 
@@ -268,11 +346,11 @@ async function snapshotWorkingTree(repoRoot: string, schematicRel: string): Prom
   if (!existsSync(rootSch)) {
     throw new DiffError(`schematic not found at ${schematicRel}`);
   }
-  await validateWorkingSubsheets(repoRoot, schematicRel);
+  await validateWorkingSubsheets(repoRoot, schematicRel, false);
   const [symbols, nets, pins] = await Promise.all([
     listSymbols(rootSch),
     listNets(rootSch),
-    pinNets(rootSch),
+    pinNetsWithGroups(rootSch),
   ]);
   return { symbols, nets, pins };
 }
@@ -299,6 +377,19 @@ function hasTokenMatch(target: string, token: string): boolean {
   return new RegExp(`(?<![A-Za-z0-9_.:])${escaped}(?![A-Za-z0-9_.:])`, 'i').test(target);
 }
 
+function hasRefTokenMatch(target: string, ref: string): boolean {
+  if (!ref) return false;
+  const escaped = ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![A-Za-z0-9_.:])${escaped}(?![A-Za-z0-9_])`, 'i').test(target);
+}
+
+function effectivePinNet(p: PinGroupNet | undefined): string | null {
+  if (!p) return null;
+  if (p.net !== null) return p.net;
+  if (p.group && p.group.length >= 2) return `~{${p.group.join(',')}}`;
+  return null;
+}
+
 function matchAffectedConstraints(
   registry: ConstraintRegistry,
   touchedRefs: Set<string>,
@@ -311,7 +402,7 @@ function matchAffectedConstraints(
     let hit = false;
     for (const target of targets) {
       for (const ref of touchedRefs) {
-        if (hasTokenMatch(target, ref)) {
+        if (hasRefTokenMatch(target, ref)) {
           hit = true;
           break;
         }
@@ -349,24 +440,26 @@ export function diffSnapshots(
 
   const beforeNetsByRef = new Map<string, Set<string>>();
   for (const p of before.pins) {
-    if (!p.net) continue;
+    const n = effectivePinNet(p);
+    if (!n) continue;
     let set = beforeNetsByRef.get(p.ref);
     if (!set) {
       set = new Set<string>();
       beforeNetsByRef.set(p.ref, set);
     }
-    set.add(p.net);
+    set.add(n);
   }
 
   const afterNetsByRef = new Map<string, Set<string>>();
   for (const p of after.pins) {
-    if (!p.net) continue;
+    const n = effectivePinNet(p);
+    if (!n) continue;
     let set = afterNetsByRef.get(p.ref);
     if (!set) {
       set = new Set<string>();
       afterNetsByRef.set(p.ref, set);
     }
-    set.add(p.net);
+    set.add(n);
   }
 
   const addedComponents: ComponentAdded[] = [];
@@ -405,7 +498,7 @@ export function diffSnapshots(
       for (const n of beforeNetsByRef.get(ref) ?? []) touchedNets.add(n);
     } else if (b && a) {
       const changes: ComponentFieldChange[] = [];
-      if (normalizeValue(b.value) !== normalizeValue(a.value)) {
+      if (normalizeFootprint(b.value) !== normalizeFootprint(a.value)) {
         changes.push({ field: 'value', before: b.value, after: a.value });
       }
       if (normalizeFootprint(b.footprint) !== normalizeFootprint(a.footprint)) {
@@ -422,8 +515,8 @@ export function diffSnapshots(
   }
 
   const pinKey = (p: PinNet): string => `${p.ref}:${p.pinNumber}`;
-  const beforePins = new Map<string, PinNet>(before.pins.map((p) => [pinKey(p), p]));
-  const afterPins = new Map<string, PinNet>(after.pins.map((p) => [pinKey(p), p]));
+  const beforePins = new Map<string, PinGroupNet>(before.pins.map((p) => [pinKey(p), p]));
+  const afterPins = new Map<string, PinGroupNet>(after.pins.map((p) => [pinKey(p), p]));
   const allPinKeys = [...new Set([...beforePins.keys(), ...afterPins.keys()])].sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true }),
   );
@@ -437,8 +530,8 @@ export function diffSnapshots(
     // components; added/removed components are already summarized under Components:.
     if (!beforeSyms.has(ref) || !afterSyms.has(ref)) continue;
 
-    const bNet = bp?.net ?? null;
-    const aNet = ap?.net ?? null;
+    const bNet = effectivePinNet(bp);
+    const aNet = effectivePinNet(ap);
     if (bNet === aNet) continue;
 
     if (ap && aNet !== null) {
@@ -451,7 +544,6 @@ export function diffSnapshots(
         pinLabel: label,
         net: aNet,
       });
-      touchedRefs.add(ap.ref);
       touchedNets.add(aNet);
       touchedPins.add(label);
       touchedPins.add(`${ap.ref}.${ap.pinNumber}`);
@@ -466,7 +558,6 @@ export function diffSnapshots(
         pinLabel: label,
         net: bNet,
       });
-      touchedRefs.add(bp.ref);
       touchedNets.add(bNet);
       touchedPins.add(label);
       touchedPins.add(`${bp.ref}.${bp.pinNumber}`);
@@ -535,6 +626,12 @@ export function diffSnapshots(
       }
     }
   }
+  mergedNets.sort(
+    (x, y) =>
+      x.into.localeCompare(y.into) ||
+      x.nets[0].localeCompare(y.nets[0]) ||
+      x.nets[1].localeCompare(y.nets[1]),
+  );
 
   const beforeNetSet = new Set(before.nets);
   const afterNetSet = new Set(after.nets);
@@ -619,11 +716,17 @@ export async function runDiff(
   }
   const base = opts.base ?? (await resolveDefaultBase(repoRoot, config.schematic));
   const commitSha = await verifyRevision(repoRoot, base);
-  const [before, after, constraints] = await Promise.all([
+  const settled = await Promise.allSettled([
     snapshotAtCommit(repoRoot, commitSha, config.schematic),
     snapshotWorkingTree(repoRoot, config.schematic),
     loadConstraints(repoRoot),
   ]);
+  for (const item of settled) {
+    if (item.status === 'rejected') throw item.reason;
+  }
+  const before = (settled[0] as PromiseFulfilledResult<ElectricalSnapshot>).value;
+  const after = (settled[1] as PromiseFulfilledResult<ElectricalSnapshot>).value;
+  const constraints = (settled[2] as PromiseFulfilledResult<ConstraintRegistry>).value;
   return diffSnapshots(base, config.schematic, before, after, constraints);
 }
 
