@@ -9,7 +9,7 @@ sidebar:
 copperhead [global options] [<command>]
 ```
 
-With no subcommand, `copperhead` starts the interactive agent shell. Every command probes `kicad-cli` before doing anything and exits 1 if it cannot be found. Resolution order: `COPPERHEAD_KICAD_CLI` when set, then `kicad-cli` on your `PATH`, then the macOS KiCad.app bundle locations. Setting `COPPERHEAD_KICAD_CLI` to a path that does not exist is an error naming that path, not a silent fall back to `PATH`. A `.env` in the working directory is loaded before any command resolves a model or a provider; a real environment variable always beats the file.
+With no subcommand, `copperhead` starts the interactive agent shell. Commands that execute ERC/DRC or run the agent loop (`repl`, `init`, `check`/`verify`, `do`, `sync`, `demo`, and `create`) probe `kicad-cli` before doing anything and exit 1 if it cannot be found. Resolution order: `COPPERHEAD_KICAD_CLI` when set, then `kicad-cli` on your `PATH`, then the macOS KiCad.app bundle locations. Setting `COPPERHEAD_KICAD_CLI` to a path that does not exist is an error naming that path, not a silent fall back to `PATH`. A `.env` in the working directory is loaded before any command resolves a model or a provider; a real environment variable always beats the file.
 
 ## Commands at a glance
 
@@ -24,6 +24,7 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `sync` | Either | Verify phase no, resolve phase yes | Reconciles docs, files, and constraints. |
 | `draft` | [Design from a brief](/workflows/create-from-brief/) | No | Deterministically draws the schematic from `schematic.intent.json`. |
 | `score` | Either | No | Quantitative legibility score for the schematic (0-100, advisory). |
+| `capabilities` | Automation | No | Offline run-protocol handshake: protocol, commands, features, tool versions. |
 
 ## Global options
 
@@ -176,6 +177,38 @@ Checks, in order:
 | `1` | Not ready — a `[FAIL]` item needs fixing. |
 
 With `--json`, prints `{ ok, checks: [{ name, status, detail, hint? }] }`.
+
+## `copperhead capabilities`
+
+```bash
+copperhead capabilities [--json]
+```
+
+Offline, deterministic capability handshake for non-interactive consumers (CI runners, hosted supervisors, MCP hosts). It reports the wire protocol, CLI version, the public command inventory, implemented features, and installed tool versions. Like doctor, it does not require `kicad-cli`, a git repository, or a provider credential. A probe failure or timeout degrades that tool's version to `null` instead of failing the handshake.
+
+```json
+{
+  "protocol": "copperhead-run/1",
+  "cli": "0.12.0",
+  "commands": ["capabilities", "check", "create", "demo", "do", "doctor", "draft", "export", "init", "mcp", "repl", "review", "score", "skill", "sync"],
+  "features": [],
+  "tools": {
+    "kicadCli": "10.0.4",
+    "git": "2.43.0",
+    "openspec": "1.14.1",
+    "node": "v20.19.0"
+  }
+}
+```
+
+The protocol major is the compatibility boundary: consumers must reject an unknown major (for example `copperhead-run/2`) and should ignore unknown fields for forward compatibility. `features` is empty in Phase 0; entries appear only once the corresponding stream features are implemented and verified.
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | The handshake was emitted. Missing tools are reported as `null`, not as a failure. |
+| `1` | The command line itself was invalid (for example an unimplemented option). |
+
+Makes **no LLM calls and no network requests**.
 
 ## `copperhead sync`
 

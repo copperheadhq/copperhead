@@ -8,6 +8,7 @@ import { pickModel } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
+import { collectCapabilities, formatCapabilities } from './commands/capabilities.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
 import { runCreate } from './commands/create.js';
 import { runDemo, demoTourText } from './commands/demo.js';
@@ -274,6 +275,26 @@ program
       for (const line of formatDoctor(report, process.stdout.columns || 80, color)) console.log(line);
     }
     process.exit(report.ok ? 0 : 1);
+  });
+
+program
+  .command('capabilities')
+  .description('versioned protocol and runtime capability discovery; no LLM, no network, repo-free')
+  .action(async () => {
+    // Like doctor, capabilities never gates on kicad-cli or a repository being
+    // present: it reports supported protocol, commands, features, and tools.
+    try {
+      const report = await collectCapabilities({ program });
+      if (program.opts().json) {
+        console.log(JSON.stringify(report, null, 2));
+      } else {
+        console.log(formatCapabilities(report));
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
   });
 
 program
