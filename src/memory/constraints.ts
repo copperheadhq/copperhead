@@ -21,6 +21,7 @@ export interface Constraint {
    * exists (reopenDeferredAffects), then the marker is removed.
    */
   deferred?: string[];
+  evidence?: ConstraintEvidence;
 }
 
 export type ConstraintRegistry = Record<string, Constraint>;
@@ -167,8 +168,10 @@ export function checkForbiddenPins(
 export interface ConstraintEvidence {
   /** Repo-relative path to the cached datasheet, app note, or spec document. */
   path: string;
-  /** Optional expected SHA-256 hex digest of the cached evidence file. */
+  /** Optional expected SHA-256 hex digest of the cached evidence file (or verified via .copperhead/datasheets/index.json). */
   sha256?: string;
+  /** Optionalexpected SHA-256 hex digest of the extracted `.pdf.txt` sidecar when `path` is a PDF. */
+  sidecarSha256?: string;
   /** Optional section or page locator (for diagnostics). */
   section?: string;
   /** Verbatim quote from the cached evidence that mentions the constraint bound. */
@@ -177,9 +180,7 @@ export interface ConstraintEvidence {
   numbers?: (string | number)[];
 }
 
-export interface EvidenceBackedConstraint extends Constraint {
-  evidence?: ConstraintEvidence;
-}
+export type EvidenceBackedConstraint = Constraint;
 
 export interface VerifyEvidenceOptions {
   /** Repo-relative directories allowed for evidence reads (defaults to ['.copperhead/datasheets', 'docs/datasheets']). */
@@ -225,18 +226,48 @@ function isWithinAllowedEvidenceDirs(
 }
 
 function extractNumericTokens(text: string): number[] {
-  const normalized = text.replace(/\u2212/g, '-').replace(/(\d),(?=\d{3}\b)/g, '$1');
-  const matches = normalized.match(/-?\d+(?:\.\d+)?/g) ?? [];
+  const normalized = text
+    .replace(/\u2212/g, '-')
+    .replace(/(\d),(?=\d{3}\b)/g, '$1')
+    // Treat hyphen directly after a digit (e.g. "1.8-3.6 V" or "1.8 - 3.6 V") as a range separator, not a negative sign
+    .replace(/(\d)\s*-\s*(?=\d)/g, '$1 .. ');
+  const matches = normalized.match(/(?<![\d.])-?\d+(?:\.\d+)?/g) ?? [];
   return matches.map((m) => Number(m)).filter((n) => Number.isFinite(n));
+}
+
+async function loadDatasheetIndexHashes(repoRoot: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const idxPath = path.join(repoRoot, '.copperhead', 'datasheets', 'index.json');
+  if (!existsSync(idxPath)) return map;
+  try {
+    const raw = JSON.parse(await readFile(idxPath, 'utf8')) as unknown;
+    const entries = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === 'object' && Array.isArray((raw as { entries?: unknown[] }).entries)
+        ? (raw as { entries: unknown[] }).entries
+        : raw && typeof raw === 'object'
+          ? Object.entries(raw as Record<string, unknown>).map(([p, v]) => ({ path: p, ...(v as object) }))
+          : [];
+    for (const item of entries) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const p = typeof rec.path === 'string' ? rec.path.split(path.sep).join('/') : '';
+      const sha = typeof rec.sha256 === 'string' ? rec.sha256 : '';
+      if (p && sha) map.set(p, sha);
+    }
+  } catch {
+    // Ignore unreadable index.json here; individual sha256 checks still run.
+  }
+  return map;
 }
 
 /**
  * Deterministic, offline verification of general constraint evidence (#232).
  * Checks that every constraint carrying `evidence` resolves inside the allowed
  * evidence cache directories under `repoRoot` (following symlinks via realpath),
- * refers to a regular file, matches its optional `sha256` digest, contains the
- * verbatim `quote` (reading a sibling `.pdf.txt` sidecar when `path` is a PDF),
- * and that the quote mentions the constraint's numeric bounds.
+ * refers to a regular file, matches its `sha256` digest (and/or `.copperhead/datasheets/index.json`),
+ * requires an extracted `.pdf.txt` sidecar when `path` is a PDF, contains the
+ * verbatim `quote`, and mentions the constraint's numeric bounds.
  */
 export async function verifyConstraintEvidence(
   repoRoot: string,
@@ -245,17 +276,20 @@ export async function verifyConstraintEvidence(
 ): Promise<ConstraintViolation[]> {
   const { createHash } = await import('node:crypto');
   const allowedDirs = opts?.allowedDirs ?? DEFAULT_EVIDENCE_DIRS;
+  const indexHashes = await loadDatasheetIndexHashes(repoRoot);
   const violations: ConstraintViolation[] = [];
 
   for (const [key, rawConstraint] of Object.entries(registry)) {
-    const c = rawConstraint as EvidenceBackedConstraint;
+    if (!rawConstraint || typeof rawConstraint !== 'object') continue;
+    const c = rawConstraint as Constraint;
     const ev = c.evidence as unknown as Record<string, unknown> | undefined;
     if (!ev) continue;
 
     if (
       typeof ev.path !== 'string' ||
       typeof ev.quote !== 'string' ||
-      (ev.sha256 !== undefined && typeof ev.sha256 !== 'string')
+      (ev.sha256 !== undefined && typeof ev.sha256 !== 'string') ||
+      (ev.sidecarSha256 !== undefined && typeof ev.sidecarSha256 !== 'string')
     ) {
       violations.push({
         key,
@@ -303,12 +337,14 @@ export async function verifyConstraintEvidence(
       continue;
     }
 
-    if (ev.sha256) {
+    const normEvPath = evPath.split(path.sep).join('/');
+    const expectedSha = ev.sha256 ?? indexHashes.get(normEvPath);
+    if (expectedSha) {
       const actualHash = createHash('sha256').update(buf).digest('hex');
-      if (actualHash.toLowerCase() !== ev.sha256.toLowerCase()) {
+      if (actualHash.toLowerCase() !== expectedSha.toLowerCase()) {
         violations.push({
           key,
-          description: `evidence file "${evPath}" sha256 mismatch (expected ${ev.sha256}, got ${actualHash})`,
+          description: `evidence file "${evPath}" sha256 mismatch (expected ${expectedSha}, got ${actualHash})`,
           source: c.source,
         });
         continue;
@@ -316,11 +352,37 @@ export async function verifyConstraintEvidence(
     }
 
     let textSourceBuf = buf;
-    if (evPath.toLowerCase().endsWith('.pdf') && existsSync(`${fullPath}.txt`)) {
+    if (evPath.toLowerCase().endsWith('.pdf')) {
+      const sidecarRel = `${evPath}.txt`;
+      const sidecarAbs = `${fullPath}.txt`;
+      if (!existsSync(sidecarAbs) || !isWithinAllowedEvidenceDirs(repoRoot, sidecarRel, allowedDirs)) {
+        violations.push({
+          key,
+          description: `PDF evidence has no extracted-text sidecar (${sidecarRel})`,
+          source: c.source,
+        });
+        continue;
+      }
       try {
-        textSourceBuf = await readFile(`${fullPath}.txt`);
-      } catch {
-        // Fall back to the primary buffer if the sidecar cannot be read.
+        textSourceBuf = await readFile(sidecarAbs);
+      } catch (err) {
+        violations.push({
+          key,
+          description: `failed to read PDF extracted-text sidecar "${sidecarRel}": ${(err as Error).message}`,
+          source: c.source,
+        });
+        continue;
+      }
+      if (ev.sidecarSha256) {
+        const actualSidecarHash = createHash('sha256').update(textSourceBuf).digest('hex');
+        if (actualSidecarHash.toLowerCase() !== ev.sidecarSha256.toLowerCase()) {
+          violations.push({
+            key,
+            description: `PDF sidecar "${sidecarRel}" sha256 mismatch (expected ${ev.sidecarSha256}, got ${actualSidecarHash})`,
+            source: c.source,
+          });
+          continue;
+        }
       }
     }
 
@@ -338,15 +400,51 @@ export async function verifyConstraintEvidence(
     }
 
     const requiredNumbers: number[] = [];
-    if (Array.isArray(ev.numbers) && ev.numbers.length > 0) {
+    if (ev.numbers !== undefined) {
+      if (!Array.isArray(ev.numbers) || ev.numbers.length === 0) {
+        violations.push({
+          key,
+          description: `evidence.numbers for "${evPath}" must be a non-empty array of finite numbers`,
+          source: c.source,
+        });
+        continue;
+      }
+      let badEntry = false;
       for (const n of ev.numbers) {
-        const parsed = Number(n);
-        if (Number.isFinite(parsed)) requiredNumbers.push(parsed);
+        const parsed = typeof n === 'string' && n.trim() === '' ? Number.NaN : Number(n);
+        if (!Number.isFinite(parsed)) {
+          badEntry = true;
+          break;
+        }
+        requiredNumbers.push(parsed);
+      }
+      if (badEntry || requiredNumbers.length === 0) {
+        violations.push({
+          key,
+          description: `evidence.numbers for "${evPath}" contains non-numeric entries`,
+          source: c.source,
+        });
+        continue;
       }
     } else {
       if (typeof c.min === 'number') requiredNumbers.push(c.min);
       if (typeof c.max === 'number') requiredNumbers.push(c.max);
-      if (typeof c.value === 'number') requiredNumbers.push(c.value);
+      if (typeof c.value === 'number') {
+        requiredNumbers.push(c.value);
+      } else if (typeof c.value === 'string') {
+        const trimmed = c.value.trim();
+        const parsed = trimmed === '' ? Number.NaN : Number(trimmed);
+        if (Number.isFinite(parsed)) {
+          requiredNumbers.push(parsed);
+        } else {
+          violations.push({
+            key,
+            description: `constraint value "${c.value}" is not numeric and no evidence.numbers override was provided`,
+            source: c.source,
+          });
+          continue;
+        }
+      }
     }
 
     const quoteNumbers = extractNumericTokens(normQuote);
