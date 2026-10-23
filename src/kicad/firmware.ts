@@ -2,19 +2,25 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadConfig } from '../config.js';
-import { listSymbols, pinNets, type PinNet, type SchematicSymbol } from './sexp.js';
+import { listSymbols, pinNetsAndPowerRails, type SchematicSymbol, type TypedPinNet } from './sexp.js';
 import { parseCanonicalTables } from '../memory/bom-table.js';
-import { ExportError } from '../commands/export.js';
+import { ExportError } from '../util/errors.js';
 import { resolveInRepo, SandboxError } from '../util/paths.js';
+
+export { ExportError };
 
 export const FIRMWARE_TARGETS = ['c'] as const;
 export type FirmwareTarget = (typeof FIRMWARE_TARGETS)[number];
 
 export const DEFAULT_FIRMWARE_HEADER = 'firmware/inc/pinout.h';
-export const LEGACY_FIRMWARE_HEADER = 'firmware/src/pins.h';
 
-const POWER_NET_PATTERN =
-  /^(?:(?:A|D|P)?GND[A-Za-z0-9_]*|VSS[A-Za-z0-9_]*|AVSS[A-Za-z0-9_]*|VCC[A-Za-z0-9_]*|VDD[A-Za-z0-9_]*|AVDD[A-Za-z0-9_]*|VREF[A-Za-z0-9_]*|VSYS[A-Za-z0-9_]*|VBAT[A-Za-z0-9_]*|VBUS[A-Za-z0-9_]*|3V3(?:_[A-Za-z0-9_]+)?|5V(?:_[A-Za-z0-9_]+)?|1V8(?:_[A-Za-z0-9_]+)?|12V(?:_[A-Za-z0-9_]+)?|[+-]\d+(?:V\d*|\.\d+V?)(?:_[A-Za-z0-9_]+)?|PWR_FLAG|NC|unconnected-.*)$/i;
+/**
+ * Exact supply/ground rail names when no KiCad power symbol was placed on the
+ * rail. Anchored to whole rail tokens so GPIO signals such as `VBUS_DET`,
+ * `VBAT_SENSE`, `VCC_EN`, and `5V_EN` are preserved.
+ */
+const EXACT_RAIL_NET_PATTERN =
+  /^(?:(?:A|D|P)?GND|VSS|AVSS|VCC|AVCC|VDD|AVDD|VDDA|VDDD|VCCIO|VDDIO|VREF|AREF|VSYS|VBAT|VBUS|VIN|VOUT|3V3|3\.3V|5V|5\.0V|1V8|1\.8V|12V|(?:VCC|VDD)_(?:3V3|5V|1V8|IO|CORE)|[+-]?\d+(?:V\d+|\.\d+V)|[+-]\d+V|PWR_FLAG|NC|unconnected-.*)$/i;
 
 const GPIO_SEGMENT_PATTERN =
   /^(?:GPIO\d+|GP\d+|P[A-K]\d+|P\d+[._]\d+|DIO\d+|IO\d+)$/i;
@@ -100,12 +106,14 @@ export function normalizePinToken(rawPin: string): string {
   return first.replace(/[^A-Za-z0-9_]/g, '');
 }
 
-function isPowerOrIgnoredNet(net: string | null): boolean {
-  if (!net) return true;
-  const clean = net.trim().replace(/^\/+/, '');
+function isPowerOrIgnoredPin(pn: TypedPinNet, powerNets: Set<string>): boolean {
+  if (pn.electricalType === 'power_in' || pn.electricalType === 'power_out') return true;
+  if (!pn.net) return true;
+  if (powerNets.has(pn.net)) return true;
+  const clean = pn.net.trim().replace(/^\/+/, '');
   if (!clean) return true;
   if (/^Net-\(/i.test(clean)) return true;
-  return POWER_NET_PATTERN.test(clean);
+  return EXACT_RAIL_NET_PATTERN.test(clean);
 }
 
 function parsePinoutNameMap(md: string): Map<string, string> {
@@ -129,15 +137,15 @@ function parsePinoutNameMap(md: string): Map<string, string> {
   return map;
 }
 
-function selectMcuRefs(symbols: SchematicSymbol[], nets: PinNet[], explicitRef?: string): Set<string> {
+function selectMcuRefs(symbols: SchematicSymbol[], nets: TypedPinNet[], explicitRef?: string): Set<string> {
   if (explicitRef) {
+    if (!symbols.some((s) => s.ref === explicitRef)) {
+      throw new ExportError(`no symbol "${explicitRef}" found in schematic`);
+    }
     return new Set([explicitRef]);
   }
   const icSymbols = symbols.filter((s) => /^(?:U|IC)\d+/i.test(s.ref));
-  if (icSymbols.length <= 1) {
-    return new Set(icSymbols.map((s) => s.ref));
-  }
-  const pinsByRef = new Map<string, PinNet[]>();
+  const pinsByRef = new Map<string, TypedPinNet[]>();
   for (const pn of nets) {
     let arr = pinsByRef.get(pn.ref);
     if (!arr) {
@@ -154,10 +162,7 @@ function selectMcuRefs(symbols: SchematicSymbol[], nets: PinNet[], explicitRef?:
       return GPIO_SEGMENT_PATTERN.test(tok);
     });
   });
-  if (mcuCandidates.length > 0) {
-    return new Set(mcuCandidates.map((s) => s.ref));
-  }
-  return new Set(icSymbols.map((s) => s.ref));
+  return new Set(mcuCandidates.map((s) => s.ref));
 }
 
 /**
@@ -175,11 +180,17 @@ export async function extractSchematicPinout(
   }
   const schPath = sandboxPath(repoRoot, config.schematic);
   if (!existsSync(schPath)) {
-    throw new ExportError('no schematic configured in .copperhead/config.json');
+    throw new ExportError(`schematic not found at ${config.schematic}`);
   }
-  const [symbols, nets] = await Promise.all([listSymbols(schPath), pinNets(schPath)]);
+  const [symbols, { pins: nets, powerNets }] = await Promise.all([
+    listSymbols(schPath),
+    pinNetsAndPowerRails(schPath),
+  ]);
 
   const mcuRefs = selectMcuRefs(symbols, nets, opts?.ref);
+  if (mcuRefs.size === 0) {
+    throw new ExportError('no MCU found; pass --ref <refdes>');
+  }
 
   let pinoutNameByRefPin = new Map<string, string>();
   const pinoutPath = sandboxPath(repoRoot, path.join(config.docs, 'PINOUT.md'));
@@ -197,7 +208,7 @@ export async function extractSchematicPinout(
 
   for (const pn of sortedNets) {
     if (!mcuRefs.has(pn.ref)) continue;
-    if (isPowerOrIgnoredNet(pn.net)) continue;
+    if (isPowerOrIgnoredPin(pn, powerNets)) continue;
     const cleanSignal = pn.net!.trim().replace(/^\/+/, '');
     const suffix = sanitizeMacroSuffix(cleanSignal);
     if (!suffix) continue;
@@ -284,14 +295,7 @@ export async function checkFirmwareDrift(
   repoRoot: string,
   opts?: { headerPath?: string; ref?: string },
 ): Promise<FirmwareCheckResult> {
-  let headerPath = opts?.headerPath ?? DEFAULT_FIRMWARE_HEADER;
-  if (!opts?.headerPath) {
-    const defaultAbs = sandboxPath(repoRoot, DEFAULT_FIRMWARE_HEADER);
-    const legacyAbs = sandboxPath(repoRoot, LEGACY_FIRMWARE_HEADER);
-    if (!existsSync(defaultAbs) && existsSync(legacyAbs)) {
-      headerPath = LEGACY_FIRMWARE_HEADER;
-    }
-  }
+  const headerPath = opts?.headerPath ?? DEFAULT_FIRMWARE_HEADER;
   const absHeader = sandboxPath(repoRoot, headerPath);
   const expectedEntries = await extractSchematicPinout(repoRoot, opts?.ref ? { ref: opts.ref } : undefined);
 
@@ -354,6 +358,10 @@ export function formatFirmwareCheckResult(result: FirmwareCheckResult): string {
     lines.push(`  ${m.macro}: schematic=${sch}, ${result.headerPath}=${hdr}`);
   }
   const count = result.mismatches.length;
-  lines.push(`${count} ${count === 1 ? 'mismatch' : 'mismatches'} found. Run \`copperhead export firmware\` to resync.`);
+  const resyncCmd =
+    result.headerPath === DEFAULT_FIRMWARE_HEADER
+      ? 'copperhead export firmware'
+      : `copperhead export firmware --out ${result.headerPath}`;
+  lines.push(`${count} ${count === 1 ? 'mismatch' : 'mismatches'} found. Run \`${resyncCmd}\` to resync.`);
   return lines.join('\n');
 }
