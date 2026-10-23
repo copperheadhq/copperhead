@@ -314,7 +314,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'move_footprint',
       description:
-        'Move and/or rotate one placed footprint on the board, by refdes. Always use this to place parts: it turns the pads and text with the footprint. KiCad stores pad angles as absolute, so hand-editing a footprint\'s (at X Y ROT) turns only the outline and leaves the pads facing the old way — the part no longer matches its library and fine-pitch pads short together. Requires a validated change proposal first, like edit_file.',
+        'Move and/or rotate one placed footprint on the board, by refdes. Always use this to place parts: it turns the pads and text with the footprint. KiCad stores pad angles as absolute, so hand-editing a footprint\'s (at X Y ROT) turns only the outline and leaves the pads facing the old way — the part no longer matches its library and fine-pitch pads short together. Pass label_x/label_y (both, in board coordinates) to place the Reference label itself, which is how a silkscreen overlap is cleared: the tool converts the board point into the footprint\'s rotated local frame, so no hand-computed rotation is needed. Requires a validated change proposal first, like edit_file.',
       parameters: {
         type: 'object',
         properties: {
@@ -322,6 +322,8 @@ export const HANDLERS: HandlerDef[] = [
           x: { type: 'number', description: 'footprint origin X in mm (board coordinates)' },
           y: { type: 'number', description: 'footprint origin Y in mm (board coordinates, Y down)' },
           rotation: { type: 'number', description: 'absolute rotation in degrees (0, 90, 180, 270); omit to keep the current one' },
+          label_x: { type: 'number', description: 'board X (mm) for the Reference label; pass together with label_y' },
+          label_y: { type: 'number', description: 'board Y (mm) for the Reference label; pass together with label_x' },
         },
         required: ['ref', 'x', 'y'],
       },
@@ -335,11 +337,19 @@ export const HANDLERS: HandlerDef[] = [
       const y = Number(args.y);
       const rotation = args.rotation === undefined ? undefined : Number(args.rotation);
       if (![x, y, rotation ?? 0].every(Number.isFinite)) return 'x, y (and rotation if given) must be numbers';
+      // A label position needs both axes: one alone would either be ignored or,
+      // worse, pair a new coordinate with the old one and put the text somewhere
+      // nobody asked for.
+      const hasLabelX = args.label_x !== undefined && args.label_x !== null;
+      const hasLabelY = args.label_y !== undefined && args.label_y !== null;
+      if (hasLabelX !== hasLabelY) return 'label_x and label_y must be given together: a label position needs both board coordinates';
+      const label = hasLabelX ? { x: Number(args.label_x), y: Number(args.label_y) } : undefined;
+      if (label && ![label.x, label.y].every(Number.isFinite)) return 'label_x and label_y must be numbers';
       const abs = resolveInRepo(ctx.repoRoot, rel);
       const before = await readFile(abs, 'utf8');
       let after: string;
       try {
-        after = moveFootprint(before, ref, x, y, rotation);
+        after = moveFootprint(before, ref, x, y, rotation, label);
       } catch (e) {
         return `not moved: ${(e as Error).message}`;
       }
@@ -350,7 +360,8 @@ export const HANDLERS: HandlerDef[] = [
         return `move REVERTED: the board would not load in KiCad. kicad-cli says:\n${loadErr}`;
       }
       markTouched(ctx, rel);
-      return `moved ${ref} to (${x}, ${y})${rotation === undefined ? '' : ` at ${rotation}°`}; pads and text turned with it. Run run_drc after this batch of moves.`;
+      const where = label ? `; Reference label at (${label.x}, ${label.y})` : '';
+      return `moved ${ref} to (${x}, ${y})${rotation === undefined ? '' : ` at ${rotation}°`}; pads and text turned with it${where}. Run run_drc after this batch of moves.`;
     },
   },
   {

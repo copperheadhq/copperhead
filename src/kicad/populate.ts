@@ -826,15 +826,38 @@ const normAngle = (a: number): number => {
 };
 const atText = (x: number, y: number, a: number): string => `(at ${num(x)} ${num(y)}${a ? ` ${num(a)}` : ''})`;
 
+/** A reference label's desired position in board coordinates. */
+export interface LabelPosition {
+  x: number;
+  y: number;
+}
+
 /**
- * Move (and optionally rotate) one placed footprint, found by refdes (#314).
+ * Move (and optionally rotate) one placed footprint, found by refdes (#314),
+ * and optionally place its reference label at a board position (#380).
+ *
  * A KiCad board stores every pad's and text's angle as ABSOLUTE, so turning a
  * footprint by editing only its own `(at X Y ROT)` leaves the pads facing the
  * old way: the part no longer matches its library and fine-pitch pads short
  * into each other. Its zones are stored in board coordinates, so they move
  * and turn with it too. All by anchored splices only.
+ *
+ * A footprint's property/text position, unlike its angle, is stored in the
+ * footprint's own UNROTATED frame; KiCad renders it at
+ * `origin + rotate(local, rotation)`. Placing the reference label at a board
+ * point therefore needs the inverse (`local = rotate(board - origin, -θ)`)
+ * against the footprint's NEW origin and rotation, so moving and labelling in
+ * one call lands the label where it was asked for, not where the old frame
+ * would have put it. The label's own angle still turns with the footprint.
  */
-export function moveFootprint(boardText: string, ref: string, x: number, y: number, rotation?: number): string {
+export function moveFootprint(
+  boardText: string,
+  ref: string,
+  x: number,
+  y: number,
+  rotation?: number,
+  label?: LabelPosition,
+): string {
   const open = boardText.indexOf('(kicad_pcb');
   if (open < 0) throw new Error('not a KiCad board');
   const owns = (s: Span): boolean => {
@@ -857,15 +880,37 @@ export function moveFootprint(boardText: string, ref: string, x: number, y: numb
     const from = { x: nums[0] ?? 0, y: nums[1] ?? 0 };
     edits.push({ start: k.start, end: k.end, text: moveZonePoints(boardText.slice(k.start, k.end), from, { x, y }, delta) });
   }
-  if (delta) {
-    for (const k of kids) {
-      if (k.tag !== 'pad' && k.tag !== 'property' && k.tag !== 'fp_text') continue;
-      const own = childSpans(boardText, k.start).find((c) => c.tag === 'at');
-      if (!own) continue;
-      const v = boardText.slice(own.start, own.end).match(/-?[\d.]+/g)?.map(Number) ?? [];
-      const rest = / unlocked\)$/.test(boardText.slice(own.start, own.end)) ? ' unlocked' : '';
-      edits.push({ start: own.start, end: own.end, text: atText(v[0] ?? 0, v[1] ?? 0, normAngle((v[2] ?? 0) + delta)).replace(/\)$/, `${rest})`) });
-    }
+  // The reference property (or KiCad 5 `fp_text reference`), whose own `(at …)`
+  // holds the label. A board with a label to place but no such property is a
+  // broken footprint, not a placement to guess at.
+  let refAt: Span | undefined;
+  let refLocal: [number, number] | undefined;
+  if (label) {
+    const refProp = kids.find(
+      (k) =>
+        (k.tag === 'property' || k.tag === 'fp_text') &&
+        /^\((?:property\s+"Reference"|fp_text\s+reference)[\s)]/.test(boardText.slice(k.start, k.end)),
+    );
+    if (!refProp) throw new Error(`${ref} has no Reference property to place a label on`);
+    refAt = childSpans(boardText, refProp.start).find((c) => c.tag === 'at');
+    if (!refAt) throw new Error(`${ref}'s Reference property has no (at …) to place a label at`);
+    refLocal = rotate(label.x - x, label.y - y, -to);
+  }
+  for (const k of kids) {
+    if (k.tag !== 'pad' && k.tag !== 'property' && k.tag !== 'fp_text') continue;
+    const own = childSpans(boardText, k.start).find((c) => c.tag === 'at');
+    if (!own) continue;
+    const onRef = refAt !== undefined && own.start === refAt.start;
+    if (!delta && !onRef) continue;
+    const text = boardText.slice(own.start, own.end);
+    const v = text.match(/-?[\d.]+/g)?.map(Number) ?? [];
+    const rest = / unlocked\)$/.test(text) ? ' unlocked' : '';
+    const local: [number, number] = onRef && refLocal ? refLocal : [v[0] ?? 0, v[1] ?? 0];
+    edits.push({
+      start: own.start,
+      end: own.end,
+      text: atText(local[0], local[1], normAngle((v[2] ?? 0) + delta)).replace(/\)$/, `${rest})`),
+    });
   }
   let text = boardText;
   for (const e of edits.sort((a, b) => b.start - a.start)) text = text.slice(0, e.start) + e.text + text.slice(e.end);
