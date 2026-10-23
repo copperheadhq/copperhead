@@ -21,6 +21,7 @@ import { parseBomTable } from '../memory/bom-table.js';
 import {
   resolveLibrarySymbol,
   searchInstalledSymbolsRanked,
+  matchTierLabel,
   listInstalledLibraries,
   comparePinNumbers,
   type LibPin,
@@ -145,15 +146,11 @@ export async function bomSymbolDossier(
           if (hits.length) matchedBy = ` (matched by Value "${fallback}")`;
         }
         const top = hits[0];
-        const tierLabel = (rank: number): string => {
-          if (rank === 1) return 'prefix match';
-          if (rank === 2) return 'substring match';
-          return 'family wildcard / near-miss';
-        };
+
         if (!top) {
           line = `- ${who}: NO INSTALLED SYMBOL matches — not capturable as named; substitute a part whose symbol exists (search_symbols to find one)`;
         } else if (top.rank !== 0) {
-          line = `- ${who}: NO EXACT SYMBOL; closest approximate: ${top.libId} (${tierLabel(top.rank)}), a different part or package; confirm with symbol_pins before wiring`;
+          line = `- ${who}: NO EXACT SYMBOL; closest approximate: ${top.libId} (${matchTierLabel(top.rank)}), a different part or package; confirm with symbol_pins before wiring`;
         } else {
           const r = await resolveLibrarySymbol(top.libId, dirs);
           if (r.status !== 'ok') {

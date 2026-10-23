@@ -29,7 +29,7 @@ When no library directory exists on the machine, and when no symbol matches, the
 #### Scenario: Grouped exact vs approximate output
 
 - **WHEN** `search_symbols` matches both an exact symbol (or full-length trailing-`x` package wildcard such as `STM32F103C8Tx` for `STM32F103C8T6`, or `TSOP312xx` for `TSOP31238`) and approximate candidates (prefix, substring, or single-edit family variants)
-- **THEN** the tool lists exact matches under `installed symbols matching` and lists approximate candidates in a separate `approximate / near-miss candidates` section with their tier labels (`prefix match`, `substring match`, `family wildcard / near-miss`)
+- **THEN** the tool lists exact matches under `installed symbols matching` and lists approximate candidates in a separate `approximate / near-miss candidates` section with their tier labels (`prefix match`, `substring match`, `one-edit near-miss (different part)`)
 
 ## MODIFIED Requirements
 
