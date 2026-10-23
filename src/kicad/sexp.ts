@@ -302,7 +302,11 @@ function fpText(fp: SexpNode[], kind: string): string | undefined {
   return undefined;
 }
 
-/** Parse footprints from `.kicad_pcb` text (read-only). */
+/**
+ * Parse footprints from `.kicad_pcb` text (read-only), sorted by ref.
+ * Note: missing/blank references map to `'?'` (unlike `boardFootprints` in
+ * `src/kicad/populate.ts`, which preserves `''` and source order).
+ */
 export function footprintsOf(boardText: string): BoardFootprint[] {
   const root = parseSexp(boardText)[0];
   if (root === undefined || !isList(root) || tag(root) !== 'kicad_pcb') {
