@@ -180,6 +180,25 @@ program
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
   .action(checkAction);
 
+program
+  .command('explain')
+  .description('look up a refdes, net, or pin in the schematic and docs; no LLM, no network')
+  .argument('<query>', 'refdes (U1), net (GND), or pin (U1.GPIO14 / R2.1)')
+  .action(async (query: string) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { runExplain } = await import('./commands/explain.js');
+      const { result, text } = await runExplain(repo, query);
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else process.stdout.write(text.startsWith('\n') ? text.slice(1) : text);
+      process.exit(result.ok ? 0 : 1);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
 // `draft` and `score` are command groups taking the artifact as a noun
 // (`draft schematic` today, `draft pcb` when layout drafting exists), so the
 // verb alone never has to guess what it applies to.

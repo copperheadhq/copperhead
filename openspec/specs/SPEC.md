@@ -251,8 +251,8 @@ copperhead [repl] ["<change request>"] [--model …] [--allow-dirty]
     refusal and the same off-by-default `--allow-dirty` escape hatch),
     then returns to the prompt.
     Slash commands: /help, /demo, /examples, /status, /check, /parts, /nets,
-    /bom, /sync, /drift, /constraints, /openspec, /config, /git, /runs, /last,
-    /model, /version, /clear, /quit. Inspect commands are verify-only (no LLM
+    /explain, /bom, /sync, /drift, /constraints, /openspec, /config, /git, /runs,
+    /last, /model, /version, /clear, /quit. Inspect commands are verify-only (no LLM
     resolve / create). An optional first request runs before the loop. Non-TTY
     without a request refuses and points at `copperhead do`. With no model
     configured anywhere, a TTY session offers an interactive picker (also
@@ -334,8 +334,13 @@ copperhead review [design] --out <dir> [--source …] [--fab …] [--fab-profile
     failed; 1 on an error or a replay that differs; 130 or 143 when cancelled
     by SIGINT or SIGTERM.
 
-copperhead explain <refdes|net|pin>       # stretch
-    Answer "why is R7 here?" from docs + schematic context.
+copperhead explain <refdes|net|pin>
+    Deterministic lookup: a refdes (`U1`) lists value, footprint, pins, and
+    connected nets; a net (`GND`) lists attached pins; a pin (`U1.GPIO14` or
+    `R2.1`) names the net. Also pulls matching rows from BOM.md / PINOUT.md
+    and mentions in docs/. No LLM, no network. `--json` emits the same
+    structured hit. Unknown queries exit 1 with nearby-name suggestions.
+    The REPL exposes the same lookup as `/explain`.
 
 copperhead watch                          # Phase 2
     Start the live viewer (see §6).
@@ -499,6 +504,14 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+
+### AC-17 · `copperhead explain`
+
+- **AC-17.1** `explain U1` on the open-key fixture prints the part value and the GPIO14 pin on KEY_DAH; exit 0; no LLM and no network.
+- **AC-17.2** `explain KEY_DAH` lists the attached pins (U1.GPIO14 and R2.1 among them).
+- **AC-17.3** `explain U1.GPIO14` and `explain R2.1` both name net KEY_DAH.
+- **AC-17.4** `--json explain GND` is parseable with `ok: true` and `hit.kind === "net"`.
+- **AC-17.5** An unknown query exits 1 and suggests nearby names when they exist.
 
 ### AC-3 · `copperhead do` — core loop
 
