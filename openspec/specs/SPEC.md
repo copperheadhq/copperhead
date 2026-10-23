@@ -293,9 +293,11 @@ copperhead skill run <name> [--scope power|all] [--model …]
     Run a skill (currently `generate-report`) via the nested sub-run. Needs a
     model, same as `do`. Does not snapshot or commit.
 
-copperhead check          (alias: copperhead verify)
-    Run ERC + DRC + doc-drift check; exit non-zero on violations.
-    No LLM calls. Usable as CI step / pre-commit hook.
+copperhead check [--power [--strict-power]]   (alias: copperhead verify)
+    Run ERC + DRC + doc-drift check (plus optional opt-in DC power-integrity
+    verification via `COPPERHEAD_KIPIDA_BIN` / `ki-pida` when `--power` is
+    passed); exit non-zero on violations. No LLM calls and no network access.
+    Usable as CI step / pre-commit hook.
 
 copperhead sync [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs
