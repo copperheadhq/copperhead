@@ -4,7 +4,12 @@ import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
-import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '../memory/constraints.js';
+import {
+  loadConstraints,
+  checkForbiddenPins,
+  uncheckedForbiddenConstraints,
+  type ConstraintViolation,
+} from '../memory/constraints.js';
 import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
@@ -20,7 +25,7 @@ export interface CheckResult {
   drc: { ok: boolean; violations: number; unrouted: number; intrinsic: number } | null;
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
-  constraints: { ok: boolean; violations: ConstraintViolation[] };
+  constraints: { ok: boolean; violations: ConstraintViolation[]; unchecked?: string[] };
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -109,16 +114,18 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   }
 
   let constraintViolations: ConstraintViolation[] = [];
+  let uncheckedConstraints: string[] = [];
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
     const registry = await loadConstraints(repoRoot);
     const pins = await pinNets(path.join(repoRoot, config.schematic));
     constraintViolations = checkForbiddenPins(registry, pins);
+    uncheckedConstraints = uncheckedForbiddenConstraints(registry, pins);
     if (Object.keys(registry).length) {
-      log(
-        constraintViolations.length === 0
-          ? 'constraints ✓'
-          : constraintViolations.map((v) => `constraint ${v.key}: ${v.description} (source: ${v.source})`).join('\n'),
-      );
+      const lines = [
+        ...constraintViolations.map((v) => `constraint ${v.key}: ${v.description} (source: ${v.source})`),
+        ...uncheckedConstraints.map((key) => `constraint ${key}: not mechanically checked`),
+      ];
+      log(lines.length === 0 ? 'constraints ✓' : lines.join('\n'));
     }
   }
 
@@ -135,7 +142,11 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drc: drc ? { ok: drc.ok, violations: drc.violations.length, unrouted: drc.unrouted ?? 0, intrinsic: drc.intrinsic?.length ?? 0 } : null,
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
-    constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    constraints: {
+      ok: constraintViolations.length === 0,
+      violations: constraintViolations,
+      ...(uncheckedConstraints.length ? { unchecked: uncheckedConstraints } : {}),
+    },
     legibility,
   };
 }

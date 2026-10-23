@@ -740,15 +740,24 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'record_constraint',
       description:
-        'Record a constraint in .copperhead/constraints.json (dual write: put the same fact in the relevant doc in this same turn). Opens revisit obligations for every item in affects.',
+        'Record a constraint in .copperhead/constraints.json (dual write: put the same fact in the relevant doc in this same turn). Opens revisit obligations for every item in affects. `forbidden` holds pin names or numbers only (e.g. "U1:IO0", "GPIO0", "U1:27"); put other prohibitions in `value`.',
       parameters: {
         type: 'object',
         properties: {
           key: { type: 'string', description: 'e.g. power.sleep_current_uA' },
           min: { type: 'number' },
           max: { type: 'number' },
-          forbidden: { type: 'array', items: { type: 'string' } },
-          value: { type: 'string' },
+          forbidden: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Forbidden pin names or numbers (e.g. "U1:IO0", "GPIO0", "U1:27"); put non-pin prohibitions in value',
+          },
+          refs: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Part refdes (e.g. ["U1"]) that forbidden pins apply to',
+          },
+          value: { type: 'string', description: 'Target value or non-pin prohibition' },
           source: { type: 'string', description: 'doc/spec location that states this' },
           affects: { type: 'array', items: { type: 'string' } },
         },
@@ -776,6 +785,7 @@ export const HANDLERS: HandlerDef[] = [
         ...(args.min !== undefined ? { min: args.min as number } : {}),
         ...(args.max !== undefined ? { max: args.max as number } : {}),
         ...(args.forbidden !== undefined ? { forbidden: args.forbidden as string[] } : {}),
+        ...(args.refs !== undefined ? { refs: args.refs as string[] } : {}),
         ...(args.value !== undefined ? { value: args.value as string } : {}),
         source: str(args, 'source'),
         affects,

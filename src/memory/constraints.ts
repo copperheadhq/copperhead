@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import type { PinNet } from '../kicad/sexp.js';
 
 /**
  * Machine-readable constraint registry (SPEC §2.6). Built simultaneously with
@@ -11,6 +12,7 @@ export interface Constraint {
   min?: number;
   max?: number;
   forbidden?: string[];
+  refs?: string[];
   value?: string | number;
   source: string;
   affects: string[];
@@ -134,6 +136,65 @@ export interface ConstraintViolation {
   source: string;
 }
 
+export type PinNetEntry = Omit<PinNet, 'pinNumber'> & { pinNumber?: string };
+
+const REFDES_TOKEN_RE =
+  /^(?:U|IC|MCU|R|C|L|D|Q|J|P|SW|S|K|Y|X|F|FB|TP|BT|LED|RN|RV|T|BZ|LS|MK|VR|Z|FL|A|H|M|TH|W)\d+[A-Za-z]*$/;
+
+function extractScopedRefs(
+  c: Constraint,
+  knownRefs: ReadonlySet<string>,
+): { refs: Set<string> | null; explicit: boolean } {
+  if (c.refs?.length) {
+    const explicit = new Set(c.refs.map((r) => r.trim()).filter(Boolean));
+    if (explicit.size > 0) return { refs: explicit, explicit: true };
+  }
+  const fromAffects = new Set<string>();
+  for (const raw of c.affects ?? []) {
+    if (classifyAffectsTarget(raw) !== null) continue;
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.includes(':')) continue;
+    const head = trimmed.split(/\s+/)[0] ?? '';
+    if (REFDES_TOKEN_RE.test(head) || (knownRefs.has(head) && !/^(?:GPIO|IO)\d+/i.test(head))) {
+      fromAffects.add(head);
+    }
+  }
+  return { refs: fromAffects.size > 0 ? fromAffects : null, explicit: false };
+}
+
+function parseForbiddenSpec(
+  raw: string,
+  defaultScope: { refs: Set<string> | null; explicit: boolean },
+): { refs: Set<string> | null; pinSpec: string; isRefScoped: boolean } {
+  const trimmed = raw.trim();
+  const prefixed = /^([A-Za-z]+\d+[A-Za-z]*)\s*:\s*(.+)$/.exec(trimmed);
+  if (prefixed) {
+    return { refs: new Set([prefixed[1]!]), pinSpec: prefixed[2]!.trim(), isRefScoped: true };
+  }
+  return { refs: defaultScope.refs, pinSpec: trimmed, isRefScoped: defaultScope.explicit };
+}
+
+function canonicalIoName(name: string): string {
+  return name.trim().replace(/^GPIO(?=\d)/i, 'IO').toUpperCase();
+}
+
+function matchesPin(pn: PinNetEntry, pinSpec: string, isRefScoped: boolean): boolean {
+  if (!pinSpec) return false;
+  if (isRefScoped && pn.pinNumber !== undefined && pn.pinNumber !== '' && pn.pinNumber === pinSpec) {
+    return true;
+  }
+  if (pn.pinName === pinSpec) return true;
+  const targetCanon = canonicalIoName(pinSpec);
+  if (canonicalIoName(pn.pinName) === targetCanon) return true;
+  if (pn.pinName.includes('/')) {
+    for (const seg of pn.pinName.split('/')) {
+      const s = seg.trim();
+      if (s && (s === pinSpec || canonicalIoName(s) === targetCanon)) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Mechanical validation where possible (SPEC §2.6): forbidden pins against the
  * pinout, numeric budget keys surfaced for the doc-level checks. Geometry
@@ -141,20 +202,61 @@ export interface ConstraintViolation {
  */
 export function checkForbiddenPins(
   registry: ConstraintRegistry,
-  pinNets: { ref: string; pinName: string; net: string | null }[],
+  pinNets: PinNetEntry[],
 ): ConstraintViolation[] {
   const violations: ConstraintViolation[] = [];
+  const knownRefs = new Set(pinNets.map((p) => p.ref));
   for (const [key, c] of Object.entries(registry)) {
     if (!c.forbidden?.length) continue;
+    const defaultScope = extractScopedRefs(c, knownRefs);
+    const specs = c.forbidden.map((entry) => parseForbiddenSpec(entry, defaultScope));
     for (const pn of pinNets) {
-      if (pn.net && c.forbidden.includes(pn.pinName)) {
+      if (!pn.net) continue;
+      const matchedSpec = specs.find(
+        ({ refs, pinSpec, isRefScoped }) =>
+          (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, isRefScoped),
+      );
+      if (matchedSpec) {
+        const pinLabel =
+          pn.pinName === matchedSpec.pinSpec ? pn.pinName : `${pn.pinName} (${matchedSpec.pinSpec})`;
         violations.push({
           key,
-          description: `${pn.ref} pin ${pn.pinName} is connected to net ${pn.net} but is forbidden by ${key}`,
+          description: `${pn.ref} pin ${pinLabel} is connected to net ${pn.net} but is forbidden by ${key}`,
           source: c.source,
         });
       }
     }
   }
   return violations;
+}
+
+/**
+ * Constraint keys whose `forbidden` list contains entries that did not match
+ * any pin on the in-scope part(s), so `check` and `sync` can report
+ * `constraint <key>: not mechanically checked` instead of counting them as a
+ * silent pass (#395).
+ */
+export function uncheckedForbiddenConstraints(
+  registry: ConstraintRegistry,
+  pinNets: PinNetEntry[],
+): string[] {
+  const unchecked: string[] = [];
+  const knownRefs = new Set(pinNets.map((p) => p.ref));
+  for (const [key, c] of Object.entries(registry)) {
+    if (!c.forbidden?.length) continue;
+    const defaultScope = extractScopedRefs(c, knownRefs);
+    let anyUnmatched = false;
+    for (const raw of c.forbidden) {
+      const { refs, pinSpec, isRefScoped } = parseForbiddenSpec(raw, defaultScope);
+      const matched = pinNets.some((pn) => (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, isRefScoped));
+      if (!matched) {
+        anyUnmatched = true;
+        break;
+      }
+    }
+    if (anyUnmatched) {
+      unchecked.push(key);
+    }
+  }
+  return unchecked;
 }
