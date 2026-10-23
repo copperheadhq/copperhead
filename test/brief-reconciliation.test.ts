@@ -240,7 +240,11 @@ describe('brief reconciliation state', () => {
 
       expect(result).toMatchObject({ status: 'legacy', ok: true, reasonCode: 'legacy-external-origin', originSha256: briefSha256(original), currentSha256: briefSha256('# Changed copy\n') });
       expect(result.detail).toContain('repository-local brief differs from its external origin');
-      expect(result.detail).toContain('copperhead create --brief docs/BRIEF.md');
+      expect(result.detail).toContain('create cannot review this difference');
+      expect(result.detail).toContain('accepts the edited brief as the baseline');
+      expect(result.detail).toContain('Restore the original text in docs/BRIEF.md');
+      expect(result.detail).toContain('run copperhead create --brief docs/BRIEF.md');
+      expect(result.detail).toContain('re-apply the edits and run copperhead sync --brief');
     } finally {
       await cleanup();
     }

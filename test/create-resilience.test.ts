@@ -446,7 +446,18 @@ describe('create pipeline resilience (review F3)', () => {
     }
   });
 
-  it('creates and commits the initial brief record for a legacy external origin', async () => {
+  it.each([
+    {
+      label: 'in-repository',
+      origin: { path: 'docs/BRIEF.md', sha256: briefSha256('# Create baseline\n') },
+      reasonCode: 'legacy-origin-without-reconciliation',
+    },
+    {
+      label: 'external',
+      origin: { path: 'external:brief.md', sha256: briefSha256('# External origin\n') },
+      reasonCode: 'legacy-external-origin',
+    },
+  ])('creates and commits the initial brief record for a legacy $label origin', async ({ origin, reasonCode }) => {
     const { repo, cleanup } = await tempFixtureRepo();
     const originalChecks = STAGES.map((stage) => stage.isComplete);
     try {
@@ -454,7 +465,7 @@ describe('create pipeline resilience (review F3)', () => {
       await mkdir(path.dirname(briefPath), { recursive: true });
       const brief = '# Create baseline\n';
       await writeFile(briefPath, brief, 'utf8');
-      await writeBriefHash(repo, 'docs', { path: 'external:brief.md', sha256: briefSha256('# External origin\n') });
+      await writeBriefHash(repo, 'docs', origin);
       await execa('git', ['add', '-A'], { cwd: repo });
       await execa('git', ['commit', '-q', '-m', 'add tracked brief'], { cwd: repo });
 
@@ -468,7 +479,7 @@ describe('create pipeline resilience (review F3)', () => {
         constraints: { ok: true, violations: [] },
       };
       mockRunCheck
-        .mockResolvedValueOnce({ ...allChecksPass, ok: true, brief: { status: 'legacy', reasonCode: 'legacy-external-origin' } })
+        .mockResolvedValueOnce({ ...allChecksPass, ok: true, brief: { status: 'legacy', reasonCode } })
         .mockResolvedValueOnce({ ...allChecksPass, brief: { status: 'current' } });
 
       const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });

@@ -58,7 +58,8 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 #### Scenario: Differing local copy of an external legacy origin
 
 - **WHEN** an external origin has no reconciliation record and the repository-local conventional brief differs from the origin hash
-- **THEN** check still reports non-failing `legacy` and identifies `copperhead create --brief <local brief path>` as the command to establish the tracked baseline
+- **THEN** check still reports non-failing `legacy` and warns that running create on the edited copy accepts it as the baseline without reviewing the difference
+- **AND** the hint directs the user to restore the original text, run `copperhead create --brief <local brief path>`, re-apply the edits, and run `copperhead sync --brief` to review them
 
 #### Scenario: Changed in-repository legacy origin
 
