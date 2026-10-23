@@ -32,6 +32,7 @@ import { runInit, InitError } from '../memory/scaffold.js';
 import { SandboxError } from '../util/paths.js';
 import { runDoctor } from '../commands/doctor.js';
 import { runAgentLoop, type RunResult } from '../agent/loop.js';
+import type { Provider } from '../agent/types.js';
 import { kicadCliVersion } from '../kicad/cli.js';
 import { seal, type ToolResult, type ToolErrorKind } from '../agent/envelope.js';
 import { plainRenderer, type ProgressRenderer } from '../agent/render.js';
@@ -202,6 +203,12 @@ export function runStatus(res: RunResult, dryRun: boolean): 'committed' | 'rolle
 
 export interface ServerOptions {
   repoRoot: string;
+  /**
+   * Test seam: run copperhead_do on this provider instead of the one the
+   * resolved model names. Omitted everywhere outside tests, which keeps
+   * today's behaviour; it is not a tool input, so no host can set it.
+   */
+  provider?: Provider;
 }
 
 /**
@@ -385,6 +392,7 @@ export function createMcpServer(opts: ServerOptions): McpServer {
           repoRoot,
           request,
           model: resolved.model,
+          ...(opts.provider ? { provider: opts.provider } : {}),
           // allowDirty is deliberately not exposed: it is a safety rail, and a
           // tool input that switches a rail off is a rail a host can bypass.
           allowDirty: false,
