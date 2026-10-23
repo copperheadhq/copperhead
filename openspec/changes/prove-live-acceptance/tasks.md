@@ -11,7 +11,7 @@
 - [ ] 2.1 Write `.github/workflows/live-acceptance.yml`: nightly schedule + `workflow_dispatch`, provider matrix, kicad-cli install step, `LIVE_ACCEPTANCE_ENABLED` toggle, missing-key legs marked `not_run`
 - [ ] 2.2 Emit per-AC results into `status.json` (per provider, timestamps, retry/flake counts)
 - [ ] 2.3 Badge matrix in the README fed by workflow status / `status.json`
-- [ ] 2.4 Finish the AC-3.2 and AC-3.3 integration tests so the nightly suite covers all of AC-3.x (currently unwritten; blocks full matrix meaning)
+- [ ] 2.4 Finish the AC-3.2 and AC-3.3 integration tests so the nightly suite covers all of AC-3.x (currently unwritten; blocks full matrix meaning). AC-3.2 is written and observed passing (build-copperhead-phase-1 8.5); AC-3.3 is written on the rgb-key fixture but not yet observed passing (see 8.6)
 
 ## 3. Evidence promotion
 

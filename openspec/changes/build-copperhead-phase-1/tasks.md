@@ -73,8 +73,8 @@
 - [x] 8.2 Implement --dry-run: propose diff, write nothing (AC-3.9)
 - [x] 8.3 Structured commit message (`copperhead: <request>` + edits/verification summary)
 - [x] 8.4 Integration test AC-3.1 (net rename): propagation to docs, ERC 0, one commit, diff locality < 5% lines (AC-3.7)
-- [ ] 8.5 Integration test AC-3.2 (RTC-capable pin move): strapping table consulted in transcript, schematic/PINOUT agree
-- [ ] 8.6 Integration test AC-3.3 (add RGB LED): unique refdes, valid footprint, UNVERIFIED BOM row with rationale
+- [x] 8.5 Integration test AC-3.2 (RTC-capable pin move): strapping table consulted in transcript, schematic/PINOUT agree. Seeds the `pins.strapping` constraint and PINOUT.md strapping/RTC notes; observed passing live on `--model codex` (2 of 2)
+- [ ] 8.6 Integration test AC-3.3 (add RGB LED): unique refdes, valid footprint, UNVERIFIED BOM row with rationale. open-key cannot host it (its U1 has four free GPIOs, two of them strapping), so the test runs on the `rgb-key` fixture (an existing RGB LED, five free non-strapping GPIOs; see `test/fixtures/rgb-key-source/README.md`). Written and key-gated; not yet observed passing live: on `--model claude-code` the agent makes the right edits but had not converged within 30 minutes (ERC 20 to 16 violations)
 - [x] 8.7 Integration test AC-3.4 (budget refusal): 100kΩ pullup refused citing 25 µA budget — the money demo
 - [x] 8.8 Integration tests AC-3.5/3.6 (repair loop converges; rollback leaves tree byte-identical)
 - [ ] 8.9 Provider parity: AC-3.1 green on both --model gpt-5 and --model claude (AC-3.10)

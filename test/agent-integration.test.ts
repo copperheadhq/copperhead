@@ -7,7 +7,11 @@ import { runAgentLoop } from '../src/agent/loop.js';
 import { runInit } from '../src/memory/scaffold.js';
 import { toolSearch } from '../src/agent/filetools.js';
 import { saveConstraint } from '../src/memory/constraints.js';
-import { tempFixtureRepo } from './helpers.js';
+import { checkDrift } from '../src/memory/drift.js';
+import { listSymbols, pinNets } from '../src/kicad/sexp.js';
+import { runErc } from '../src/kicad/cli.js';
+import { FootprintResolver, missingFootprints } from '../src/kicad/footprints.js';
+import { tempFixtureRepo, RGB_FIXTURE } from './helpers.js';
 
 /**
  * Live agent-loop tests (AC-3.x). These call a real LLM: they run only when an
@@ -57,8 +61,8 @@ function claudeCodeSdkInstalled(): boolean {
   }
 }
 
-async function setupRepo(): Promise<{ repo: string; cleanup: () => Promise<void> }> {
-  const { repo, cleanup } = await tempFixtureRepo();
+async function setupRepo(fixture?: string): Promise<{ repo: string; cleanup: () => Promise<void> }> {
+  const { repo, cleanup } = await tempFixtureRepo(fixture);
   await runInit({ repoRoot: repo, installHooks: false });
   // the 25 µA sleep budget that powers AC-3.4
   await saveConstraint(repo, 'power.sleep_current_uA', {
@@ -113,6 +117,120 @@ for (const { model, key } of providers) {
         }
       },
       600_000,
+    );
+
+    it(
+      'AC-3.2: the key input moves to an RTC-capable pin that is not a strapping pin, after consulting the strapping table',
+      async () => {
+        const { repo, cleanup } = await setupRepo();
+        try {
+          // The strapping table the agent must hold (SPEC.md's pins.strapping
+          // example) and the RTC notes PINOUT.md tells it to check. On the
+          // fixture's U1 the free pins are GPIO0 and GPIO3 (RTC-capable but
+          // strapping: the traps) and GPIO18 and GPIO21 (RTC-capable, not
+          // strapping: the right answers); KEY_DAH starts on GPIO14.
+          await saveConstraint(repo, 'pins.strapping', {
+            forbidden: ['GPIO0', 'GPIO3', 'GPIO45', 'GPIO46'],
+            source: 'docs/PINOUT.md#strapping-and-rtc-notes',
+            affects: ['U1'],
+          });
+          await appendFile(
+            path.join(repo, 'docs', 'PINOUT.md'),
+            '\n## Strapping and RTC notes\n\n' +
+              '- Strapping pins, sampled at reset (never use for an input): GPIO0, GPIO3, GPIO45, GPIO46.\n' +
+              '- RTC-capable (usable as a deep-sleep wake source): GPIO0 to GPIO21.\n',
+          );
+          await execa('git', ['add', '-A'], { cwd: repo });
+          await execa('git', ['commit', '-q', '-m', 'strapping table'], { cwd: repo });
+
+          const res = await runAgentLoop({
+            repoRoot: repo,
+            request: 'move the key input to a different RTC-capable pin',
+            model,
+            maxTurns: 60,
+            log: () => {},
+          });
+          expect(res.outcome, res.summary).toBe('success');
+
+          const sch = path.join(repo, 'hardware', 'open-key.kicad_sch');
+          const keyPins = (await pinNets(sch)).filter((p) => p.ref === 'U1' && p.net === 'KEY_DAH').map((p) => p.pinName);
+          expect(keyPins, 'KEY_DAH must sit on exactly one U1 pin').toHaveLength(1);
+          expect(['GPIO18', 'GPIO21'], `KEY_DAH moved to ${keyPins[0]}`).toContain(keyPins[0]);
+          // schematic and PINOUT.md agree, and ERC is clean
+          expect(await checkDrift(repo, 'docs', 'hardware/open-key.kicad_sch')).toEqual([]);
+          expect((await runErc(sch)).ok).toBe(true);
+          // the strapping table was consulted: the model's own reasoning names it
+          const events = (await readFile(path.join(res.transcriptDir, 'transcript.jsonl'), 'utf8'))
+            .split('\n')
+            .filter(Boolean)
+            .map((l) => JSON.parse(l) as { type: string; data: unknown });
+          const reasoning = events.filter((e) => e.type === 'assistant').map((e) => JSON.stringify(e.data)).join('\n');
+          expect(reasoning).toMatch(/strapping/i);
+        } finally {
+          await cleanup();
+        }
+      },
+      900_000,
+    );
+
+    it(
+      'AC-3.3: a second RGB LED gets a unique refdes, an installed footprint, a GPIO net, and an UNVERIFIED BOM row',
+      async () => {
+        // rgb-key: open-key plus D1, an RGB LED on GPIO4/5/6 through R3-R5, with
+        // GPIO7/8/9/18/21 free for a second one (fixtures/rgb-key-source/README.md)
+        const { repo, cleanup } = await setupRepo(RGB_FIXTURE);
+        try {
+          // document the sheet's three groups, as a real project would
+          await appendFile(
+            path.join(repo, 'docs', 'SUBSYSTEMS.md'),
+            '\n## MCU\n\nESP32-S3 module and its enable pull-up.\n\n## Keyer\n\nKey input block.\n\n## Indicator\n\nRGB status LED.\n',
+          );
+          await execa('git', ['add', '-A'], { cwd: repo });
+          await execa('git', ['commit', '-q', '-m', 'document subsystems'], { cwd: repo });
+
+          const sch = path.join(repo, 'hardware', 'rgb-key.kicad_sch');
+          const before = new Set((await listSymbols(sch)).map((s) => s.ref));
+          const res = await runAgentLoop({
+            repoRoot: repo,
+            request: 'add a second RGB LED',
+            model,
+            maxTurns: 60,
+            log: () => {},
+          });
+          expect(res.outcome, res.summary).toBe('success');
+
+          const after = (await listSymbols(sch)).filter((s) => s.unit === 1);
+          expect(new Set(after.map((s) => s.ref)).size, 'every refdes is unique').toBe(after.length);
+          const added = after.filter((s) => !before.has(s.ref));
+          const leds = added.filter((s) => /led/i.test(`${s.libId} ${s.value}`));
+          expect(leds.length, `added: ${added.map((s) => `${s.ref} ${s.libId}`).join(', ')}`).toBeGreaterThan(0);
+
+          // every added part has a footprint that resolves to an installed library footprint
+          const resolver = await FootprintResolver.create({ projectDir: path.dirname(sch) });
+          expect(await missingFootprints(added.map((s) => ({ ref: s.ref, footprint: s.footprint })), resolver)).toEqual([]);
+
+          // the new parts connect to a real GPIO: a net they share with a U1 GPIO pin
+          const pins = await pinNets(sch);
+          const gpioNets = new Set(pins.filter((p) => p.ref === 'U1' && /^GPIO/.test(p.pinName) && p.net).map((p) => p.net));
+          const addedRefs = new Set(added.map((s) => s.ref));
+          expect(pins.some((p) => addedRefs.has(p.ref) && p.net !== null && gpioNets.has(p.net))).toBe(true);
+
+          // BOM.md gains a row per new LED: MPN flagged UNVERIFIED, with a rationale
+          const bomRows = (await readFile(path.join(repo, 'docs', 'BOM.md'), 'utf8')).split('\n').filter((l) => l.startsWith('|'));
+          for (const led of leds) {
+            const row = bomRows.find((l) => l.split('|').map((c) => c.trim()).some((c) => c.split(/[,\s]+/).includes(led.ref)));
+            expect(row, `no BOM.md row for ${led.ref}`).toBeDefined();
+            expect(row).toMatch(/UNVERIFIED/);
+            const cells = row!.split('|').map((c) => c.trim()).slice(1, -1);
+            expect(cells[cells.length - 1], `${led.ref} has no rationale`).toBeTruthy();
+          }
+          expect((await runErc(sch)).ok).toBe(true);
+        } finally {
+          await cleanup();
+        }
+      },
+      // adding a part takes many edit turns, and a claude-code turn ran about 90 s live
+      1_800_000,
     );
 
     it(
