@@ -2,24 +2,18 @@
 
 ## Why
 
-`copperhead create` writes `docs/BRIEF.sha256` after `spec-seed` to record the originating brief path and SHA-256, and subsequent `create` runs never overwrite that file. However, neither `copperhead check` nor `copperhead sync` previously compared the current brief file against `BRIEF.sha256`, so edits to the brief after creation went undetected. When a human intentionally updates the brief and reconciles the design, there also needs to be an explicit reconciliation path (`copperhead sync --brief`) that preserves the original `origin_sha256` while recording the reconciled `sha256`.
+`copperhead create` writes `docs/BRIEF.sha256` after `spec-seed` to record the originating brief path and SHA-256, and subsequent `create` runs never overwrite that file. Previously neither `check` nor `sync` compared the brief against `BRIEF.sha256`. Because an edited brief is a requirement-level change, `check` and `sync` must surface divergence as a failure / requirement violation rather than silently resolving it, while `copperhead sync --brief` gives the human an explicit acknowledgement command once changes have been applied via `copperhead do`.
 
 ## What Changes
 
-- **`create` external brief snapshot**: When `copperhead create --brief <file>` runs with an external brief path, `writeBriefHash` snapshots the brief content to `<docs>/BRIEF.md` (`wx`, never overwriting an existing file) so in-repo provenance checks remain self-contained and sandbox-safe.
-- **`check` brief provenance verification**: `copperhead check` verifies `<docs>/BRIEF.sha256` against the in-repo brief using `resolveInRepo` path sandboxing, reporting divergence, missing brief files, or sandbox-violating paths, and exposes a stable `brief: BriefProvenanceStatus | null` key in `--json` output.
-- **`sync` and `sync --brief` reconciliation**: `syncVerify` reports brief divergence (and flags sandbox violations as requirement violations), `syncResolve` reconciles downstream design docs and updates `BRIEF.sha256` upon completion, and `copperhead sync --brief` (including `--dry-run`) verifies consistency before updating `BRIEF.sha256` (preserving `origin_sha256`) and logging the reconciliation in `DECISIONS.md` and `CHANGELOG.md`.
+- **`create` external brief snapshot**: When `copperhead create --brief <file>` runs with an external brief path, `writeBriefHash` snapshots the brief to `<docs>/BRIEF.md` (`wx`) and records that in-repo snapshot path.
+- **`check` brief provenance verification (`AC-2.6`)**: `copperhead check` verifies `<docs>/BRIEF.sha256` strictly against the recorded path (no silent fallbacks to unrelated files, LF/CRLF tolerant), fails when diverged/missing/malformed/outside-repo, and exposes `brief: BriefProvenanceStatus | null` in `--json`. Upgrade note: repos with edited briefs run `copperhead sync --brief` after confirming the design reflects the brief.
+- **`sync` requirement violation & `sync --brief` acknowledgement (`AC-7.6`)**: `syncVerify` reports brief divergence as `kind: 'requirement-violation'` (so plain `sync` exits 2 and never redesigns from the brief or auto-clears `BRIEF.sha256`). `copperhead sync --brief` refuses if other requirement violations exist or if doc drift exists without `--model`, updates `BRIEF.sha256` (adopting `<docs>/BRIEF.md` on legacy `external:` records and preserving `origin_sha256`), and records an explicit acknowledgement in `DECISIONS.md` and `CHANGELOG.md` without claiming automated design verification.
 
 ## Capabilities
 
 ### Modified Capabilities
 
-- `create-pipeline`: `writeBriefHash` snapshots external briefs into `<docs>/BRIEF.md` on first `spec-seed` while keeping `BRIEF.sha256` write-once across `create` runs.
-- `cli-surface`: `check --json` includes a stable `brief` key; `sync` gains `--brief` (with `--dry-run` support) to reconcile brief provenance after design verification.
-- `docs-memory`: `checkBriefProvenance` and `reconcileBriefHash` enforce repo path sandboxing, case-insensitive SHA-256 comparison, missing-file failure reporting, and `origin_sha256` preservation.
-
-## Impact
-
-- **Code**: `src/commands/create.ts`, `src/memory/drift.ts`, `src/commands/check.ts`, `src/commands/sync.ts`, `src/cli.ts`.
-- **Specs & Docs**: `openspec/specs/SPEC.md` and `docs/src/content/docs/reference/cli.md`.
-- **Tests**: `test/create-provenance.test.ts` and `test/init-check.test.ts`.
+- `create-pipeline`: `writeBriefHash` snapshots external briefs into `<docs>/BRIEF.md` and records the in-repo path while keeping `BRIEF.sha256` write-once across `create` runs.
+- `cli-surface`: `check --json` includes `brief`; `sync --brief` acknowledges the current brief hash after refusing on other violations or unmodeled doc drift.
+- `docs-memory`: `checkBriefProvenance` and `reconcileBriefHash` enforce exact path resolution (no unrelated fallbacks), LF/CRLF line-ending tolerance, legacy `external:` recovery, and honest acknowledgement logging.
