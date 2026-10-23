@@ -1,9 +1,8 @@
-import { mkdtemp, rm, utimes } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
+import { rm, utimes } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from '../types.js';
 import { parseToolCalls, renderConversation, renderDelta, renderToolProtocol } from './tool-protocol.js';
+import { createCopperheadTempDir } from '../../util/tmp.js';
 
 /**
  * Saved-login provider: drives the Cursor Agent CLI (`agent` / `cursor-agent`) with
@@ -147,7 +146,7 @@ export class CursorProvider implements Provider {
   }
 
   private async ensureWorkspace(): Promise<string> {
-    if (!this.cwdPromise) this.cwdPromise = mkdtemp(path.join(os.tmpdir(), 'copperhead-cursor-'));
+    if (!this.cwdPromise) this.cwdPromise = createCopperheadTempDir('cursor-');
     const cwd = await this.cwdPromise;
     const now = new Date();
     await utimes(cwd, now, now).catch(() => {});
