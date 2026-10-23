@@ -2,7 +2,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
-import { checkDrift } from '../memory/drift.js';
+import { checkDrift, checkBriefProvenance } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -137,6 +137,43 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
         kind: 'requirement-violation',
         description: v.description,
         governedBy: v.source,
+      });
+    }
+  }
+
+  const brief = await checkBriefProvenance(repoRoot, config.docs);
+  if (brief && !brief.ok) {
+    const shaRel = `${config.docs.replace(/\\/g, '/').replace(/\/+$/, '')}/BRIEF.sha256`;
+    const snapRel = `${config.docs.replace(/\\/g, '/').replace(/\/+$/, '')}/BRIEF.md`;
+    if (brief.current === 'outside-repo') {
+      violations.push({
+        kind: 'requirement-violation',
+        description: `brief path "${brief.path}" resolves outside the repository`,
+        governedBy: shaRel,
+      });
+    } else if (brief.current === 'invalid') {
+      violations.push({
+        kind: 'requirement-violation',
+        description: `brief provenance record in ${shaRel} is malformed (missing sha256 line)`,
+        governedBy: shaRel,
+      });
+    } else if (brief.current === 'missing' && brief.path.startsWith('external:')) {
+      violations.push({
+        kind: 'requirement-violation',
+        description: `${brief.path} has no in-repo copy; copy it to ${snapRel} and run copperhead sync --brief`,
+        governedBy: shaRel,
+      });
+    } else if (brief.current === 'missing') {
+      violations.push({
+        kind: 'requirement-violation',
+        description: `${brief.path} is missing (expected sha256 ${brief.recorded.slice(0, 8)}); restore ${brief.path} before running copperhead sync --brief`,
+        governedBy: brief.path,
+      });
+    } else {
+      violations.push({
+        kind: 'requirement-violation',
+        description: `${brief.path} changed since the design was last reconciled (${brief.recorded.slice(0, 8)} -> ${brief.current.slice(0, 8)}); apply it with copperhead do, then acknowledge with copperhead sync --brief`,
+        governedBy: brief.path,
       });
     }
   }
