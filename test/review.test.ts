@@ -1,4 +1,4 @@
-import { link, mkdir, mkdtemp, readFile, readdir, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import { chmod, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
@@ -706,6 +706,7 @@ describe('review: the run and its record', () => {
     const outFile = path.join(root, 'existing-file');
     await writeFile(outFile, 'x');
     await expect(runReview({ ...base, out: outFile, client: fakeTools() })).rejects.toThrow(/not a directory/);
+    await expect(runReview({ ...base, out: path.join(outFile, 'nested', 'rec'), client: fakeTools() })).rejects.toThrow(/not a directory/);
 
     const emptyPathDir = path.join(root, 'empty-bin');
     await mkdir(emptyPathDir);
@@ -722,6 +723,107 @@ describe('review: the run and its record', () => {
     } finally {
       process.env.PATH = savedPath;
       if (savedTools !== undefined) process.env.COPPERHEAD_TOOLS = savedTools;
+    }
+  });
+
+  it('allows --resume when a resumable record has bundle.json even if its external --sweep directory was deleted, while still refusing missing --sweep without bundle.json (#404)', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'review-resume-sweep-'));
+    const design = path.join(root, 'design');
+    const sweep = path.join(root, 'sweep-record');
+    const out = path.join(root, 'rec');
+    await mkdir(design, { recursive: true });
+    await mkdir(sweep, { recursive: true });
+    await writeFile(path.join(sweep, 'review.json'), '{}');
+
+    const submitter = () =>
+      scriptedProvider([
+        {
+          toolCalls: [
+            {
+              name: 'submit',
+              args: {
+                proposals: [],
+                summary: 'clean',
+              },
+            },
+          ],
+        },
+      ]);
+    const base = {
+      design,
+      out,
+      sweep,
+      sources: [],
+      model: 's',
+      domains: ['P'],
+      maxTurns: 3,
+      maxMinutes: 1,
+      parallel: 1,
+      client: fakeTools(),
+      makeProvider: async () => submitter(),
+      log: () => undefined,
+    };
+
+    await runReview(base);
+    await rm(sweep, { recursive: true });
+    const resumed = await runReview({ ...base, resume: true });
+    expect(resumed.passes[0]?.outcome).toBe('submitted');
+
+    // A partial skeleton without a parsable bundle.json still requires --sweep to exist.
+    const outNoBundle = path.join(root, 'rec-no-bundle');
+    await mkdir(path.join(outNoBundle, 'model', 'samples'), { recursive: true });
+    await writeFile(path.join(outNoBundle, 'inputs.json'), `${JSON.stringify({ design, sources: [], fab: [], fabProfile: null, sweep, label: null }, null, 1)}\n`);
+    await writeFile(path.join(outNoBundle, 'bundle.json'), '{broken');
+    await expect(
+      runReview({ ...base, out: outNoBundle, resume: true }),
+    ).rejects.toThrow(/holds no review\.json/);
+  });
+
+  it.skipIf(process.platform === 'win32')('resolves copperhead-tools on PATH keeping bare command name in lockfile (#404)', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'review-path-ok-'));
+    const bin = path.join(root, 'copperhead-tools');
+    await writeFile(bin, '#!/bin/sh\nexit 0\n');
+    await chmod(bin, 0o755);
+    const client = await resolveTools(undefined, { PATH: root });
+    expect(client.command).toEqual(['copperhead-tools']);
+  });
+
+  it('rejects Windows .cmd or extensionless shims on win32 PATH lookup (#404)', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'review-win32-shim-'));
+    await writeFile(path.join(root, 'copperhead-tools'), '#!/bin/sh\n');
+    await writeFile(path.join(root, 'copperhead-tools.cmd'), '@echo off\r\n');
+    await expect(resolveTools(undefined, { PATH: root }, 'win32')).rejects.toThrow(/not found on PATH/);
+    if (process.platform === 'win32') {
+      await expect(resolveTools(undefined, { PATH: root })).rejects.toThrow(/not found on PATH/);
+    }
+  });
+
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('rethrows EACCES when --out cannot be read (#404)', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'review-eacces-'));
+    const design = path.join(root, 'design');
+    const locked = path.join(root, 'locked-out');
+    await mkdir(design, { recursive: true });
+    await mkdir(locked, { recursive: true });
+    await chmod(locked, 0o000);
+    try {
+      await expect(
+        runReview({
+          design,
+          out: locked,
+          resume: true,
+          sources: [],
+          model: 's',
+          domains: ['P'],
+          maxTurns: 1,
+          maxMinutes: 1,
+          parallel: 1,
+          client: fakeTools(),
+          makeProvider: async () => scriptedProvider([]),
+          log: () => undefined,
+        }),
+      ).rejects.toThrow(/EACCES|permission denied/i);
+    } finally {
+      await chmod(locked, 0o700);
     }
   });
 });

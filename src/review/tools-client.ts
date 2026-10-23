@@ -27,7 +27,11 @@ export interface ToolsClient {
 }
 
 /** `--tools`, then COPPERHEAD_TOOLS (a cli.js or an executable), then `copperhead-tools` on PATH. */
-export async function resolveTools(flag?: string, env = process.env): Promise<ToolsClient> {
+export async function resolveTools(
+  flag?: string,
+  env = process.env,
+  platform: NodeJS.Platform = process.platform,
+): Promise<ToolsClient> {
   const given = flag ?? env.COPPERHEAD_TOOLS;
   let command: string[];
   if (given) {
@@ -40,14 +44,14 @@ export async function resolveTools(flag?: string, env = process.env): Promise<To
     command = abs.endsWith('.js') ? [process.execPath, abs] : [abs];
   } else {
     const dirs = (env.PATH ?? '').split(path.delimiter).filter(Boolean);
-    const exts = process.platform === 'win32' ? (env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
-    let found: string | null = null;
+    const exts = platform === 'win32' ? ['.com', '.exe'] : [''];
+    let found = false;
     for (const dir of dirs) {
-      for (const ext of ['', ...exts]) {
+      for (const ext of exts) {
         const candidate = path.join(dir, `copperhead-tools${ext}`);
         try {
           await access(candidate, constants.X_OK);
-          found = candidate;
+          found = true;
           break;
         } catch {
           // try next
@@ -58,7 +62,7 @@ export async function resolveTools(flag?: string, env = process.env): Promise<To
     if (!found) {
       throw new ToolsError('copperhead-tools not found on PATH (set --tools or COPPERHEAD_TOOLS)');
     }
-    command = [found];
+    command = ['copperhead-tools'];
   }
   return {
     command,
