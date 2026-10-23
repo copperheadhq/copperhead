@@ -143,10 +143,9 @@ describe('exit paths and run-end addenda (task 4.6)', () => {
       await writeFile(path.join(repo, 'docs', 'DECISIONS.md'), '# Decisions\n', 'utf8');
       await execa('git', ['add', '-A'], { cwd: repo });
       await execa('git', ['commit', '-q', '-m', 'docs'], { cwd: repo });
-      // a failing pre-commit hook makes the end-of-run `git commit` exit non-zero
-      const hook = path.join(repo, '.git', 'hooks', 'pre-commit');
-      await writeFile(hook, '#!/bin/sh\necho "check failed" >&2\nexit 1\n', 'utf8');
-      await chmod(hook, 0o755);
+      // force a signing failure that git commit cannot satisfy (even with --no-verify)
+      await execa('git', ['config', 'commit.gpgsign', 'true'], { cwd: repo });
+      await execa('git', ['config', 'gpg.program', 'false'], { cwd: repo });
 
       const lines: string[] = [];
       const provider = new ScriptedProvider([finishTurn('done', 'all good')]);
