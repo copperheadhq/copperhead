@@ -181,6 +181,40 @@ describe('file tools', () => {
     expect(await readFile(file, 'utf8')).toBe(src.replace('(at 0 -1.43 0)\r\n', '(at 0 -1.43 0)\r\n\t\t\t(layer "F.SilkS")\r\n'));
   });
 
+  it('edit_file still reports an ambiguous anchor when one occurrence sits inside a CRLF pair', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.kicad_sch');
+    const src = '(kicad_sch\r\n\t(wire)\r\n\t(junction)\n\t(wire)\n\t(junction)\n)\n';
+    await writeFile(file, src, 'utf8');
+    await expect(toolEditFile(dir, 'f.kicad_sch', '\n\t(junction)', '\n\t(junction (at 1 1))'))
+      .rejects.toThrow(/matched 2 times/);
+
+    const crMix = '\t(wire)\r\n\t(x)\r\t(wire)\r\t(y)\r\n';
+    await writeFile(file, crMix, 'utf8');
+    await expect(toolEditFile(dir, 'f.kicad_sch', '\t(wire)\r', '\t(wire (uuid 1))\r'))
+      .rejects.toThrow(/matched 2 times/);
+    expect(await readFile(file, 'utf8')).toBe(crMix);
+  });
+
+  it('edit_file reports oversized anchors concisely when regex limits are reached', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.txt');
+    const oldString = Array.from({ length: 20_000 }, (_, i) => `line-${i}`).join('\n');
+    await writeFile(file, oldString, 'utf8');
+
+    try {
+      await toolEditFile(dir, 'f.txt', oldString, 'replacement', true);
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      const message = error instanceof Error ? error.message : String(error);
+      expect(message).toMatch(/anchor too long/);
+      expect(message.length).toBeLessThan(200);
+      return;
+    }
+
+    expect(await readFile(file, 'utf8')).toBe('replacement');
+  });
+
   it('edit_file falls back to LF when the file has no line breaks', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     const file = path.join(dir, 'f.txt');

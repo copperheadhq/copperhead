@@ -65,12 +65,15 @@ export async function toolEditFile(
       throw error;
     }
   };
-  const normalizedRe = new RegExp(l0.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g');
+  const normalizedRe = runAnchorRegex(() => new RegExp(l0.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g'));
   // A leading LF in an anchor must not match only the LF half of a CRLF pair.
   // Let normalizedRe match the whole break in that case.
   const exactPattern = `${oldString.startsWith('\n') ? '(?<!\\r)' : ''}${esc(oldString)}${oldString.endsWith('\r') ? '(?!\\n)' : ''}`;
-  const exactRe = new RegExp(exactPattern, 'g');
-  const re = text.includes(oldString) && runAnchorRegex(() => new RegExp(exactPattern).test(text)) ? exactRe : normalizedRe;
+  const exactRe = runAnchorRegex(() => new RegExp(exactPattern, 'g'));
+  // The lookarounds can drop byte-exact occurrences; if they did, let normalizedRe see them all so ambiguity is still reported.
+  const rawCount = text.split(oldString).length - 1;
+  const exactCount = rawCount > 0 ? runAnchorRegex(() => text.match(exactRe)?.length ?? 0) : 0;
+  const re = exactCount > 0 && exactCount === rawCount ? exactRe : normalizedRe;
   let lastBreak: string | undefined;
   const breakAtOrAfter = (at: number) => {
     const nextBreak = text.slice(at).match(/\r\n|\r(?!\n)|\n/);
