@@ -10,7 +10,8 @@ import { buildExport, parseBom, SUPPLIERS, isSupplier, type Supplier, type Expor
  * LLM-free, network-free — safe anywhere `check` is safe. This module must never
  * import a provider.
  */
-export class ExportError extends Error {}
+import { ExportError } from '../util/errors.js';
+export { ExportError };
 
 export interface ExportBomOptions {
   repoRoot: string;
@@ -115,3 +116,13 @@ export function parseSpares(value: string): number {
   }
   return n;
 }
+
+export {
+  runExportFirmware,
+  parseFirmwareTarget,
+  DEFAULT_FIRMWARE_HEADER,
+  FIRMWARE_TARGETS,
+  type FirmwareTarget,
+  type ExportFirmwareOptions,
+  type ExportFirmwareResult,
+} from '../kicad/firmware.js';

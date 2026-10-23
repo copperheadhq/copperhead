@@ -14,6 +14,9 @@ import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
 import {
   runExportBom,
+  runExportFirmware,
+  parseFirmwareTarget,
+  DEFAULT_FIRMWARE_HEADER,
   parseSupplier,
   parseBoards,
   parseSpares,
@@ -160,12 +163,12 @@ program
     }
   });
 
-const checkAction = async (): Promise<void> => {
+const checkAction = async (opts?: { firmware?: boolean | string; ref?: string }): Promise<void> => {
   const repo = repoOf(program.opts());
   const json = Boolean(program.opts().json);
   try {
     await kicadCliVersion();
-    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s));
+    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s), opts);
     if (json) console.log(JSON.stringify(res, null, 2));
     process.exit(res.ok ? 0 : 1);
   } catch (err) {
@@ -178,6 +181,8 @@ program
   .command('check')
   .alias('verify')
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
+  .option('--firmware [header]', 'verify committed firmware pinout header against the schematic')
+  .option('--ref <refdes>', 'MCU reference designator for --firmware (default: U* / IC*)')
   .action(checkAction);
 
 // `draft` and `score` are command groups taking the artifact as a noun
@@ -640,6 +645,35 @@ exportCmd
     } catch (err) {
       // ExportError carries an actionable message (bad flag, missing BOM, drift);
       // anything else is unexpected. Both exit non-zero with no stack trace.
+      console.error(err instanceof ExportError ? err.message : (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+exportCmd
+  .command('firmware')
+  .description('generate a firmware pinout header from the schematic pin/net mapping')
+  .option('--target <lang>', 'target language (supported: c)', 'c')
+  .option('--out <path>', 'output header path relative to repo root', DEFAULT_FIRMWARE_HEADER)
+  .option('--ref <refdes>', 'MCU reference designator filter (default: U* / IC*)')
+  .action(async (opts: { target: string; out: string; ref?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const target = parseFirmwareTarget(opts.target);
+      const res = await runExportFirmware({
+        repoRoot: repo,
+        target,
+        outPath: opts.out,
+        ...(opts.ref ? { ref: opts.ref } : {}),
+      });
+      if (json) {
+        console.log(JSON.stringify(res, null, 2));
+      } else {
+        console.log(`wrote ${res.outPath} (${res.pins.length} pin(s))`);
+      }
+      process.exit(0);
+    } catch (err) {
       console.error(err instanceof ExportError ? err.message : (err as Error).message);
       process.exit(1);
     }
