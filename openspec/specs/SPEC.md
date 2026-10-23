@@ -77,8 +77,10 @@ copperhead/
 │   │   ├── prompts.ts      # system prompt + task templates
 │   │   └── tools.ts        # tool schemas + dispatch
 │   ├── kicad/
-│   │   ├── cli.ts          # kicad-cli wrapper (erc, drc, export svg)
+│   │   ├── cli.ts          # kicad-cli wrapper (erc, drc, export svg, spice netlist)
 │   │   ├── sexp.ts         # minimal s-expression reader (validation only)
+│   │   ├── spice.ts        # ## Simulation parser and .meas compiler (pure)
+│   │   ├── spice-run.ts    # ngspice wrapper + check --spice gate
 │   │   ├── report.ts       # ERC/DRC .rpt / JSON parser → structured violations
 │   │   ├── draft/          # deterministic drafting engine: IR → placement → routing → emission
 │   │   ├── legibility.ts   # drawing-quality checker (read-only, no subprocess)
@@ -293,8 +295,11 @@ copperhead skill run <name> [--scope power|all] [--model …]
     Run a skill (currently `generate-report`) via the nested sub-run. Needs a
     model, same as `do`. Does not snapshot or commit.
 
-copperhead check          (alias: copperhead verify)
+copperhead check [--spice] [--strict]   (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
+    `--spice` evaluates `## Simulation` assertions in SUBSYSTEMS.md via
+    local ngspice. Default `check` does not run the gate (AC-2.4 keys
+    unchanged). Missing ngspice is a loud skip; `--strict` fails the skip.
     No LLM calls. Usable as CI step / pre-commit hook.
 
 copperhead sync [--dry-run]
@@ -474,7 +479,7 @@ Acceptance: type "add a second RGB LED on an RTC-capable pin" → watch schemati
 ## 8. Phase 3 — Integrations (post-hackathon roadmap; document, don't build)
 
 - **CI**: GitHub Action running `copperhead check` (ERC + DRC + drift) with a badge — hardware repos get a green check like software
-- **Simulation checkers**: ngspice (analog sanity), openEMS (EMC) as additional verify tools — architecture is checker-agnostic
+- **Simulation checkers**: `check --spice` runs ngspice against `## Simulation` blocks in SUBSYSTEMS.md (opt-in; loop verify still open). openEMS (EMC) remains a later checker on the same interface — architecture is checker-agnostic
 - **KiCad plugin**: chat panel inside KiCad via the IPC API — the full-Cursor endgame
 - **Part data**: live availability/pricing (Octopart/JLC), so "sourceable" becomes a checked constraint
 - **Format expansion**: Altium file support; the agent core is format-agnostic, only tools change
@@ -499,6 +504,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+- **AC-2.6** `check --spice` evaluates `## Simulation` assertions via local ngspice. Default `check` (no `--spice`) keeps the AC-2.4 JSON keys unchanged. Missing ngspice is a loud skip; `--strict` fails the skip. Unresolvable scopes and unrunnable simulations fail the gate. No LLM, no network.
 
 ### AC-3 · `copperhead do` — core loop
 

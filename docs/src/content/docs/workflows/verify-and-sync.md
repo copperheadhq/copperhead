@@ -13,9 +13,25 @@ A copperhead repo is healthy when the KiCad files, the design docs, and the cons
 
 ```bash
 copperhead check
+copperhead check --spice          # also evaluate ## Simulation assertions via local ngspice
+copperhead check --spice --strict # fail when ngspice is missing and assertions exist
 ```
 
 It exits 0 when everything agrees and 1 when it does not. Drift is reported in the form "this doc claims X but the actual value is Y".
+
+`--spice` is opt-in so a repo with no Simulation blocks, and CI that has not installed ngspice, keep the same `check` contract. A missing ngspice binary is a loud skip naming the unverified assertion count, never a silent pass. A `## Simulation` scope that names a sheet or net absent from the schematic fails the check.
+
+A subsystem opts in with a block in `docs/SUBSYSTEMS.md`:
+
+```markdown
+## Simulation
+scope: nets VIN, VOUT
+analysis: op
+source: VIN=3.3
+assert: V(VOUT) between 1.6 and 1.7
+```
+
+`scope` is `sheet <path>` or `nets <a>, <b>`. `analysis` is `op`, `dc`, `ac`, or `tran`. Assertions are `V(<net>)`, `I(<refdes>)`, or `corner(<net>)` with `between a and b`, `< x`, or `> x`. Raw `.control` lines are rejected.
 
 `init` installs a pre-commit hook that runs it, so hand edits that desync the docs, the constraint registry, or the schematic fail at commit time. In CI, add the same command as a step; with `--json` it prints a result object with per-check detail.
 

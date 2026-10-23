@@ -27,6 +27,7 @@ The verify step is deliberately checker-agnostic: ERC and DRC are subprocess run
 - **D4: Skip is loud, and `--strict` makes it fatal.** A repo with `## Simulation` blocks on a machine without ngspice prints "SPICE gate skipped (ngspice not found): N assertions unverified" and exits 0; CI runs `--strict` and fails. A silent pass would forge the "verified" claim, and a hard default failure would break every contributor without ngspice installed.
 - **D5: Results normalize into the existing violation shape.** `{severity, type: "spice_assertion", description, sheet, measured, bound}` feeds the same repair loop ERC uses; the model sees "assertion failed, measured 3.1 V, bound 3.25-3.35 V" and can act. No parallel reporting path.
 - **D6: ngspice wrapper mirrors the kicad-cli wrapper.** execa, batch mode (`ngspice -b`), version detection with a clear install hint, per-run timeout from config. Same subprocess trust model, same testing pattern (captured outputs as fixtures).
+- **D7: `check --spice` is the opt-in, not config and not default `check`.** Default `check --json` keys stay AC-2.4 identical (`constraints`, `drc`, `drift`, `erc`, `legibility`, `ok`, `openspec`). A `spice` key appears only when `--spice` ran. Config `spice.ngspice` / `spice.timeoutMs` are plumbing; they never turn the gate on. Alternative: run the gate whenever ngspice is on PATH: rejected, because that would grow `--json` and make every contributor without ngspice hit a skip line on an otherwise green `check`. `--strict` is the CI escalation, matching D4.
 
 ## Risks / Trade-offs
 

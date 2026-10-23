@@ -18,7 +18,7 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `repl` (default) | [Edit an existing board](/workflows/edit-existing-board/) | Yes | Interactive agent shell; each prompt is one `do`-equivalent run. |
 | `demo` | [Simple demo](/getting-started/demo/) | Tour no / pipeline yes | Tour of what copperhead does, or run the USB-C breakout create pipeline. |
 | `init` | Setup | No | Scaffolds `docs/` from an existing schematic. |
-| `check` (`verify`) | Either | No | ERC, DRC, drift, constraints, spec validation. CI-safe. |
+| `check` (`verify`) | Either | No | ERC, DRC, drift, constraints, spec validation. CI-safe. `--spice` adds `## Simulation` assertions. |
 | `do` | [Edit an existing board](/workflows/edit-existing-board/) | Yes | One change: propose, edit, verify, propagate, commit. |
 | `create` | [Design from a brief](/workflows/create-from-brief/) | Yes | Full pipeline from a markdown brief to an output package. |
 | `sync` | Either | Verify phase no, resolve phase yes | Reconciles docs, files, and constraints. |
@@ -111,18 +111,25 @@ Alias: `copperhead verify`.
 
 ```bash
 copperhead check
+copperhead check --spice
+copperhead check --spice --strict
 ```
 
 Runs ERC, DRC, doc-drift detection, constraint checks, and OpenSpec validation. Makes **no LLM calls and no network requests**, which is a contract, not a tendency: this is what makes it safe to run in CI and in a pre-commit hook.
 
 ERC and DRC are skipped when no schematic or board is configured, rather than failing.
 
+| Option | Description |
+| --- | --- |
+| `--spice` | Run the opt-in SPICE gate for every `## Simulation` block in SUBSYSTEMS.md. Default `check` does not run it, so `--json` keys stay the same as without the flag. |
+| `--strict` | With `--spice`, treat a loud skip (ngspice missing) as a failure. Idle (no Simulation blocks) still exits 0. |
+
 | Exit code | Meaning |
 | --- | --- |
-| `0` | Everything agrees. |
-| `1` | At least one check failed, or `kicad-cli` is missing. |
+| `0` | Everything agrees. A `--spice` skip without `--strict` is still 0. |
+| `1` | At least one check failed, `kicad-cli` is missing, or `--spice --strict` skipped because ngspice is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code. `--spice` adds a `spice` key: `{ status, blocks, assertions, skipped?, unverified?, errors }`. Each assertion is `{ assertion, status, measured?, bound?, detail, line }`. `status` is `pass`, `fail`, `skip` (ngspice missing), or `idle` (no Simulation blocks).
 
 ## `copperhead draft schematic`
 

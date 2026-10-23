@@ -369,6 +369,25 @@ export async function unroutedCount(boardText: string): Promise<number> {
   }
 }
 
+/** SPICE netlist via `kicad-cli sch export netlist --format spice`. */
+export async function exportSpiceNetlist(schPath: string): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-spice-netlist-'));
+  const out = path.join(dir, 'board.cir');
+  try {
+    const res = await runKicad(
+      ['sch', 'export', 'netlist', '--format', 'spice', '--output', out, schPath],
+      { reject: false },
+    );
+    if (res.exitCode !== 0 || !existsSync(out)) {
+      const detail = [res.stderr, res.stdout].filter(Boolean).join('\n').trim();
+      throw new Error(`kicad-cli could not export a SPICE netlist: ${detail || `exit ${res.exitCode}`}`);
+    }
+    return await readFile(out, 'utf8');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 /** The schematic's KiCad netlist (kicadsexpr), as text. Throws kicad-cli's own error. */
 export async function exportNetlist(schPath: string): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-netlist-'));
