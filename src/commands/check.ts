@@ -4,7 +4,7 @@ import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
-import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '../memory/constraints.js';
+import { loadConstraints, checkForbiddenPins, verifyConstraintEvidence, type ConstraintViolation } from '../memory/constraints.js';
 import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
@@ -109,17 +109,20 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   }
 
   let constraintViolations: ConstraintViolation[] = [];
+  const registry = await loadConstraints(repoRoot);
+  const evidenceViolations = await verifyConstraintEvidence(repoRoot, registry);
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    const registry = await loadConstraints(repoRoot);
     const pins = await pinNets(path.join(repoRoot, config.schematic));
-    constraintViolations = checkForbiddenPins(registry, pins);
-    if (Object.keys(registry).length) {
-      log(
-        constraintViolations.length === 0
-          ? 'constraints ✓'
-          : constraintViolations.map((v) => `constraint ${v.key}: ${v.description} (source: ${v.source})`).join('\n'),
-      );
-    }
+    constraintViolations = [...checkForbiddenPins(registry, pins), ...evidenceViolations];
+  } else {
+    constraintViolations = [...evidenceViolations];
+  }
+  if (Object.keys(registry).length) {
+    log(
+      constraintViolations.length === 0
+        ? 'constraints ✓'
+        : constraintViolations.map((v) => `constraint ${v.key}: ${v.description} (source: ${v.source})`).join('\n'),
+    );
   }
 
   const ok =
