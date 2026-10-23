@@ -38,6 +38,7 @@ A copy of the known-good `open-key` fixture project (U1, R1, R2, nets 3V3/GND/EN
 npm run dev -- --repo manual-tests/runs/edit init
 git -C manual-tests/runs/edit add -A && git -C manual-tests/runs/edit commit -m "scaffold docs"
 npm run dev -- --repo manual-tests/runs/edit check
+npm run dev -- --repo manual-tests/runs/edit explain U1
 npm run dev -- --repo manual-tests/runs/edit do "Rename the EN net to CHIP_EN and propagate the change everywhere"
 ```
 
