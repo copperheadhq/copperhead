@@ -2,9 +2,9 @@
 
 ## ADDED Requirements
 
-### Requirement: Sandboxed brief provenance verification
+### Requirement: Sandboxed, line-ending-tolerant brief provenance verification
 
-`checkBriefProvenance` SHALL resolve brief paths strictly within the repository via `resolveInRepo`, compare SHA-256 digests case-insensitively, and fail when the referenced brief file is missing or escapes the repository.
+`checkBriefProvenance` SHALL resolve brief paths strictly within the repository via `resolveInRepo` without falling back to unrelated filenames, tolerate LF/CRLF checkout conversions, and fail when the referenced brief file is missing, malformed, or escapes the repository.
 
 #### Scenario: Path traversal in BRIEF.sha256 is rejected
 

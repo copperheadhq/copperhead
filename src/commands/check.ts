@@ -125,17 +125,20 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
 
   const brief = await checkBriefProvenance(repoRoot, config.docs);
   if (brief) {
+    const snapRel = path.posix.join(config.docs.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
     if (brief.ok) {
       log('brief ✓');
     } else if (brief.current === 'outside-repo') {
       log(`brief ✗ ${brief.path} resolves outside the repository`);
+    } else if (brief.current === 'missing' && brief.path.startsWith('external:')) {
+      log(`brief ✗ ${brief.path} has no in-repo copy; copy it to ${snapRel} and run copperhead sync --brief`);
     } else if (brief.current === 'missing') {
       log(`brief ✗ ${brief.path} is missing (expected sha256 ${brief.recorded.slice(0, 8)})`);
     } else if (brief.current === 'invalid') {
       log(`brief ✗ ${brief.path} is malformed (missing sha256 line)`);
     } else {
       log(
-        `brief ✗ ${brief.path} changed since the design was last reconciled (${brief.recorded.slice(0, 8)} -> ${brief.current.slice(0, 8)})`,
+        `brief ✗ ${brief.path} changed since the design was last reconciled (${brief.recorded.slice(0, 8)} -> ${brief.current.slice(0, 8)}); apply it with copperhead do, then acknowledge with copperhead sync --brief`,
       );
     }
   }

@@ -297,7 +297,7 @@ copperhead check          (alias: copperhead verify)
     Run ERC + DRC + doc-drift check; exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
 
-copperhead sync [--dry-run]
+copperhead sync [--dry-run] [--brief]
     Verify the entire design state for inconsistencies — doc tables vs
     schematic, constraints.json vs docs and openspec specs, PINOUT.md vs
     pins.h, DECISIONS/CHANGELOG coverage — then resolve the drift via a
@@ -499,6 +499,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+- **AC-2.6 (brief provenance)** When `<docs>/BRIEF.sha256` exists, `check` verifies the referenced in-repo brief (tolerating LF/CRLF checkout conversion) and exits non-zero if the brief changed, is missing, is malformed, or escapes the repo; `--json` exposes `brief: BriefProvenanceStatus | null`. Existing repos whose brief was edited before upgrade clear a stale record via `copperhead sync --brief`.
 
 ### AC-3 · `copperhead do` — core loop
 
@@ -537,6 +538,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-7.3 (never resolve a violation silently)** With an inconsistency that reflects a requirement violation (e.g. a part whose leakage breaks the sleep-current budget), `sync` does **not** rewrite either side to agree; it flags the violation with both sides and the governing spec/budget, and exits non-zero.
 - **AC-7.4 (dry run)** `sync --dry-run` prints every detected inconsistency (doc, claim, actual, proposed resolution) and writes nothing (`git status` unchanged).
 - **AC-7.5 (clean and idempotent)** On a consistent repo, `sync` exits 0 with "no inconsistencies", makes no edits and no commit; running `sync` twice in a row makes the second run a no-op.
+- **AC-7.6 (brief divergence is a requirement violation)** When the brief diverges from `BRIEF.sha256`, `sync` and `sync --dry-run` report it as a requirement violation and exit 2 without invoking the model or rewriting `BRIEF.sha256`; `copperhead sync --brief` explicitly acknowledges the current brief hash (preserving `origin_sha256`) and logs the acknowledgement without claiming design verification.
 
 ### AC-15 · Turn-budget continue & loop efficiency (issue #15)
 

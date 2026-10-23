@@ -98,25 +98,9 @@ export async function writeBriefHash(
   briefContent?: string,
 ): Promise<void> {
   const file = path.join(repoRoot, docsDir, 'BRIEF.sha256');
-
   await mkdir(path.dirname(file), { recursive: true });
 
-  try {
-    await writeFile(
-      file,
-      `brief: ${briefMeta.path}
-sha256: ${briefMeta.sha256.trim().toLowerCase()}
-`,
-      {
-        encoding: 'utf8',
-        flag: 'wx',
-      },
-    );
-  } catch (err) {
-    const e = err as NodeJS.ErrnoException;
-    if (e.code !== 'EEXIST') throw err;
-  }
-
+  let recordedPath = briefMeta.path;
   if (
     briefContent !== undefined &&
     (briefMeta.path.startsWith('external:') || !existsSync(path.join(repoRoot, briefMeta.path)))
@@ -128,6 +112,23 @@ sha256: ${briefMeta.sha256.trim().toLowerCase()}
       const e = err as NodeJS.ErrnoException;
       if (e.code !== 'EEXIST') throw err;
     }
+    recordedPath = path.posix.join(docsDir.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
+  }
+
+  try {
+    await writeFile(
+      file,
+      `brief: ${recordedPath}
+sha256: ${briefMeta.sha256.trim().toLowerCase()}
+`,
+      {
+        encoding: 'utf8',
+        flag: 'wx',
+      },
+    );
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code !== 'EEXIST') throw err;
   }
 }
 

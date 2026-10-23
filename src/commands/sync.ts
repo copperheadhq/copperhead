@@ -2,8 +2,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
-import { checkDrift, checkBriefProvenance, reconcileBriefHash } from '../memory/drift.js';
-export { checkBriefProvenance, reconcileBriefHash, type BriefProvenanceStatus } from '../memory/drift.js';
+import { checkDrift, checkBriefProvenance } from '../memory/drift.js';
 import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -144,28 +143,37 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
 
   const brief = await checkBriefProvenance(repoRoot, config.docs);
   if (brief && !brief.ok) {
+    const shaRel = `${config.docs.replace(/\\/g, '/').replace(/\/+$/, '')}/BRIEF.sha256`;
+    const snapRel = `${config.docs.replace(/\\/g, '/').replace(/\/+$/, '')}/BRIEF.md`;
     if (brief.current === 'outside-repo') {
       violations.push({
         kind: 'requirement-violation',
         description: `brief path "${brief.path}" resolves outside the repository`,
-        governedBy: `${config.docs.replace(/\/+$/, '')}/BRIEF.sha256`,
+        governedBy: shaRel,
+      });
+    } else if (brief.current === 'invalid') {
+      violations.push({
+        kind: 'requirement-violation',
+        description: `brief provenance record in ${shaRel} is malformed (missing sha256 line)`,
+        governedBy: shaRel,
+      });
+    } else if (brief.current === 'missing' && brief.path.startsWith('external:')) {
+      violations.push({
+        kind: 'requirement-violation',
+        description: `${brief.path} has no in-repo copy; copy it to ${snapRel} and run copperhead sync --brief`,
+        governedBy: shaRel,
       });
     } else if (brief.current === 'missing') {
-      resolvable.push({
-        kind: 'drift',
-        doc: brief.path,
-        claim: `brief sha256 ${brief.recorded.slice(0, 8)}`,
-        actual: 'brief file is missing',
-        resolution: `restore ${brief.path} and run copperhead sync --brief`,
+      violations.push({
+        kind: 'requirement-violation',
+        description: `${brief.path} is missing (expected sha256 ${brief.recorded.slice(0, 8)}); restore ${brief.path} before running copperhead sync --brief`,
+        governedBy: brief.path,
       });
     } else {
-      resolvable.push({
-        kind: 'drift',
-        doc: brief.path,
-        claim: `brief sha256 ${brief.current.slice(0, 8)}`,
-        actual: `design last reconciled against ${brief.recorded.slice(0, 8)}`,
-        resolution:
-          'reconcile SPEC.md, SUBSYSTEMS.md, BOM.md, PINOUT.md, and the design with the updated brief, then run copperhead sync --brief',
+      violations.push({
+        kind: 'requirement-violation',
+        description: `${brief.path} changed since the design was last reconciled (${brief.recorded.slice(0, 8)} -> ${brief.current.slice(0, 8)}); apply it with copperhead do, then acknowledge with copperhead sync --brief`,
+        governedBy: brief.path,
       });
     }
   }
@@ -202,28 +210,17 @@ export async function syncResolve(
   log: (s: string) => void,
   extras?: { renderer?: ProgressRenderer; meta?: RunMetaInput },
 ): Promise<{ ok: boolean; run: RunResult }> {
-  const config = await loadConfig(repoRoot);
-  const briefStatus = await checkBriefProvenance(repoRoot, config.docs);
-  const hasBriefDrift = Boolean(briefStatus && !briefStatus.ok && briefStatus.current !== 'missing' && briefStatus.current !== 'outside-repo');
-  const briefPrompt = hasBriefDrift
-    ? `\nWhen the report includes brief sha256 divergence on ${briefStatus!.path}, reconcile SPEC.md, SUBSYSTEMS.md, BOM.md, PINOUT.md, and the design with the updated brief and record the decision in DECISIONS.md and CHANGELOG.md; once the run finishes cleanly, copperhead will reconcile BRIEF.sha256 automatically.`
-    : '';
   const reportText = formatSyncReport(report);
   const res = await runAgentLoop({
     repoRoot,
     model,
     request: 'resolve design-state inconsistencies found by copperhead sync',
-    stagePrompt: `You are resolving drift found by the deterministic sync verifier. The inconsistency report is below. Truth precedence: the KiCad files are ground truth for as-built facts (fix the docs to match); openspec specs and SPEC.md budgets are ground truth for requirements. Do NOT touch anything listed as a requirement violation; those are for the human.${briefPrompt} Apply each proposed resolution, verify, and finish.\n\n${reportText}`,
+    stagePrompt: `You are resolving drift found by the deterministic sync verifier. The inconsistency report is below. Truth precedence: the KiCad files are ground truth for as-built facts (fix the docs to match); openspec specs and SPEC.md budgets are ground truth for requirements. Do NOT touch anything listed as a requirement violation; those are for the human. Apply each proposed resolution, verify, and finish.\n\n${reportText}`,
     log,
     ...(extras?.renderer ? { renderer: extras.renderer } : {}),
     ...(extras?.meta ? { meta: extras.meta } : {}),
   });
-  if (res.outcome === 'success' && hasBriefDrift) {
-    await reconcileBriefHash(repoRoot, config.docs);
-  }
-  const post = res.outcome === 'success' ? await syncVerify(repoRoot) : null;
-  const ok = res.outcome === 'success' && post !== null && post.resolvable.length === 0 && post.violations.length === 0;
   // The full RunResult travels with the verdict so a non-CLI caller (the MCP
   // server) can report the transcript path and files touched the way `do` does.
-  return { ok, run: res };
+  return { ok: res.outcome === 'success', run: res };
 }
