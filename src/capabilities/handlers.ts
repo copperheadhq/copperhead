@@ -10,7 +10,7 @@ import { scoreSchematic, formatScore } from '../kicad/score.js';
 import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
 import { FootprintResolver } from '../kicad/footprints.js';
 import { moveFootprint } from '../kicad/populate.js';
-import { verifySchematicSymbols, searchInstalledSymbols, searchInstalledSymbolsRanked, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
+import { verifySchematicSymbols, searchInstalledSymbols, searchInstalledSymbolsRanked, matchTierLabel, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -426,12 +426,7 @@ export const HANDLERS: HandlerDef[] = [
       if (!hits.length) {
         return `no installed symbol matches "${query}" (searched every library in: ${dirs.join(', ')}). The part is not capturable on this machine as named — choose a part whose symbol exists, or a same-family variant that does.`;
       }
-      const tierLabel = (rank: number): string => {
-        if (rank === 1) return 'prefix match';
-        if (rank === 2) return 'substring match';
-        if (rank === 3) return 'base-part substring';
-        return 'family wildcard / near-miss';
-      };
+
       const exact = hits.filter((h) => h.rank === 0);
       const approx = hits.filter((h) => h.rank > 0);
       const sections: string[] = [];
@@ -442,7 +437,7 @@ export const HANDLERS: HandlerDef[] = [
         const header = exact.length
           ? 'approximate / near-miss candidates (different part or package wildcard; confirm pinout with symbol_pins before committing to BOM.md):'
           : `no exact installed symbol matches "${query}"; approximate / near-miss candidates only (different part or package wildcard; confirm pinout with symbol_pins before committing to BOM.md):`;
-        sections.push(`${header}\n${approx.map((h) => `  - ${h.libId} (${tierLabel(h.rank)})`).join('\n')}`);
+        sections.push(`${header}\n${approx.map((h) => `  - ${h.libId} (${matchTierLabel(h.rank)})`).join('\n')}`);
       }
       return sections.join('\n');
     },

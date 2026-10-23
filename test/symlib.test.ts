@@ -10,6 +10,7 @@ import {
   closestSymbolNames,
   isTrailingPackageWildcard,
   searchInstalledSymbols,
+  searchInstalledSymbolsRanked,
   findLibraryFile,
 } from '../src/kicad/symlib.js';
 import { symbolAvailabilityFacts } from '../src/agent/recovery.js';
@@ -461,6 +462,47 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
     expect(facts).toContain('NOT RE-PROBED (probe limit 2)');
     expect(facts).toContain('Device:R');
     expect(facts).toContain('Device:C');
+  });
+
+  it('does not evict an exact trailing-x wildcard behind weaker per-library prefix or base-part matches (#200)', async () => {
+    const capDir = await mkdtemp(path.join(tmpdir(), 'copperhead-perlib-cap-'));
+    try {
+      await writeFile(
+        path.join(capDir, 'Sensor_Humidity.kicad_sym'),
+        lib('SHT40-AD1B', 'SHT40-BD1B', 'SHT40-CD1B', 'SHT40-AD1F', 'SHT4x'),
+        'utf8',
+      );
+      await writeFile(
+        path.join(capDir, 'MCU_ST.kicad_sym'),
+        lib('STM32', 'STM32F1', 'STM32F10', 'STM32F103', 'STM32F103C8Tx'),
+        'utf8',
+      );
+      const sht = await searchInstalledSymbolsRanked('SHT40', [capDir]);
+      expect(sht[0]).toEqual({ libId: 'Sensor_Humidity:SHT4x', name: 'SHT4x', rank: 0 });
+
+      const stm = await searchInstalledSymbolsRanked('STM32F103C8T6', [capDir]);
+      expect(stm).toEqual([{ libId: 'MCU_ST:STM32F103C8Tx', name: 'STM32F103C8Tx', rank: 0 }]);
+    } finally {
+      await rm(capDir, { recursive: true, force: true });
+    }
+  });
+
+  it('labels approximate cross-library and same-library hits as approximate rather than installed as (#200)', async () => {
+    const approxDir = await mkdtemp(path.join(tmpdir(), 'copperhead-approx-facts-'));
+    try {
+      await writeFile(path.join(approxDir, 'MCU_Espressif.kicad_sym'), lib('ESP32-C3'), 'utf8');
+      await writeFile(path.join(approxDir, 'Logic.kicad_sym'), lib('SN74LVC1G17'), 'utf8');
+
+      const espFacts = await symbolAvailabilityFacts('Espressif:ESP32-C3-MINI-1 was refused', [approxDir]);
+      expect(espFacts).toContain('approximate (different part or package; confirm with symbol_pins): MCU_Espressif:ESP32-C3');
+      expect(espFacts).not.toContain('installed as');
+
+      const logicFacts = await symbolAvailabilityFacts('Logic:SN74LVC1G was refused', [approxDir]);
+      expect(logicFacts).toContain('approximate: Logic:SN74LVC1G17');
+      expect(logicFacts).not.toContain('installed as');
+    } finally {
+      await rm(approxDir, { recursive: true, force: true });
+    }
   });
 
   it('produces no facts block when the text names no lib_ids', async () => {

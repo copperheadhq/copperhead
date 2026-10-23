@@ -246,10 +246,22 @@ export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap
       if (r.status === 'ok') {
         lines.push(`- ${libId}: RESOLVES on this machine (${r.pins.length} pins)`);
       } else if (r.status === 'found-elsewhere') {
-        // The resolver already located the part under another lib_id; saying
-        // "not installed" here would be the exact false absence claim this
-        // block exists to prevent.
-        lines.push(`- ${libId}: not at that lib_id, but installed as: ${r.libIds.slice(0, 4).join(', ')}`);
+        // Only rank-0 matches prove the named part is installed elsewhere;
+        // weaker cross-library resolver hits are approximate candidates.
+        const ranked = await searchInstalledSymbolsRanked(name, searchDirs, 4);
+        const exactSet = new Set(ranked.filter((h) => h.rank === 0).map((h) => h.libId));
+        const exactIds = r.libIds.filter((id) => exactSet.has(id)).slice(0, 4);
+        const approxIds = r.libIds.filter((id) => !exactSet.has(id)).slice(0, 4);
+        const parts: string[] = [];
+        if (exactIds.length) parts.push(`but installed as: ${exactIds.join(', ')}`);
+        if (approxIds.length) {
+          parts.push(`approximate (different part or package; confirm with symbol_pins): ${approxIds.join(', ')}`);
+        }
+        lines.push(
+          parts.length
+            ? `- ${libId}: not at that lib_id, ${parts.join('; ')}`
+            : `- ${libId}: not at that lib_id; no installed symbol matches "${name}" in any library`,
+        );
       } else {
         const elsewhere = await searchInstalledSymbolsRanked(name, searchDirs, 4);
         const exactElsewhere = elsewhere.filter((h) => h.rank === 0).map((h) => h.libId);

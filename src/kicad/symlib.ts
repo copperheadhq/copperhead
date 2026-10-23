@@ -374,8 +374,15 @@ export interface RankedInstalledSymbol {
   libId: string;
   name: string;
   /** 0 = exact (separator-insensitive or full-length trailing-x package wildcard),
-   * 1 = prefix, 2 = substring, 4 = one-edit family variant. */
+   * 1 = prefix, 2 = substring, 4 = one-edit near-miss (different part). */
   rank: number;
+}
+
+/** Human-readable tier label for approximate (> 0) symbol search ranks. */
+export function matchTierLabel(rank: number): string {
+  if (rank === 1) return 'prefix match';
+  if (rank === 2) return 'substring match';
+  return 'one-edit near-miss (different part)';
 }
 
 /**
@@ -401,7 +408,7 @@ export async function searchInstalledSymbolsRanked(
   for (const [lib, file] of await listInstalledLibraries(dirs)) {
     const names = await libSymbolNames(file);
     if (!names) continue;
-    for (const { name, rank } of rankSymbolNames(names, query, 4)) {
+    for (const { name, rank } of rankSymbolNames(names, query, Number.POSITIVE_INFINITY)) {
       if (rank === 3) continue;
       const nCanon = canonSymName(name);
       const effectiveRank =
