@@ -69,6 +69,13 @@ function hashText(text: string): string {
   return createHash('sha256').update(text.replace(/\r\n?/g, '\n')).digest('hex');
 }
 
+function originHashMatches(text: string, originSha256: string): boolean {
+  const lf = text.replace(/\r\n?/g, '\n');
+  return [lf, text, lf.replace(/\n/g, '\r\n')].some(
+    (form) => createHash('sha256').update(form).digest('hex') === originSha256,
+  );
+}
+
 function gitOptions(repoRoot: string) {
   return { cwd: repoRoot, env: { ...process.env, GIT_NO_LAZY_FETCH: '1' } };
 }
@@ -225,7 +232,7 @@ async function recoverOriginBlob(
     const { stdout } = await execa('git', ['log', '--all', '--format=%H', '--', `:(literal)${safePath}`], gitOptions(repoRoot));
     for (const commit of stdout.split('\n').filter(Boolean)) {
       const blob = await blobAtCommit(repoRoot, commit, safePath);
-      if (blob && hashText(blob.text) === expectedSha256) return blob;
+      if (blob && originHashMatches(blob.text, expectedSha256)) return blob;
     }
   } catch {
     return null;
@@ -337,19 +344,29 @@ export async function inspectBriefFreshness(repoRoot: string, docsDir: string): 
       }
       if (conventional.value) {
         const currentSha256 = hashText(conventional.value.text);
-        if (currentSha256 !== origin.value.sha256) {
-          return { status: 'stale', ok: false, path: conventionalPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256, refused: noRefusals, detail: 'repository-local brief differs from its external origin; complete create to establish a tracked baseline' };
-        }
-        return { status: 'legacy', ok: true, reasonCode: 'legacy-external-origin', path: conventionalPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256, refused: noRefusals, detail: 'legacy external brief origin has no reconciliation record; complete copperhead create to establish a tracked baseline' };
+        const differs = !originHashMatches(conventional.value.text, origin.value.sha256);
+        return {
+          status: 'legacy',
+          ok: true,
+          reasonCode: 'legacy-external-origin',
+          path: conventionalPath,
+          reconciledSha256: null,
+          originSha256: origin.value.sha256,
+          currentSha256,
+          refused: noRefusals,
+          detail: differs
+            ? `repository-local brief differs from its external origin; run copperhead create --brief ${conventionalPath} to establish a tracked baseline`
+            : `legacy external brief origin has no reconciliation record; run copperhead create --brief ${conventionalPath} to establish a tracked baseline`,
+        };
       }
-      return { status: 'legacy', ok: true, reasonCode: 'legacy-external-origin', path: null, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256: null, refused: noRefusals, detail: 'legacy external brief origin has no reconciliation record; copy the brief into the repository and complete copperhead create to establish a tracked baseline' };
+      return { status: 'legacy', ok: true, reasonCode: 'legacy-external-origin', path: null, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256: null, refused: noRefusals, detail: `legacy external brief origin has no reconciliation record; copy it to ${conventionalPath}, then run copperhead create --brief ${conventionalPath} to establish a tracked baseline` };
     }
     const current = await readRepoFile(repoRoot, origin.value.briefPath);
     if (!current.value) {
       return { status: 'unknown', ok: false, reasonCode: 'invalid-origin', path: origin.value.briefPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256: null, refused: noRefusals, detail: current.detail ?? 'origin brief is unavailable locally' };
     }
     const currentSha256 = hashText(current.value.text);
-    if (currentSha256 !== origin.value.sha256) {
+    if (!originHashMatches(current.value.text, origin.value.sha256)) {
       return { status: 'stale', ok: false, path: origin.value.briefPath, reconciledSha256: null, originSha256: origin.value.sha256, currentSha256, refused: noRefusals, detail: 'brief changed from its immutable origin; run copperhead sync --brief' };
     }
     return {
@@ -361,7 +378,7 @@ export async function inspectBriefFreshness(repoRoot: string, docsDir: string): 
       originSha256: origin.value.sha256,
       currentSha256,
       refused: noRefusals,
-      detail: 'legacy origin has no last-reconciled record; run copperhead sync --brief to review changes or complete create to establish the baseline',
+      detail: `legacy origin has no last-reconciled record; rerun copperhead create --brief ${origin.value.briefPath} to establish the baseline`,
     };
   }
   const conventionalPath = path.posix.join(docsDir.split(path.sep).join('/'), 'BRIEF.md');
@@ -410,7 +427,7 @@ export async function compareBrief(repoRoot: string, docsDir: string): Promise<B
     baselineKind = 'origin';
     baselineSha256 = origin.value.sha256;
   }
-  if (!baseline || hashText(baseline.text) !== baselineSha256) {
+  if (!baseline || (baselineKind === 'origin' ? !originHashMatches(baseline.text, baselineSha256!) : hashText(baseline.text) !== baselineSha256)) {
     return { status: 'unknown', path: briefPath, baseline: baselineKind, currentSha256, baselineSha256, items: [], refusals: record.value?.refusals ?? [], detail: 'recorded brief baseline is unavailable from local Git history; lazy fetching is disabled to keep check network-free' };
   }
   let items: BriefChange[];
@@ -471,8 +488,11 @@ export async function initialReconciliationRecord(
   const safePath = insideRepoPath(repoRoot, briefMeta.path);
   const origin = await readOrigin(repoRoot, docsDir);
   if (!safePath || !origin.value) return null;
-  if (origin.value.sha256 !== briefMeta.sha256) return null;
-  if (!origin.value.briefPath.startsWith('external:') && origin.value.briefPath !== safePath) return null;
+  if (!origin.value.briefPath.startsWith('external:')) {
+    const originBrief = await readRepoFile(repoRoot, safePath);
+    if (!originBrief.value || !originHashMatches(originBrief.value.text, origin.value.sha256)) return null;
+    if (origin.value.briefPath !== safePath) return null;
+  }
   const current = await trackedCurrentBrief(repoRoot, safePath, briefMeta.sha256);
   if (!current) return null;
   return { schemaVersion: 1, briefPath: safePath, sha256: briefMeta.sha256, gitBlob: current.gitBlob, refusals: [] };

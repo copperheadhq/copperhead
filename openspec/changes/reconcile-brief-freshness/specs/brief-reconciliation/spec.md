@@ -8,7 +8,7 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 
 #### Scenario: Initial project creation records a baseline
 
-- **WHEN** all create stages and the final check succeed for a repository-local brief matching the immutable origin, including a packaged demo brief copied into the repository before create
+- **WHEN** all create stages and the final check succeed for a tracked repository-local brief, either matching an in-repository immutable origin or copied into the repository for an external origin
 - **THEN** the system records that brief as the last reconciled version without changing the origin hash
 
 #### Scenario: Failed or incomplete work does not advance the baseline
@@ -43,16 +43,26 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 #### Scenario: Matching legacy origin has no reconciliation record
 
 - **WHEN** the current repository-local brief matches its origin provenance but no last-reconciled record exists
-- **THEN** check reports `legacy` and returns a non-failing advisory result
+- **THEN** check reports `legacy`, returns a non-failing advisory result, and identifies `copperhead create --brief <origin path>` as the command to establish the baseline
+
+#### Scenario: Legacy origin hash uses different line endings
+
+- **WHEN** an unchanged in-repository brief has an origin hash computed from raw CRLF bytes while its Git blob uses LF bytes
+- **THEN** check recognizes the origin as matching, reports `legacy` without failing, and successful create stores the normalized brief hash in the reconciliation record
 
 #### Scenario: Legacy external origin has no reconciliation record
 
 - **WHEN** origin provenance points to an external brief and no last-reconciled record exists
 - **THEN** check reports `legacy` and returns a non-failing advisory result without attempting to read outside the repository
 
-#### Scenario: Changed legacy origin
+#### Scenario: Differing local copy of an external legacy origin
 
-- **WHEN** the repository-local brief differs from its immutable origin and no last-reconciled record exists
+- **WHEN** an external origin has no reconciliation record and the repository-local conventional brief differs from the origin hash
+- **THEN** check still reports non-failing `legacy` and identifies `copperhead create --brief <local brief path>` as the command to establish the tracked baseline
+
+#### Scenario: Changed in-repository legacy origin
+
+- **WHEN** the in-repository brief differs from its immutable origin beyond a line-ending representation change and no last-reconciled record exists
 - **THEN** check reports `stale` and returns a failing result
 
 #### Scenario: Conventional brief has no origin provenance
