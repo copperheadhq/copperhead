@@ -1,0 +1,80 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-23T22:24:25+0000",
+    "kicad_version": "9.0.2",
+    "schematic_parity": [],
+    "source": "open-key.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 1 [KEY_DAH] of R2 on F.Cu",
+                    "pos": {
+                        "x": 115.175,
+                        "y": 110.0
+                    },
+                    "uuid": "2d2d2d2d-0000-4000-8000-000000000003"
+                },
+                {
+                    "description": "Pad 5 [KEY_DAH] of U1 on F.Cu",
+                    "pos": {
+                        "x": 123.5,
+                        "y": 116.0
+                    },
+                    "uuid": "2d2d2d2d-0000-4000-8000-000000000007"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": [
+        {
+            "description": "Footprint 'R_0603_1608Metric' does not match copy in library 'Resistor_SMD'.",
+            "items": [
+                {
+                    "description": "Footprint R1",
+                    "pos": {
+                        "x": 108.0,
+                        "y": 110.0
+                    },
+                    "uuid": "2a2a2a2a-0000-4000-8000-000000000001"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'R_0603_1608Metric' does not match copy in library 'Resistor_SMD'.",
+            "items": [
+                {
+                    "description": "Footprint R2",
+                    "pos": {
+                        "x": 116.0,
+                        "y": 110.0
+                    },
+                    "uuid": "2a2a2a2a-0000-4000-8000-000000000002"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'ESP32-S3-MINI-1' not found in library 'RF_Module'.",
+            "items": [
+                {
+                    "description": "Footprint U1",
+                    "pos": {
+                        "x": 128.0,
+                        "y": 115.0
+                    },
+                    "uuid": "2a2a2a2a-0000-4000-8000-000000000003"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        }
+    ]
+}
