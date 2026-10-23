@@ -355,7 +355,7 @@ export async function inspectBriefFreshness(repoRoot: string, docsDir: string): 
           currentSha256,
           refused: noRefusals,
           detail: differs
-            ? `repository-local brief differs from its external origin; run copperhead create --brief ${conventionalPath} to establish a tracked baseline`
+            ? `repository-local brief differs from its external origin; create cannot review this difference and accepts the edited brief as the baseline. Restore the original text in ${conventionalPath}, run copperhead create --brief ${conventionalPath}, then re-apply the edits and run copperhead sync --brief to review them`
             : `legacy external brief origin has no reconciliation record; run copperhead create --brief ${conventionalPath} to establish a tracked baseline`,
         };
       }

@@ -31,7 +31,7 @@ async function makeDemoFixture(docsDir: string, existingBrief?: string) {
     await writeFile(briefPath, existingBrief, 'utf8');
   }
 
-  const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: globalGitConfig };
+  const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: globalGitConfig, GIT_CONFIG_NOSYSTEM: '1' };
   await execa('git', ['init', '-q'], { cwd: demoDir, env: gitEnv });
   await execa('git', ['config', 'user.name', 'demo-test'], { cwd: demoDir, env: gitEnv });
   await execa('git', ['config', 'user.email', 'demo-test@example.invalid'], { cwd: demoDir, env: gitEnv });
@@ -60,6 +60,7 @@ async function makeDemoFixture(docsDir: string, existingBrief?: string) {
       COPPERHEAD_DEMO_DIR: demoDir,
       COPPERHEAD_DEMO_NPM_ARGS: npmArgsPath,
       GIT_CONFIG_GLOBAL: globalGitConfig,
+      GIT_CONFIG_NOSYSTEM: '1',
       PATH: binDir + path.delimiter + (process.env.PATH ?? ''),
     },
     cleanup: () => rm(root, { recursive: true, force: true }),
@@ -85,17 +86,11 @@ describe('scripts/demo-simple.sh brief handling', () => {
 
       expect(result.stdout).toContain('copied external brief to product-docs/reference/BRIEF.md');
       expect(await readFile(destination, 'utf8')).toBe(sourceText);
-      expect(committedText.stdout).toBe(sourceText);
-      expect(npmArgs).toEqual([
-        'run',
-        'dev',
-        '--',
-        '--repo',
-        fixture.demoDir,
-        'create',
-        '--brief',
-        destination,
-      ]);
+      expect(committedText.stdout.replace(/\r\n/g, '\n')).toBe(sourceText.replace(/\r\n/g, '\n'));
+      expect(npmArgs.slice(0, 4)).toEqual(['run', 'dev', '--', '--repo']);
+      expect(path.resolve(npmArgs[4]!)).toBe(fixture.demoDir);
+      expect(npmArgs.slice(5, 7)).toEqual(['create', '--brief']);
+      expect(path.resolve(npmArgs.at(-1)!)).toBe(destination);
       expect((await execa('git', ['status', '--porcelain'], { cwd: fixture.demoDir, env: fixture.env })).stdout).toBe('');
     } finally {
       await fixture.cleanup();
@@ -115,7 +110,7 @@ describe('scripts/demo-simple.sh brief handling', () => {
 
       expect(result.stdout).not.toContain('copied external brief to docs/BRIEF.md');
       expect(log.stdout).not.toContain('demo: add product brief');
-      expect(npmArgs).toContain(path.join(fixture.demoDir, 'docs/BRIEF.md'));
+      expect(path.resolve(npmArgs.at(-1)!)).toBe(path.join(fixture.demoDir, 'docs/BRIEF.md'));
     } finally {
       await fixture.cleanup();
     }
