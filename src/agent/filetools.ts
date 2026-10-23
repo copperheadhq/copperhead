@@ -47,23 +47,69 @@ export async function toolEditFile(
   newString: string,
   replaceAll = false,
 ): Promise<string> {
+  if (oldString === '') throw new Error('edit_file: old_string must not be empty');
+
   const abs = resolveInRepo(repoRoot, p);
   const text = await readFile(abs, 'utf8');
-  const first = text.indexOf(oldString);
-  if (first === -1) {
-    throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
-  }
-  const count = text.split(oldString).length - 1;
+
+  const l0 = oldString.split(/\r\n|\n|\r/);
+  const l1 = newString.split(/\r\n|\n|\r/);
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const runAnchorRegex = <T>(run: () => T): T => {
+    try {
+      return run();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(`edit_file: anchor too long (${l0.length} lines) in ${p}; use a shorter unique excerpt`);
+      }
+      throw error;
+    }
+  };
+  const normalizedRe = runAnchorRegex(() => new RegExp(l0.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g'));
+  // A leading LF in an anchor must not match only the LF half of a CRLF pair.
+  // Let normalizedRe match the whole break in that case.
+  const exactPattern = `${oldString.startsWith('\n') ? '(?<!\\r)' : ''}${esc(oldString)}${oldString.endsWith('\r') ? '(?!\\n)' : ''}`;
+  const exactRe = runAnchorRegex(() => new RegExp(exactPattern, 'g'));
+  // The lookarounds can drop byte-exact occurrences; if they did, let normalizedRe see them all so ambiguity is still reported.
+  const rawCount = text.split(oldString).length - 1;
+  const exactCount = rawCount > 0 ? runAnchorRegex(() => text.match(exactRe)?.length ?? 0) : 0;
+  const re = exactCount > 0 && exactCount === rawCount ? exactRe : normalizedRe;
+  let lastBreak: string | undefined;
+  const breakAtOrAfter = (at: number) => {
+    const nextBreak = text.slice(at).match(/\r\n|\r(?!\n)|\n/);
+    if (nextBreak) return nextBreak[0];
+    return (lastBreak ??= text.match(/(\r\n|\n|\r)[^\r\n]*$/)?.[1] ?? '\n');
+  };
+  const replacementFor = (match: string, at: number) => {
+    const localEol = l0.length === 1 ? breakAtOrAfter(at) : match.match(/\r\n|\r(?!\n)|\n/)![0];
+    return l1.join(localEol);
+  };
+
   if (replaceAll) {
-    await writeFile(abs, text.split(oldString).join(newString), 'utf8');
+    let count = 0;
+    const out = runAnchorRegex(() => text.replace(normalizedRe, (match, at: number) => {
+      count++;
+      return replacementFor(match, at);
+    }));
+    if (count === 0) {
+      throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+    }
+    await writeFile(abs, out, 'utf8');
     return `edited ${p} (${count} occurrence(s) replaced)`;
   }
-  if (count > 1) {
-    throw new Error(
-      `edit_file: anchor matched ${count} times in ${p}; widen the anchor with surrounding lines until it is unique, or pass replace_all: true to replace every occurrence`,
-    );
+
+  const matches = runAnchorRegex(() => [...text.matchAll(re)]);
+  if (matches.length === 0) {
+    throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
   }
-  await writeFile(abs, text.slice(0, first) + newString + text.slice(first + oldString.length), 'utf8');
+  if (matches.length > 1) {
+    throw new Error(`edit_file: anchor matched ${matches.length} times in ${p}; widen the anchor with surrounding lines until it is unique, or pass replace_all: true to replace every occurrence`);
+  }
+
+  const match = matches[0]!;
+  const first = match.index!;
+  const replacement = replacementFor(match[0], first);
+  await writeFile(abs, text.slice(0, first) + replacement + text.slice(first + match[0].length), 'utf8');
   return `edited ${p}`;
 }
 

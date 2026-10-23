@@ -315,7 +315,10 @@ export const STAGES: Stage[] = [
           footprints: await FootprintResolver.create({ projectDir: path.dirname(p) }),
         });
         if (!dry.ok) return false;
-        if (dry.text !== (await readFile(p, 'utf8'))) return false;
+        const existing = await readFile(p, 'utf8');
+        const nl = dry.text.indexOf('\n');
+        const gap = nl !== -1 && existing.startsWith(dry.text.slice(0, nl)) ? existing.slice(nl, nl + 2).match(/^\r?\n|^\r/)?.[0] : undefined;
+        if ((gap ? dry.text.replace(/\n/g, gap) : dry.text) !== existing) return false;
       }
       return true;
     },
