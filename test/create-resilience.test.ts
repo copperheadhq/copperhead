@@ -306,7 +306,7 @@ describe('create pipeline resilience (review F3)', () => {
 
       const cli = await execa(process.execPath, [
         '--import',
-        path.resolve('node_modules/tsx/dist/loader.mjs'),
+        'tsx',
         path.resolve('src/cli.ts'),
         '--repo',
         repo,
@@ -383,7 +383,70 @@ describe('create pipeline resilience (review F3)', () => {
     }
   });
 
-  it('creates and commits the initial brief record using the typed legacy reason code', async () => {
+  it('uses a repository-local demo brief without copying it', async () => {
+    let demoDir: string | undefined;
+    try {
+      demoDir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
+      await scaffoldDemoRepo(demoDir);
+      const localBrief = path.join(demoDir, 'docs', 'BRIEF.md');
+      await mkdir(path.dirname(localBrief), { recursive: true });
+      await writeFile(localBrief, '# Local demo brief\n', 'utf8');
+      await execa('git', ['add', 'docs/BRIEF.md'], { cwd: demoDir });
+      await execa('git', ['commit', '-q', '-m', 'add local demo brief'], { cwd: demoDir });
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('spec-seed')) await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      const messages: string[] = [];
+
+      await runDemo({
+        model: 'gpt-5', modelSource: 'explicit', version: 'test', kicadCliVersion: 'test',
+        demoDir, briefPath: localBrief, log: (line) => messages.push(line), renderer: {} as never,
+      });
+
+      expect(messages.join('\n')).not.toContain('copied external brief to docs/BRIEF.md');
+      expect(messages.join('\n')).not.toContain('external brief matches existing');
+      expect(mockRunAgentLoop).toHaveBeenCalled();
+    } finally {
+      if (demoDir) await rm(demoDir, { recursive: true, force: true });
+    }
+  });
+
+  it('reuses an identical existing demo brief destination', async () => {
+    let demoDir: string | undefined;
+    let externalDir: string | undefined;
+    try {
+      demoDir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
+      externalDir = await mkdtemp(path.join(tmpdir(), 'brief-'));
+      const externalBrief = path.join(externalDir, 'outside-brief.md');
+      const brief = '# Identical demo brief\n';
+      await writeFile(externalBrief, brief, 'utf8');
+      await scaffoldDemoRepo(demoDir);
+      await mkdir(path.join(demoDir, 'docs'), { recursive: true });
+      await writeFile(path.join(demoDir, 'docs', 'BRIEF.md'), brief, 'utf8');
+      await execa('git', ['add', 'docs/BRIEF.md'], { cwd: demoDir });
+      await execa('git', ['commit', '-q', '-m', 'add existing demo brief'], { cwd: demoDir });
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('spec-seed')) await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      const messages: string[] = [];
+
+      await runDemo({
+        model: 'gpt-5', modelSource: 'explicit', version: 'test', kicadCliVersion: 'test',
+        demoDir, briefPath: externalBrief, log: (line) => messages.push(line), renderer: {} as never,
+      });
+
+      expect(messages.join('\n')).toContain('external brief matches existing docs/BRIEF.md');
+      expect(messages.join('\n')).not.toContain('copied external brief to docs/BRIEF.md');
+      expect(await readFile(path.join(demoDir, 'docs', 'BRIEF.md'), 'utf8')).toBe(brief);
+    } finally {
+      if (demoDir) await rm(demoDir, { recursive: true, force: true });
+      if (externalDir) await rm(externalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('creates and commits the initial brief record for a legacy external origin', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     const originalChecks = STAGES.map((stage) => stage.isComplete);
     try {
@@ -391,7 +454,7 @@ describe('create pipeline resilience (review F3)', () => {
       await mkdir(path.dirname(briefPath), { recursive: true });
       const brief = '# Create baseline\n';
       await writeFile(briefPath, brief, 'utf8');
-      await writeBriefHash(repo, 'docs', { path: 'docs/BRIEF.md', sha256: briefSha256(brief) });
+      await writeBriefHash(repo, 'docs', { path: 'external:brief.md', sha256: briefSha256('# External origin\n') });
       await execa('git', ['add', '-A'], { cwd: repo });
       await execa('git', ['commit', '-q', '-m', 'add tracked brief'], { cwd: repo });
 
@@ -405,7 +468,7 @@ describe('create pipeline resilience (review F3)', () => {
         constraints: { ok: true, violations: [] },
       };
       mockRunCheck
-        .mockResolvedValueOnce({ ...allChecksPass, ok: false, brief: { status: 'legacy', reasonCode: 'legacy-origin-without-reconciliation' } })
+        .mockResolvedValueOnce({ ...allChecksPass, ok: true, brief: { status: 'legacy', reasonCode: 'legacy-external-origin' } })
         .mockResolvedValueOnce({ ...allChecksPass, brief: { status: 'current' } });
 
       const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });

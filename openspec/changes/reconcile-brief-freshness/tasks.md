@@ -15,4 +15,6 @@
 - [x] Test brief preview writes nothing, each changed block needs one unambiguous decision, and failed/refused/source-changed runs do not advance state.
 - [x] Test successful reconciliation advances the state in the same commit after existing gates pass.
 - [x] Test malformed duplicate decisions do not block a later valid non-conflicting outcome and changelog paths stay repository-relative.
+- [x] Cover raw CRLF origin hashes under both `core.autocrlf` settings, differing external-origin copies, and successful create baselining for an external origin.
+- [x] Cover actionable legacy hints, Windows-safe `tsx` loader use, unknown path boundaries, no-lazy-fetch environment, and both demo brief reuse paths.
 - [x] Run `npm run typecheck`, `npm run build`, and `npm test`.

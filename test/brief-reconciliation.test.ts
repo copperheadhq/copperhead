@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { execa } from 'execa';
 import { existsSync } from 'node:fs';
 import { runAgentLoop } from '../src/agent/loop.js';
@@ -49,7 +51,7 @@ async function recordForCurrentBrief(repo: string, brief: string, refusals: { br
 async function runCheckCli(repo: string, json: boolean) {
   return execa(process.execPath, [
     '--import',
-    path.resolve('node_modules/tsx/dist/loader.mjs'),
+    'tsx',
     path.resolve('src/cli.ts'),
     '--repo',
     repo,
@@ -116,7 +118,7 @@ function shellQuote(value: string): string {
 async function installPreCommitCheck(repo: string, pass: boolean): Promise<void> {
   const hook = path.join(repo, '.git', 'hooks', 'pre-commit');
   const body = pass
-    ? `#!/bin/sh\nexec ${shellQuote(process.execPath)} --import ${shellQuote(path.resolve('node_modules/tsx/dist/loader.mjs'))} ${shellQuote(path.resolve('src/cli.ts'))} --repo ${shellQuote(repo)} check\n`
+    ? `#!/bin/sh\nexec ${shellQuote(process.execPath)} --import ${shellQuote(pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href)} ${shellQuote(path.resolve('src/cli.ts'))} --repo ${shellQuote(repo)} check\n`
     : '#!/bin/sh\nexit 1\n';
   await writeFile(hook, body, { mode: 0o755 });
 }
@@ -169,6 +171,35 @@ describe('brief reconciliation state', () => {
       expect(result).toMatchObject({ status: 'legacy', ok: true, reasonCode: 'legacy-origin-without-reconciliation' });
       expect(result.currentSha256).toBe(briefSha256(brief));
       expect(result.reconciledSha256).toBeNull();
+      expect(result.detail).toContain('copperhead create --brief docs/BRIEF.md');
+      expect(result.detail).not.toContain('sync --brief');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.each([false, true])('accepts a raw-byte CRLF origin hash with core.autocrlf=%s', async (autocrlf) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await execa('git', ['config', 'core.autocrlf', String(autocrlf)], { cwd: repo });
+      const brief = '# Keyer\r\n\r\n- BLE keyboard\r\n';
+      const rawSha256 = createHash('sha256').update(brief).digest('hex');
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(path.join(repo, 'docs', 'BRIEF.md'), brief, 'utf8');
+      await writeFile(path.join(repo, 'docs', 'BRIEF.sha256'), `brief: docs/BRIEF.md\nsha256: ${rawSha256}\n`, 'utf8');
+      await commit(repo, 'add raw-byte CRLF brief provenance');
+
+      const freshness = await inspectBriefFreshness(repo, 'docs');
+      const comparison = await compareBrief(repo, 'docs');
+      const record = await initialReconciliationRecord(repo, 'docs', {
+        path: 'docs/BRIEF.md',
+        sha256: briefSha256(brief),
+      });
+
+      expect(freshness).toMatchObject({ status: 'legacy', ok: true, originSha256: rawSha256 });
+      expect(comparison).toMatchObject({ status: 'legacy', baseline: 'origin', items: [] });
+      expect(record).not.toBeNull();
+      expect(record?.sha256).toBe(briefSha256(brief));
     } finally {
       await cleanup();
     }
@@ -196,7 +227,7 @@ describe('brief reconciliation state', () => {
     }
   });
 
-  it('fails stale when a repository-local brief copy differs from an external origin hash', async () => {
+  it('keeps a differing repository-local copy of an external legacy origin advisory', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const original = '# External brief\n';
@@ -207,7 +238,9 @@ describe('brief reconciliation state', () => {
 
       const result = await inspectBriefFreshness(repo, 'docs');
 
-      expect(result).toMatchObject({ status: 'stale', ok: false, originSha256: briefSha256(original), currentSha256: briefSha256('# Changed copy\n') });
+      expect(result).toMatchObject({ status: 'legacy', ok: true, reasonCode: 'legacy-external-origin', originSha256: briefSha256(original), currentSha256: briefSha256('# Changed copy\n') });
+      expect(result.detail).toContain('repository-local brief differs from its external origin');
+      expect(result.detail).toContain('copperhead create --brief docs/BRIEF.md');
     } finally {
       await cleanup();
     }
@@ -451,6 +484,7 @@ describe('brief reconciliation decisions', () => {
 describe('sync --brief with an edited source brief', () => {
   async function staleBriefRepo(): Promise<{ repo: string; cleanup: () => Promise<void>; original: string; changed: string }> {
     const fixture = await tempFixtureRepo();
+    await execa('git', ['config', 'core.autocrlf', 'false'], { cwd: fixture.repo });
     const original = '# Keyer\n\n- BLE keyboard\n';
     const changed = `${original}- Add bottom-side labels\n`;
     await installBriefOrigin(fixture.repo, original);
