@@ -383,6 +383,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `list_nets` | (sch_path) → [net names] | |
 | `run_erc` | () → {violations: [...]} | `kicad-cli sch erc --format json --exit-code-violations` |
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |
+| `optimize_placement` | (evaluation_budget?, step_schedule_mm?, critical_nets?, locked_refs?, allow_rotations?, lock_mechanical?) → report | Spec-gated deterministic refinement for unrouted, DRC-clean boards; final write still opens DRC obligation |
 | `export_svg` | (sch\|pcb) → path | For viewer + before/after diffing |
 | `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic |
 | `generate_report` | (scope?: power\|all) → report | Skill: nested read-only sub-run; ERC/DRC/drift/nets. Always in the catalog. |
@@ -688,6 +689,16 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-16.25 (illegible schematic still exits zero)** `check` on a repo with error-severity legibility findings but clean ERC and DRC prints them under a legibility heading and exits 0.
 - **AC-16.26 (score rides along without gating)** `check --json` on a repo with a drafted schematic and a low composite carries the `score` object with composite and breakdown, and the exit code is unaffected.
 
+### AC-17 · Safe feedback PCB placement optimization (change: add-safe-feedback-placement)
+
+- **AC-17.1 (bounded measured refinement)** `optimize_placement` starts from a populated board, proposes bounded footprint shifts and cardinal rotations, and accepts a move only when it creates no new hard or soft placement finding, lets no persisting finding grow (an edge connector's or antenna keepout's distance from the edge, a pad or body overlap's depth or area, a courtyard's overhang depth, or through-hole lead overlap on the opposite side), does not lengthen any decoupling or crystal distance, does not worsen total or declared-critical physical-pad HPWL, and strictly improves at least one guarded measurement. Search ordering and rounding are explicit, and one global budget (at most 50,000) counts candidate evaluations across every DRC-feedback pass rather than time: each pass may spend all that earlier passes left. Placement checks catch what KiCad DRC does not: a part without a courtyard collides by its pad envelope, and copper of two different footprints touching is a collision even on the same net.
+- **AC-17.2 (unrouted-board boundary)** A board containing root-level tracks, arcs, vias, or copper zones is refused before candidate evaluation and remains byte-identical.
+- **AC-17.3 (immutable fallback)** Candidate boards are evaluated in memory. No safe improvement returns the exact input bytes; a failed load, DRC, or connectivity gate restores the exact input bytes (whatever their encoding) and does not mark the board touched. SIGINT, SIGTERM, and ordinary process exit restore an exact candidate before termination. The candidate bytes are compared after every in-place load/DRC probe and immediately before rollback: if another writer changed them, optimization aborts without accepting, restoring over, or marking the external bytes touched.
+- **AC-17.4 (exact KiCad feedback)** The tool requires clean baseline DRC and a reported unrouted count. A proposed checkpoint must load, remain DRC-clean, and preserve that count. When DRC names a moved footprint, search may restart from checkpoint zero with that ref locked, for at most five candidate DRC passes after the baseline run (six `kicad-cli` DRC runs in all).
+- **AC-17.5 (bounded determinism and locks)** Ten runs over identical board bytes and options produce identical final board bytes and tool reports. Footprints locked in KiCad (`locked` or `(locked yes)`) never move, even with `lock_mechanical` off. Connectors, edge-mount parts (USB, jacks, RJ, HDMI, edge-mount, by footprint name from any library), radio modules and antenna-keepout carriers, mounting holes, and fiducials are locked by default; refs shared by two footprints are locked and reported. Callers may add explicit locks and protected nets; a lock or protected net naming nothing on the board is refused, suggesting the hierarchical name it likely meant.
+- **AC-17.6 (ordinary gates remain)** The tool is absent until a valid OpenSpec proposal unlocks mutation tools. A successful write still opens the ordinary DRC obligation and never substitutes for `run_drc` before finish.
+- **AC-17.7 (responsive search)** The search gives the event loop a turn at least every few tens of milliseconds, so SIGINT, heartbeats, and timers run during a long optimization; yielding never changes the result.
+
 ### AC-5 · Viewer (Phase 2 — only if built)
 
 - **AC-5.1** `copperhead watch` serves on localhost; page shows current schematic SVG within 2 s of load.
@@ -706,7 +717,7 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 
 ## 10. Non-goals (hackathon day)
 
-- No autorouting, no placement optimization
+- No autorouting; placement optimization is limited to AC-17's bounded unrouted-board refinement
 - No full s-expression round-trip library (parse for *reading* lists/nets only; *edits* are anchored text replaces)
 - No auth, no hosting, no billing
 - No Altium/Eagle formats
