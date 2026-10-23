@@ -1,0 +1,7 @@
+Error on line 4 :
+  xu1 vin vout unk_reg
+Unable to find definition of model unk_reg
+Simulation interrupted due to error!
+
+Note: can't find the initialization file spinit.
+ERROR: fatal error in ngspice, exit(1)

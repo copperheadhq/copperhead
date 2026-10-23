@@ -2,7 +2,7 @@
  * Parser and assertion compiler for the opt-in SPICE verification gate.
  *
  * This module is deliberately pure: it reads strings and produces data or
- * ngspice deck fragments. Process execution belongs to the wrapper in task 1.1.
+ * ngspice deck fragments. Process execution belongs to `spice-run.ts`.
  */
 
 export type SpiceAnalysis = 'op' | 'dc' | 'ac' | 'tran';
@@ -396,4 +396,163 @@ export function compileSpiceAssertion(
     lines: compiledLines,
     deck: compiledLines.join('\n'),
   };
+}
+
+/** Stable measure prefix for assertion index `i` of a block starting at `line`. */
+export function spiceMeasureName(line: number, index: number): string {
+  return `a${line}_${index}`;
+}
+
+export function formatSpiceBound(assertion: SimulationAssertion): string {
+  if (assertion.comparator.kind === 'between') {
+    return `${assertion.comparator.lower.raw} .. ${assertion.comparator.upper.raw}`;
+  }
+  if (assertion.comparator.kind === 'less-than') {
+    return `< ${assertion.comparator.bound.raw}`;
+  }
+  return `> ${assertion.comparator.bound.raw}`;
+}
+
+/** Drop a trailing `.end` so the gate can append sources, analysis, and measures. */
+export function stripSpiceEnd(netlist: string): string {
+  return netlist.replace(/^\s*\.end\b.*$/gim, '').trimEnd();
+}
+
+function sourceElementName(port: string): string {
+  const token = port.replace(/[^A-Za-z0-9_]/g, '_');
+  return `Vsrc_${token}`;
+}
+
+export function spiceSourceCard(source: SimulationSource): string {
+  return `${sourceElementName(source.port)} ${source.port} 0 DC ${source.value.raw}`;
+}
+
+function spiceLiteral(n: number): string {
+  return String(parseFloat(n.toPrecision(10)));
+}
+
+export function spiceAnalysisCard(analysis: SpiceAnalysis, sources: SimulationSource[]): string {
+  switch (analysis) {
+    case 'op':
+      return '.op';
+    case 'dc': {
+      const source = sources[0];
+      if (!source) return '.op';
+      const stop = source.value.value === 0 ? 1 : source.value.value * 2;
+      const step = stop / 10 || 0.1;
+      return `.dc ${sourceElementName(source.port)} 0 ${spiceLiteral(stop)} ${spiceLiteral(step)}`;
+    }
+    case 'ac':
+      return '.ac dec 10 1 1meg';
+    case 'tran':
+      return '.tran 1u 1m';
+  }
+}
+
+export interface AssembledSpiceDeck {
+  text: string;
+  compiled: CompiledSpiceAssertion[];
+}
+
+/** Netlist + driven ports + analysis + `.meas` cards. Pure: no subprocess. */
+export function assembleSpiceDeck(netlist: string, block: SimulationBlock): AssembledSpiceDeck {
+  const compiled = block.assertions.map((assertion, index) =>
+    compileSpiceAssertion(assertion, block.analysis, spiceMeasureName(block.line, index)),
+  );
+  const text = [
+    '* copperhead spice verification gate',
+    '.options TEMP=27',
+    stripSpiceEnd(netlist),
+    '* driven ports',
+    ...block.sources.map(spiceSourceCard),
+    spiceAnalysisCard(block.analysis, block.sources),
+    ...compiled.flatMap((c) => c.lines),
+    '.end',
+    '',
+  ].join('\n');
+  return { text, compiled };
+}
+
+/** Parse `name = 1.23e-3` lines from ngspice batch stdout. */
+export function parseNgspiceMeasures(stdout: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const line of stdout.split(/\r?\n/)) {
+    const match =
+      /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)/.exec(
+        line,
+      );
+    if (!match) continue;
+    const value = Number(match[2]);
+    if (Number.isFinite(value)) out[match[1]!.toLowerCase()] = value;
+  }
+  return out;
+}
+
+export type SpiceAssertionStatus = 'pass' | 'fail' | 'unrunnable';
+
+export interface SpiceAssertionResult {
+  assertion: string;
+  status: SpiceAssertionStatus;
+  measured?: number;
+  bound?: string;
+  detail: string;
+  line: number;
+}
+
+const MARGIN_EPS = 1e-12;
+
+export function evaluateSpiceBlock(
+  block: SimulationBlock,
+  measures: Record<string, number>,
+): SpiceAssertionResult[] {
+  return block.assertions.map((assertion, index) => {
+    const compiled = compileSpiceAssertion(
+      assertion,
+      block.analysis,
+      spiceMeasureName(block.line, index),
+    );
+    const bound = formatSpiceBound(assertion);
+    const value = measures[compiled.valueName.toLowerCase()];
+    if (value === undefined) {
+      return {
+        assertion: assertion.raw,
+        status: 'fail',
+        bound,
+        detail: `no measured ${compiled.valueName}`,
+        line: assertion.line,
+      };
+    }
+    for (const check of compiled.checks) {
+      const margin = measures[check.name.toLowerCase()];
+      if (margin === undefined) {
+        return {
+          assertion: assertion.raw,
+          status: 'fail',
+          measured: value,
+          bound,
+          detail: `no measured ${check.name}`,
+          line: assertion.line,
+        };
+      }
+      const ok = check.pass === 'nonnegative' ? margin >= -MARGIN_EPS : margin > MARGIN_EPS;
+      if (!ok) {
+        return {
+          assertion: assertion.raw,
+          status: 'fail',
+          measured: value,
+          bound,
+          detail: `${assertion.raw}: measured ${value} (bound ${bound})`,
+          line: assertion.line,
+        };
+      }
+    }
+    return {
+      assertion: assertion.raw,
+      status: 'pass',
+      measured: value,
+      bound,
+      detail: `${assertion.raw}: measured ${value}`,
+      line: assertion.line,
+    };
+  });
 }

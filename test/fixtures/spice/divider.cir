@@ -1,0 +1,4 @@
+* copperhead spice fixture: 10k/10k divider
+R1 VIN VOUT 10k
+R2 VOUT 0 10k
+.end

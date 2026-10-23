@@ -160,25 +160,28 @@ program
     }
   });
 
-const checkAction = async (): Promise<void> => {
-  const repo = repoOf(program.opts());
-  const json = Boolean(program.opts().json);
-  try {
-    await kicadCliVersion();
-    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s));
-    if (json) console.log(JSON.stringify(res, null, 2));
-    process.exit(res.ok ? 0 : 1);
-  } catch (err) {
-    console.error((err as Error).message);
-    process.exit(1);
-  }
-};
-
 program
   .command('check')
   .alias('verify')
-  .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
-  .action(checkAction);
+  .description('ERC + DRC + doc-drift + spec validation; pass --spice for ## Simulation assertions; no LLM calls; CI-safe')
+  .option('--spice', 'run the opt-in SPICE gate for ## Simulation blocks in SUBSYSTEMS.md')
+  .option('--strict', 'fail when the SPICE gate is skipped because ngspice is missing')
+  .action(async (opts: { spice?: boolean; strict?: boolean }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      await kicadCliVersion();
+      const res = await runCheck(repo, json ? () => {} : (s) => console.log(s), {
+        spice: opts.spice ?? false,
+        strict: opts.strict ?? false,
+      });
+      if (json) console.log(JSON.stringify(res, null, 2));
+      process.exit(res.ok ? 0 : 1);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
 
 // `draft` and `score` are command groups taking the artifact as a noun
 // (`draft schematic` today, `draft pcb` when layout drafting exists), so the

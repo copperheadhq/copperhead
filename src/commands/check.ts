@@ -9,6 +9,7 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { formatSpiceGate, runSpiceGate, type SpiceGateReport } from '../kicad/spice-run.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -35,9 +36,28 @@ export interface CheckResult {
     /** Advisory quantitative score; null when no schematic is configured. */
     score: ScoreReport | null;
   };
+  /**
+   * Present only when `check --spice` ran. Idle (no Simulation blocks) and
+   * skip (ngspice missing) do not fail the exit code unless `--strict`.
+   */
+  spice?: SpiceGateReport;
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+/** True when the SPICE gate should fail `check` (failed assertions, or a skip under `--strict`). */
+export function spiceGateFailsCheck(spice: SpiceGateReport | undefined, strict: boolean): boolean {
+  return spice?.status === 'fail' || Boolean(strict && spice?.status === 'skip');
+}
+
+export interface CheckOptions {
+  spice?: boolean;
+  strict?: boolean;
+}
+
+export async function runCheck(
+  repoRoot: string,
+  log: (s: string) => void,
+  opts: CheckOptions = {},
+): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
@@ -122,12 +142,37 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let spice: SpiceGateReport | undefined;
+  if (opts.spice) {
+    if (!config.schematic || !existsSync(path.join(repoRoot, config.schematic))) {
+      spice = {
+        status: 'fail',
+        blocks: 0,
+        assertions: [],
+        errors: ['SPICE gate needs a configured schematic'],
+      };
+      for (const line of formatSpiceGate(spice)) log(line);
+    } else {
+      spice = await runSpiceGate({
+        repoRoot,
+        schematic: config.schematic,
+        docsDir: config.docs,
+        ...(typeof config.spice?.timeoutMs === 'number' && config.spice.timeoutMs > 0
+          ? { timeoutMs: config.spice.timeoutMs }
+          : {}),
+        ...(config.spice?.ngspice?.trim() ? { ngspicePath: config.spice.ngspice.trim() } : {}),
+      });
+      for (const line of formatSpiceGate(spice)) log(line);
+    }
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    !spiceGateFailsCheck(spice, opts.strict ?? false);
 
   return {
     ok,
@@ -137,5 +182,6 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,
+    ...(spice ? { spice } : {}),
   };
 }

@@ -1,0 +1,10 @@
+Note: Compatibility modes selected: ps lt a
+
+Circuit: * copperhead spice verification gate
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+No. of Data Rows : 1
+a3_0_value = 1.650000e+00
+a3_0_lower_margin = -1.350000e+00
+a3_0_upper_margin = 1.450000e+00

@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   SimulationParseError,
+  assembleSpiceDeck,
   compileSpiceAssertion,
+  evaluateSpiceBlock,
+  parseNgspiceMeasures,
   parseSimulationBlocks,
   parseSpiceAssertion,
   parseSpiceNumber,
+  spiceAnalysisCard,
+  spiceSourceCard,
+  stripSpiceEnd,
   type SpiceMeasurable,
 } from '../src/kicad/spice.js';
+
+const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'spice');
 
 describe('parseSimulationBlocks', () => {
   it('parses sheet scope, analysis, sources, and assertions with source lines', () => {
@@ -404,5 +415,75 @@ describe('compileSpiceAssertion', () => {
     expect(() => compileSpiceAssertion(assertion, 'op', 'bad-name')).toThrowError(
       new SimulationParseError(27, 'invalid measure name "bad-name"'),
     );
+  });
+});
+
+describe('assembleSpiceDeck', () => {
+  it('strips a trailing .end, drives ports, and appends analysis plus .meas cards', () => {
+    const [block] = parseSimulationBlocks(`## Simulation
+scope: nets VIN, VOUT
+analysis: op
+source: VIN=3.3
+assert: V(VOUT) between 1.6 and 1.7
+`);
+    const { text, compiled } = assembleSpiceDeck('* netlist\nR1 VIN VOUT 10k\n.end\n', block!);
+    expect(text).toContain('* copperhead spice verification gate');
+    expect(text).toContain('Vsrc_VIN VIN 0 DC 3.3');
+    expect(text).toContain('.op');
+    expect(text).toMatch(/\.meas op a\d+_0_value FIND v\(VOUT\)/);
+    expect(text.trimEnd().endsWith('.end')).toBe(true);
+    expect(stripSpiceEnd(text).includes('.end')).toBe(false);
+    expect(compiled).toHaveLength(1);
+    expect(compiled[0]!.valueName).toMatch(/^a\d+_0_value$/);
+  });
+
+  it('emits a DC sweep, AC decade, and transient card for those analyses', () => {
+    expect(spiceAnalysisCard('dc', [{ port: 'VIN', value: { raw: '3.3', value: 3.3, unit: '' }, line: 1 }])).toBe(
+      '.dc Vsrc_VIN 0 6.6 0.66',
+    );
+    expect(spiceAnalysisCard('ac', [])).toBe('.ac dec 10 1 1meg');
+    expect(spiceAnalysisCard('tran', [])).toBe('.tran 1u 1m');
+    expect(spiceSourceCard({ port: 'VCC.A', value: { raw: '5', value: 5, unit: '' }, line: 1 })).toBe(
+      'Vsrc_VCC_A VCC.A 0 DC 5',
+    );
+  });
+});
+
+describe('parseNgspiceMeasures + evaluateSpiceBlock', () => {
+  it('passes a V(VOUT) between assertion at the measured value', async () => {
+    const markdown = await readFile(path.join(FIXTURES, 'SUBSYSTEMS.md'), 'utf8');
+    const [block] = parseSimulationBlocks(markdown);
+    const measures = parseNgspiceMeasures(await readFile(path.join(FIXTURES, 'ngspice-pass.txt'), 'utf8'));
+    const [result] = evaluateSpiceBlock(block!, measures);
+    expect(result).toMatchObject({
+      assertion: 'V(VOUT) between 1.6 and 1.7',
+      status: 'pass',
+      measured: 1.65,
+      bound: '1.6 .. 1.7',
+    });
+  });
+
+  it('fails with the measured value when a bound is missed', async () => {
+    const markdown = await readFile(path.join(FIXTURES, 'SUBSYSTEMS-fail.md'), 'utf8');
+    const [block] = parseSimulationBlocks(markdown);
+    const measures = parseNgspiceMeasures(await readFile(path.join(FIXTURES, 'ngspice-fail.txt'), 'utf8'));
+    const [result] = evaluateSpiceBlock(block!, measures);
+    expect(result).toMatchObject({
+      status: 'fail',
+      measured: 1.65,
+      bound: '3.0 .. 3.1',
+    });
+    expect(result!.detail).toContain('measured 1.65');
+  });
+
+  it('reports a missing value measure as a failure, not a pass', () => {
+    const [block] = parseSimulationBlocks(`## Simulation
+scope: nets OUT
+analysis: op
+assert: V(OUT) > 1
+`);
+    const [result] = evaluateSpiceBlock(block!, {});
+    expect(result!.status).toBe('fail');
+    expect(result!.detail).toMatch(/no measured a\d+_0_value/);
   });
 });
