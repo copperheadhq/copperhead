@@ -4,7 +4,7 @@ import { listSymbols, listFootprints, footprintsOf, listNets, pinNets, parseSexp
 import { FIXTURE, tempFixtureRepo } from './helpers.js';
 
 const SCH = path.join(FIXTURE, 'hardware', 'open-key.kicad_sch');
-const PCB = path.join(FIXTURE, 'hardware', 'open-key-populated.kicad_pcb');
+const PCB = path.join(path.dirname(FIXTURE), 'boards', 'open-key-populated.kicad_pcb');
 const BLANK_PCB = path.join(FIXTURE, 'hardware', 'open-key.kicad_pcb');
 
 describe('sexp parser', () => {
@@ -37,6 +37,7 @@ describe('sexp parser', () => {
     expect(r2.layer).toBe('F.Cu');
     expect(r2.side).toBe('front');
     expect(r2.at).toEqual({ x: 116, y: 110, rot: 90 });
+    expect(r2.uuid).toBe('2a2a2a2a-0000-4000-8000-000000000002');
   });
 
   it('gracefully handles footprints without a Reference property and back-side / legacy fp_text footprints (#8)', () => {
@@ -52,23 +53,36 @@ describe('sexp parser', () => {
         (fp_text reference "C10" (at 0 0) (layer "B.SilkS"))
         (fp_text value "100n" (at 0 0) (layer "B.Fab"))
       )
+      (footprint "TestPoint:TestPoint_Pad_D1.0mm"
+        (at 5 8)
+        (property "Reference" "" (at 0 0 0))
+      )
       (footprint "Resistor_SMD:R_0402_1005Metric"
-        (layer "F.Cu")
         (at 15 25)
+        (tstamp "legacy-tstamp-r2")
         (property "Reference" "R2" (at 0 0 0))
       )
     )`;
     const fps = footprintsOf(boardText);
-    expect(fps.map((f) => f.ref)).toEqual(['?', 'C10', 'R2']);
-    const missingRef = fps.find((f) => f.ref === '?')!;
-    expect(missingRef.footprint).toBe('MountingHole:MountingHole_3.2mm_M3');
+    expect(fps.map((f) => f.ref)).toEqual(['?', '?', 'C10', 'R2']);
+    const missingRef = fps.find((f) => f.footprint === 'MountingHole:MountingHole_3.2mm_M3')!;
+    expect(missingRef.ref).toBe('?');
     expect(missingRef.side).toBe('front');
     expect(missingRef.at).toEqual({ x: 10, y: 20, rot: 0 });
+    const blankRef = fps.find((f) => f.footprint === 'TestPoint:TestPoint_Pad_D1.0mm')!;
+    expect(blankRef.ref).toBe('?');
+    expect(blankRef.layer).toBe('F.Cu');
+    expect(blankRef.side).toBe('front');
     const backFp = fps.find((f) => f.ref === 'C10')!;
     expect(backFp.side).toBe('back');
     expect(backFp.layer).toBe('B.Cu');
     expect(backFp.value).toBe('100n');
     expect(backFp.at).toEqual({ x: 30, y: 40, rot: 180 });
+    const r2 = fps.find((f) => f.ref === 'R2')!;
+    expect(r2.layer).toBe('F.Cu');
+    expect(r2.side).toBe('front');
+    expect(r2.uuid).toBe('legacy-tstamp-r2');
+    expect(() => footprintsOf('(kicad_sch (version 20231120))')).toThrow(/not a KiCad PCB/);
   });
 
   it('lists nets from labels', async () => {
