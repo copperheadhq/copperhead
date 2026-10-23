@@ -160,12 +160,12 @@ program
     }
   });
 
-const checkAction = async (): Promise<void> => {
+const checkAction = async (opts?: { power?: boolean; strictPower?: boolean }): Promise<void> => {
   const repo = repoOf(program.opts());
   const json = Boolean(program.opts().json);
   try {
     await kicadCliVersion();
-    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s));
+    const res = await runCheck(repo, json ? () => {} : (s) => console.log(s), opts);
     if (json) console.log(JSON.stringify(res, null, 2));
     process.exit(res.ok ? 0 : 1);
   } catch (err) {
@@ -178,6 +178,8 @@ program
   .command('check')
   .alias('verify')
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
+  .option('--power', 'run opt-in DC power-integrity verification against constraints.json budgets')
+  .option('--strict-power', 'fail rather than skip when ki-pida or a board is missing under --power')
   .action(checkAction);
 
 // `draft` and `score` are command groups taking the artifact as a noun

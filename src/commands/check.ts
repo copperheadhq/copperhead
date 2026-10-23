@@ -9,6 +9,13 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import {
+  formatPowerIntegrity,
+  PidaMissingError,
+  runPowerIntegrity,
+  type PidaReport,
+  type PidaRunner,
+} from '../kicad/pida.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -21,6 +28,7 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  power?: (PidaReport & { skipped?: false }) | { ok: boolean; skipped: true; reason: string } | null;
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -37,7 +45,11 @@ export interface CheckResult {
   };
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+export async function runCheck(
+  repoRoot: string,
+  log: (s: string) => void,
+  opts?: { power?: boolean; strictPower?: boolean; pidaRunner?: PidaRunner },
+): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
@@ -122,12 +134,35 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let power: CheckResult['power'] = undefined;
+  if (opts?.power) {
+    if (!config.board || !existsSync(path.join(repoRoot, config.board))) {
+      const reason = 'no board configured';
+      power = { ok: !opts.strictPower, skipped: true, reason };
+      log(`power-integrity skipped (${reason})`);
+    } else {
+      const boardAbs = path.join(repoRoot, config.board);
+      try {
+        power = await runPowerIntegrity(boardAbs, repoRoot, opts.pidaRunner);
+        log(formatPowerIntegrity(power));
+      } catch (err) {
+        if (err instanceof PidaMissingError && !opts.strictPower) {
+          power = { ok: true, skipped: true, reason: err.message };
+          log(`power-integrity skipped (${err.message})`);
+        } else {
+          throw err;
+        }
+      }
+    }
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (power?.ok ?? true);
 
   return {
     ok,
@@ -136,6 +171,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    ...(power !== undefined ? { power } : {}),
     legibility,
   };
 }

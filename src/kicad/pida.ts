@@ -11,20 +11,30 @@ import {
   type VerificationChecker,
 } from './checkers.js';
 
-/**
- * DC power-integrity verification via Ki-PIDA (#176), implemented as a plugin
- * on the external verification checker framework (`src/kicad/checkers.ts`).
- *
- * Checks rail IR/voltage drop, current-density hotspots, thermal rise
- * hotspots, and multi-rail dependency chains against budgets declared in
- * `.copperhead/constraints.json`.
- */
+export const DEFAULT_KIPIDA_TIMEOUT_MS = 30_000;
+
+export class PidaMissingError extends Error {
+  constructor(
+    message = 'ki-pida not found (set COPPERHEAD_KIPIDA_BIN or install an external DC power-integrity adapter)',
+  ) {
+    super(message);
+    this.name = 'PidaMissingError';
+  }
+}
+
+export class PidaToolError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PidaToolError';
+  }
+}
 
 export interface PowerBudgets {
   railDropMaxV: number | null;
   railDropByNetV: Record<string, number>;
   currentDensityMaxAmm2: number | null;
   tempRiseMaxC: number | null;
+  unparsedRailKeys?: string[];
   sources: Record<string, string>;
 }
 
@@ -69,22 +79,143 @@ export type PidaReport = CheckerReport<'power-integrity'>;
 
 export type PidaRunner = CheckerRunner<PidaTelemetry>;
 
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function isNonEmptyString(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
+/**
+ * Validate raw Ki-PIDA telemetry JSON at the boundary so empty or schema-drifted
+ * payloads fail closed instead of silently passing as `power-integrity ✓`.
+ */
+export function validatePidaTelemetry(raw: unknown): PidaTelemetry {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new PidaToolError('invalid ki-pida telemetry: expected a JSON object');
+  }
+  const obj = raw as Record<string, unknown>;
+  const allowedTopKeys = new Set(['rails', 'currentDensity', 'thermal', 'dependencies']);
+  for (const k of Object.keys(obj)) {
+    if (!allowedTopKeys.has(k)) {
+      throw new PidaToolError(`invalid ki-pida telemetry: unexpected top-level key "${k}"`);
+    }
+  }
+
+  let totalEntries = 0;
+
+  if (obj.rails !== undefined) {
+    if (!Array.isArray(obj.rails)) {
+      throw new PidaToolError('invalid ki-pida telemetry: "rails" must be an array');
+    }
+    for (const [i, item] of obj.rails.entries()) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new PidaToolError(`invalid ki-pida telemetry: rails[${i}] must be an object`);
+      }
+      const r = item as Record<string, unknown>;
+      if (!isNonEmptyString(r.rail) || !isNonEmptyString(r.sinkRef) || !isFiniteNumber(r.irDropV)) {
+        throw new PidaToolError(
+          `invalid ki-pida telemetry: rails[${i}] requires string rail, string sinkRef, and finite number irDropV`,
+        );
+      }
+      if ((r.x !== undefined && !isFiniteNumber(r.x)) || (r.y !== undefined && !isFiniteNumber(r.y))) {
+        throw new PidaToolError(`invalid ki-pida telemetry: rails[${i}] x/y must be finite numbers`);
+      }
+      totalEntries++;
+    }
+  }
+
+  if (obj.currentDensity !== undefined) {
+    if (!Array.isArray(obj.currentDensity)) {
+      throw new PidaToolError('invalid ki-pida telemetry: "currentDensity" must be an array');
+    }
+    for (const [i, item] of obj.currentDensity.entries()) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new PidaToolError(`invalid ki-pida telemetry: currentDensity[${i}] must be an object`);
+      }
+      const c = item as Record<string, unknown>;
+      if (
+        !isNonEmptyString(c.rail) ||
+        !isNonEmptyString(c.layer) ||
+        !isFiniteNumber(c.currentDensityAmm2)
+      ) {
+        throw new PidaToolError(
+          `invalid ki-pida telemetry: currentDensity[${i}] requires string rail, string layer, and finite number currentDensityAmm2`,
+        );
+      }
+      totalEntries++;
+    }
+  }
+
+  if (obj.thermal !== undefined) {
+    if (!Array.isArray(obj.thermal)) {
+      throw new PidaToolError('invalid ki-pida telemetry: "thermal" must be an array');
+    }
+    for (const [i, item] of obj.thermal.entries()) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new PidaToolError(`invalid ki-pida telemetry: thermal[${i}] must be an object`);
+      }
+      const t = item as Record<string, unknown>;
+      if (!isNonEmptyString(t.ref) || !isFiniteNumber(t.tempRiseC)) {
+        throw new PidaToolError(
+          `invalid ki-pida telemetry: thermal[${i}] requires string ref and finite number tempRiseC`,
+        );
+      }
+      totalEntries++;
+    }
+  }
+
+  if (obj.dependencies !== undefined) {
+    if (!Array.isArray(obj.dependencies)) {
+      throw new PidaToolError('invalid ki-pida telemetry: "dependencies" must be an array');
+    }
+    for (const [i, item] of obj.dependencies.entries()) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new PidaToolError(`invalid ki-pida telemetry: dependencies[${i}] must be an object`);
+      }
+      const d = item as Record<string, unknown>;
+      if (
+        !isNonEmptyString(d.rail) ||
+        !isNonEmptyString(d.dependsOn) ||
+        typeof d.satisfied !== 'boolean'
+      ) {
+        throw new PidaToolError(
+          `invalid ki-pida telemetry: dependencies[${i}] requires string rail, string dependsOn, and boolean satisfied`,
+        );
+      }
+      totalEntries++;
+    }
+  }
+
+  if (totalEntries === 0) {
+    throw new PidaToolError(
+      'invalid ki-pida telemetry: payload holds no rail, currentDensity, thermal, or dependency measurements',
+    );
+  }
+
+  return obj as PidaTelemetry;
+}
+
 function numericBudget(c: { max?: number; value?: string | number } | undefined): number | null {
   if (!c) return null;
   if (typeof c.max === 'number' && Number.isFinite(c.max)) return c.max;
   if (typeof c.value === 'number' && Number.isFinite(c.value)) return c.value;
   if (typeof c.value === 'string') {
-    const parsed = Number.parseFloat(c.value);
+    const trimmed = c.value.trim();
+    const parsed = trimmed === '' ? Number.NaN : Number(trimmed);
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
 }
 
 /**
- * Extract DC power-integrity budgets from `.copperhead/constraints.json`.
+ * Extract DC power-integrity budgets from `.copperhead/constraints.json`,
+ * including hierarchical `/` net names (`power.rails./sub/3V3.drop_max_V`).
  */
 export function extractPowerBudgets(registry: ConstraintRegistry): PowerBudgets {
   const railDropByNetV: Record<string, number> = {};
+  const unparsedRailKeys: string[] = [];
   const sources: Record<string, string> = {};
 
   const globalDrop = numericBudget(registry['power.rail_drop_max_V']);
@@ -103,12 +234,18 @@ export function extractPowerBudgets(registry: ConstraintRegistry): PowerBudgets 
   }
 
   for (const [key, constraint] of Object.entries(registry)) {
-    const m = /^power\.rails\.([A-Za-z0-9_+.-]+)\.drop_max_V$/.exec(key);
-    if (!m) continue;
+    if (!key.startsWith('power.rails.')) continue;
+    const m = /^power\.rails\.(.+)\.drop_max_V$/.exec(key);
+    if (!m || !m[1]) {
+      unparsedRailKeys.push(key);
+      continue;
+    }
     const val = numericBudget(constraint);
     if (val !== null) {
-      railDropByNetV[m[1]!] = val;
+      railDropByNetV[m[1]] = val;
       sources[key] = constraint.source;
+    } else {
+      unparsedRailKeys.push(key);
     }
   }
 
@@ -117,8 +254,23 @@ export function extractPowerBudgets(registry: ConstraintRegistry): PowerBudgets 
     railDropByNetV,
     currentDensityMaxAmm2,
     tempRiseMaxC,
+    ...(unparsedRailKeys.length ? { unparsedRailKeys } : {}),
     sources,
   };
+}
+
+function formatPairWithPrecision(measured: number, budget: number, minDecimals: number): [string, string] {
+  for (let d = minDecimals; d <= 6; d++) {
+    const mStr = measured.toFixed(d);
+    const bStr = budget.toFixed(d);
+    if (mStr !== bStr || measured === budget) {
+      // Trim unnecessary trailing zeros on the budget beyond minDecimals
+      const bDefault = budget.toFixed(minDecimals);
+      const bClean = Number(bDefault) === budget ? bDefault : bStr.replace(/0+$/, '').replace(/\.$/, '');
+      return [mStr, bClean];
+    }
+  }
+  return [String(measured), String(budget)];
 }
 
 function detectDependencyCycles(links: PidaRailDependencyLink[]): string[][] {
@@ -155,13 +307,53 @@ function detectDependencyCycles(links: PidaRailDependencyLink[]): string[][] {
   return cycles;
 }
 
-export async function defaultPidaRunner(boardPath: string): Promise<PidaTelemetry> {
+export async function defaultPidaRunner(
+  boardPath: string,
+  opts?: { timeoutMs?: number },
+): Promise<PidaTelemetry> {
   const bin = process.env.COPPERHEAD_KIPIDA_BIN?.trim() || 'ki-pida';
-  const res = await execa(bin, ['--json', boardPath], { reject: false });
-  if (res.failed) {
-    throw new Error(res.stderr || res.stdout || `ki-pida exited ${res.exitCode}`);
+  const envTimeout = Number(process.env.COPPERHEAD_KIPIDA_TIMEOUT_MS ?? '');
+  const timeoutMs =
+    opts?.timeoutMs ??
+    (Number.isFinite(envTimeout) && envTimeout > 0 ? envTimeout : DEFAULT_KIPIDA_TIMEOUT_MS);
+
+  const res = await execa(bin, ['--json', boardPath], {
+    reject: false,
+    stdin: 'ignore',
+    timeout: timeoutMs,
+  });
+
+  if (res.timedOut) {
+    const secs = (timeoutMs / 1000).toFixed(timeoutMs >= 1000 ? 0 : 2);
+    throw new PidaToolError(`ki-pida timed out after ${secs}s`);
   }
-  return JSON.parse(String(res.stdout ?? '{}')) as PidaTelemetry;
+  const errCode = (res as { code?: string }).code;
+  if (
+    errCode === 'ENOENT' ||
+    res.exitCode === undefined ||
+    /not recognized as an internal or external command/i.test(String(res.stderr ?? ''))
+  ) {
+    throw new PidaMissingError();
+  }
+  if (res.failed) {
+    throw new PidaToolError(
+      String(res.stderr || res.stdout || `ki-pida exited ${res.exitCode}`).trim(),
+    );
+  }
+  const stdout = String(res.stdout ?? '').trim();
+  if (!stdout) {
+    throw new PidaToolError('ki-pida produced empty stdout (expected JSON telemetry)');
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (err) {
+    const preview = stdout.slice(0, 200);
+    throw new PidaToolError(
+      `ki-pida returned invalid JSON: ${(err as Error).message} (stdout: ${preview})`,
+    );
+  }
+  return validatePidaTelemetry(parsed);
 }
 
 /**
@@ -175,22 +367,38 @@ export const powerIntegrityChecker: VerificationChecker<
   id: 'power-integrity',
   artifact: 'board',
   extractBudgets: extractPowerBudgets,
-  defaultRunner: defaultPidaRunner,
-  evaluate(telemetry: PidaTelemetry, budgets: PowerBudgets) {
+  defaultRunner: (boardPath: string) => defaultPidaRunner(boardPath),
+  evaluate(rawTelemetry: PidaTelemetry, budgets: PowerBudgets) {
+    const telemetry = validatePidaTelemetry(rawTelemetry);
     const violations: Violation[] = [];
     const warnings: Violation[] = [];
 
+    for (const badKey of budgets.unparsedRailKeys ?? []) {
+      warnings.push({
+        severity: 'warning',
+        type: 'unrecognized_rail_budget_key',
+        description: `unrecognized or non-numeric rail budget key "${badKey}" (expected power.rails.<net>.drop_max_V with finite max/value)`,
+        items: [],
+      });
+    }
+
+    let uncheckedRails = 0;
     for (const r of telemetry.rails ?? []) {
       const netKey = `power.rails.${r.rail}.drop_max_V`;
       const budget = budgets.railDropByNetV[r.rail] ?? budgets.railDropMaxV;
-      const budgetKey = budgets.railDropByNetV[r.rail] !== undefined ? netKey : 'power.rail_drop_max_V';
-      if (budget === null || budget === undefined) continue;
+      const budgetKey =
+        budgets.railDropByNetV[r.rail] !== undefined ? netKey : 'power.rail_drop_max_V';
+      if (budget === null || budget === undefined) {
+        uncheckedRails++;
+        continue;
+      }
 
       if (r.irDropV > budget) {
+        const [mStr, bStr] = formatPairWithPrecision(r.irDropV, budget, 2);
         violations.push({
           severity: 'error',
           type: 'ir_drop_exceeded',
-          description: `${r.rail} rail - IR drop ${r.irDropV.toFixed(2)}V exceeds ${budget.toFixed(2)}V budget at ${r.sinkRef} (constraints.json: ${budgetKey})`,
+          description: `${r.rail} rail - IR drop ${mStr}V exceeds ${bStr}V budget at ${r.sinkRef} (constraints.json: ${budgetKey})`,
           items: [
             {
               description: `${r.sinkRef} on ${r.rail}`,
@@ -200,10 +408,11 @@ export const powerIntegrityChecker: VerificationChecker<
           ],
         });
       } else if (r.irDropV >= budget * 0.9) {
+        const [mStr, bStr] = formatPairWithPrecision(r.irDropV, budget, 2);
         warnings.push({
           severity: 'warning',
           type: 'ir_drop_near_budget',
-          description: `${r.rail} rail - IR drop ${r.irDropV.toFixed(2)}V is within 10% of ${budget.toFixed(2)}V budget at ${r.sinkRef} (constraints.json: ${budgetKey})`,
+          description: `${r.rail} rail - IR drop ${mStr}V is within 10% of ${bStr}V budget at ${r.sinkRef} (constraints.json: ${budgetKey})`,
           items: [
             {
               description: `${r.sinkRef} on ${r.rail}`,
@@ -214,14 +423,27 @@ export const powerIntegrityChecker: VerificationChecker<
         });
       }
     }
+    if (uncheckedRails > 0) {
+      warnings.push({
+        severity: 'warning',
+        type: 'power_budget_missing',
+        description: `no power.rail_drop_max_V budget configured; ${uncheckedRails} rail measurement${uncheckedRails === 1 ? '' : 's'} unchecked`,
+        items: [],
+      });
+    }
 
     if (budgets.currentDensityMaxAmm2 !== null) {
       for (const cd of telemetry.currentDensity ?? []) {
         if (cd.currentDensityAmm2 > budgets.currentDensityMaxAmm2) {
+          const [mStr, bStr] = formatPairWithPrecision(
+            cd.currentDensityAmm2,
+            budgets.currentDensityMaxAmm2,
+            1,
+          );
           violations.push({
             severity: 'error',
             type: 'current_density_hotspot',
-            description: `${cd.rail} rail on ${cd.layer} - current density ${cd.currentDensityAmm2.toFixed(1)}A/mm2 exceeds ${budgets.currentDensityMaxAmm2.toFixed(1)}A/mm2 budget (constraints.json: power.current_density_max_A_mm2)`,
+            description: `${cd.rail} rail on ${cd.layer} - current density ${mStr}A/mm2 exceeds ${bStr}A/mm2 budget (constraints.json: power.current_density_max_A_mm2)`,
             items: [
               {
                 description: `${cd.rail} (${cd.layer})`,
@@ -232,15 +454,24 @@ export const powerIntegrityChecker: VerificationChecker<
           });
         }
       }
+    } else if ((telemetry.currentDensity?.length ?? 0) > 0) {
+      const n = telemetry.currentDensity!.length;
+      warnings.push({
+        severity: 'warning',
+        type: 'power_budget_missing',
+        description: `no power.current_density_max_A_mm2 budget configured; ${n} current-density result${n === 1 ? '' : 's'} unchecked`,
+        items: [],
+      });
     }
 
     if (budgets.tempRiseMaxC !== null) {
       for (const th of telemetry.thermal ?? []) {
         if (th.tempRiseC > budgets.tempRiseMaxC) {
+          const [mStr, bStr] = formatPairWithPrecision(th.tempRiseC, budgets.tempRiseMaxC, 1);
           violations.push({
             severity: 'error',
             type: 'thermal_hotspot',
-            description: `${th.ref} - temperature rise ${th.tempRiseC.toFixed(1)}C exceeds ${budgets.tempRiseMaxC.toFixed(1)}C budget (constraints.json: power.temp_rise_max_C)`,
+            description: `${th.ref} - temperature rise ${mStr}C exceeds ${bStr}C budget (constraints.json: power.temp_rise_max_C)`,
             items: [
               {
                 description: th.ref,
@@ -251,6 +482,14 @@ export const powerIntegrityChecker: VerificationChecker<
           });
         }
       }
+    } else if ((telemetry.thermal?.length ?? 0) > 0) {
+      const n = telemetry.thermal!.length;
+      warnings.push({
+        severity: 'warning',
+        type: 'power_budget_missing',
+        description: `no power.temp_rise_max_C budget configured; ${n} thermal result${n === 1 ? '' : 's'} unchecked`,
+        items: [],
+      });
     }
 
     for (const dep of telemetry.dependencies ?? []) {
@@ -302,7 +541,7 @@ export function formatPowerIntegrity(report: PidaReport): string {
 export async function runPowerIntegrity(
   boardPath: string,
   repoRoot: string,
-  runner: PidaRunner = defaultPidaRunner,
+  runner: PidaRunner = powerIntegrityChecker.defaultRunner,
 ): Promise<PidaReport> {
   return runChecker(powerIntegrityChecker, boardPath, repoRoot, runner);
 }
