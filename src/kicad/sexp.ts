@@ -109,29 +109,61 @@ export interface PinDef {
 interface ParsedSheet {
   filePath: string;
   sheetName: string;
+  placementPath: string;
+  projectName: string;
   root: SexpNode[];
 }
 
 async function loadSheets(rootSch: string): Promise<ParsedSheet[]> {
-  const seen = new Set<string>();
+  const seenPlacements = new Set<string>();
+  const fileCache = new Map<string, SexpNode[]>();
   const out: ParsedSheet[] = [];
-  async function load(file: string, sheetName: string): Promise<void> {
-    const abs = path.resolve(file);
-    if (seen.has(abs)) return;
-    seen.add(abs);
+  const projectName = path.basename(rootSch, path.extname(rootSch));
+
+  async function readRoot(abs: string, rawFile: string): Promise<SexpNode[]> {
+    const cached = fileCache.get(abs);
+    if (cached) return cached;
     const text = await readFile(abs, 'utf8');
     const root = parseSexp(text)[0];
     if (root === undefined || !isList(root)) {
-      throw new Error(`not a KiCad s-expression file: ${file}`);
+      throw new Error(`not a KiCad s-expression file: ${rawFile}`);
     }
-    out.push({ filePath: abs, sheetName, root });
-    for (const sheet of children(root, 'sheet')) {
+    fileCache.set(abs, root);
+    return root;
+  }
+
+  async function load(
+    file: string,
+    sheetName: string,
+    placementPath: string | null,
+    fileChain: Set<string>,
+  ): Promise<void> {
+    const abs = path.resolve(file);
+    if (fileChain.has(abs)) return;
+    const root = await readRoot(abs, file);
+    const rootUuid = atomAt(child(root, 'uuid'), 1) ?? '';
+    const currentPath = placementPath ?? (rootUuid ? `/${rootUuid}` : '/');
+    if (seenPlacements.has(currentPath)) return;
+    seenPlacements.add(currentPath);
+
+    out.push({ filePath: abs, sheetName, placementPath: currentPath, projectName, root });
+
+    const nextChain = new Set(fileChain);
+    nextChain.add(abs);
+    const subSheets = children(root, 'sheet');
+    for (let i = 0; i < subSheets.length; i++) {
+      const sheet = subSheets[i]!;
       const sub = property(sheet, 'Sheetfile') ?? property(sheet, 'Sheet file');
       const name = property(sheet, 'Sheetname') ?? property(sheet, 'Sheet name') ?? 'sheet';
-      if (sub) await load(path.resolve(path.dirname(abs), sub), name);
+      if (!sub) continue;
+      const sheetUuid = atomAt(child(sheet, 'uuid'), 1) ?? `${name}#${i}`;
+      const childPath = currentPath === '/' ? `/${sheetUuid}` : `${currentPath}/${sheetUuid}`;
+      const childSheetName = sheetName === '/' ? name : `${sheetName}/${name}`;
+      await load(path.resolve(path.dirname(abs), sub), childSheetName, childPath, nextChain);
     }
   }
-  await load(rootSch, '/');
+
+  await load(rootSch, '/', null, new Set());
   return out;
 }
 
@@ -224,6 +256,91 @@ class UnionFind {
   }
 }
 
+function parsePathInstance(pathNode: SexpNode[]): { ref?: string; unit?: number } {
+  const ref = atomAt(child(pathNode, 'reference'), 1);
+  const unitStr = atomAt(child(pathNode, 'unit'), 1);
+  const unit = unitStr !== undefined ? parseInt(unitStr, 10) || 1 : undefined;
+  return { ...(ref !== undefined ? { ref } : {}), ...(unit !== undefined ? { unit } : {}) };
+}
+
+function findMatchInPaths(
+  paths: SexpNode[][],
+  placementPath: string,
+  allowSuffix: boolean,
+): SexpNode[] | null {
+  const exactMatch = paths.find((p) => atomAt(p, 1) === placementPath);
+  if (exactMatch) return exactMatch;
+  if (!allowSuffix || placementPath === '/') return null;
+
+  const suffixMatches = paths.filter((p) => {
+    const pPath = atomAt(p, 1) ?? '';
+    if (!pPath || pPath === '/') return false;
+    return pPath.endsWith(placementPath) || placementPath.endsWith(pPath);
+  });
+  if (suffixMatches.length === 1) return suffixMatches[0]!;
+  return null;
+}
+
+export function instanceForPath(
+  sym: SexpNode[],
+  placementPath: string,
+  activeProject?: string,
+): { ref?: string; unit?: number } | null {
+  const inst = child(sym, 'instances');
+  if (!inst) return null;
+
+  const projectBlocks = children(inst, 'project');
+
+  // 1. Prefer matching (project "<active-project>") block
+  let selectedProj: SexpNode[] | undefined;
+  if (activeProject) {
+    selectedProj = projectBlocks.find((proj) => atomAt(proj, 1) === activeProject);
+  }
+
+  // 2. If no named project matches and there is exactly one project block, use it for compatibility
+  if (!selectedProj && projectBlocks.length === 1) {
+    selectedProj = projectBlocks[0];
+  }
+
+  // Within the selected project, search for exact match, then unique suffix match
+  if (selectedProj) {
+    const paths = children(selectedProj, 'path');
+    const matched = findMatchInPaths(paths, placementPath, true);
+    if (matched) return parsePathInstance(matched);
+  } else if (projectBlocks.length > 1) {
+    // 3. Multiple project blocks exist, but none matched activeProject.
+    // Check if multiple project blocks produce conflicting exact matches.
+    const exactMatches: { ref?: string; unit?: number }[] = [];
+    for (const proj of projectBlocks) {
+      const match = children(proj, 'path').find((p) => atomAt(p, 1) === placementPath);
+      if (match) {
+        exactMatches.push(parsePathInstance(match));
+      }
+    }
+    if (exactMatches.length === 1) {
+      return exactMatches[0]!;
+    }
+    if (exactMatches.length > 1) {
+      const first = exactMatches[0]!;
+      const conflict = exactMatches.some((m) => m.ref !== first.ref || m.unit !== first.unit);
+      if (!conflict) {
+        return first;
+      }
+      // Conflicting exact matches across unselected projects: do not silently choose the first!
+    }
+    // Suffix matching is strictly not applied across ambiguous unselected projects.
+  }
+
+  // 4. Keep legacy direct (instances (path …)) entries as a separate fallback
+  const directPaths = children(inst, 'path');
+  if (directPaths.length > 0) {
+    const matched = findMatchInPaths(directPaths, placementPath, true);
+    if (matched) return parsePathInstance(matched);
+  }
+
+  return null;
+}
+
 function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol; mirror: 'x' | 'y' | null }[] {
   const out: { node: SexpNode[]; sym: SchematicSymbol; mirror: 'x' | 'y' | null }[] = [];
   for (const s of children(sheet.root, 'symbol')) {
@@ -231,11 +348,12 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
     if (!libId) continue; // lib_symbols entries have no lib_id child
     const at = child(s, 'at');
     const mirrorAtom = atomAt(child(s, 'mirror'), 1);
+    const inst = instanceForPath(s, sheet.placementPath, sheet.projectName);
     out.push({
       node: s,
       mirror: mirrorAtom === 'x' || mirrorAtom === 'y' ? mirrorAtom : null,
       sym: {
-        ref: property(s, 'Reference') ?? '?',
+        ref: inst?.ref ?? property(s, 'Reference') ?? '?',
         value: property(s, 'Value') ?? '',
         footprint: property(s, 'Footprint') ?? '',
         libId,
@@ -246,7 +364,7 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
           rot: parseFloat(atomAt(at, 3) ?? '0'),
         },
         uuid: atomAt(child(s, 'uuid'), 1) ?? '',
-        unit: parseInt(atomAt(child(s, 'unit'), 1) ?? '1', 10) || 1,
+        unit: inst?.unit ?? (parseInt(atomAt(child(s, 'unit'), 1) ?? '1', 10) || 1),
       },
     });
   }
