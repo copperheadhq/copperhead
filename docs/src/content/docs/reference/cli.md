@@ -110,7 +110,7 @@ Exits 1 if the run ends in failure, 0 otherwise.
 Alias: `copperhead verify`.
 
 ```bash
-copperhead check
+copperhead check [--firmware [header]] [--ref <refdes>]
 ```
 
 Runs ERC, DRC, doc-drift detection, constraint checks, and OpenSpec validation. Makes **no LLM calls and no network requests**, which is a contract, not a tendency: this is what makes it safe to run in CI and in a pre-commit hook.
@@ -122,7 +122,12 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `0` | Everything agrees. |
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+| Option | Description |
+| --- | --- |
+| `--firmware [header]` | Also verify the committed firmware header (default: `firmware/inc/pinout.h`) against the schematic. |
+| `--ref <refdes>` | MCU reference designator filter for `--firmware` (default: MCU `U*` / `IC*`). |
+
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, `legibility` (findings, counts, skipped and disabled families, and the advisory `score`), and `firmware` when `--firmware` is passed. Legibility findings never affect the exit code.
 
 ## `copperhead draft schematic`
 
@@ -231,6 +236,20 @@ Each stage is a full `do` loop with its own prompt and gate. Stage completion is
 
 Stages build on each other's uncommitted state, so `create` runs them as if `--allow-dirty` were set.
 
+## `copperhead export firmware`
+
+Generates a deterministic C pinout header (`#define PIN_<NET> <PIN>`) from the schematic MCU pin/net mapping. Makes **no LLM calls and no network requests**.
+
+```bash
+copperhead export firmware [--target c] [--out <path>] [--ref <refdes>]
+```
+
+| Option | Description |
+| --- | --- |
+| `--target <lang>` | Target language (`c`, default: `c`). |
+| `--out <path>` | Output header path relative to repo root (default: `firmware/inc/pinout.h`). |
+| `--ref <refdes>` | Explicit reference designator filter (required on boards with no auto-detected MCU). |
+
 ## Repo scripts
 
 These are npm scripts in a copperhead checkout, not installed CLI commands.
@@ -246,16 +265,3 @@ These are npm scripts in a copperhead checkout, not installed CLI commands.
 
 Pass `create` flags through after `--`, for example `npm run demo:simple -- --model claude`. Override the target directory with `COPPERHEAD_DEMO_DIR`.
 
-## `copperhead export firmware`
-
-Generates a deterministic C pinout header (`#define PIN_<NET> <PIN>`) from the schematic pin/net mapping. Makes **no LLM calls and no network requests**.
-
-```bash
-copperhead export firmware [--target c] [--out <path>] [--ref <refdes>]
-```
-
-| Option | Description |
-| --- | --- |
-| `--target <lang>` | Target language (`c`, default: `c`). |
-| `--out <path>` | Output header path relative to repo root (default: `firmware/inc/pinout.h`). |
-| `--ref <refdes>` | MCU reference designator filter (default: `U*` / `IC*`). |

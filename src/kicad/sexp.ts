@@ -104,6 +104,7 @@ export interface PinDef {
   /** Unit the pin belongs to (from the `_<unit>_<style>` child it sits in);
    * 0 for a pin in the common unit, drawn on every placed unit. */
   unit: number;
+  electricalType?: string;
 }
 
 interface ParsedSheet {
@@ -167,6 +168,7 @@ function libPinDefs(root: SexpNode[]): Map<string, PinDef[]> {
             x: parseFloat(atomAt(at, 1) ?? '0'),
             y: parseFloat(atomAt(at, 2) ?? '0'),
             unit,
+            electricalType: atomAt(n, 1) ?? 'unspecified',
           });
         }
       }
@@ -684,4 +686,81 @@ export async function pinNets(rootSch: string): Promise<PinNet[]> {
     }
   }
   return out;
+}
+
+export interface TypedPinNet extends PinNet {
+  electricalType: string;
+}
+
+/**
+ * Like `pinNets`, additionally returning each pin's KiCad electrical type
+ * (`power_in`, `power_out`, `bidirectional`, ...) and the set of net names
+ * driven by KiCad power symbols across all sheets.
+ */
+export async function pinNetsAndPowerRails(
+  rootSch: string,
+): Promise<{ pins: TypedPinNet[]; powerNets: Set<string> }> {
+  const sheets = await loadSheets(rootSch);
+  const powerSyms = collectPowerSymbols(sheets);
+  const pins: TypedPinNet[] = [];
+  const powerNets = new Set<string>();
+  for (const sheet of sheets) {
+    const pinDefs = libPinDefs(sheet.root);
+    const uf = new UnionFind();
+    const netNameAt = new Map<string, string>();
+    const powerCoords: string[] = [];
+
+    for (const w of children(sheet.root, 'wire')) {
+      const pts = children(child(w, 'pts') ?? [], 'xy').map((xy) => ({
+        x: parseFloat(atomAt(xy, 1) ?? '0'),
+        y: parseFloat(atomAt(xy, 2) ?? '0'),
+      }));
+      for (let i = 1; i < pts.length; i++) {
+        uf.union(key(pts[0]!.x, pts[0]!.y), key(pts[i]!.x, pts[i]!.y));
+      }
+    }
+    for (const kind of ['label', 'global_label', 'hierarchical_label']) {
+      for (const l of children(sheet.root, kind)) {
+        const name = atomAt(l, 1);
+        const at = child(l, 'at');
+        if (!name || !at) continue;
+        const k = key(parseFloat(atomAt(at, 1) ?? '0'), parseFloat(atomAt(at, 2) ?? '0'));
+        uf.find(k);
+        netNameAt.set(k, name);
+      }
+    }
+
+    const symPins: { sym: SchematicSymbol; pin: PinDef; k: string }[] = [];
+    for (const { sym, mirror } of symbolsOf(sheet)) {
+      const defs = pinsOfUnit(pinDefs.get(sym.libId) ?? [], sym.unit);
+      for (const pin of defs) {
+        const abs = pinAbsolute(sym.at, mirror, pin);
+        const k = key(abs.x, abs.y);
+        uf.find(k);
+        if (isPowerSymbol(sym.libId, powerSyms)) {
+          netNameAt.set(k, sym.value);
+          powerCoords.push(k);
+        } else {
+          symPins.push({ sym, pin, k });
+        }
+      }
+    }
+
+    const groupNet = new Map<string, string>();
+    for (const [k, name] of netNameAt) groupNet.set(uf.find(k), name);
+    for (const pk of powerCoords) {
+      const n = groupNet.get(uf.find(pk));
+      if (n) powerNets.add(n);
+    }
+    for (const { sym, pin, k } of symPins) {
+      pins.push({
+        ref: sym.ref,
+        pinNumber: pin.number,
+        pinName: pin.name,
+        net: groupNet.get(uf.find(k)) ?? null,
+        electricalType: pin.electricalType ?? 'unspecified',
+      });
+    }
+  }
+  return { pins, powerNets };
 }
