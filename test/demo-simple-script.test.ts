@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +10,7 @@ const demoScript = path.join(repoRoot, 'scripts', 'demo-simple.sh');
 const packagedBrief = path.join(repoRoot, 'examples', 'simple', 'usb-c-breakout.md');
 
 async function makeDemoFixture(docsDir: string, existingBrief?: string) {
-  const root = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-simple-'));
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), 'copperhead-demo-simple-')));
   const demoDir = path.join(root, 'demo');
   const binDir = path.join(root, 'bin');
   const globalGitConfig = path.join(root, 'empty-git-config');
