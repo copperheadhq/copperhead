@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
@@ -38,6 +38,11 @@ export interface CheckResult {
 }
 
 export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+  // A mistyped --repo has no config to load, so every gate below would skip
+  // and the check would pass on a design it never read.
+  if (!statSync(repoRoot, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Error(`repo not found: ${repoRoot} is not a directory`);
+  }
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
