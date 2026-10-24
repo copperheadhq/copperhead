@@ -113,6 +113,15 @@ export function configPath(repoRoot: string): string {
   return path.join(repoRoot, CONFIG_DIR, 'config.json');
 }
 
+/**
+ * A config path with forward slashes. `init` on Windows used to write
+ * `hardware\board.kicad_sch`; on Linux or macOS that names no file, so every
+ * gate skipped the design. Windows reads forward slashes too.
+ */
+function portablePath(p: string | null | undefined): string | null {
+  return typeof p === 'string' ? p.replace(/\\/g, '/') : null;
+}
+
 export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
   const p = configPath(repoRoot);
   if (!existsSync(p)) {
@@ -125,8 +134,8 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     Object.entries(raw.stageMaxTurns ?? {}).filter(([, v]) => Number.isInteger(v) && v > 0),
   );
   return {
-    schematic: raw.schematic ?? null,
-    board: raw.board ?? null,
+    schematic: portablePath(raw.schematic),
+    board: portablePath(raw.board),
     docs: raw.docs ?? DEFAULTS.docs,
     model: raw.model ?? null,
     maxTurns: raw.maxTurns ?? DEFAULTS.maxTurns,

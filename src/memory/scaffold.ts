@@ -188,8 +188,11 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
   }
 
   const config = await loadConfig(repoRoot);
-  config.schematic = path.relative(repoRoot, sch);
-  config.board = pcb ? path.relative(repoRoot, pcb) : null;
+  // config.json is committed, so it names files the way every platform reads
+  // them: a Windows `hardware\board.kicad_sch` is one odd filename on Linux.
+  const portable = (abs: string): string => path.relative(repoRoot, abs).split(path.sep).join('/');
+  config.schematic = portable(sch);
+  config.board = pcb ? portable(pcb) : null;
 
   const symbols = await listSymbols(sch);
   const pins = await pinNets(sch);
