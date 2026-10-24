@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
-import { resolveInRepo, isKicadFile } from '../util/paths.js';
+import { resolveInRepo, isKicadFile, affectsDrc } from '../util/paths.js';
 import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
@@ -653,8 +653,11 @@ export const HANDLERS: HandlerDef[] = [
     },
     requiresUnlock: false,
     handler: async (ctx) => {
-      if (!ctx.config.board)
+      if (!ctx.config.board) {
+        // a .kicad_pro edit opens the DRC obligation; with no board it cannot apply
+        ctx.ledger.clear('drc');
         return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
+      }
       const boardPath = path.join(ctx.repoRoot, ctx.config.board);
       const report = await unroutedGuard(ctx, boardPath, await runDrc(boardPath));
       countRepairCycle(ctx, 'drc', report);
@@ -916,7 +919,7 @@ export const HANDLERS: HandlerDef[] = [
       const touchedKicad = [...ctx.filesTouched].some((f) => isKicadFile(f));
       if (touchedKicad) {
         if (!ctx.lastErc?.ok) problems.push('ERC has not passed since the last schematic edit (run run_erc)');
-        const touchedPcb = [...ctx.filesTouched].some((f) => f.endsWith('.kicad_pcb'));
+        const touchedPcb = !!ctx.config.board && [...ctx.filesTouched].some(affectsDrc);
         if (touchedPcb && !ctx.lastDrc?.ok) problems.push('DRC has not passed since the last board edit (run run_drc)');
       }
       // the changelog obligation is cleared by the commit path itself

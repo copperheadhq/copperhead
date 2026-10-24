@@ -1,4 +1,4 @@
-import { isKicadFile } from '../util/paths.js';
+import { affectsDrc, isKicadFile } from '../util/paths.js';
 import type { RunContext } from '../agent/context.js';
 
 export const str = (args: Record<string, unknown>, key: string): string => {
@@ -30,7 +30,7 @@ export function markTouched(ctx: RunContext, rel: string): void {
   if (isKicadFile(rel)) {
     ctx.ledger.onKicadEdit(rel);
     if (rel.endsWith('.kicad_sch')) ctx.lastErc = null;
-    if (rel.endsWith('.kicad_pcb')) ctx.lastDrc = null;
+    if (affectsDrc(rel)) ctx.lastDrc = null;
   } else if (rel.endsWith('.md')) {
     ctx.ledger.onDocEdit(rel);
   }
