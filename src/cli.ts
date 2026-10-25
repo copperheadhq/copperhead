@@ -177,7 +177,7 @@ program
       const graph = await extractDesignGraph(repo, config.schematic);
       const out = await writeDesignGraph(repo, graph);
       if (json) console.log(JSON.stringify(graph, null, 2));
-      else console.log(`wrote ${out} (${graph.parts.length} parts, ${graph.nets.length} nets${graph.generated.partial ? ', partial: s-expression fallback' : ''})`);
+      else console.log(`wrote ${out} (${graph.parts.length} parts, ${graph.nets.length} nets${graph.generated.partial ? `, partial: s-expression fallback (${(graph.generated.partialReason ?? 'no reason recorded').replace(/\s+/g, ' ')})` : ''})`);
       process.exit(0);
     } catch (err) {
       console.error((err as Error).message);

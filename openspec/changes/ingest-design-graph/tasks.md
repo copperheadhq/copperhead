@@ -2,7 +2,7 @@
 
 ## 1. Symbol enrichment
 
-- [x] 1.1 Extend `SchematicSymbol` with datasheet, fields, dnp, inBom, onBoard; parse all `property` entries plus `(dnp)`, `(in_bom)`, `(on_board)` in `symbolsOf`
+- [x] 1.1 Extend `SchematicSymbol` with datasheet, fields, dnp, inBom; parse all `property` entries plus `(dnp)` and `(in_bom)` in `symbolsOf`
 - [x] 1.2 Add `mpnOf`, `manufacturerOf`, `lcscOf` field pickers (case-insensitive, alias-tolerant)
 
 ## 2. Netlist graduation

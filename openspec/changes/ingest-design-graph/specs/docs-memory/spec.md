@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: `init` scaffolds docs from the real schematic
-`copperhead init` SHALL detect the KiCad project, parse symbols/footprints/nets, and generate `docs/SPEC.md`, `BOM.md`, `PINOUT.md`, `SUBSYSTEMS.md`, `LAYOUT.md`, and `.copperhead/config.json` pre-filled with real extracted data, not placeholders. BOM.md SHALL omit DNP and `in_bom no` parts and keep a real MPN where the schematic carries one; a blank or placeholder MPN (`~`, `-`, `N/A`, `TBD`) SHALL stay UNVERIFIED, and a value holding `|` or a newline SHALL not shift the table columns. PINOUT.md SHALL list IC and connector pins by derived classification.
+`copperhead init` SHALL detect the KiCad project, parse symbols/footprints/nets, and generate `docs/SPEC.md`, `BOM.md`, `PINOUT.md`, `SUBSYSTEMS.md`, `LAYOUT.md`, and `.copperhead/config.json` pre-filled with real extracted data, not placeholders. BOM.md SHALL omit DNP and `in_bom no` parts and keep a real MPN where the schematic carries one; a blank or placeholder MPN (`~`, `-`, an em or en dash, `?`, `none`, `N/A`, `TBD`, `unverified`) SHALL stay UNVERIFIED, and a Value, Footprint or MPN holding `|` or a newline SHALL not shift the table columns (drift compares against the same escaped form). PINOUT.md SHALL list IC and connector pins by derived classification.
 
 #### Scenario: Skeleton created (AC-1.1)
 - **WHEN** `init` runs on a KiCad repo with no `docs/`
@@ -13,12 +13,16 @@
 - **WHEN** `init` completes
 - **THEN** BOM.md contains one row per orderable schematic symbol with real refdes, value, and footprint, DNP and BOM-excluded symbols are absent, and a real MPN from the schematic is kept
 
+#### Scenario: No schematic present (AC-1.5)
+- **WHEN** `init` runs on a repo with no `.kicad_sch`
+- **THEN** it exits non-zero with a clear message and no stack trace
+
 #### Scenario: Pinout reflects the schematic (AC-1.3)
 - **WHEN** `init` completes on a schematic containing an MCU, a connector, and a stock `Power_*` library IC
 - **THEN** PINOUT.md contains their actual pin-to-net assignments, and no passive or LED pins
 
 ### Requirement: Drift check
-`check_drift` SHALL compare the BOM.md and PINOUT.md tables against the parsed schematic and report each mismatch as `{ doc, claim, actual }`; any `do` run that changes a value referenced by a doc MUST update that doc in the same run. It SHALL NOT flag the absence of a DNP or BOM-excluded part from BOM.md, and SHALL flag a BOM.md row for a part the schematic marks DNP or BOM-excluded. The draft BOM cross-check SHALL likewise accept such a part with no BOM.md row.
+`check_drift` SHALL compare the BOM.md and PINOUT.md tables against the parsed schematic and report each mismatch as `{ doc, claim, actual }`; any `do` run that changes a value referenced by a doc MUST update that doc in the same run. It SHALL NOT flag the absence of a DNP or BOM-excluded part from BOM.md, and SHALL flag a BOM.md row for a part the schematic marks DNP or BOM-excluded. The draft SHALL refuse an intent that includes a part the schematic marks DNP or BOM-excluded, with a message naming the flag, because the emitter would reset it.
 
 #### Scenario: Doc disagrees with schematic (AC-2.3)
 - **WHEN** a BOM.md value is edited to disagree with the schematic (e.g. wrong resistor value) and the drift check runs

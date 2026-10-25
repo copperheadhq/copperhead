@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { listSymbols, listSheetFiles, pinNets, type SchematicSymbol, type PinNet } from './sexp.js';
-import { parseNetlist, type Netlist } from './netlist.js';
+import { parseNetlist, unescapeNetName, type Netlist } from './netlist.js';
 import { ensureIgnored } from '../util/git.js';
 
 /**
@@ -38,6 +38,8 @@ export interface GraphPart {
   /** Raw evidence the classification was derived from (auditable). */
   classEvidence: string;
   sheet: string;
+  /** Sheet path, symbol uuid and ref: tells reused-sheet instances apart. */
+  instanceKey: string;
   sheetFile: string;
   dnp: boolean;
   excludeFromBom: boolean;
@@ -83,7 +85,7 @@ const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex
 const MPN_KEYS = ['mpn', 'manufacturerpartnumber', 'mfrpartnumber', 'mfrpart', 'partnumber'];
 const MANUFACTURER_KEYS = ['manufacturer', 'mfr', 'mfg'];
 const LCSC_KEYS = ['lcsc', 'lcscpart', 'lcscpartnumber'];
-const PLACEHOLDERS = new Set(['', '~', '-', 'n/a', 'na', 'tbd']);
+const PLACEHOLDERS = new Set(['', '~', '-', '\u2014', '\u2013', '?', 'none', 'n/a', 'na', 'tbd', 'unverified']);
 
 function pickField(fields: Record<string, string>, keys: string[]): string {
   const norm = new Map<string, string>();
@@ -125,6 +127,8 @@ export function classifyPart(sym: Pick<SchematicSymbol, 'ref' | 'libId' | 'footp
     : sym.footprint;
   const refPrefix = sym.ref.replace(/[^A-Za-z].*$/, '');
   if (/^power$/i.test(libCat)) return { class: 'power', evidence: `lib:${lib}` };
+  // A test point is a pad, not a connector, so it is decided before the Connector-library rule.
+  if (/^TP$/i.test(refPrefix) || /testpoint/i.test(lib)) return { class: 'discrete', evidence: `ref:${sym.ref},lib:${lib}` };
   if (/connector/i.test(libCat) || /connector/i.test(lib)) return { class: 'connector', evidence: `lib:${lib}` };
   if (/mechanical|mountinghole/i.test(libCat) || /mechanical|mountinghole/i.test(lib)) {
     return { class: 'mechanical', evidence: `lib:${lib}` };
@@ -139,8 +143,9 @@ export function classifyPart(sym: Pick<SchematicSymbol, 'ref' | 'libId' | 'footp
   }
   if (/^(MH|MOUNT|FID|LOGO)$/i.test(refPrefix)) return { class: 'mechanical', evidence: `ref:${sym.ref}` };
   // Small discretes (diodes, LEDs, transistors, crystals, fuses, switches, ...) are not chips:
-  // their pins do not belong in the pinout.
-  if (pinCount <= 3 && (/^(D|LED|Q|Y|X|SW|F|FB|JP|RV|TP|CP|TVS|ESD)$/i.test(refPrefix) || libCat === 'Device')) {
+  // their pins do not belong in the pinout. Decided from the ref prefix or library category with no
+  // pin bound, so 4-pin crystals, RGB LEDs, dual switches and bridge rectifiers stay out too.
+  if (/^(D|LED|Q|T|Y|X|SW|F|FB|JP|RV|CP|TVS|ESD)$/i.test(refPrefix) || /^(Device|Diode.*|Switch|LED)$/.test(libCat)) {
     return { class: 'discrete', evidence: `ref:${sym.ref},lib:${lib},pins:${pinCount}` };
   }
   return { class: 'ic', evidence: `lib:${lib},ref:${sym.ref},pins:${pinCount}` };
@@ -157,12 +162,17 @@ export interface GraphSources {
   repoRoot: string;
 }
 
+/** A hung kicad-cli must not block init or ingest: past this the graph falls back to the partial build. */
+const NETLIST_TIMEOUT_MS = 60_000;
+
 async function tryNetlist(schPath: string): Promise<{ netlist: Netlist | null; kicadCli: string | null; reason: string | null }> {
+  const { exportNetlist, kicadCliVersion, KicadCliBadOverrideError } = await import('./cli.js');
   try {
-    const { exportNetlist, kicadCliVersion } = await import('./cli.js');
-    const text = await exportNetlist(schPath);
+    const text = await exportNetlist(schPath, NETLIST_TIMEOUT_MS);
     return { netlist: parseNetlist(text), kicadCli: await kicadCliVersion().catch(() => null), reason: null };
   } catch (err) {
+    // set-but-missing COPPERHEAD_KICAD_CLI is a hard error, never a quiet fallback
+    if (err instanceof KicadCliBadOverrideError) throw err;
     return { netlist: null, kicadCli: null, reason: String((err as Error).message).slice(0, 300) };
   }
 }
@@ -223,9 +233,10 @@ export function buildGraph(
     const grouped = new Map<string, GraphNetNode[]>();
     for (const p of sexpPins.values()) {
       if (!p.net) continue;
-      const arr = grouped.get(p.net) ?? [];
+      const name = unescapeNetName(p.net);
+      const arr = grouped.get(name) ?? [];
       arr.push({ ref: p.ref, pin: p.pinNumber, pintype: '', pinfunction: '' });
-      grouped.set(p.net, arr);
+      grouped.set(name, arr);
     }
     for (const [name, nodes] of grouped) nets.push({ name, netclass: 'Default', nodes });
   }
@@ -245,12 +256,13 @@ export function buildGraph(
     return {
       ref,
       uuid: s?.uuid || nl?.tstamps || '',
-      value: s?.value ?? nl?.value ?? '',
+      value: nl?.value ?? s?.value ?? '',
       libId,
       footprint,
       class: cls,
       classEvidence: evidence,
-      sheet: s?.sheet ?? nl?.sheet ?? '',
+      sheet: nl?.sheet ?? s?.sheet ?? '',
+      instanceKey: `${nl?.sheet ?? s?.sheet ?? ''}:${s?.uuid || nl?.tstamps || ''}:${ref}`,
       sheetFile: nl?.sheetFile ?? '',
       dnp: s?.dnp ?? false,
       excludeFromBom: s ? !s.inBom : false,
@@ -281,7 +293,7 @@ export function buildGraph(
         s.ref,
         s,
         undefined,
-        [...sexpPins.values()].filter((p) => p.ref === s.ref).map((p) => pinOf(p.ref, p.pinNumber, p.pinName, '', p.net)),
+        [...sexpPins.values()].filter((p) => p.ref === s.ref).map((p) => pinOf(p.ref, p.pinNumber, p.pinName, '', p.net && unescapeNetName(p.net))),
       ),
     );
   }
@@ -334,13 +346,13 @@ export async function writeDesignGraph(repoRoot: string, graph: DesignGraph): Pr
 
 /** Read the graph when fresh, or null when missing, version-mismatched, or stale (any sheet file's hash or the set of sheet files moved). */
 export async function readFreshGraph(repoRoot: string, schematicRel: string): Promise<DesignGraph | null> {
-  let graph: DesignGraph;
+  let graph: DesignGraph | null;
   try {
-    graph = JSON.parse(await readFile(graphPath(repoRoot), 'utf8')) as DesignGraph;
+    graph = JSON.parse(await readFile(graphPath(repoRoot), 'utf8')) as DesignGraph | null;
   } catch {
     return null;
   }
-  if (graph.version !== DESIGN_GRAPH_VERSION) return null;
+  if (!graph || typeof graph !== 'object' || graph.version !== DESIGN_GRAPH_VERSION || !Array.isArray(graph.generated?.sources)) return null;
   try {
     const current = await hashSheets(repoRoot, schematicRel);
     const recorded = [...graph.generated.sources].sort((a, b) => a.path.localeCompare(b.path));

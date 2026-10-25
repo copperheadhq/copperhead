@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from '../kicad/sexp.js';
 import { classifyPart, isPinoutWorthy, mpnOf, extractDesignGraph, writeDesignGraph } from '../kicad/design-graph.js';
+import { bomCell } from './bom-table.js';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
 import { resolveInRepo } from '../util/paths.js';
 
@@ -33,8 +34,7 @@ async function findKicadFiles(searchRoot: string): Promise<{ sch: string | null;
   return { sch, pcb };
 }
 
-/** One-line, pipe-free table cell: a newline or `|` in a field would shift the BOM columns. */
-const cell = (v: string): string => v.replace(/\s*[\r\n]+\s*/g, ' ').replace(/\|/g, '/').trim();
+const cell = bomCell;
 
 function bomTable(symbols: SchematicSymbol[]): string {
   // DNP and BOM-excluded parts never become orderable rows (issue #248 gap 3).
@@ -44,8 +44,9 @@ function bomTable(symbols: SchematicSymbol[]): string {
   const orderable = symbols.filter((s) => !s.dnp && s.inBom);
   const rows = orderable.map((s) => {
     const mpn = cell(mpnOf(s));
-    if (mpn) return `| ${s.ref} | ${s.value} | ${s.footprint} | ${mpn} | from schematic fields by copperhead init |`;
-    return `| ${s.ref} | ${s.value} | ${s.footprint} | UNVERIFIED | extracted from schematic by copperhead init |`;
+    const [value, footprint] = [cell(s.value), cell(s.footprint)];
+    if (mpn) return `| ${s.ref} | ${value} | ${footprint} | ${mpn} | from schematic fields by copperhead init |`;
+    return `| ${s.ref} | ${value} | ${footprint} | UNVERIFIED | extracted from schematic by copperhead init |`;
   });
   return ['| Refdes | Value | Footprint | MPN | Rationale |', '|---|---|---|---|---|', ...rows].join('\n');
 }
@@ -165,8 +166,8 @@ write time. This directory is gitignored.
 
 Normalized design graph written by \`copperhead init\` and \`copperhead ingest\`: parts,
 pins and nets, taken from the \`kicad-cli\` netlist when it can be produced. A derived
-cache (gitignored): it records a hash of every schematic sheet and is ignored once any
-sheet changes. Re-run \`copperhead ingest\` to refresh it.
+cache (gitignored): it records a hash of every schematic sheet. Readers must treat it as
+stale once any sheet changes; re-run \`copperhead ingest\` to refresh it.
 `;
 }
 

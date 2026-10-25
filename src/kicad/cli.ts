@@ -209,13 +209,13 @@ function fallbackAfterMissing(): string {
   throw new KicadCliMissingError();
 }
 
-async function runKicad(args: string[], opts?: { reject?: boolean }): Promise<Awaited<ReturnType<typeof execa>>> {
+async function runKicad(args: string[], opts?: { reject?: boolean; timeout?: number }): Promise<Awaited<ReturnType<typeof execa>>> {
   let bin = resolveKicadCli();
-  let res = await execa(bin, args, { reject: false });
+  let res = await execa(bin, args, { reject: false, timeout: opts?.timeout });
   if (res.failed && isNotFoundError(res)) {
     if (bin === 'kicad-cli') {
       bin = fallbackAfterMissing();
-      res = await execa(bin, args, { reject: false });
+      res = await execa(bin, args, { reject: false, timeout: opts?.timeout });
     } else {
       throw new KicadCliMissingError();
     }
@@ -370,11 +370,11 @@ export async function unroutedCount(boardText: string): Promise<number> {
 }
 
 /** The schematic's KiCad netlist (kicadsexpr), as text. Throws kicad-cli's own error. */
-export async function exportNetlist(schPath: string): Promise<string> {
+export async function exportNetlist(schPath: string, timeout?: number): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-netlist-'));
   const out = path.join(dir, 'board.net');
   try {
-    const res = await runKicad(['sch', 'export', 'netlist', '--output', out, schPath], { reject: false });
+    const res = await runKicad(['sch', 'export', 'netlist', '--output', out, schPath], { reject: false, timeout });
     if (res.exitCode !== 0 || !existsSync(out)) {
       const detail = [res.stderr, res.stdout].filter(Boolean).join('\n').trim();
       throw new Error(`kicad-cli could not export the schematic netlist: ${detail || `exit ${res.exitCode}`}`);

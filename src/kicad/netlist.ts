@@ -71,7 +71,7 @@ export interface Netlist {
 
 const NET_ESCAPES: Record<string, string> = {
   slash: '/', dblquote: '"', quote: "'", lt: '<', gt: '>', backslash: '\\', bar: '|',
-  comma: ',', colon: ':', semicolon: ';', brace: '{', space: ' ', tab: '\t', return: '\r', newline: '\n',
+  comma: ',', colon: ':', brace: '{', space: ' ', tab: '\t', dollar: '$', return: '\n',
 };
 
 /** KiCad escapes reserved characters in exported net names as `{slash}`, `{dblquote}`, and so on. */

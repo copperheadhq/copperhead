@@ -26,6 +26,11 @@ This change is pipeline step 1 for the hybrid board review (#247) and the fix fo
 - `cli-surface`: the CLI gains the `ingest` command (new requirement).
 - `docs-memory`: `init` scaffolds BOM and PINOUT from enriched symbols (AC-1.2, AC-1.3), and drift and the draft BOM cross-check honour DNP and BOM-excluded parts.
 
+## Upgrade notes
+
+- Repos initialised before this change may hold BOM.md rows for DNP or BOM-excluded parts. `copperhead check` now reports those rows as orderable. Remove the rows, or re-run `copperhead init --force`.
+- The first `copperhead init` or `ingest` appends `.copperhead/design-graph.json` to `.gitignore`. Commit that line, or `do` refuses on the dirty tree.
+
 ## Impact
 
 - Code: `src/kicad/sexp.ts` (fields, datasheet, dnp, inBom), `src/kicad/netlist.ts` (new), `src/kicad/design-graph.ts` (new), `src/memory/scaffold.ts`, `src/memory/drift.ts`, `src/cli.ts`.

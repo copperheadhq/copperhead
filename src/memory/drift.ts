@@ -9,6 +9,7 @@ import {
   pinoutColumnReport,
   normalizeValue,
   normalizeFootprint,
+  bomCell,
 } from './bom-table.js';
 
 /**
@@ -81,14 +82,14 @@ export async function checkDrift(repoRoot: string, docsDir: string, schematic: s
       // Compare on the semantic value, not the byte-exact string: `Ihold≥3A` and
       // `Ihold>=3A` are the same value written two ways (#I11). Raw `!==` flagged
       // them as drift and whack-a-moled the agent across finish attempts.
-      if (value !== undefined && normalizeValue(value) !== normalizeValue(sym.value)) {
+      if (value !== undefined && normalizeValue(value) !== normalizeValue(bomCell(sym.value))) {
         mismatches.push({ doc: 'BOM.md', claim: `${ref} value ${value}`, actual: `${ref} value ${sym.value}` });
       }
       // Footprint compare folds encoding/spacing but keeps case (F6): a footprint
       // library id is case-sensitive, so lowercasing would hide a real mismatch.
       if (
         footprint !== undefined &&
-        normalizeFootprint(footprint) !== normalizeFootprint(sym.footprint)
+        normalizeFootprint(footprint) !== normalizeFootprint(bomCell(sym.footprint))
       ) {
         mismatches.push({
           doc: 'BOM.md',
