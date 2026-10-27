@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { listSymbols, listNets, pinNets, parseSexp } from '../src/kicad/sexp.js';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import { listSymbols, listNets, pinNets, parseSexp, listBoardFootprints } from '../src/kicad/sexp.js';
 import { FIXTURE, tempFixtureRepo } from './helpers.js';
 
 const SCH = path.join(FIXTURE, 'hardware', 'open-key.kicad_sch');
@@ -97,15 +99,12 @@ describe('sexp parser', () => {
       const { writeFile } = await import('node:fs/promises');
       await writeFile(customSch, content, 'utf8');
 
-      // 1. listSymbols: should EXCLUDE CustomPower:GND (only return R1)
       const syms = await listSymbols(customSch);
       expect(syms.map((s) => s.ref)).toEqual(['R1']);
 
-      // 2. listNets: should INCLUDE "GND"
       const nets = await listNets(customSch);
       expect(nets).toContain('GND');
 
-      // 3. pinNets: R1 pin 1 connected to GND should have net "GND"
       const pins = await pinNets(customSch);
       const r1Pins = pins.filter((p) => p.ref === 'R1');
       expect(r1Pins.find((p) => p.pinNumber === '1')?.net).toBe('GND');
@@ -160,12 +159,123 @@ describe('sexp parser', () => {
       const { writeFile } = await import('node:fs/promises');
       await writeFile(legacySch, content, 'utf8');
 
-      // power:GND must be excluded; only Device:C (C1) is a real component
       const syms = await listSymbols(legacySch);
       expect(syms.map((s) => s.ref)).toEqual(['C1']);
     } finally {
       await cleanup();
     }
+  });
+
+  it('lists board footprints accurately from a kicad_pcb structure', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'copperhead-test-'));
+    const pcbFilePath = path.join(tmpDir, 'test.kicad_pcb');
+
+    const samplePcbContent = `
+      (kicad_pcb (version 20240101) (generator "copperhead")
+        (footprint "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm" (at 120 60 90) (layer "F.Cu")
+          (property "Reference" "U1" (at 0 0 0))
+          (property "Value" "NE5532" (at 0 0 0))
+        )
+        (footprint "Resistor_SMD:R_0603_1608Metric" (at 110 50 0) (layer "F.Cu")
+          (property "Reference" "R1" (at 0 0 0))
+          (property "Value" "10k" (at 0 0 0))
+        )
+        (footprint "Legacy:C_0402" (at 100.5 50.5) (layer "B.Cu")
+          (fp_text reference "C99" (at 0 0) (layer "B.SilkS"))
+          (fp_text value "100nF" (at 0 0) (layer "B.Fab"))
+        )
+      )
+    `;
+
+    await fs.writeFile(pcbFilePath, samplePcbContent, 'utf8');
+
+    const footprints = await listBoardFootprints(pcbFilePath);
+
+    expect(footprints.length).toBe(3);
+    expect(footprints.map((f) => f.ref)).toEqual(['C99', 'R1', 'U1']);
+
+    const c99 = footprints.find((f) => f.ref === 'C99');
+    expect(c99).toBeDefined();
+    expect(c99?.value).toBe('100nF');
+    expect(c99?.layer).toBe('B.Cu');
+    expect(c99?.at).toEqual({ x: 100.5, y: 50.5, rot: 0 });
+    expect(c99?.footprintId).toBe('Legacy:C_0402');
+
+    const r1 = footprints.find((f) => f.ref === 'R1');
+    expect(r1).toBeDefined();
+    expect(r1?.value).toBe('10k');
+    expect(r1?.at).toEqual({ x: 110, y: 50, rot: 0 });
+    expect(r1?.footprintId).toBe('Resistor_SMD:R_0603_1608Metric');
+
+    const u1 = footprints.find((f) => f.ref === 'U1');
+    expect(u1).toBeDefined();
+    expect(u1?.value).toBe('NE5532');
+    expect(u1?.at).toEqual({ x: 120, y: 60, rot: 90 });
+    expect(u1?.layer).toBe('F.Cu');
+    expect(u1?.footprintId).toBe('Package_SO:SOIC-8_3.9x4.9mm_P1.27mm');
+
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('throws a descriptive error when file is not a valid kicad_pcb file', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'copperhead-test-'));
+    const invalidPcbPath = path.join(tmpDir, 'invalid.kicad_pcb');
+
+    await fs.writeFile(invalidPcbPath, '(not_a_kicad_pcb_file)', 'utf8');
+
+    await expect(listBoardFootprints(invalidPcbPath)).rejects.toThrow('not a KiCad PCB file');
+
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('handles default fallbacks for missing properties and nodes', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'copperhead-test-'));
+    const minimalPcbPath = path.join(tmpDir, 'minimal.kicad_pcb');
+
+    const minimalContent = `
+      (kicad_pcb (version 20240101)
+        (footprint)
+      )
+    `;
+
+    await fs.writeFile(minimalPcbPath, minimalContent, 'utf8');
+
+    const footprints = await listBoardFootprints(minimalPcbPath);
+    expect(footprints.length).toBe(1);
+
+    const fp = footprints[0]!;
+    expect(fp.ref).toBe('?');
+    expect(fp.value).toBe('');
+    expect(fp.footprintId).toBe('');
+    expect(fp.at).toEqual({ x: 0, y: 0, rot: 0 });
+    expect(fp.layer).toBe('F.Cu');
+
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('falls back to legacy fp_text value independently when only the modern Reference property is present', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'copperhead-test-'));
+    const mixedPcbPath = path.join(tmpDir, 'mixed.kicad_pcb');
+
+    const mixedContent = `
+      (kicad_pcb (version 20240101)
+        (footprint "Regulator:SOT-23" (at 30 40 0) (layer "F.Cu")
+          (property "Reference" "U5")
+          (fp_text value "5V_REG")
+        )
+      )
+    `;
+
+    await fs.writeFile(mixedPcbPath, mixedContent, 'utf8');
+
+    const footprints = await listBoardFootprints(mixedPcbPath);
+    expect(footprints.length).toBe(1);
+
+    const fp = footprints[0]!;
+    expect(fp.ref).toBe('U5');
+    expect(fp.value).toBe('5V_REG');
+
+    await fs.rm(tmpDir, { recursive: true, force: true });
   });
 });
 
