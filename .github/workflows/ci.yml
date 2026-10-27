@@ -45,6 +45,7 @@ jobs:
 
       - run: npm ci
       - run: npm run lint:md
+      - run: npm run lint:readme
       - run: npm run typecheck
       - run: npm run build
       - run: npm test

@@ -174,7 +174,7 @@ for (const { model, key } of providers) {
 
 async function scanTreeForSecret(dir: string, pattern: RegExp, root = dir): Promise<string[]> {
   const matches: string[] = [];
-  const skip = new Set(['.git', 'node_modules']);
+  const skip = new Set(['.git', 'node_modules', 'dist']);
   async function walk(current: string): Promise<void> {
     for (const entry of await readdir(current)) {
       if (skip.has(entry)) continue;
