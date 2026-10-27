@@ -645,8 +645,14 @@ function textItemsOf(sym: SexpNode[], symRot = 0): TextItem[] {
  * Never serializes and never mutates the file.
  */
 export async function readSheetGeometry(rootSch: string): Promise<SheetGeometry[]> {
-  const sheets = await loadSheets(rootSch);
-  const powerSyms = collectPowerSymbols(sheets);
+  const allSheets = await loadSheets(rootSch);
+  const powerSyms = collectPowerSymbols(allSheets);
+  const seenFiles = new Set<string>();
+  const sheets = allSheets.filter((s) => {
+    if (seenFiles.has(s.filePath)) return false;
+    seenFiles.add(s.filePath);
+    return true;
+  });
   return sheets.map((sheet) => {
     const paperNode = child(sheet.root, 'paper');
     const paperName = atomAt(paperNode, 1) ?? null;

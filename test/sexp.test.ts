@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { listSymbols, listNets, pinNets, parseSexp, instanceForPath } from '../src/kicad/sexp.js';
+import { listSymbols, listNets, pinNets, parseSexp, instanceForPath, readSheetGeometry } from '../src/kicad/sexp.js';
+import { checkLegibility } from '../src/kicad/legibility.js';
+import { scoreFromGeometry } from '../src/kicad/score.js';
 import { checkDrift } from '../src/memory/drift.js';
 import { FIXTURE, tempFixtureRepo } from './helpers.js';
 
@@ -467,7 +469,7 @@ describe('sexp parser', () => {
     // Matching project succeeds
     expect(instanceForPath(conflictSym as any, '/root/chan', 'projB')).toEqual({ ref: 'R101', unit: 1 });
 
-    // Non-conflicting exact paths across projects succeed
+    // Non-conflicting exact paths across projects succeed (single match and agreeing multi-match)
     const [nonConflictSym] = parseSexp(`(symbol
       (instances
         (project "projA"
@@ -479,6 +481,18 @@ describe('sexp parser', () => {
       )
     )`);
     expect(instanceForPath(nonConflictSym as any, '/root/chan', 'unrelated')).toEqual({ ref: 'R101', unit: 1 });
+
+    const [agreeingProjectsSym] = parseSexp(`(symbol
+      (instances
+        (project "projA"
+          (path "/root/chan" (reference "R101") (unit 1))
+        )
+        (project "projB"
+          (path "/root/chan" (reference "R101") (unit 1))
+        )
+      )
+    )`);
+    expect(instanceForPath(agreeingProjectsSym as any, '/root/chan', 'unrelated')).toEqual({ ref: 'R101', unit: 1 });
 
     // 2. Legacy direct instances without project block
     const [legacySym] = parseSexp(`(symbol
@@ -654,6 +668,167 @@ describe('sexp parser', () => {
       expect(pins).toEqual([
         { ref: 'U1', pinNumber: '1', pinName: 'OUTA', net: null },
         { ref: 'U1', pinNumber: '7', pinName: 'OUTB', net: null },
+      ]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('deduplicates reused sheet files in readSheetGeometry so wire metrics are not double-counted (#394)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const { writeFile } = await import('node:fs/promises');
+      const singleRoot = path.join(repo, 'single.kicad_sch');
+      const reusedRoot = path.join(repo, 'reused.kicad_sch');
+      const chanSch = path.join(repo, 'chan.kicad_sch');
+
+      const singleContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-000000000001")
+        (paper "A4")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000a1")
+          (property "Sheetname" "ChanA" (at 20 19 0))
+          (property "Sheetfile" "chan.kicad_sch" (at 20 41 0))
+        )
+      )`;
+
+      const reusedContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-000000000001")
+        (paper "A4")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000a1")
+          (property "Sheetname" "ChanA" (at 20 19 0))
+          (property "Sheetfile" "chan.kicad_sch" (at 20 41 0))
+        )
+        (sheet
+          (at 60 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000b1")
+          (property "Sheetname" "ChanB" (at 60 19 0))
+          (property "Sheetfile" "chan.kicad_sch" (at 60 41 0))
+        )
+      )`;
+
+      const chanContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000c1")
+        (paper "A4")
+        (lib_symbols)
+        (wire (pts (xy 50 50) (xy 70 50)))
+        (wire (pts (xy 70 50) (xy 70 60)))
+        (wire (pts (xy 60 40) (xy 60 60)))
+      )`;
+
+      await writeFile(singleRoot, singleContent, 'utf8');
+      await writeFile(reusedRoot, reusedContent, 'utf8');
+      await writeFile(chanSch, chanContent, 'utf8');
+
+      const singleGeom = await readSheetGeometry(singleRoot);
+      const reusedGeom = await readSheetGeometry(reusedRoot);
+      expect(reusedGeom.filter((g) => g.filePath === path.resolve(chanSch))).toHaveLength(1);
+
+      const singleScore = scoreFromGeometry(singleGeom, await checkLegibility(singleRoot));
+      const reusedScore = scoreFromGeometry(reusedGeom, await checkLegibility(reusedRoot));
+      const metricRaw = (rep: typeof singleScore, name: string): number =>
+        rep.metrics.find((m) => m.name === name)!.raw;
+
+      expect(metricRaw(reusedScore, 'wire-length')).toBe(metricRaw(singleScore, 'wire-length'));
+      expect(metricRaw(reusedScore, 'wire-crossings')).toBe(metricRaw(singleScore, 'wire-crossings'));
+      expect(metricRaw(reusedScore, 'wire-bends')).toBe(metricRaw(singleScore, 'wire-bends'));
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('formats nested non-reused sheet names with full hierarchy chain and handles missing uuids or sheetfiles (#394)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const { writeFile } = await import('node:fs/promises');
+      const rootSch = path.join(repo, 'no_uuid_root.kicad_sch');
+      const mcuSch = path.join(repo, 'mcu.kicad_sch');
+      const powerSch = path.join(repo, 'power.kicad_sch');
+
+      // Root has no (uuid), one sheet block missing Sheetfile, one missing (uuid), and duplicate placement uuids
+      const rootContent = `(kicad_sch
+        (version 20231120)
+        (lib_symbols)
+        (sheet
+          (at 10 10) (size 10 10)
+          (property "Sheetname" "MissingFile" (at 10 9 0))
+        )
+        (sheet
+          (at 20 20) (size 20 20)
+          (property "Sheetname" "MCU" (at 20 19 0))
+          (property "Sheetfile" "mcu.kicad_sch" (at 20 41 0))
+        )
+        (sheet
+          (at 60 20) (size 20 20)
+          (uuid "dup-placement-uuid")
+          (property "Sheetname" "Dup1" (at 60 19 0))
+          (property "Sheetfile" "power.kicad_sch" (at 60 41 0))
+        )
+        (sheet
+          (at 90 20) (size 20 20)
+          (uuid "dup-placement-uuid")
+          (property "Sheetname" "Dup2" (at 90 19 0))
+          (property "Sheetfile" "power.kicad_sch" (at 90 41 0))
+        )
+      )`;
+
+      const mcuContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000m1")
+        (lib_symbols)
+        (sheet
+          (at 20 20) (size 20 20)
+          (uuid "00000000-0000-4000-8000-0000000000p1")
+          (property "Sheetname" "Power" (at 20 19 0))
+          (property "Sheetfile" "power.kicad_sch" (at 20 41 0))
+        )
+      )`;
+
+      const powerContent = `(kicad_sch
+        (version 20231120)
+        (uuid "00000000-0000-4000-8000-0000000000p2")
+        (lib_symbols
+          (symbol "Device:C"
+            (property "Reference" "C" (at 0 0 0))
+            (property "Value" "C" (at 0 0 0))
+          )
+        )
+        (symbol
+          (lib_id "Device:C")
+          (at 10 10 0)
+          (property "Reference" "C1" (at 10 10 0))
+          (property "Value" "100n" (at 10 10 0))
+          (instances
+            (project "no_uuid_root"
+              (path "/MCU#1/00000000-0000-4000-8000-0000000000p1"
+                (reference "C10")
+                (unit 1)
+              )
+              (path "/dup-placement-uuid"
+                (reference "C20")
+                (unit 1)
+              )
+            )
+          )
+        )
+      )`;
+
+      await writeFile(rootSch, rootContent, 'utf8');
+      await writeFile(mcuSch, mcuContent, 'utf8');
+      await writeFile(powerSch, powerContent, 'utf8');
+
+      const syms = await listSymbols(rootSch);
+      expect(syms.map((s) => ({ ref: s.ref, sheet: s.sheet }))).toEqual([
+        { ref: 'C10', sheet: 'MCU/Power' },
+        { ref: 'C20', sheet: 'Dup1' },
       ]);
     } finally {
       await cleanup();
