@@ -19,7 +19,8 @@ import {
   extractDesignGraph,
   DESIGN_GRAPH_VERSION,
 } from '../src/kicad/design-graph.js';
-import { resetKicadCliCache } from '../src/kicad/cli.js';
+import { resetKicadCliCache, exportNetlist } from '../src/kicad/cli.js';
+import { chmod } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { checkDrift } from '../src/memory/drift.js';
 import { FIXTURE, tempFixtureRepo } from './helpers.js';
@@ -232,6 +233,10 @@ describe('classification (table-driven)', () => {
     ['FID1', 'Other:Thing', 1, 'mechanical'],
     ['LOGO1', 'Other:Thing', 1, 'mechanical'],
     ['X9', 'Connector_Generic:Conn_01x04', 4, 'connector'],
+    ['U1', 'Device:Opamp_Quad', 14, 'ic'],
+    ['U2', 'Device:Opamp_Dual', 8, 'ic'],
+    ['X1', 'Project:USB_C', 16, 'connector', 'Connector_USB:USB_C_Receptacle_GCT_USB4085'],
+    ['X3', 'Device:Crystal', 2, 'discrete', 'Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm'],
     ['H2', 'MountingHole:MountingHole_3.2mm', 1, 'mechanical'],
   ] as [string, string, number, string, string?][])('%s %s (%i pins) is %s', (ref, lib, pins, cls, fp) => {
     expect(classifyPart(sym(ref, lib, fp), pins).class).toBe(cls);
@@ -623,6 +628,82 @@ describe.skipIf(!hasKicad)('real kicad-cli netlist (finding 12)', () => {
       expect(graph.generated.partial).toBe(false);
       const names = new Set(graph.nets.map((n) => n.name));
       for (const part of graph.parts) for (const pin of part.pins) expect(names.has(pin.net!), `${part.ref}:${pin.num}`).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+});
+
+describe.skipIf(process.platform === 'win32')('netlist export timeout (findings 4 and 5)', () => {
+  async function withSleepingKicad<T>(fn: (repo: string) => Promise<T>): Promise<T> {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const prev = process.env.COPPERHEAD_KICAD_CLI;
+    try {
+      const fake = path.join(repo, 'fake-kicad-cli');
+      await writeFile(fake, '#!/bin/sh\nexec sleep 30\n', 'utf8');
+      await chmod(fake, 0o755);
+      process.env.COPPERHEAD_KICAD_CLI = fake;
+      resetKicadCliCache();
+      return await fn(repo);
+    } finally {
+      if (prev === undefined) delete process.env.COPPERHEAD_KICAD_CLI;
+      else process.env.COPPERHEAD_KICAD_CLI = prev;
+      resetKicadCliCache();
+      await cleanup();
+    }
+  }
+
+  it('names a timeout instead of "exit undefined"', async () => {
+    await withSleepingKicad(async (repo) => {
+      await expect(exportNetlist(path.join(repo, 'hardware', 'open-key.kicad_sch'), 300)).rejects.toThrow(
+        /timed out after 300 ms/,
+      );
+    });
+  }, 30_000);
+
+  it('falls back to the partial graph with the timeout as the reason', async () => {
+    await withSleepingKicad(async (repo) => {
+      const graph = await extractDesignGraph(repo, 'hardware/open-key.kicad_sch', { netlistTimeoutMs: 300 });
+      expect(graph.generated.partial).toBe(true);
+      expect(graph.generated.partialReason).toMatch(/timed out after 300 ms/);
+    });
+  }, 30_000);
+});
+
+describe('review follow-ups (finding 5)', () => {
+  it('refuses a redraft naming two flagged parts, DNP and in_bom no', async () => {
+    const { draftSchematicToText } = await import('../src/kicad/draft/draft.js');
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const sch = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      let text = await readFile(sch, 'utf8');
+      text = text
+        .replace(/\(dnp no\)(\s+\(fields_autoplaced yes\)\s+\(uuid "0d0d0d0d-0000-4000-8000-000000000001"\))/, '(dnp yes)$1')
+        .replace(/\(in_bom yes\)(\s+\(on_board yes\)\s+\(dnp no\)\s+\(fields_autoplaced yes\)\s+\(uuid "0d0d0d0d-0000-4000-8000-000000000002"\))/, '(in_bom no)$1');
+      await writeFile(sch, text, 'utf8');
+      await writeFile(
+        path.join(repo, 'hardware', 'open-key.intent.json'),
+        JSON.stringify({ version: 1, parts: [{ ref: 'R1', libId: 'Device:R', value: '10k' }, { ref: 'R2', libId: 'Device:R', value: '1k' }], nets: [] }),
+        'utf8',
+      );
+      const res = await draftSchematicToText({
+        repoRoot: repo,
+        schematic: 'hardware/open-key.kicad_sch',
+        intentPath: 'hardware/open-key.intent.json',
+      });
+      expect(res.ok).toBe(false);
+      expect(res.message).toMatch(/R1, R2 are marked DNP/);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+
+  it('readFreshGraph returns null for a file holding a scalar', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await writeDesignGraph(repo, await extractDesignGraph(repo, 'hardware/open-key.kicad_sch'));
+      await writeFile(graphPath(repo), '5', 'utf8');
+      expect(await readFreshGraph(repo, 'hardware/open-key.kicad_sch')).toBeNull();
     } finally {
       await cleanup();
     }

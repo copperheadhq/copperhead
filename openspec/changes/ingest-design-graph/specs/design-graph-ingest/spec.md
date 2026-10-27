@@ -14,11 +14,15 @@ When the `kicad-cli` netlist export can be produced, the design graph SHALL hold
 - **THEN** the graph holds one part for it
 
 ### Requirement: Offline fallback is marked partial
-When the netlist cannot be produced, the graph SHALL be built from the schematic parse with one part per refdes, SHALL set `generated.partial` to true, and SHALL record the reason.
+When the netlist cannot be produced (kicad-cli missing, failing or timing out after 60 s), the graph SHALL be built from the schematic parse with one part per refdes, SHALL set `generated.partial` to true, and SHALL record the reason.
 
 #### Scenario: kicad-cli unavailable
 - **WHEN** the netlist export fails
 - **THEN** the graph is written with `partial: true` and a non-empty `partialReason`
+
+#### Scenario: Bad override is a hard error
+- **WHEN** `COPPERHEAD_KICAD_CLI` is set to a path that does not exist and `ingest` runs
+- **THEN** it exits 1 naming the path and writes no graph, instead of falling back
 
 ### Requirement: Derived classification
 Each part SHALL be classed `ic`, `passive`, `discrete`, `connector`, `power` or `mechanical` from its library, footprint, reference prefix and pin count, and the evidence SHALL be kept. Only an exact `Power` library nickname SHALL class a part as `power`.

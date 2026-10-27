@@ -278,7 +278,9 @@ copperhead ingest [--json]
     .copperhead/design-graph.json. Deterministic, LLM-free,
     network-free. Prefers the kicad-cli netlist export for
     connectivity and part identity; falls back to the s-expression
-    parse when the export cannot be produced.
+    parse when the export cannot be produced (a missing or failing
+    kicad-cli, or a timeout), except that a COPPERHEAD_KICAD_CLI set to
+    a path that does not exist is a hard error.
 
 copperhead draft schematic [--json]
     Deterministically draft the schematic from its declared intent

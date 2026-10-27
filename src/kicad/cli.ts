@@ -375,6 +375,7 @@ export async function exportNetlist(schPath: string, timeout?: number): Promise<
   const out = path.join(dir, 'board.net');
   try {
     const res = await runKicad(['sch', 'export', 'netlist', '--output', out, schPath], { reject: false, timeout });
+    if (res.timedOut) throw new Error(`kicad-cli timed out after ${timeout} ms exporting the netlist`);
     if (res.exitCode !== 0 || !existsSync(out)) {
       const detail = [res.stderr, res.stdout].filter(Boolean).join('\n').trim();
       throw new Error(`kicad-cli could not export the schematic netlist: ${detail || `exit ${res.exitCode}`}`);

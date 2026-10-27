@@ -142,6 +142,13 @@ export function classifyPart(sym: Pick<SchematicSymbol, 'ref' | 'libId' | 'footp
     return { class: 'connector', evidence: `ref:${sym.ref},lib:${lib}` };
   }
   if (/^(MH|MOUNT|FID|LOGO)$/i.test(refPrefix)) return { class: 'mechanical', evidence: `ref:${sym.ref}` };
+  // Chips and stock-Connector-footprint parts are decided before the discrete rule: U-prefixed
+  // Device symbols (Opamp_Dual, Opamp_Quad) are ICs, and an X-prefixed part on a Connector_*
+  // footprint is a connector, whatever the library category says.
+  if (/^(U|IC)$/i.test(refPrefix)) return { class: 'ic', evidence: `lib:${lib},ref:${sym.ref},pins:${pinCount}` };
+  if (/^Connector/i.test(sym.footprint.slice(0, Math.max(sym.footprint.indexOf(':'), 0)))) {
+    return { class: 'connector', evidence: `footprint:${sym.footprint}` };
+  }
   // Small discretes (diodes, LEDs, transistors, crystals, fuses, switches, ...) are not chips:
   // their pins do not belong in the pinout. Decided from the ref prefix or library category with no
   // pin bound, so 4-pin crystals, RGB LEDs, dual switches and bridge rectifiers stay out too.
@@ -165,10 +172,10 @@ export interface GraphSources {
 /** A hung kicad-cli must not block init or ingest: past this the graph falls back to the partial build. */
 const NETLIST_TIMEOUT_MS = 60_000;
 
-async function tryNetlist(schPath: string): Promise<{ netlist: Netlist | null; kicadCli: string | null; reason: string | null }> {
+async function tryNetlist(schPath: string, timeoutMs: number): Promise<{ netlist: Netlist | null; kicadCli: string | null; reason: string | null }> {
   const { exportNetlist, kicadCliVersion, KicadCliBadOverrideError } = await import('./cli.js');
   try {
-    const text = await exportNetlist(schPath, NETLIST_TIMEOUT_MS);
+    const text = await exportNetlist(schPath, timeoutMs);
     return { netlist: parseNetlist(text), kicadCli: await kicadCliVersion().catch(() => null), reason: null };
   } catch (err) {
     // set-but-missing COPPERHEAD_KICAD_CLI is a hard error, never a quiet fallback
@@ -320,13 +327,17 @@ async function hashSheets(repoRoot: string, schematicRel: string): Promise<{ pat
 }
 
 /** Extract the graph for a schematic file, preferring the `kicad-cli` netlist and falling back to the s-expression parse. */
-export async function extractDesignGraph(repoRoot: string, schematicRel: string): Promise<DesignGraph> {
+export async function extractDesignGraph(
+  repoRoot: string,
+  schematicRel: string,
+  opts: { netlistTimeoutMs?: number } = {},
+): Promise<DesignGraph> {
   const schPath = path.join(repoRoot, schematicRel);
   const [sources, symbols, pins, nl] = await Promise.all([
     hashSheets(repoRoot, schematicRel),
     listSymbols(schPath),
     pinNets(schPath),
-    tryNetlist(schPath),
+    tryNetlist(schPath, opts.netlistTimeoutMs ?? NETLIST_TIMEOUT_MS),
   ]);
   return buildGraph(symbols, pins, nl.netlist, sources, nl.kicadCli, nl.reason);
 }
