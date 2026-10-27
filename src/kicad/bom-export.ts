@@ -164,9 +164,17 @@ function naturalCompare(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
-/** RFC-4180 field quoting: quote when the field holds a comma, quote, or newline. */
+/**
+ * RFC-4180 field quoting: quote when the field holds a comma, quote, or newline.
+ *
+ * Fields opening with `=`, `+`, `-`, or `@` are also prefixed with an
+ * apostrophe: BOM.md cells are agent-written, and a spreadsheet opened on the
+ * export before upload would evaluate such a cell as a formula. No real MPN,
+ * manufacturer, or designator starts with one, so nothing orderable is altered.
+ */
 function csvField(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  const v = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
 const csvRow = (fields: string[]): string => fields.map(csvField).join(',');
