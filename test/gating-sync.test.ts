@@ -542,6 +542,55 @@ describe('copperhead sync verify phase (AC-7)', () => {
     expect(multiFnViolations).toHaveLength(1);
     expect(multiFnViolations[0]!.description).toContain('U1 pin IO0/BOOT (GPIO0) is connected to net BOOT');
 
+    // 10. affects entry containing artifact keywords after refdes (e.g. "U1 strapping pins") still scopes to U1
+    const affectsPhraseReg = {
+      'pins.strapping_phrase': {
+        forbidden: ['GPIO0'],
+        source: 'datasheet',
+        affects: ['U1 strapping pins'],
+      },
+    };
+    const phrasePins: PinNetEntry[] = [
+      { ref: 'U1', pinName: 'IO0', net: 'BOOT' },
+      { ref: 'U5', pinName: 'GPIO0', net: 'OTHER_NET' },
+    ];
+    const phraseViolations = checkForbiddenPins(affectsPhraseReg, phrasePins);
+    expect(phraseViolations).toHaveLength(1);
+    expect(phraseViolations[0]!.description).toContain('U1 pin IO0 (GPIO0) is connected to net BOOT');
+
+    // 11. Multi-unit refdes with unit suffix (e.g. U2A:1, refs: ["U2B"], affects: ["U2A"]) normalizes to base ref U2
+    const multiUnitPins: PinNetEntry[] = [{ ref: 'U2', pinName: 'OUTA', pinNumber: '1', net: 'AMP_OUT' }];
+    expect(
+      checkForbiddenPins(
+        { 'pins.unit_prefix': { forbidden: ['U2A:1'], source: 'datasheet', affects: [] } },
+        multiUnitPins,
+      ),
+    ).toHaveLength(1);
+    expect(
+      checkForbiddenPins(
+        { 'pins.unit_refs': { forbidden: ['1'], refs: ['U2B'], source: 'datasheet', affects: [] } },
+        multiUnitPins,
+      ),
+    ).toHaveLength(1);
+    expect(
+      checkForbiddenPins(
+        { 'pins.unit_affects': { forbidden: ['OUTA'], source: 'datasheet', affects: ['U2A'] } },
+        multiUnitPins,
+      ),
+    ).toHaveLength(1);
+
+    // 12. Pin-name match takes precedence over pin-number match on the same part (e.g. U1:A1 matches pinName A1, not pinNumber A1)
+    const nameVsNumberPins: PinNetEntry[] = [
+      { ref: 'U1', pinName: 'A1', pinNumber: 'B4', net: 'SENSE' },
+      { ref: 'U1', pinName: 'VDD', pinNumber: 'A1', net: 'VDD' },
+    ];
+    const namePrecViolations = checkForbiddenPins(
+      { 'pins.a1': { forbidden: ['U1:A1'], source: 'datasheet', affects: [] } },
+      nameVsNumberPins,
+    );
+    expect(namePrecViolations).toHaveLength(1);
+    expect(namePrecViolations[0]!.description).toBe('U1 pin A1 is connected to net SENSE but is forbidden by pins.a1');
+
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });

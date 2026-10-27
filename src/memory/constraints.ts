@@ -141,20 +141,26 @@ export type PinNetEntry = Omit<PinNet, 'pinNumber'> & { pinNumber?: string };
 const REFDES_TOKEN_RE =
   /^(?:U|IC|MCU|R|C|L|D|Q|J|P|SW|S|K|Y|X|F|FB|TP|BT|LED|RN|RV|T|BZ|LS|MK|VR|Z|FL|A|H|M|TH|W)\d+[A-Za-z]*$/;
 
+function normalizeRef(ref: string, knownRefs: ReadonlySet<string>): string {
+  if (knownRefs.has(ref)) return ref;
+  const m = /^([A-Za-z]+\d+)[A-Za-z]+$/.exec(ref);
+  if (m && knownRefs.has(m[1]!)) return m[1]!;
+  return ref;
+}
+
 function extractScopedRefs(
   c: Constraint,
   knownRefs: ReadonlySet<string>,
 ): { refs: Set<string> | null; explicit: boolean } {
   if (c.refs?.length) {
-    const explicit = new Set(c.refs.map((r) => r.trim()).filter(Boolean));
+    const explicit = new Set(c.refs.map((r) => normalizeRef(r.trim(), knownRefs)).filter(Boolean));
     if (explicit.size > 0) return { refs: explicit, explicit: true };
   }
   const fromAffects = new Set<string>();
   for (const raw of c.affects ?? []) {
-    if (classifyAffectsTarget(raw) !== null) continue;
     const trimmed = raw.trim();
     if (!trimmed || trimmed.includes(':')) continue;
-    const head = trimmed.split(/\s+/)[0] ?? '';
+    const head = normalizeRef(trimmed.split(/\s+/)[0] ?? '', knownRefs);
     if (REFDES_TOKEN_RE.test(head) || (knownRefs.has(head) && !/^(?:GPIO|IO)\d+/i.test(head))) {
       fromAffects.add(head);
     }
@@ -162,14 +168,25 @@ function extractScopedRefs(
   return { refs: fromAffects.size > 0 ? fromAffects : null, explicit: false };
 }
 
+interface ParsedForbiddenSpec {
+  refs: Set<string> | null;
+  pinSpec: string;
+  isRefScoped: boolean;
+}
+
 function parseForbiddenSpec(
   raw: string,
   defaultScope: { refs: Set<string> | null; explicit: boolean },
-): { refs: Set<string> | null; pinSpec: string; isRefScoped: boolean } {
+  knownRefs: ReadonlySet<string>,
+): ParsedForbiddenSpec {
   const trimmed = raw.trim();
   const prefixed = /^([A-Za-z]+\d+[A-Za-z]*)\s*:\s*(.+)$/.exec(trimmed);
   if (prefixed) {
-    return { refs: new Set([prefixed[1]!]), pinSpec: prefixed[2]!.trim(), isRefScoped: true };
+    return {
+      refs: new Set([normalizeRef(prefixed[1]!, knownRefs)]),
+      pinSpec: prefixed[2]!.trim(),
+      isRefScoped: true,
+    };
   }
   return { refs: defaultScope.refs, pinSpec: trimmed, isRefScoped: defaultScope.explicit };
 }
@@ -178,11 +195,8 @@ function canonicalIoName(name: string): string {
   return name.trim().replace(/^GPIO(?=\d)/i, 'IO').toUpperCase();
 }
 
-function matchesPin(pn: PinNetEntry, pinSpec: string, isRefScoped: boolean): boolean {
+function matchesPinName(pn: PinNetEntry, pinSpec: string): boolean {
   if (!pinSpec) return false;
-  if (isRefScoped && pn.pinNumber !== undefined && pn.pinNumber !== '' && pn.pinNumber === pinSpec) {
-    return true;
-  }
   if (pn.pinName === pinSpec) return true;
   const targetCanon = canonicalIoName(pinSpec);
   if (canonicalIoName(pn.pinName) === targetCanon) return true;
@@ -193,6 +207,30 @@ function matchesPin(pn: PinNetEntry, pinSpec: string, isRefScoped: boolean): boo
     }
   }
   return false;
+}
+
+function matchesPinNumber(pn: PinNetEntry, pinSpec: string, isRefScoped: boolean): boolean {
+  return (
+    Boolean(pinSpec) &&
+    isRefScoped &&
+    pn.pinNumber !== undefined &&
+    pn.pinNumber !== '' &&
+    pn.pinNumber === pinSpec
+  );
+}
+
+function matchesSpec(
+  pn: PinNetEntry,
+  spec: ParsedForbiddenSpec,
+  allPins: readonly PinNetEntry[],
+): boolean {
+  if (spec.refs && !spec.refs.has(pn.ref)) return false;
+  if (matchesPinName(pn, spec.pinSpec)) return true;
+  if (!matchesPinNumber(pn, spec.pinSpec, spec.isRefScoped)) return false;
+  const partHasNameMatch = allPins.some(
+    (other) => other.ref === pn.ref && matchesPinName(other, spec.pinSpec),
+  );
+  return !partHasNameMatch;
 }
 
 /**
@@ -209,13 +247,10 @@ export function checkForbiddenPins(
   for (const [key, c] of Object.entries(registry)) {
     if (!c.forbidden?.length) continue;
     const defaultScope = extractScopedRefs(c, knownRefs);
-    const specs = c.forbidden.map((entry) => parseForbiddenSpec(entry, defaultScope));
+    const specs = c.forbidden.map((entry) => parseForbiddenSpec(entry, defaultScope, knownRefs));
     for (const pn of pinNets) {
       if (!pn.net) continue;
-      const matchedSpec = specs.find(
-        ({ refs, pinSpec, isRefScoped }) =>
-          (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, isRefScoped),
-      );
+      const matchedSpec = specs.find((spec) => matchesSpec(pn, spec, pinNets));
       if (matchedSpec) {
         const pinLabel =
           pn.pinName === matchedSpec.pinSpec ? pn.pinName : `${pn.pinName} (${matchedSpec.pinSpec})`;
@@ -247,8 +282,8 @@ export function uncheckedForbiddenConstraints(
     const defaultScope = extractScopedRefs(c, knownRefs);
     let anyUnmatched = false;
     for (const raw of c.forbidden) {
-      const { refs, pinSpec, isRefScoped } = parseForbiddenSpec(raw, defaultScope);
-      const matched = pinNets.some((pn) => (!refs || refs.has(pn.ref)) && matchesPin(pn, pinSpec, isRefScoped));
+      const spec = parseForbiddenSpec(raw, defaultScope, knownRefs);
+      const matched = pinNets.some((pn) => matchesSpec(pn, spec, pinNets));
       if (!matched) {
         anyUnmatched = true;
         break;
