@@ -32,6 +32,7 @@ const TEXT_PROTOCOL_VERSION = 2;
 export class CachingProvider implements Provider {
   readonly name: string;
   private hits = 0;
+  private readonly cacheOnly = process.env.COPPERHEAD_CACHE_ONLY === '1';
 
   /** Turns served from the on-disk cache so far (5.2: per-stage cache-hit%). */
   get cacheHits(): number {
@@ -85,6 +86,11 @@ export class CachingProvider implements Provider {
       } catch {
         // corrupt/partial cache file — fall through and regenerate
       }
+    }
+    if (this.cacheOnly) {
+      throw new Error(
+        `LLM cache miss in COPPERHEAD_CACHE_ONLY mode: ${path.basename(file, '.json')}`,
+      );
     }
     const turn = await this.inner.chat(messages, tools, opts);
     try {
