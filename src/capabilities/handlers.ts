@@ -197,6 +197,9 @@ export const HANDLERS: HandlerDef[] = [
     handler: async (ctx, args) => {
       const id = str(args, 'id');
       const dir = resolveInRepo(ctx.repoRoot, path.join('openspec', 'changes', id));
+      // Approval belongs to the previous proposal, not its replacement (even at the same id).
+      ctx.editsUnlocked = false;
+      ctx.proposalValidated = false;
       await mkdir(dir, { recursive: true });
       const auto = ctx.interactive ? '' : '\n> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)\n';
       await writeFile(
@@ -217,6 +220,9 @@ export const HANDLERS: HandlerDef[] = [
     },
     requiresUnlock: false,
     handler: async (ctx) => {
+      // A failed or declined revalidation must not leave an earlier approval active.
+      ctx.editsUnlocked = false;
+      ctx.proposalValidated = false;
       if (!ctx.changeId) return 'no proposal yet: call propose_change first';
       let ok: boolean;
       let detail: string;
