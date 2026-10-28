@@ -25,6 +25,8 @@ export interface ProgressRenderer {
    * the operator the turn is alive).
    */
   heartbeat(info: { elapsedMs: number; streamedChars: number }): void;
+  /** Release terminal ownership for a question; the returned function resumes progress. */
+  pauseForInput?(): () => void;
   /** Final outcome line; replaces the status line in interactive mode. */
   finish(line: string): void;
 }
@@ -197,6 +199,19 @@ export class InteractiveRenderer implements ProgressRenderer {
     if (this.statusShown) this.out.write(CLEAR_LINE);
     this.out.write(styleOutcome(line) + '\n');
     this.suspend();
+  }
+
+  pauseForInput(): () => void {
+    const wasIdle = this.idle;
+    const busy = this.busy;
+    this.suspend();
+    return () => {
+      if (wasIdle) return;
+      this.idle = false;
+      this.busy = busy;
+      this.ensureTimer();
+      this.redraw();
+    };
   }
 
   /** Release the status line (stop the spinner, restore the cursor) but stay usable. */
