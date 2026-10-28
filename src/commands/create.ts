@@ -2,7 +2,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { loadConfig, resolveCompatSettings } from '../config.js';
+import { loadConfig, resolveCompatSettings, resolveStageMaxTurns } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
 import { exportNetlist, exportSvg, runDrc, runErc } from '../kicad/cli.js';
 import { FootprintResolver, formatMissingFootprints, missingFootprints } from '../kicad/footprints.js';
@@ -15,7 +15,7 @@ import {
   populateBoard,
 } from '../kicad/populate.js';
 import { formatViolations } from '../kicad/report.js';
-import { bomFootprintRows } from '../memory/bom-table.js';
+import { bomFootprintRows, parseBomTable } from '../memory/bom-table.js';
 import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
@@ -1113,7 +1113,11 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // guidance prepended); on "abort", or once the retry budget is spent, it
     // stops and reports for a human — the loop keeps going by itself for the
     // recoverable cases without silently spinning on the dead-end ones.
-    const stageTurns = config.stageMaxTurns?.[stage.name];
+    const bomRowCount =
+      stage.name === 'part-selection' && existsSync(path.join(opts.repoRoot, config.docs, 'BOM.md'))
+        ? parseBomTable(await readFile(path.join(opts.repoRoot, config.docs, 'BOM.md'), 'utf8')).length
+        : 0;
+    const stageTurns = resolveStageMaxTurns(stage.name, config, bomRowCount);
     const basePrompt = stage.prompt(brief, config.docs);
     let guidance = '';
     let stageDone = false;

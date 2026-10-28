@@ -84,6 +84,27 @@ export interface CopperheadConfig {
 
 export const CONFIG_DIR = '.copperhead';
 
+/**
+ * Default stage budget for part selection. Large BOMs need more turns, while
+ * small BOMs retain the existing 40-turn default.
+ */
+export function computePartSelectionMaxTurns(bomRowCount: number): number {
+  const rows = Number.isFinite(bomRowCount) ? Math.max(0, Math.floor(bomRowCount)) : 0;
+  return Math.max(40, Math.ceil(rows * 0.4) + 10);
+}
+
+/** Resolve a stage budget, honoring a valid explicit user override first. */
+export function resolveStageMaxTurns(
+  stageName: string,
+  config: Pick<CopperheadConfig, 'stageMaxTurns'>,
+  bomRowCount: number,
+): number | undefined {
+  const override = config.stageMaxTurns?.[stageName];
+  if (Number.isInteger(override) && override! > 0) return override;
+  if (stageName === 'part-selection') return computePartSelectionMaxTurns(bomRowCount);
+  return undefined;
+}
+
 export const DEFAULTS: Omit<CopperheadConfig, 'schematic' | 'board'> = {
   docs: 'docs/',
   model: null,
