@@ -246,6 +246,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       // schematic configured but absent (pre-scaffold): keep the gate
     }
   }
+  const confirm = opts.confirm ?? (async () => true);
   const ctx: RunContext = {
     repoRoot,
     config,
@@ -253,7 +254,14 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     ledger: new ObligationsLedger(gateLegibility),
     runId: path.basename(transcript.dir),
     interactive: opts.interactive ?? false,
-    confirm: opts.confirm ?? (async () => true),
+    confirm: async (question) => {
+      const resume = r.pauseForInput?.();
+      try {
+        return await confirm(question);
+      } finally {
+        resume?.();
+      }
+    },
     editsUnlocked: false,
     changeId: null,
     proposalValidated: false,
