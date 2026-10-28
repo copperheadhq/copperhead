@@ -63,6 +63,8 @@ export interface RunOptions {
   stagePrompt?: string;
   /** Test seam: bypass makeProvider. */
   provider?: Provider;
+  /** Called after each dispatched tool, allowing a stage to persist verified results. */
+  onToolResult?: (toolName: string, args: Record<string, unknown>, result: string, ok: boolean) => Promise<void> | void;
   log?: (line: string) => void;
   /** Progress renderer; defaults to a plain line renderer over `log`. */
   renderer?: ProgressRenderer;
@@ -700,6 +702,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       }
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
+      await opts.onToolResult?.(call.name, call.args, result, envelope.ok);
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
       r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
