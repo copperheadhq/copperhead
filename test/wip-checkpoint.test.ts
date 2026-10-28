@@ -140,6 +140,15 @@ describe('WIP checkpoints (issue #208)', () => {
 
       const { stdout: layoutRef } = await git(repo, ['rev-parse', wipRef('layout-draft')]);
       expect(layoutRef.trim(), 'each stage keeps its own ref').toBe(other);
+
+      // #208: overwriting the ref with no reflog made the earlier, possibly
+      // better, attempt unreachable once git gc ran. --create-reflog keeps
+      // every attempt listed here even though the ref itself only points at
+      // the latest one.
+      const { stdout: schematicLog } = await git(repo, ['reflog', 'show', wipRef('schematic')]);
+      expect(schematicLog).toContain(first.slice(0, 7));
+      expect(schematicLog).toContain(second.slice(0, 7));
+      expect(schematicLog.trim().split('\n')).toHaveLength(2);
     } finally {
       await cleanup();
     }

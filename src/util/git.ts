@@ -402,9 +402,23 @@ export async function checkpointTree(repo: string, message: string): Promise<str
   }
 }
 
-/** Point a stage's WIP ref at an already-captured checkpoint commit (see checkpointTree()). */
-export async function recordWipRef(repo: string, stage: string, commit: string): Promise<void> {
-  await git(repo, ['update-ref', wipRef(stage), commit]);
+/**
+ * Point a stage's WIP ref at an already-captured checkpoint commit (see
+ * checkpointTree()).
+ *
+ * #208 follow-up: a retried stage overwrites the previous attempt's ref with
+ * no reflog, so once git gc runs the earlier attempt is unreachable and gone
+ * for good — exactly the data loss the WIP ref exists to prevent.
+ * --create-reflog keeps every attempt for a stage listed in `git reflog show
+ * <ref>` even though the ref itself still only points at the latest one.
+ */
+export async function recordWipRef(
+  repo: string,
+  stage: string,
+  commit: string,
+  message = `${stage} checkpoint`,
+): Promise<void> {
+  await git(repo, ['update-ref', '--create-reflog', '-m', message, wipRef(stage), commit]);
 }
 
 /**
@@ -420,7 +434,7 @@ export async function recordWipRef(repo: string, stage: string, commit: string):
  */
 export async function checkpoint(repo: string, stage: string, message: string): Promise<string | null> {
   const commit = await checkpointTree(repo, message);
-  if (commit) await recordWipRef(repo, stage, commit);
+  if (commit) await recordWipRef(repo, stage, commit, message);
   return commit;
 }
 

@@ -1279,13 +1279,23 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         // land on it.
         const wip = res.failedAttemptCommit;
         if (wip) {
-          await recordWipRef(opts.repoRoot, stage.name, wip);
-          opts.log(
-            stageLine(
-              stage.name,
-              `attempt ${attempt} work checkpointed at ${wipRef(stage.name)} (${wip.slice(0, 10)}); inspect with \`git show ${wip.slice(0, 10)}\``,
-            ),
-          );
+          // A checkpoint is a safety net, never a gate: a stale lock file or a
+          // concurrent git process must not abort the stage that was already
+          // rolled back. Warn and keep going instead of letting the throw
+          // escape the attempt loop.
+          try {
+            await recordWipRef(opts.repoRoot, stage.name, wip, `${stage.name} attempt ${attempt}`);
+            opts.log(
+              stageLine(
+                stage.name,
+                `attempt ${attempt} work checkpointed at ${wipRef(stage.name)} (${wip.slice(0, 10)}); inspect with \`git show ${wip.slice(0, 10)}\``,
+              ),
+            );
+          } catch (err) {
+            opts.log(
+              stageLine(stage.name, `could not record the WIP ref for attempt ${attempt}: ${(err as Error).message}`, 'warn'),
+            );
+          }
         }
 
         if (attempt > config.maxStageRetries) {
