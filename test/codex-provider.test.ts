@@ -44,6 +44,10 @@ describe('CodexProvider', () => {
     expect(directories).toHaveLength(2);
     expect(directories[0]).not.toBe(directories[1]);
     expect(directories.every((directory) => directory.includes('copperhead-codex-'))).toBe(true);
+
+    // Calling chat again refreshes the owned directory mtime
+    await providers[0]!.chat([{ role: 'user', content: 'another turn' }], [readTool]);
+
     await Promise.all(providers.map((provider) => provider.close()));
     await Promise.all(directories.map((directory) => expect(access(directory)).rejects.toThrow()));
   });
