@@ -161,6 +161,22 @@ describe('secret redaction (AC-4.1)', () => {
 });
 
 describe('file tools', () => {
+  it('edit_file keeps the line break when a copied CRLF line is replaced without its CR', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'BOM.md');
+    const src = '| Refdes | Value |\r\n|---|---|\r\n| R1 | 10k |\r\n| R2 | 1k |\r\n';
+    await writeFile(file, src, 'utf8');
+    const line = (await toolReadFile(dir, 'BOM.md', 3, 3)).replace(/^\d+: /, '');
+    expect(line).toBe('| R1 | 10k |\r');
+
+    await toolEditFile(dir, 'BOM.md', line, '| R1 | 4.7k |');
+    expect(await readFile(file, 'utf8')).toBe(src.replace('10k', '4.7k'));
+
+    await writeFile(file, src, 'utf8');
+    await toolEditFile(dir, 'BOM.md', '| R1 | 10k |\r\n| R2 | 1k |\r', '| R1 | 4.7k |\n| R2 | 1k |');
+    expect(await readFile(file, 'utf8')).toBe(src.replace('10k', '4.7k'));
+  });
+
   it('edit_file keeps CRLF when an exact anchor ends on the CR of a CRLF pair', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     const file = path.join(dir, 'f.kicad_pcb');

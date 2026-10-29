@@ -53,6 +53,9 @@ export async function toolEditFile(
   const text = await readFile(abs, 'utf8');
 
   const l0 = oldString.split(/\r\n|\n|\r/);
+  // A ranged read_file shows each CRLF line with its CR, so a copied line ends in a bare CR
+  // that is the file's line break, not something the model meant to delete.
+  if (oldString.endsWith('\r') && !/[\r\n]$/.test(newString)) newString += '\r';
   const l1 = newString.split(/\r\n|\n|\r/);
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const runAnchorRegex = <T>(run: () => T): T => {
@@ -75,12 +78,25 @@ export async function toolEditFile(
   const exactCount = rawCount > 0 ? runAnchorRegex(() => text.match(exactRe)?.length ?? 0) : 0;
   const re = exactCount > 0 && exactCount === rawCount ? exactRe : normalizedRe;
   let lastBreak: string | undefined;
+  let nextBreakAt = -1;
+  let nextBreakValue: string | undefined;
+  let noBreakFrom = Infinity;
   const breakAtOrAfter = (at: number) => {
+    if (nextBreakValue !== undefined && at <= nextBreakAt) return nextBreakValue;
+    if (at >= noBreakFrom) {
+      return (lastBreak ??= text.match(/(\r\n|\n|\r)[^\r\n]*$/)?.[1] ?? '\n');
+    }
     const nextBreak = text.slice(at).match(/\r\n|\r(?!\n)|\n/);
-    if (nextBreak) return nextBreak[0];
+    if (nextBreak) {
+      nextBreakAt = at + nextBreak.index!;
+      nextBreakValue = nextBreak[0];
+      return nextBreakValue;
+    }
+    noBreakFrom = at;
     return (lastBreak ??= text.match(/(\r\n|\n|\r)[^\r\n]*$/)?.[1] ?? '\n');
   };
   const replacementFor = (match: string, at: number) => {
+    if (l1.length === 1) return newString;
     const localEol = l0.length === 1 ? breakAtOrAfter(at) : match.match(/\r\n|\r(?!\n)|\n/)![0];
     return l1.join(localEol);
   };
