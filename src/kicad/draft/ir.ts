@@ -300,12 +300,18 @@ export async function validateIntent(
 
   // groups: exactly one per non-power part, validated against SUBSYSTEMS.md when present
   const docGroups = docsDir ? await headingsOf(path.join(docsDir, 'SUBSYSTEMS.md')) : null;
+  const stripSectionNumber = (s: string): string => s.replace(/^\d+(\.\d+)*\.?\s+/, '').trim().toLowerCase();
   for (const p of partByRef.values()) {
     const sym = symbols.get(p.ref);
     if (sym?.isPower) continue;
     if (!p.group) {
       add(`${p.ref} has no group assignment; available groups: ${docGroups?.join(', ') ?? '(SUBSYSTEMS.md absent)'}`);
-    } else if (docGroups && !docGroups.some((g) => g.toLowerCase() === p.group.toLowerCase())) {
+    } else if (
+      docGroups &&
+      !docGroups.some(
+        (g) => g.toLowerCase() === p.group.toLowerCase() || stripSectionNumber(g) === stripSectionNumber(p.group),
+      )
+    ) {
       add(`${p.ref} names group "${p.group}", which is not a SUBSYSTEMS.md heading; available: ${docGroups.join(', ')}`);
     }
   }
