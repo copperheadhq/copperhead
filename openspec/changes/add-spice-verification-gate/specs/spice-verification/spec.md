@@ -43,14 +43,14 @@ Assertion failures SHALL be reported as `{severity, type: "spice_assertion", des
 - **THEN** the gate reports a simulation-failed violation with the ngspice error excerpt and the run does not count the assertions as verified
 
 ### Requirement: Skip semantics without ngspice
-When `## Simulation` blocks exist and ngspice is not installed, `check` SHALL print "SPICE gate skipped (ngspice not found)" with the count of unverified assertions and exit 0; with `--strict`, the same condition SHALL exit non-zero. The skip SHALL never be silent.
+When `## Simulation` blocks exist, `check --spice` is passed, and ngspice is not installed, `check` SHALL print "SPICE gate skipped (ngspice not found)" with the count of unverified assertions and exit 0; with `--strict`, the same condition SHALL exit non-zero. The skip SHALL never be silent. Default `check` without `--spice` SHALL NOT probe ngspice.
 
 #### Scenario: Loud skip by default
-- **WHEN** `check` runs on a flagged repo without ngspice
+- **WHEN** `check --spice` runs on a flagged repo without ngspice
 - **THEN** the output names the skipped gate and the number of unverified assertions, and the exit code is 0
 
 #### Scenario: Strict CI fails on skip
-- **WHEN** `check --strict` runs on the same repo
+- **WHEN** `check --spice --strict` runs on the same repo
 - **THEN** the exit code is non-zero citing the unverified assertions
 
 ### Requirement: Budget-derived assertions are dual-written

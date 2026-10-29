@@ -7,6 +7,13 @@ import path from 'node:path';
  * overrides (`off` disables a family). Unknown keys and invalid values are
  * ignored by the checker's own sanitizer, so a config typo cannot crash a run.
  */
+export interface SpiceUserConfig {
+  /** Absolute path to ngspice. Overridden by COPPERHEAD_NGSPICE. */
+  ngspice?: string;
+  /** Per-run timeout for one ngspice batch invocation. Default 30000. */
+  timeoutMs?: number;
+}
+
 export interface LegibilityUserConfig {
   thresholds?: {
     gridPitch?: number;
@@ -28,6 +35,8 @@ export interface CopperheadConfig {
   board: string | null;
   /** Schematic legibility checker thresholds and severity overrides. */
   legibility?: LegibilityUserConfig;
+  /** Opt-in SPICE gate (`check --spice`): ngspice path and timeout. */
+  spice?: SpiceUserConfig;
   docs: string;
   model: string | null;
   maxTurns: number;
@@ -154,6 +163,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
+    ...(raw.spice && typeof raw.spice === 'object' ? { spice: raw.spice } : {}),
   };
 }
 
