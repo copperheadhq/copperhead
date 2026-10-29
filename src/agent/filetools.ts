@@ -1,7 +1,9 @@
-import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { Worker } from 'node:worker_threads';
 import path from 'node:path';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
+import { SEARCH_WORKER_SOURCE, type SearchWorkerRequest } from './search-worker.js';
 
 export async function toolReadFile(
   repoRoot: string,
@@ -94,12 +96,6 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', '.copperhead']);
  */
 const MAX_MATCH_CHARS = 400;
 
-/** Clip one match line to `MAX_MATCH_CHARS`, marking it when clipped. */
-function clipMatch(line: string): string {
-  const t = line.trim();
-  return t.length <= MAX_MATCH_CHARS ? t : `${t.slice(0, MAX_MATCH_CHARS)}… [+${t.length - MAX_MATCH_CHARS} chars]`;
-}
-
 export function globToRegex(glob: string): RegExp {
   let out = '';
   for (let i = 0; i < glob.length; i++) {
@@ -121,41 +117,165 @@ export function globToRegex(glob: string): RegExp {
 }
 
 
-/** ripgrep-style regex search implemented natively (no rg dependency). */
+/**
+ * Longest pattern `toolSearch` accepts. Real search patterns are short; the cap
+ * only rejects a pathological or abusive input before it reaches the worker.
+ */
+export const MAX_SEARCH_PATTERN_CHARS = 1000;
+
+/** Wall-clock budget for one search, in milliseconds. */
+export const DEFAULT_SEARCH_BUDGET_MS = 2000;
+
+/**
+ * Worker heap limits. A search never holds more than one 5 MB file plus a
+ * bounded result list, so 64 MB is generous while still bounding the thread.
+ */
+const SEARCH_WORKER_RESOURCE_LIMITS = { maxOldGenerationSizeMb: 64, maxYoungGenerationSizeMb: 16 } as const;
+
+export type SearchErrorCode = 'pattern-too-long' | 'invalid-pattern' | 'timeout' | 'worker-failed' | 'aborted';
+
+/** A failed search. `code` distinguishes a bad pattern from a timed-out or dead worker. */
+export class SearchError extends Error {
+  constructor(
+    message: string,
+    readonly code: SearchErrorCode,
+  ) {
+    super(message);
+    this.name = 'SearchError';
+  }
+}
+
+/** A pattern whose evaluation exceeded the budget: the worker was terminated. */
+export class SearchTimeoutError extends SearchError {
+  constructor(budgetMs: number) {
+    super(
+      `search exceeded its ${budgetMs} ms time budget and was stopped; simplify the pattern ` +
+        '(avoid nested quantifiers such as "(a+)+") or narrow it with a glob and try again',
+      'timeout',
+    );
+    this.name = 'SearchTimeoutError';
+  }
+}
+
+export interface SearchOptions {
+  /** Override the default wall-clock budget (tests use a small value). */
+  budgetMs?: number;
+  /** Cancel a search in flight; the worker is terminated. */
+  signal?: AbortSignal;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Run one search on a worker thread under a hard time budget. On success, on
+ * failure, on timeout, and on cancellation the worker is terminated and its
+ * listeners removed, so a wedged regex cannot outlive the call. Starting the
+ * worker from the raw source (rather than a sibling module path) is what lets
+ * the same code run from `dist/`, `tsx`, and vitest.
+ */
+function runSearchWorker(req: SearchWorkerRequest, budgetMs: number, signal?: AbortSignal): Promise<SearchMatch[]> {
+  if (signal?.aborted) return Promise.reject(new SearchError('search cancelled before it started', 'aborted'));
+  return new Promise<SearchMatch[]>((resolve, reject) => {
+    let worker: Worker;
+    try {
+      worker = new Worker(SEARCH_WORKER_SOURCE, {
+        eval: true,
+        workerData: req,
+        resourceLimits: SEARCH_WORKER_RESOURCE_LIMITS,
+      });
+    } catch (err) {
+      reject(new SearchError(`search worker could not start: ${errorMessage(err)}`, 'worker-failed'));
+      return;
+    }
+
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onAbort = () => finish(new SearchError('search cancelled', 'aborted'));
+
+    function cleanup(): void {
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+      signal?.removeEventListener('abort', onAbort);
+      worker.removeAllListeners();
+      void worker.terminate();
+    }
+    function finish(err: Error): void {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(err);
+    }
+    function succeed(matches: SearchMatch[]): void {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(matches);
+    }
+
+    worker.on('message', (msg: unknown) => {
+      // The worker is self-controlled, but treat its output as untrusted: a
+      // malformed message must fail closed, never throw out of this listener.
+      if (typeof msg !== 'object' || msg === null) {
+        finish(new SearchError('search worker sent a malformed message', 'worker-failed'));
+        return;
+      }
+      const m = msg as { ok?: unknown; code?: unknown; message?: unknown; matches?: unknown };
+      if (m.ok === true) {
+        if (Array.isArray(m.matches)) succeed(m.matches as SearchMatch[]);
+        else finish(new SearchError('search worker sent a malformed result', 'worker-failed'));
+        return;
+      }
+      const detail = typeof m.message === 'string' && m.message.length > 0 ? m.message : 'unknown worker error';
+      if (m.code === 'invalid-pattern') finish(new SearchError(`invalid search pattern: ${detail}`, 'invalid-pattern'));
+      else finish(new SearchError(`search worker failed: ${detail}`, 'worker-failed'));
+    });
+    worker.on('error', (err) => finish(new SearchError(`search worker failed: ${errorMessage(err)}`, 'worker-failed')));
+    worker.on('exit', (code) => {
+      // A zero exit is not itself a failure: the success message may still be in
+      // flight (settled wins either way), and the budget catches a worker that
+      // exited without posting anything.
+      if (code !== 0) finish(new SearchError(`search worker exited before returning results (code ${code})`, 'worker-failed'));
+    });
+
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+    // Close the check-to-register race: an AbortSignal is one-shot, so an abort
+    // that landed in the window above would never fire its event. Re-checking
+    // here settles through the same cleanup, leaving no worker behind.
+    if (signal?.aborted) {
+      finish(new SearchError('search cancelled before it started', 'aborted'));
+      return;
+    }
+    timer = setTimeout(() => finish(new SearchTimeoutError(budgetMs)), budgetMs);
+  });
+}
+
+/**
+ * ripgrep-style regex search implemented natively (no rg dependency). The
+ * pattern is evaluated on a worker thread under a hard time budget so a
+ * catastrophic pattern fails closed instead of hanging the process (issue
+ * #366). `SearchError` subclasses carry the reason.
+ */
 export async function toolSearch(
   repoRoot: string,
   pattern: string,
   glob?: string,
   maxMatches = 200,
+  opts: SearchOptions = {},
 ): Promise<SearchMatch[]> {
-  const re = new RegExp(pattern);
-  const globRe = glob ? globToRegex(glob) : null;
-  const matches: SearchMatch[] = [];
-  async function walk(dir: string): Promise<void> {
-    if (matches.length >= maxMatches) return;
-    for (const entry of await readdir(dir)) {
-      if (SKIP_DIRS.has(entry)) continue;
-      const abs = path.join(dir, entry);
-      const rel = path.relative(repoRoot, abs);
-      const st = await stat(abs);
-      if (st.isDirectory()) {
-        await walk(abs);
-      } else if (st.size < 5_000_000 && (!globRe || globRe.test(rel))) {
-        let text: string;
-        try {
-          text = await readFile(abs, 'utf8');
-        } catch {
-          continue;
-        }
-        if (text.includes('\u0000')) continue; // binary
-        const lines = text.split('\n');
-        for (let i = 0; i < lines.length && matches.length < maxMatches; i++) {
-          if (re.test(lines[i]!)) matches.push({ file: rel, line: i + 1, text: clipMatch(lines[i]!) });
-        }
-      }
-      if (matches.length >= maxMatches) return;
-    }
+  if (pattern.length > MAX_SEARCH_PATTERN_CHARS) {
+    throw new SearchError(
+      `search pattern rejected: ${pattern.length} characters exceeds the ${MAX_SEARCH_PATTERN_CHARS}-character limit; narrow the pattern`,
+      'pattern-too-long',
+    );
   }
-  await walk(repoRoot);
-  return matches;
+  const req: SearchWorkerRequest = {
+    repoRoot,
+    pattern,
+    globSource: glob ? globToRegex(glob).source : null,
+    maxMatches,
+    maxMatchChars: MAX_MATCH_CHARS,
+  };
+  return runSearchWorker(req, opts.budgetMs ?? DEFAULT_SEARCH_BUDGET_MS, opts.signal);
 }

@@ -9,6 +9,13 @@ All file tools SHALL resolve paths relative to the repo root and reject any path
 - **WHEN** a tool call targets a path outside the repo root (e.g. `../../etc/hosts`)
 - **THEN** the call is rejected with an error and no file outside the repo is read or written
 
+### Requirement: Bounded search evaluation
+The `search` tool SHALL evaluate its pattern on a worker thread under a hard time budget (default 2,000 ms) with a 1,000-character pattern cap; a pattern that exceeds the budget or the cap, or that does not compile, SHALL fail closed with a typed error that names the reason, SHALL never be retried, and SHALL never block the agent or an MCP host, because the exceeding worker thread is terminated.
+
+#### Scenario: Bounded search (AC-4.4)
+- **WHEN** a `search` pattern evaluation exceeds the 2,000 ms budget, the pattern is over 1,000 characters, or the pattern is an invalid regex
+- **THEN** the call fails closed with a typed error naming the reason, the exceeding worker thread is terminated, the call is never retried, and ordinary patterns keep matching exactly as before
+
 ### Requirement: Git-state preconditions and rollback
 `do` and `repl` SHALL refuse to start on a dirty git tree unless `--allow-dirty` is passed, whose snapshot pairs a `git stash create` object for tracked changes with a tree object for the untracked-but-not-ignored files that `git stash create` cannot capture; on unrecoverable failure the working tree SHALL be restored to the pre-run snapshot, tracked and untracked alike.
 
