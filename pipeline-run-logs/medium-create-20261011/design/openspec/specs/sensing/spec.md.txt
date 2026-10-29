@@ -1,0 +1,11 @@
+# Temperature/humidity sensing
+## Requirements
+SHT40-AD1B-R2 SHALL remain a candidate pending ordering/address/current verification. Shared I2C SHALL run at 100kHz with compatible 3.3V pullups and verified parallel resistance/capacitance and address compatibility. Sampling SHALL be 1Hz, heater disabled, within <=2mA allocation.
+### Scenario: Valid measurement
+- **Given** a responding SHT40 and valid CRC
+- **When** the 1Hz measurement is completed
+- **Then** real temperature/humidity SHALL be supplied for display with heater off.
+### Scenario: Sensor failure
+- **Given** a bus or CRC error
+- **When** a measurement fails
+- **Then** errors SHALL be displayed/reported; ASSUMED initial behavior is invalid reading, explicit display error, UART logging and retry at next scheduled sample.

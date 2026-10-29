@@ -1,0 +1,10 @@
+# Tasks
+
+- [x] Read back saved BOM and inspect available primary evidence.
+- [x] Search installed symbols for every active part and connector; confirm all selected symbols with symbol_pins.
+- [x] Repair and synchronize documentation after validation, recording rationale and constraints.
+- [x] Validate every final Footprint cell after the last BOM edit: all39 returned OK.
+- [x] Run check_drift and read back the final saved BOM: no schematic configured, drift vacuously clean; saved39-row artifact confirmed.
+- [x] Resolve affected-document obligations and submit documentation-only part selection to finish.
+
+Electrical qualification remains open as documented in BOM.md: assumed leakage limits, U5/U6 anonymous package functions, startup450mA compliance and reset/recycle behavior. No schematic or board was edited; ERC/legibility/DRC belong to subsequent capture/layout stages. Rationale: complete the recovery artifact checks without claiming hardware acceptance.

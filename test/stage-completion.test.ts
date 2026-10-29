@@ -311,27 +311,27 @@ describe('outputs isComplete', () => {
     });
   });
 
-  it('returns true when outputs/ contains at least one Gerber file (.gbr)', async () => {
+  it('returns false for a lone Gerber without package evidence', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 
-  it('returns true when outputs/ contains a .gtl (top copper) Gerber', async () => {
+  it('returns false for top copper without package evidence', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'board.gtl'), 'G04*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 
-  it('returns true when Gerber file is located in a nested subdirectory inside outputs/', async () => {
+  it('returns false for a nested Gerber without package evidence', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, 'outputs', 'gerbers'), { recursive: true });
       await writeFile(path.join(root, 'outputs', 'gerbers', 'board-F_Cu.gbr'), 'G04 Gerber*\n', 'utf8');
-      expect(await stageNamed('outputs')(root, DOCS)).toBe(true);
+      expect(await stageNamed('outputs')(root, DOCS)).toBe(false);
     });
   });
 });
@@ -407,6 +407,24 @@ describe('firmware isComplete: no programmable part', () => {
       await project(root, PASSIVE);
       await readme(root, `\r\n${NO_FW.replace(/\n/g, '\r\n')}`);
       expect(await stageNamed('firmware')(root, DOCS)).toBe(true);
+    });
+  });
+
+  it('does not apply the stock-library waiver to a strict declaration without hardware evidence', async () => {
+    await withTmpDir(async (root) => {
+      await project(root, PASSIVE);
+      await readme(root, '# Firmware not applicable\nProgrammable components: none\nReason: These passive parts operate without any programmable controller.\n');
+      // The stock-library fixture has no ERC or BOM/PINOUT evidence.
+      expect(await stageNamed('firmware')(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('does not apply exact-identity exceptions to the stock-library README format', async () => {
+    await withTmpDir(async (root) => {
+      await project(root, [...PASSIVE, 'Power_Management:MIC2544-2YM']);
+      await readme(root, NO_FW);
+      expect(await stageNamed('firmware')(root, DOCS)).toBe(false);
+      expect(await contractGapDetail('firmware', root, await loadConfig(root))).toContain('Power_Management:MIC2544-2YM');
     });
   });
 

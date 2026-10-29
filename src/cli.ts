@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
+import path from 'node:path';
 import { setMaxListeners } from 'node:events';
 import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
@@ -577,11 +578,18 @@ program
   .command('create')
   .description('Mode A: full pipeline from a product brief to the output package')
   .requiredOption('--brief <file>', 'product brief (markdown)')
+  .addOption(new Option('--populate-references <mode>', 'automatic reference placement before layout (default: library)').choices(['library', 'clearance']))
+  .option('--firmware-idf <directory>', 'explicit installed ESP-IDF SDK for a real firmware build gate (POSIX)')
+  .option('--firmware-tools <directory>', 'existing ESP-IDF tools cache; required with --firmware-idf')
+  .option('--firmware-reproducible', 'require two independent builds with identical ELF/bin outputs')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
   .option('--interactive', 're-enable the human gates (spec approval, pre-export)')
-  .action(async (opts: { brief: string; model?: string; interactive?: boolean }) => {
+  .action(async (opts: { brief: string; model?: string; interactive?: boolean; populateReferences?: 'library' | 'clearance'; firmwareIdf?: string; firmwareTools?: string; firmwareReproducible?: boolean }) => {
     const repo = repoOf(program.opts());
     try {
+      if (Boolean(opts.firmwareIdf) !== Boolean(opts.firmwareTools) || (opts.firmwareReproducible && !opts.firmwareIdf)) {
+        throw new Error('Provide both --firmware-idf and --firmware-tools; --firmware-reproducible also requires those installed paths.');
+      }
       const kicadVer = await kicadCliVersion();
       const config = await loadConfig(repo);
       const { model, source } = resolveModel(opts.model, config);
@@ -591,6 +599,8 @@ program
         briefPath: opts.brief,
         model,
         interactive: opts.interactive ?? false,
+        ...(opts.populateReferences ? { populateReferences: opts.populateReferences } : {}),
+        ...(opts.firmwareIdf && opts.firmwareTools ? { firmwareToolchain: { idfRoot: path.resolve(opts.firmwareIdf), toolsRoot: path.resolve(opts.firmwareTools), reproducible: opts.firmwareReproducible ?? false } } : {}),
         ...(continuePrompt ? { onBudgetExhausted: continuePrompt } : {}),
         log: (s) => console.log(s),
         renderer: rendererOf(),

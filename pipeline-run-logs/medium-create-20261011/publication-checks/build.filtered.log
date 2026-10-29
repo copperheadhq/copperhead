@@ -1,0 +1,6 @@
+npm notice run copperhead@0.11.0 build
+npm notice run tsc -p tsconfig.json && npm run postbuild
+npm notice run copperhead@0.11.0 postbuild
+npm notice run node -e "require('fs').chmodSync('dist/cli.js', 0o755)"
+npm notice run copperhead@0.11.0 postbuild
+npm notice run node -e "require('fs').chmodSync('dist/cli.js', 0o755)"

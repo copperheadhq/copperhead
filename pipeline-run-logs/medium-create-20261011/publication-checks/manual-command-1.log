@@ -1,0 +1,12 @@
+sandbox ready: manual-tests/runs/edit
+
+Next, from the repo root:
+
+  npm run dev -- --repo manual-tests/runs/edit init
+  git -C manual-tests/runs/edit add -A && git -C manual-tests/runs/edit commit -m "scaffold docs"
+  npm run dev -- --repo manual-tests/runs/edit check
+  npm run dev -- --repo manual-tests/runs/edit do "Rename the EN net to CHIP_EN and propagate the change everywhere"
+
+init and check need kicad-cli on PATH; do also needs an API key in the
+environment. Commit the scaffolded docs before running do: it refuses a
+dirty tree, and a failed run would otherwise clean untracked files away.

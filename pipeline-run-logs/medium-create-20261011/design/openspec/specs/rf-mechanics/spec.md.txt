@@ -1,0 +1,15 @@
+# RF and mechanics
+## Requirements
+Board SHALL be <=45x40mm, exactly two copper layers, nominal 1.00mm thick, with >=0.25mm hole-to-copper clearance and unchanged exact pad/drill geometry. Ambient SHALL be 0–40C non-condensing indoors.
+### Scenario: Sensor placement
+- **Given** MCU/regulator heat sources
+- **When** draft layout is prepared
+- **Then** sensor >=10mm separation SHALL be pursued where practicable and any conflict reported explicitly.
+### Scenario: Antenna placement
+- **Given** a PCB-antenna module at a board edge, preferably extending beyond the base board
+- **When** layout is checked
+- **Then** manufacturer keepout SHALL exclude copper/traces/components on both layers; additional 15mm in-plane target remains ASSUMED until hardware guidelines and actual outline are reconciled.
+### Scenario: Mechanical acceptance
+- **Given** GCT standard 1.00mm stakes and proposed assembly
+- **When** fit is assessed
+- **Then** shell/module/cable/enclosure fit SHALL be checked and draft status retained; DRC errors SHALL NOT be ignored.

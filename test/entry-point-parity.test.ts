@@ -1,3 +1,4 @@
+import { cliProcessArgs } from './cli-process.js';
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +17,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
  * the server would silently start reporting something else, and this fails.
  */
 const cli = (repo: string, args: string[]) =>
-  execa('npx', ['tsx', 'src/cli.ts', '--repo', repo, '--json', ...args], {
+  execa(process.execPath, cliProcessArgs(['--repo', repo, '--json', ...args]), {
     cwd: ROOT,
     reject: false,
     env: { NO_COLOR: '1' },

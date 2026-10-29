@@ -1,0 +1,11 @@
+# External OLED display
+## Requirements
+External Adafruit catalog product 326, 0.96in 128x64 I2C OLED, SHALL be a candidate rather than a guessed bare-panel MPN. Interface SHALL be 3.3V-compatible, shared 100kHz I2C with no address conflict and verified combined pullups/capacitance. Allocation <=50mA is a design target requiring verification, not a vendor guarantee.
+### Scenario: Display update
+- **Given** temperature/humidity data or sensor error
+- **When** the 2Hz display update occurs
+- **Then** temperature/humidity or an explicit error SHALL be rendered; ASSUMED initial units are Celsius and percent RH.
+### Scenario: Module selection
+- **Given** supplied manufacturer context listing 0x3C/0x3D and roughly 20mA usage-dependent practical current
+- **When** the module is integrated
+- **Then** actual address, pullups, load and connector fit SHALL be checked without treating contextual current as acceptance proof.

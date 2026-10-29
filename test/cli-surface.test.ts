@@ -1,3 +1,4 @@
+import { cliProcessArgs } from './cli-process.js';
 import { describe, it, expect, beforeEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -117,7 +118,7 @@ describe('demo --tour honours --json', () => {
   // the try block, so it used to print prose even under --json. Runs the real
   // entry point through tsx; --tour touches no network and no kicad-cli.
   it('emits structured JSON, not prose, under --json', async () => {
-    const res = await execa('npx', ['tsx', 'src/cli.ts', '--json', 'demo', '--tour'], {
+    const res = await execa(process.execPath, cliProcessArgs(['--json', 'demo', '--tour']), {
       cwd: ROOT,
       reject: false,
       env: { NO_COLOR: '1' },
@@ -131,7 +132,7 @@ describe('demo --tour honours --json', () => {
   }, 60_000);
 
   it('still prints prose without --json', async () => {
-    const res = await execa('npx', ['tsx', 'src/cli.ts', 'demo', '--tour'], {
+    const res = await execa(process.execPath, cliProcessArgs(['demo', '--tour']), {
       cwd: ROOT,
       reject: false,
       env: { NO_COLOR: '1' },

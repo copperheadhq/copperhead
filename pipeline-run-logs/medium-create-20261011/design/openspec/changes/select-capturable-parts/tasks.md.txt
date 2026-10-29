@@ -1,0 +1,9 @@
+# Tasks
+
+- [x] Inspect available manufacturer/reference evidence and installed symbols; distinguish inspected TI/boot evidence from UNVERIFIED support-part datasheet pointers and missing reference notes.
+- [x] Complete selection-level power/leakage/protection/startup/programming/I2C/mechanical accounting without weakening requirements; retain explicit manufacturer/application qualification checks, including82% efficiency target, startup/recycle and anonymous ESD signal functions.
+- [x] Confirm installed symbol package endpoints and all39 exact BOM Footprint cells, each returning OK.
+- [x] Write39 individual-refdes BOM rows with component-only Values and UNVERIFIED MPNs; synchronize SPEC/SUBSYSTEMS/protected-input/CHANGELOG and decision/constraint records.
+- [x] Run check_drift: vacuously clean because no schematic configured; resolve all opened documentation revisit obligations.
+
+This completes documentation-only Stage3 selection, not capture, hardware qualification, manufacturing release or firmware acceptance. Later stages retain every original verification gate.

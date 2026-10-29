@@ -33,6 +33,7 @@ import { AnthropicProvider } from './providers/anthropic.js';
 import { CodexProvider } from './providers/codex.js';
 import { ClaudeCodeProvider } from './providers/claude-code.js';
 import { CursorProvider } from './providers/cursor.js';
+import type { FirmwareToolchain } from '../commands/firmware-build.js';
 
 /** What the user sees at the moment they decide whether to keep going. */
 export interface BudgetExhaustedStats {
@@ -81,6 +82,7 @@ export interface RunOptions {
    * met, else what is missing.
    */
   stageGate?: () => Promise<string | null>;
+  firmwareToolchain?: FirmwareToolchain;
 }
 
 export interface RunResult {
@@ -291,6 +293,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     repairCycles: 0,
     finishRequest: null,
     ...(opts.stageGate ? { stageGate: opts.stageGate } : {}),
+    ...(opts.firmwareToolchain ? { firmwareToolchain: opts.firmwareToolchain } : {}),
   };
   if (config.board) {
     try {

@@ -160,6 +160,11 @@ export interface TableRow {
    * it loops on finish forever. Resolving by header name fixes that.
    */
   export function parseCanonicalTables(md: string): Array<{ header: TableRow; rows: TableRow[] }> {
+    return parseHeaderTables(md).filter(({ header }) => isHeader(header));
+  }
+
+  /** Preserve table boundaries and each table's own header, excluding fenced examples. */
+  export function parseHeaderTables(md: string): Array<{ header: TableRow; rows: TableRow[] }> {
     const tables: Array<{ header: TableRow; rows: TableRow[] }> = [];
     for (const g of scanTableGroups(md)) {
       // The header is the row directly above the separator. Falling back to the
@@ -169,7 +174,7 @@ export interface TableRow {
       const sep = g.findIndex((l) => l.separator);
       const headerIdx = sep > 0 ? sep - 1 : 0;
       const header = g[headerIdx];
-      if (!header || header.separator || !isHeader({ cells: header.cells })) continue;
+      if (!header || header.separator || (!g[0]!.piped && sep < 0)) continue;
       tables.push({
         header: { cells: header.cells },
         rows: g

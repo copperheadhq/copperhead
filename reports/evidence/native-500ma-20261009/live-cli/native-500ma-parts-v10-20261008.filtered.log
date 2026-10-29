@@ -1,0 +1,62 @@
+stage spec-seed: already complete (resuming past it)
+stage architecture: already complete (resuming past it)
+stage part-selection: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage part-selection (3/8) · model experimental-native:native-500ma-parts-v10-20261008 (experimental-native, via flag) · turns ≤5 · master@18296f0 clean
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  … still working — 4m00s elapsed (no output yet)
+  [check_drift] no schematic configured; drift vacuously clean
+  [finish] refusal recorded; run will end
+stage part-selection: the run ended as "refused" (refused): Part-selection acceptance is blocked by architecture.selection_gate, power.unloaded_vbus_current_ma, and libraries.identity_and_mapping. The supplied 1.791 mA allocation is not a verified total; MIC2544-2YM programming-current inclusion/bounds and guaranteed current-limit margins remain unresolved. Installed TPS2051CDBV/TPS2041B symbols do not establish electrically qualified alternatives. Exact support-part leakage, resistor temperature behavior, capacitor suitability, LED evidence, and manufacturer package/connector correspondence are also not closed. No accepted BOM was written and no candidate is declared electrically noncompliant merely for lack of evidence. Resume with accessible exact-device manufacturer data covering supply/terminal currents, threshold and fault conditions, and mechanical drawings, then complete the fixed-format per-refdes BOM, cost accounting, pin/footprint checks, and documentation updates without relaxing any requirement. No schematic, PCB, firmware, or physical-test completion is claimed.; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage             Wall  Turns  Out tok  Cache
+  --------------  ------  -----  -------  -----
+  spec-seed            —      —        —      —
+  architecture         —      —        —      —
+  part-selection  10m11s      3        0     0%
+  --------------  ------  -----  -------  -----
+  TOTAL           10m11s      3        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

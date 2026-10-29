@@ -1,3 +1,4 @@
+import { cliProcessArgs } from './cli-process.js';
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,7 +43,7 @@ async function fixtureRepo(): Promise<{ repo: string; cleanup: () => Promise<voi
 }
 
 const cli = (repo: string, ...args: string[]) =>
-  execa('npx', ['tsx', 'src/cli.ts', '--repo', repo, ...args], { cwd: ROOT, reject: false, env: { NO_COLOR: '1' } });
+  execa(process.execPath, cliProcessArgs(['--repo', repo, ...args]), { cwd: ROOT, reject: false, env: { NO_COLOR: '1' } });
 
 describe('copperhead draft schematic (CLI)', () => {
   it('exits 0 and prints the report on a good intent; --json is machine-readable', async () => {

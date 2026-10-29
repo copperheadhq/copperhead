@@ -1,0 +1,394 @@
+{
+  "power.input_voltage_V": {
+    "min": 4.75,
+    "max": 5.25,
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.input_continuous_mA": {
+    "max": 250,
+    "value": "Design target including display/protection overhead, not measured",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.input_peak_mA": {
+    "max": 450,
+    "value": "Design target including startup/radio/display/protection overhead, not measured",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.mcu_continuous_mA": {
+    "max": 150,
+    "value": "3.3V allocation; verify operating modes",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.mcu_transient_mA": {
+    "max": 400,
+    "value": "3.3V allocation; verify actual peaks",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.oled_mA": {
+    "max": 50,
+    "value": "3.3V design allocation, not vendor guarantee",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.sensor_mA": {
+    "max": 2,
+    "value": "3.3V allocation with heater disabled",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.other_3v3_mA": {
+    "max": 20,
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.rail_continuous_mA": {
+    "max": 222,
+    "value": "DERIVED simultaneous allocation sum 150+50+2+20; not measured",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.rail_peak_mA": {
+    "max": 472,
+    "value": "DERIVED preliminary allocation sum 400+50+2+20; not measured",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.buck_rating_mA": {
+    "min": 600,
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.rail_voltage_V": {
+    "min": 3,
+    "max": 3.6,
+    "value": "Nominal 3.3V during startup/radio/display loads",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.efficiency_percent": {
+    "min": 75,
+    "value": "ASSUMED acceptance floor from brief; requires verification, not vendor guarantee",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.conversion_margin": {
+    "value": "DERIVED 437.2mA conversion estimate at 4.75V, 3.3V/472mA and 75% efficiency leaves about 12.8mA before upstream overhead; not a separate overhead allocation. Reconcile protection drop/losses, inrush, tolerances, quiescent/leakage and thermal conditions without reducing requirements.",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "power.usage_assumption": {
+    "value": "ASSUMED continuous operation; no supplied sleep-current budget. Include every part's quiescent/leakage in existing budgets; no unsubstantiated LDO heat claim.",
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "usb.source_policy": {
+    "forbidden": [
+      "USB data",
+      "USB-PD",
+      "battery",
+      "mains",
+      "external voltage input",
+      "voltages above 5V"
+    ],
+    "value": "Deployment only with explicitly advertised USB-C 1.5A/3A or separately verified adequate 5V source. Rd does not grant universal 500mA default-current entitlement. Document advertisement/detection honestly. ASSUMED qualified-source deployment pending verified detection architecture.",
+    "source": "docs/SPEC.md#protected-usb-c-input",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "usb.protection": {
+    "value": "Stage3 UNVERIFIED TPS259533DSGR replaces initial TPS2553 candidate for adjustable slew and transient headroom; R3=4.42k1%, C10=100nF, active-low EN GND, SMAJ6.0A VBUS TVS and TPD2E2U06 CC protection. Approximately0.49A nominal fault setting is not operating450mA hard cap. Full tolerance/ESD/clamp/overshoot/inrush/recycle/thermal qualification required; no requirements weakened.",
+    "source": "docs/SPEC.md#protected-usb-c-input",
+    "affects": [
+      "docs/SPEC.md",
+      "docs/BOM.md",
+      "docs/SUBSYSTEMS.md",
+      "openspec/specs/protected-input/spec.md"
+    ]
+  },
+  "usb.connector_mapping": {
+    "forbidden": [
+      "CC1/CC2 short",
+      "data contacts"
+    ],
+    "value": "USB4125-GF-A standard 1.00mm stakes: A5 CC1 and B5 CC2 each separate 5.1k Rd GND; A9/B9 VBUS, A12/B12 GND, four S1 plated shell stakes GND. Stock 6P symbol and exact matching standard footprint later; no pad/drill reductions.",
+    "source": "docs/SPEC.md#protected-usb-c-input",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "interface.i2c": {
+    "value": "Shared 100kHz SHT40/OLED, 3.3V-compatible pullups, checked parallel resistance/capacitance/rise time and no address conflict including module pullups; verify sensor suffix/address/current and OLED 0x3C/0x3D context.",
+    "source": "docs/SPEC.md#sensing-and-display",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "sensing.display_behavior": {
+    "value": "1Hz sensing, heater always off, 2Hz OLED refresh, temperature/humidity and displayed/reported errors. ASSUMED Celsius/percent RH; invalid reading on CRC/bus error, explicit display error, UART log and next-sample retry. No invented accuracy/humidity-range/recovery threshold.",
+    "source": "docs/SPEC.md#sensing-and-display",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "mcu.programming_strapping": {
+    "value": "Verify GPIO2/8/9 strapping table/boot loading before any assignment and RTC capability when a later feature needs it. Manual EN/RESET and BOOT; external 3.3V UART TX/RX/GND, labeled orientation, no target back-power, no automatic USB programming; exact support/interface parts unresolved.",
+    "source": "docs/SPEC.md#regulation-and-mcuprogramming",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "mechanical.envelope": {
+    "value": "Board <=45x40mm",
+    "source": "docs/SPEC.md#rf-and-mechanics",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "mechanical.copper_layers": {
+    "min": 2,
+    "max": 2,
+    "source": "docs/SPEC.md#rf-and-mechanics",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "mechanical.nominal_thickness_mm": {
+    "value": "Nominal 1.00mm for GCT standard stake illustrated land-pattern recommendation; tolerance remains unresolved",
+    "source": "docs/SPEC.md#rf-and-mechanics",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "mechanical.hole_to_copper_mm": {
+    "min": 0.25,
+    "value": "Enforced without reducing exact pads/drills or ignoring DRC errors",
+    "source": "docs/SPEC.md#rf-and-mechanics",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "environment.ambient_C": {
+    "min": 0,
+    "max": 40,
+    "value": "Non-condensing indoor sensing",
+    "source": "docs/SPEC.md#rf-and-mechanics",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "mechanical.sensor_heat_separation_mm": {
+    "min": 10,
+    "value": "From MCU/regulator heat sources where practicable; report layout conflict rather than hide it",
+    "source": "docs/SPEC.md#rf-and-mechanics",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "rf.antenna_policy": {
+    "value": "PCB antenna at board edge preferably extending beyond base board; manufacturer keepout no copper/traces/components on either layer; shell/module/cable/enclosure fit unresolved and layout draft quality",
+    "source": "docs/SPEC.md#rf-and-mechanics",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "rf.in_plane_clearance_mm": {
+    "min": 15,
+    "value": "ASSUMED additional target pending Espressif hardware guidelines and actual base-board shape reconciliation",
+    "source": "docs/SPEC.md#rf-and-mechanics",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "parts.candidate_evidence": {
+    "forbidden": [
+      "invented stock",
+      "invented prices",
+      "invented supplier SKUs",
+      "unverified orderable claims"
+    ],
+    "value": "ESP32-C3-MINI-1-N4X recommended PCB-antenna 4MB (older N4 NRND); SHT40-AD1B-R2; TPS62162DSGR fixed3.3V manufacturer-listed1A; TPS2553DBVR; USB4125-GF-A standard1.00mm stakes (0190=1.90mm); external Adafruit326 catalog ID, not bare-panel MPN. Source URLs in SPEC. Verify exact suffix/pins/packages/installed symbols/footprints/support/current limits later. Reference existence is not acceptance; replacement requires explicit rationale and verified compatibility without reducing requirements.",
+    "source": "docs/SPEC.md#candidate-parts-and-evidence",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "firmware.real_build": {
+    "value": "Mandatory real SHT40 CRC/error measurements and OLED rendering, heater-off1Hz/2Hz, reproducible build, supported config/fixed explicit version. ASSUMED official supplied ESP-IDF5.5.3/GCC14.2.0 initial framework; caches workspace/tool-cache/esp-idf-v5.5.3 and workspace/tool-cache/espressif-tools-v5.5.3. Legacy driver/i2c.h needs REQUIRES driver; GPIO/esp_timer dependencies declared. Actual successful build required, supervisor may build sources unchanged; no hardware N/A, physical flash or measured claims.",
+    "source": "docs/SPEC.md#firmware-and-acceptance-workflow",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "workflow.stage_gates": {
+    "value": "Fresh experimental medium-complexity sample, not historical500mA restoration/maintainer-approved acceptance; all eight create stages through firmware/devplan. Real KiCad9.0.9, generic outputs, existing-login Codex sol/medium, draft layout. Later symbol/footprint checks, ERC/legibility, DRC without suppression, drift/docs and real build required; no manufacturing release/physical qualification claims. Spec-seed is only Stage1.",
+    "source": "docs/SPEC.md#firmware-and-acceptance-workflow",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "workflow.run_limits": {
+    "value": "Supplied authorization ends2026-10-12T00:00Z; real idle600s, turn hard cap900s, not independently clock-verified. Fresh no prior design artifacts; libraries/manufacturer texts reference only. Normal repair/recovery logged; no generated-artifact hand edits, synthetic replies, precompleted boards, PR publication, credentials, new provider or paid API.",
+    "source": "docs/SPEC.md#run-provenance-and-limits",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "requirements.unstated_defaults": {
+    "value": "Preserve unresolved source/power/parts/strapping/RTC/I2C/RF/mechanical/build work. ESD level, support values, connectors beyond USB-C, net/refdes assignments, peak duration, mounting/enclosure remain unresolved. Every later selected unstated default must be ASSUMED with rationale and recorded constraint; report contradictions rather than reduce requirements.",
+    "source": "docs/SPEC.md#unresolved-verification-and-assumptions",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "usb.shell_ground_policy": {
+    "value": "Four S1 stakes GND as required; ASSUMED direct shell-to-GND implementation pending protection/EMC review.",
+    "source": "docs/SPEC.md#protected-usb-c-input",
+    "affects": [
+      "docs/SPEC.md"
+    ]
+  },
+  "architecture.stage2_scope": {
+    "value": "Stage2 functional architecture inherits every SPEC.md constraint unchanged: protected qualified-source USB-C5V into3.3V buck; candidate ESP32-C3/SHT40/external OLED with shared100kHz I2C, manual reset/boot and external3.3V UART. No selected BOM, support values, GPIOs, refdes/net assignments or verified symbol/footprint claims; later defaults require ASSUMED rationale and registered constraint. All later stage gates remain mandatory.",
+    "source": "docs/SUBSYSTEMS.md#firmware-acceptance-and-stage-boundaries",
+    "affects": [
+      "docs/SUBSYSTEMS.md"
+    ]
+  },
+  "parts.stage3_capture_contract": {
+    "value": "docs/BOM.md individual refdes and component-only Values are the Stage3 capture contract; all MPNs UNVERIFIED, active/connector symbols searched and pin numbers confirmed, every exact footprint installed. Support values/packages and manufacturer electrical functions still require qualification; missing OFFLINE-SELECTION.md is not evidence. No substitutions or geometry reductions without revalidation.",
+    "source": "docs/BOM.md#installed-symbol-and-pin-contract",
+    "affects": [
+      "docs/BOM.md",
+      "docs/SPEC.md",
+      "docs/SUBSYSTEMS.md"
+    ]
+  },
+  "power.stage3_selection_accounting": {
+    "value": "ASSUMED actual conversion efficiency>=82% at simultaneous222/472mA loads across4.75–5.25V,rail tolerance and0–40C, including passive losses; original75% floor and every budget unchanged. ASSUMED upstream overhead ceiling2.1mA and support estimate6.2mA within20mA; 53mOhm eFuse and upper3.6V/82% estimate440.5mA are preliminary, not qualification. Full per-part leakage, startup/recycle, current/tolerance/thermal checks mandatory.",
+    "source": "docs/BOM.md#current-leakage-and-startup-accounting",
+    "affects": [
+      "docs/BOM.md",
+      "docs/SPEC.md",
+      "docs/SUBSYSTEMS.md"
+    ]
+  },
+  "interface.stage3_assumptions": {
+    "value": "ASSUMED GPIO4SDA/5SCL/6OLED_RESET/7FAULT after supplied GPIO2/8/9 table review; explicit10k straps and >=3ms hold, no RTC function. Target-powered SN74LVC2G125 Ioff UART3-pin GND/TX/RX, external OLED5-pin GND/3V3/SCL/SDA/RESET documented cable mapping. Board4.7k I2C pullups,totalC<=200pF,module pullups>=4.7k to3.3V or removed. U6 anonymous DRL signal functions and external module revision/address/reset require manufacturer confirmation before wiring acceptance.",
+    "source": "docs/BOM.md#strapping-bus-and-external-module-assumptions",
+    "affects": [
+      "docs/BOM.md",
+      "docs/SPEC.md",
+      "docs/SUBSYSTEMS.md"
+    ]
+  },
+  "power.stage3_recovery_qualification": {
+    "value": "TI SLVSAM2E PG is high impedance during shutdown/UVLO/thermal shutdown, so MCU reset holdoff remains unqualified. Typical25mV/us buck output startup with nominal42.3uF implies approximately1.06A capacitor-only output demand if maintained, not measured input current; R5/C11 delays enable but does not slow output soft-start. Startup/recycle must satisfy unchanged450mA input peak before hardware acceptance; approximately0.49A eFuse fault setting is not proof. U5/U6 anonymous functions require TI package diagrams before Stage4 wiring acceptance; assumed leakage ceilings are not demonstrated manufacturer limits. No selected part/value/footprint or budget changes.",
+    "source": "docs/BOM.md#recovery-evidence-and-qualification-limits",
+    "affects": [
+      "docs/BOM.md",
+      "docs/SPEC.md",
+      "docs/SUBSYSTEMS.md"
+    ]
+  },
+  "parts.stage3_bom_format": {
+    "value": "Fixed Refdes/Value/Footprint/MPN/Rationale table; one row per refdes; component-only Values; exact installed footprint ids; selected part numbers alone in MPN cells; every Rationale explicitly flags its MPN UNVERIFIED with a datasheet-verifiable justification. Metadata correction changes no parts, values, pins or budgets.",
+    "source": "docs/BOM.md#board-bom",
+    "affects": [
+      "docs/BOM.md",
+      "docs/SPEC.md",
+      "docs/SUBSYSTEMS.md"
+    ]
+  },
+  "interface.stage4_capture_contract": {
+    "value": "ASSUMED Stage4 connectivity preserves all39 selected parts/Values/footprints and every SPEC budget. U5 manufacturer DCU outputs are corrected to6/3; U6 DRL functions confirmed3/4/5. Generic connector/switch symbols and Device:D_Zener implement the unchanged physical selections. Startup/recycle<=450mA, PG-off reset behavior,82% conversion target, U5 dynamic/input-level current within1mA, U6 combined leakage<=2uA, all remaining per-part leakage, source qualification, module/cable compatibility and RF/mechanical requirements remain unqualified. No sleep budget exists.",
+    "source": "docs/PINOUT.md#qualification-boundaries",
+    "affects": [
+      "docs/BOM.md",
+      "docs/SPEC.md",
+      "docs/SUBSYSTEMS.md",
+      "docs/PINOUT.md",
+      "schematic.intent.json"
+    ]
+  },
+  "layout.stage5_draft_policy": {
+    "value": "ASSUMED Stage5 draft preserves all39 exact footprints and pad nets,45x40mm/two copper layers/nominal1.00mm, unchanged antenna/sensor library keepouts and every electrical budget. Preliminary widths0.15–0.6mm and vias0.6/0.7mm with0.3mm drills require qualification. RF15mm clearance, ground-plane/return optimization, current/thermal/transient performance and cable/enclosure fit remain unresolved; no manufacturing acceptance.",
+    "source": "docs/LAYOUT.md#routing-and-constraints",
+    "affects": [
+      "docs/LAYOUT.md",
+      "docs/SPEC.md",
+      "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb"
+    ]
+  },
+  "layout.stage5_unrouted_baseline": {
+    "max": 132,
+    "value": "Stage5 unrouted baseline is132 connections; final93 connections remain unrouted. Stage5 must not finish above132; later complete routing is still required.",
+    "source": "docs/LAYOUT.md#routing-and-constraints",
+    "affects": [
+      "docs/LAYOUT.md",
+      "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb"
+    ]
+  },
+  "outputs.stage6_integrity_policy": {
+    "value": "Stage6 exports use the selected generic profile; profile settings, zone fills and manufacturer acceptance are not verified. Every export must succeed and current source/file hashes must match the generated export-manifest.json before completion. Missing legacy manifests, source/output changes or a profile change require rerunning export_outputs; never fabricate evidence or switch profiles to bypass a failure. Only explicit outputProfile=jlcpcb-kicad9-2026-09-24 selects KiCad9 JLC checks and jlcpcb.zip; that profile rejects copper-fill zones and unsupported versions without fallback. These are draft outputs, never manufacturer acceptance or fabrication release.",
+    "source": "docs/OUTPUTS.md#export-policy",
+    "affects": [
+      "docs/OUTPUTS.md",
+      "docs/SPEC.md",
+      "docs/SUBSYSTEMS.md"
+    ]
+  },
+  "firmware.stage7_implementation": {
+    "value": "ASSUMED ESP-IDF5.5.3/GCC14.2.0,PROJECT_VER0.1.0,CONFIG_APP_REPRODUCIBLE_BUILD; pins generated from PINOUT with snapshot validation;100kHz I2C,SHT40 address0x44/command0xFD/10ms wait/both CRCs/heater off,1Hz sensing/2Hz OLED,SSD1306-compatible128x64 address0x3C/charge pump/contrast0x20,UART0 default115200,100ms transfers. Module/sensor/timing/current compatibility remains unqualified; no radio is started,strap GPIO2/8/9 untouched. Two independent identical ELF/bin builds from current sources/PINOUT required; no flash or hardware acceptance.",
+    "source": "docs/DEVPLAN.md#implementation-and-assumptions",
+    "affects": [
+      "docs/DEVPLAN.md",
+      "firmware/README.md",
+      "docs/SPEC.md",
+      "docs/SUBSYSTEMS.md"
+    ]
+  },
+  "workflow.stage8_prototype_plan": {
+    "value": "ASSUMED Stage8 planning policy: order no present draft; use existing pads as candidate measurement nodes,never claim added test points; after engineering/order gates pass,plan five bare boards with three assembled functional prototypes,one rework/spare board and one reserve board. This quantity is a proposal,not a purchase,stock claim or release.",
+    "source": "docs/DEVPLAN.md#prototype-order-plan-and-handoff",
+    "affects": [
+      "docs/DEVPLAN.md",
+      "docs/OUTPUTS.md"
+    ]
+  }
+}
