@@ -390,4 +390,21 @@ describe('footprint cross-check (#314, AC-15.34)', () => {
       await cleanup();
     }
   });
+  it('accepts unnumbered group names when SUBSYSTEMS.md uses numbered headings (#447)', async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      // Overwrite SUBSYSTEMS.md with numbered headings (e.g. "## 1. Power", "## 2. MCU")
+      await writeFile(
+        path.join(docs, 'SUBSYSTEMS.md'),
+        '# Subsystems\n\n## 1. Power\n\nPower supply.\n\n## 2. MCU (Main)\n\nMicrocontroller.\n',
+        'utf8',
+      );
+      // Validate fixture where groups are unnumbered ("Power", "MCU (Main)")
+      const res = await validateOn(repo, docs, 'DFN-2-1EP_2x2mm');
+      expect(res.findings.filter((f) => f.detail.includes('is not a SUBSYSTEMS.md heading'))).toEqual([]);
+      expect(res.ok).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
 });
