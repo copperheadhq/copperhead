@@ -19,6 +19,13 @@ It exits 0 when everything agrees and 1 when it does not. Drift is reported in t
 
 `init` installs a pre-commit hook that runs it, so hand edits that desync the docs, the constraint registry, or the schematic fail at commit time. In CI, add the same command as a step; with `--json` it prints a result object with per-check detail.
 
+To inspect a single part, net, or pin without running the whole gate, use [`copperhead explain`](/reference/cli/#copperhead-explain):
+
+```bash
+copperhead explain U1
+copperhead explain KEY_DAH
+```
+
 ## `sync`: resolve, under truth precedence
 
 `sync` has two phases: a deterministic verify phase, then an LLM resolve phase. It reconciles the design state under a fixed notion of which source wins:
