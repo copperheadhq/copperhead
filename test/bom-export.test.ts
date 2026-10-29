@@ -74,6 +74,23 @@ describe('quantity arithmetic (supplier-bom-export)', () => {
     expect(orderQuantity(1, 5, 10, false)).toBe(6);
   });
 
+  it('zero spares orders exactly the board count (non-passive)', () => {
+    expect(orderQuantity(4, 10, 0, false)).toBe(40);
+    expect(orderQuantity(1, 1, 0, false)).toBe(1);
+  });
+
+  it('zero spares still applies the passive minimum', () => {
+    // No percentage spares, but the +2 handling floor holds for passives.
+    expect(orderQuantity(1, 1, 0, true)).toBe(3);
+  });
+
+  it('rounds fractional quantities up, without float dust rounding exact ones', () => {
+    // 3 × 1.1 = 3.3 → 4.
+    expect(orderQuantity(3, 1, 10, false)).toBe(4);
+    // 10 × 1.1 is 11.000000000000002 in float — must stay 11, not 12.
+    expect(orderQuantity(10, 1, 10, false)).toBe(11);
+  });
+
   it('classifies passive footprints by the R_/C_/L_ prefix after the library colon', () => {
     expect(isPassiveFootprint('Resistor_SMD:R_0603_1608Metric')).toBe(true);
     expect(isPassiveFootprint('Capacitor_SMD:C_0402_1005Metric')).toBe(true);
@@ -112,6 +129,22 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
     expect(csv).toBe(
       'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
         'RC0603FR-0710KL,Yageo,7,R1\n',
+    );
+  });
+
+  it('cart quantity is end-to-end 44 for a 4-per-board line at 10 boards, 10% spares (issue #7)', () => {
+    const fourUp = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| J1 | Conn | Connector_PinHeader:PinHeader_1x04_P2.54mm_Vertical | HDR-1X04 | Amphenol |\n' +
+        '| J2 | Conn | Connector_PinHeader:PinHeader_1x04_P2.54mm_Vertical | HDR-1X04 | Amphenol |\n' +
+        '| J3 | Conn | Connector_PinHeader:PinHeader_1x04_P2.54mm_Vertical | HDR-1X04 | Amphenol |\n' +
+        '| J4 | Conn | Connector_PinHeader:PinHeader_1x04_P2.54mm_Vertical | HDR-1X04 | Amphenol |\n',
+    );
+    const { csv } = buildExport(fourUp, 'digikey', { boards: 10, spares: 10, includeUnverified: false });
+    // Non-passive: ceil(4 × 10 × 1.1) = 44, grouped onto one cart line.
+    expect(csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' + 'HDR-1X04,Amphenol,44,"J1,J2,J3,J4"\n',
     );
   });
 
