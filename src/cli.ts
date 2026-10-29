@@ -26,6 +26,15 @@ import { kicadCliVersion } from './kicad/cli.js';
 import { loadEnvFile } from './util/env.js';
 import { budgetExtraTurns, budgetPromptText, parseMaxTurns, repoOf, reviewProviderFactory } from './util/cli-args.js';
 
+// When stdout/stderr is a pipe, Node writes to it asynchronously on POSIX, and
+// the process.exit() calls below can end the process before queued writes
+// flush: `copperhead check --json | consumer` then receives only the first
+// chunk (seen as 512 bytes of invalid JSON on macOS). Blocking writes make
+// every byte land before exit. A no-op where the handle has no setBlocking.
+for (const stream of [process.stdout, process.stderr]) {
+  (stream as unknown as { _handle?: { setBlocking?: (b: boolean) => void } })._handle?.setBlocking?.(true);
+}
+
 // Read .env from the working directory before any command resolves a model or a
 // provider. Loaded here rather than per-command so `check` behaves identically,
 // though check never reads a key: it stays LLM-free and network-free either way.
