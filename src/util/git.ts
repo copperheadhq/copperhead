@@ -170,6 +170,52 @@ async function restoreUntracked(repo: string, tree: string): Promise<void> {
   }
 }
 
+/**
+ * The hooks directory git actually consults (`git rev-parse --git-path
+ * hooks`): honors core.hooksPath (husky v5 and later) and resolves linked
+ * worktrees to the main repository's hooks. Null when git cannot resolve it
+ * (not a git repository, or git unavailable). init installs its pre-commit
+ * hook here so the file git runs is the file copperhead wrote (#103).
+ */
+export async function gitHooksDir(repo: string): Promise<string | null> {
+  try {
+    const p = await git(repo, ['rev-parse', '--git-path', 'hooks']);
+    return path.isAbsolute(p) ? p : path.join(repo, p);
+  } catch {
+    return null;
+  }
+}
+
+/** Worktree top level (`git rev-parse --show-toplevel`), or null outside a repo. */
+export async function gitTopLevel(repo: string): Promise<string | null> {
+  try {
+    const p = await git(repo, ['rev-parse', '--show-toplevel']);
+    return path.isAbsolute(p) ? p : path.join(repo, p);
+  } catch {
+    return null;
+  }
+}
+
+/** Common git dir (`git rev-parse --git-common-dir`), absolute, or null. */
+export async function gitCommonDir(repo: string): Promise<string | null> {
+  try {
+    const p = await git(repo, ['rev-parse', '--git-common-dir']);
+    return path.isAbsolute(p) ? p : path.join(repo, p);
+  } catch {
+    return null;
+  }
+}
+
+/** Raw `core.hooksPath` value, or null when unset. */
+export async function gitHooksPathConfig(repo: string): Promise<string | null> {
+  try {
+    const p = await git(repo, ['config', '--get', 'core.hooksPath']);
+    return p ? p : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function isGitRepo(repo: string): Promise<boolean> {
   try {
     await git(repo, ['rev-parse', '--git-dir']);

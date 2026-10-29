@@ -5,6 +5,7 @@ import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from '../kicad/sexp.js';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
 import { resolveInRepo } from '../util/paths.js';
+import { gitCommonDir, gitHooksDir, gitHooksPathConfig, gitTopLevel } from '../util/git.js';
 
 export class InitError extends Error {}
 
@@ -12,6 +13,13 @@ export interface InitResult {
   created: string[];
   skipped: string[];
   refused: string[];
+  /**
+   * Why no pre-commit hook was installed, or null when the hook is in place
+   * (freshly installed or already ours) or hooks were not requested. A foreign
+   * hook means the commit-time `copperhead check` gate is off, so this is
+   * surfaced loudly by the CLI and carried in `--json` (#103).
+   */
+  hookSkipped: string | null;
 }
 
 const sha = (s: string): string => createHash('sha256').update(s).digest('hex');
@@ -145,23 +153,84 @@ write time. This directory is gitignored.
 
 const HOOK_MARKER = '# installed by copperhead init';
 
-async function installPreCommitHook(repoRoot: string): Promise<string | null> {
-  const hooksDir = path.join(repoRoot, '.git', 'hooks');
-  if (!existsSync(hooksDir)) return null;
+type HookOutcome =
+  | { status: 'installed'; path: string }
+  | { status: 'already-installed' }
+  | { status: 'foreign-hook'; path: string }
+  | { status: 'no-hooks-dir'; dir: string }
+  | { status: 'not-a-git-repo' }
+  | { status: 'outside-repo'; dir: string; configured: string | null }
+  | { status: 'unwritable'; path: string; code: string };
+
+/** Repo-relative with POSIX separators for display, or absolute when outside the repo. */
+function displayPath(repoRoot: string, abs: string): string {
+  const rel = path.relative(repoRoot, abs);
+  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) return rel.split(path.sep).join('/');
+  return abs;
+}
+
+/** True when `child` lies inside `parent` (or is the same directory). */
+function isInside(parent: string, child: string): boolean {
+  const rel = path.relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+/** `--repo` flag so a hook installed at the worktree top checks this project, not the top. */
+function repoFlag(repoRoot: string, toplevel: string | null): string {
+  if (!toplevel) return '';
+  if (path.resolve(toplevel) === path.resolve(repoRoot)) return '';
+  const rel = path.relative(toplevel, repoRoot);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return '';
+  return ` --repo "${rel.split(path.sep).join('/')}"`;
+}
+
+async function installPreCommitHook(repoRoot: string): Promise<HookOutcome> {
+  // Resolve the hooks directory the way git does, not the conventional path:
+  // husky v5 and later set core.hooksPath (e.g. .husky/_), and a linked
+  // worktree keeps its hooks in the main repository. Writing to .git/hooks in
+  // either setup installs a hook git never runs (#103).
+  const resolved = await gitHooksDir(repoRoot);
+  const hooksDir =
+    resolved ?? (existsSync(path.join(repoRoot, '.git')) ? path.join(repoRoot, '.git', 'hooks') : null);
+  if (!hooksDir) return { status: 'not-a-git-repo' };
+  // Never write into a directory shared by every repository on the machine:
+  // a global or corporate-managed core.hooksPath outside this worktree (and
+  // outside the common git dir) would run `copperhead check` on every commit
+  // everywhere, and break every commit everywhere if copperhead is removed.
+  if (resolved) {
+    const toplevel = await gitTopLevel(repoRoot);
+    const commonDir = await gitCommonDir(repoRoot);
+    const insideWorktree = toplevel ? isInside(toplevel, resolved) : false;
+    const insideCommonDir = commonDir ? isInside(commonDir, resolved) : false;
+    if (!insideWorktree && !insideCommonDir) {
+      const configured = await gitHooksPathConfig(repoRoot);
+      return { status: 'outside-repo', dir: displayPath(repoRoot, resolved), configured };
+    }
+  }
   const hookPath = path.join(hooksDir, 'pre-commit');
+  if (!existsSync(hooksDir)) return { status: 'no-hooks-dir', dir: displayPath(repoRoot, hooksDir) };
   if (existsSync(hookPath)) {
     const existing = await readFile(hookPath, 'utf8');
-    if (existing.includes(HOOK_MARKER)) return null; // idempotent
-    return null; // never clobber a user's own hook
+    if (existing.includes(HOOK_MARKER)) return { status: 'already-installed' }; // idempotent
+    return { status: 'foreign-hook', path: displayPath(repoRoot, hookPath) }; // never clobber a user's own hook
   }
+  // Git runs hooks from the top of the worktree, so a project nested under a
+  // monorepo root must name its own directory: a bare `copperhead check`
+  // there finds no config and exits 0, silently disabling the gate.
+  const flag = repoFlag(repoRoot, await gitTopLevel(repoRoot));
   const script = `#!/bin/sh
 ${HOOK_MARKER}
 # Hand edits that desync docs, constraints, or the schematic fail at commit time.
-exec copperhead check
+exec copperhead${flag} check
 `;
-  await writeFile(hookPath, script, 'utf8');
-  await chmod(hookPath, 0o755);
-  return hookPath;
+  try {
+    await writeFile(hookPath, script, 'utf8');
+    await chmod(hookPath, 0o755);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? 'unknown error';
+    return { status: 'unwritable', path: displayPath(repoRoot, hookPath), code };
+  }
+  return { status: 'installed', path: hookPath };
 }
 
 export interface InitOptions {
@@ -199,7 +268,7 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
   const docsDir = path.join(repoRoot, config.docs);
   await mkdir(docsDir, { recursive: true });
 
-  const result: InitResult = { created: [], skipped: [], refused: [] };
+  const result: InitResult = { created: [], skipped: [], refused: [], hookSkipped: null };
   const hashes: Record<string, string> = { ...(config.generatedHashes ?? {}) };
   const appendOnly = new Set(['DECISIONS.md', 'CHANGELOG.md']);
 
@@ -248,7 +317,33 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
 
   if (opts.installHooks !== false) {
     const hook = await installPreCommitHook(repoRoot);
-    if (hook) result.created.push(path.relative(repoRoot, hook));
+    if (hook.status === 'installed') {
+      result.created.push(displayPath(repoRoot, hook.path));
+    } else if (hook.status === 'foreign-hook') {
+      // The user's own hook is left untouched, but the commit-time gate they
+      // were promised is off: that outcome must reach the user (#103).
+      result.hookSkipped =
+        `${hook.path} already exists and was not written by copperhead, so it was left untouched and the ` +
+        'commit-time "copperhead check" gate is NOT active. Add "copperhead check" to your existing hook, or run it in CI.';
+    } else if (hook.status === 'no-hooks-dir') {
+      result.hookSkipped =
+        `no ${hook.dir} directory, so no pre-commit hook was installed and the commit-time ` +
+        '"copperhead check" gate is NOT active. Restore the hooks directory and re-run init, or run the check in CI.';
+    } else if (hook.status === 'not-a-git-repo') {
+      result.hookSkipped =
+        'not a git repository, so no pre-commit hook was installed and the commit-time ' +
+        '"copperhead check" gate is NOT active. Run "copperhead check" in CI to keep the gate.';
+    } else if (hook.status === 'outside-repo') {
+      const where = hook.configured ? `core.hooksPath=${hook.configured}` : hook.dir;
+      result.hookSkipped =
+        `hooks are managed by ${where}, outside this repository, so copperhead did not write a shared hook ` +
+        'and the commit-time "copperhead check" gate is NOT active. ' +
+        `Add "copperhead check" to ${hook.dir}/pre-commit, or run it in CI.`;
+    } else if (hook.status === 'unwritable') {
+      result.hookSkipped =
+        `${hook.path} could not be written (${hook.code}), so no pre-commit hook was installed and the ` +
+        'commit-time "copperhead check" gate is NOT active. Fix the permissions and re-run init, or run the check in CI.';
+    }
   }
 
   return result;
