@@ -1,9 +1,9 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseSexp, children, child, isList, type SexpNode } from './sexp.js';
 import { childSpans, listEnd, type Span } from './spans.js';
 import { exportNetlist, kicadLoadError } from './cli.js';
+import { createCopperheadTempDir } from '../util/tmp.js';
 import { uuidv5 } from './emit.js';
 import {
   FootprintResolver,
@@ -800,7 +800,7 @@ export async function populateBoard(opts: PopulateOptions): Promise<PopulateResu
   for (const e of edits.sort((a, b) => b.at - a.at)) text = text.slice(0, e.at) + e.ins + text.slice(e.at + e.del);
 
   // KiCad must load it before it replaces the board (AC-15.37)
-  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-populate-'));
+  const dir = await createCopperheadTempDir('populate-');
   try {
     const probe = path.join(dir, path.basename(boardPath));
     await writeFile(probe, text, 'utf8');

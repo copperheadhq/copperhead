@@ -1,10 +1,10 @@
 import { execa, ExecaError } from 'execa';
 import { existsSync, readdirSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { duplicateFootprintRefs, normalizeReport, type CheckReport } from './report.js';
 import { PreflightError, isNotFoundError } from '../util/preflight.js';
+import { createCopperheadTempDir } from '../util/tmp.js';
 
 export class KicadCliMissingError extends PreflightError {
   constructor(platform = process.platform) {
@@ -282,7 +282,7 @@ async function runCheck(
   filePath: string,
   extraArgs: string[] = [],
 ): Promise<CheckReport> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-'));
+  const dir = await createCopperheadTempDir();
   const out = path.join(dir, `${kind}.json`);
   const sub = kind === 'erc' ? ['sch', 'erc'] : ['pcb', 'drc'];
   // the board DRC reads, read first: a shared reference on it is never one
@@ -336,7 +336,7 @@ export function isProbeableKicadFile(p: string): boolean {
 export async function kicadLoadError(filePath: string): Promise<string | null> {
   if (!isProbeableKicadFile(filePath)) return null;
   const isSch = filePath.endsWith('.kicad_sch');
-  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-validate-'));
+  const dir = await createCopperheadTempDir('validate-');
   const args = isSch
     ? ['sch', 'export', 'netlist', '--output', path.join(dir, 'probe.net'), filePath]
     : ['pcb', 'export', 'pos', '--output', path.join(dir, 'probe.pos'), filePath];
@@ -359,7 +359,7 @@ export function runDrc(pcbPath: string): Promise<CheckReport> {
  * gives the same count as the board in place.
  */
 export async function unroutedCount(boardText: string): Promise<number> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-unrouted-'));
+  const dir = await createCopperheadTempDir('unrouted-');
   try {
     const probe = path.join(dir, 'baseline.kicad_pcb');
     await writeFile(probe, boardText, 'utf8');
@@ -371,7 +371,7 @@ export async function unroutedCount(boardText: string): Promise<number> {
 
 /** The schematic's KiCad netlist (kicadsexpr), as text. Throws kicad-cli's own error. */
 export async function exportNetlist(schPath: string): Promise<string> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-netlist-'));
+  const dir = await createCopperheadTempDir('netlist-');
   const out = path.join(dir, 'board.net');
   try {
     const res = await runKicad(['sch', 'export', 'netlist', '--output', out, schPath], { reject: false });
