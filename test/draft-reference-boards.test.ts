@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { checkLegibility } from '../src/kicad/legibility.js';
 import { runErc } from '../src/kicad/cli.js';
+import { useSeededKicadConfig } from './helpers.js';
 
 /**
  * Reference boards (manual-tests/reference-boards/): committed reference projects with
@@ -14,6 +15,8 @@ import { runErc } from '../src/kicad/cli.js';
  * from the machine's installed libraries — so the byte contract holds on any
  * machine. Regenerate references with `npm run refboards -- --update`.
  */
+
+useSeededKicadConfig();
 
 const CONTROL = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'manual-tests', 'reference-boards');
 

@@ -11,6 +11,9 @@ import { checkLegibility } from '../src/kicad/legibility.js';
 import { listSymbols, pinNets } from '../src/kicad/sexp.js';
 import { verifySchematicSymbols } from '../src/kicad/symlib.js';
 import { runErc } from '../src/kicad/cli.js';
+import { useSeededKicadConfig } from './helpers.js';
+
+useSeededKicadConfig();
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SYMLIB = path.join(HERE, 'fixtures', 'symlib');
