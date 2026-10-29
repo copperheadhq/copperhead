@@ -89,4 +89,35 @@ describe('copperhead mcp over real stdio', () => {
     expect(check.ok).toBe(false);
     expect(check.error.kind).toBe('unavailable');
   }, 180_000);
+
+  it('delivers copperhead_do progress notifications to the host over the pipe (3.1a)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    cleanups.push(cleanup);
+    // The real server and transport, with copperhead_do driven by a scripted
+    // provider (the createMcpServer test seam), so no model and no network.
+    const transport = new StdioClientTransport({
+      command: 'npx',
+      args: ['tsx', 'test/fixtures/mcp/scripted-server.ts', repo],
+      cwd: ROOT,
+      env: { ...process.env, COPPERHEAD_MODEL: 'gpt-5', NO_COLOR: '1' } as Record<string, string>,
+    });
+    const client = new Client({ name: 'stdio-progress', version: '1' });
+    await client.connect(transport);
+    cleanups.push(async () => void (await client.close().catch(() => {})));
+
+    const seen: { progress: number; message?: string }[] = [];
+    const res = await client.callTool(
+      { name: 'copperhead_do', arguments: { request: 'rename R1 to R10' } },
+      undefined,
+      // the SDK's default request timeout is 60 s; the run gets the test's own budget
+      { onprogress: (p) => void seen.push(p), timeout: 170_000 },
+    );
+    // The scripted run declines, so the result is a refusal; what matters here
+    // is that the notifications sent during the run reached this side.
+    const envelope = JSON.parse((res as { content: { text: string }[] }).content[0]!.text);
+    expect(envelope.data.status).toBe('refused');
+    expect(seen.length, 'no progress notification reached the host').toBeGreaterThan(0);
+    expect(seen[0]!.message).toMatch(/^turn 1\//);
+    expect(seen.map((p) => p.progress)).toEqual(seen.map((_, i) => i + 1));
+  }, 180_000);
 });
