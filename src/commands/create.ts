@@ -366,20 +366,11 @@ export const STAGES: Stage[] = [
   },
   {
     name: 'devplan',
-    isComplete: async (root, docs) => {
-      // init does NOT scaffold DEVPLAN.md, but a blank file must not count.
-      // Require at least one ## section heading AND at least one content line.
-      const p = path.join(root, docs, 'DEVPLAN.md');
-      if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      if (!/^#{1,6}\s/m.test(text)) return false;
-      const contentLines = text.split('\n').filter(
-        (l) => l.trim() && !l.trim().startsWith('#'),
-      );
-      return contentLines.length > 0;
-    },
-    prompt: () =>
-      'Stage 8: DEVPLAN.md. Write docs/DEVPLAN.md: bring-up steps in order, test points and what to meter first, risk list, and the prototype order plan.',
+    // init does NOT scaffold DEVPLAN.md, but a blank file must not count:
+    // devplanGap requires a bring-up heading with content under it
+    isComplete: async (root, docs) => (await devplanGap(root, docs)) === null,
+    prompt: (_brief, docs) =>
+      `Stage 8: DEVPLAN.md. Write ${path.posix.join(docs, 'DEVPLAN.md')} (or, if it already exists, add to it with edit_file, keeping what is there) with a "## Bring-up" section (steps in order, test points and what to meter first), a risk list, and the prototype order plan.`,
   },
 ];
 
@@ -583,6 +574,71 @@ async function layoutDraftGap(root: string, docs: string, opts: { drcFailed?: bo
   return null;
 }
 
+/** Heading text naming bring-up: "Bring-up", "Bring up", "Bringup", any hyphen (#378). */
+const BRING_UP = /\bbring[-\u2010-\u2014 \u00a0]?up\b/i;
+
+/**
+ * The document's lines, each with its heading level (0 for a non-heading),
+ * reading a line inside a fenced code block as content: a `# comment` in a
+ * stage-7 shell snippet is not a heading. `unclosedFence` is the 1-based line
+ * of a fence the document never closes, so everything after it is code.
+ */
+function markdownLines(text: string): { lines: { level: number; text: string }[]; unclosedFence: number | null } {
+  let fence: { marker: string; line: number } | null = null;
+  const lines: { level: number; text: string }[] = [];
+  for (const [i, line] of text.split(/\r?\n/).entries()) {
+    // a backtick run with another backtick later on the line is inline code, not a fence
+    const marker = /^ {0,3}(`{3,}(?!.*`)|~{3,})/.exec(line)?.[1];
+    const h = /^ {0,3}(#{1,6})(?:[ \t]+(.*))?$/.exec(line);
+    if (fence) {
+      // closed only by the same character, at least as long, with nothing after it
+      if (marker && marker[0] === fence.marker[0] && marker.length >= fence.marker.length && !line.trim().slice(marker.length).trim()) fence = null;
+      lines.push({ level: 0, text: line });
+    } else if (marker) {
+      fence = { marker, line: i + 1 };
+      lines.push({ level: 0, text: line });
+    } else {
+      lines.push(h ? { level: h[1]!.length, text: h[2] ?? '' } : { level: 0, text: line });
+    }
+  }
+  return { lines, unclosedFence: fence?.line ?? null };
+}
+
+/**
+ * What is wrong with the devplan document, or null when it has a bring-up
+ * heading with content under it, before the next heading of the same or a
+ * higher level. Spelled out for the retry: a bold line or a differently named
+ * section otherwise fails with no hint of what is missing.
+ */
+export async function devplanGap(root: string, docs: string): Promise<string | null> {
+  const devplanDoc = path.posix.join(docs, 'DEVPLAN.md');
+  const p = path.join(root, devplanDoc);
+  if (!existsSync(p)) return `${devplanDoc} does not exist`;
+  const { lines, unclosedFence } = markdownLines(await readFile(p, 'utf8'));
+  const starts = lines.flatMap((l, i) => (l.level && BRING_UP.test(l.text) ? [i] : []));
+  if (!starts.length) {
+    // the model can see its heading in the file, so name the fence that hides it
+    if (unclosedFence !== null) {
+      return `${devplanDoc} has a code fence opened at line ${unclosedFence} that is never closed, so everything after it (including any "## Bring-up") reads as code`;
+    }
+    return `${devplanDoc} has no "## Bring-up" heading (a Markdown heading line; bold text or another section name does not count)`;
+  }
+  // HTML comments and thematic breaks are not bring-up steps (as the Draft quality gate strips comments)
+  const hasContent = (start: number): boolean => {
+    const body: string[] = [];
+    for (const l of lines.slice(start + 1)) {
+      if (l.level && l.level <= lines[start]!.level) break;
+      if (!l.level) body.push(l.text);
+    }
+    return body
+      .join('\n')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .split('\n')
+      .some((t) => t.trim() && !/^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/.test(t));
+  };
+  return starts.some(hasContent) ? null : `${devplanDoc} has a "## Bring-up" heading with nothing under it`;
+}
+
 export async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
   if (stageName === 'part-selection') {
@@ -611,6 +667,10 @@ export async function contractGapDetail(stageName: string, root: string, config:
     // the DRC, so it is not run again
     const gap = await layoutDraftGap(root, (await loadConfig(root)).docs, { drcFailed: true });
     return gap ? `the layout-draft contract is not met: ${gap}` : generic;
+  }
+  if (stageName === 'devplan') {
+    const gap = await devplanGap(root, config.docs);
+    return gap ? `the devplan contract is not met: ${gap}` : generic;
   }
   if (stageName !== 'schematic' || !config.schematic) return generic;
   const p = path.join(root, config.schematic);
