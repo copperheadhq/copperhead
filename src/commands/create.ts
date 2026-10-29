@@ -401,11 +401,30 @@ export interface CreateOptions {
  * outputs package (create-pipeline delta). Called whenever the outputs stage is
  * confirmed complete — on the pass that finishes it and on any later resume — so
  * the file tracks the current BOM.md.
+ *
+ * The emit runs after the stage's own commit, so it commits the CSV itself
+ * (#379): left dirty, the next commit (stage 7's, or a resume's "commit
+ * completed stage spec-seed") would sweep it in under another stage's name.
+ * Only when the CSV is the sole changed path, so nothing else is swept in.
  */
-async function emitJlcpcbAfterOutputs(stageName: string, opts: CreateOptions): Promise<void> {
+export async function emitJlcpcbAfterOutputs(stageName: string, opts: CreateOptions): Promise<void> {
   if (stageName !== 'outputs') return;
   const out = await emitCreateJlcpcbBom(opts.repoRoot);
-  if (out) opts.log(stageLine('outputs', `emitted ${out} (JLCPCB assembly BOM)`, 'ok'));
+  if (!out) return;
+  opts.log(stageLine('outputs', `emitted ${out} (JLCPCB assembly BOM)`, 'ok'));
+  const rel = out.split(path.sep).join('/');
+  try {
+    const dirty = await changedFiles(opts.repoRoot, 'HEAD');
+    if (!dirty.includes(rel)) return; // unchanged since the last commit
+    if (dirty.length > 1) {
+      opts.log(stageLine('outputs', `left ${rel} uncommitted: the tree has other uncommitted changes`, 'warn'));
+      return;
+    }
+    const sha = await commitAll(opts.repoRoot, 'copperhead: create pipeline stage: outputs (JLCPCB assembly BOM)');
+    opts.log(stageLine('outputs', `committed ${rel} ${sha.slice(0, 10)}`, 'ok'));
+  } catch (e) {
+    opts.log(stageLine('outputs', `could not commit ${rel} (${(e as Error).message})`, 'err'));
+  }
 }
 
 /**
