@@ -252,8 +252,29 @@ describe('config loading', () => {
       const config = await loadConfig(repo);
       expect(config.maxTurns).toBe(40);
       expect(config.maxRepairCycles).toBe(5);
-      expect(config.schematic).toBe(path.join('hardware', 'open-key.kicad_sch'));
-      expect(config.board).toBe(path.join('hardware', 'open-key.kicad_pcb'));
+      expect(config.schematic).toBe('hardware/open-key.kicad_sch');
+      expect(config.board).toBe('hardware/open-key.kicad_pcb');
+      // the committed file itself, not just what loadConfig makes of it
+      const raw = JSON.parse(await readFile(path.join(repo, '.copperhead', 'config.json'), 'utf8')) as { schematic: string; board: string };
+      expect([raw.schematic, raw.board]).toEqual(['hardware/open-key.kicad_sch', 'hardware/open-key.kicad_pcb']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reads a config that init wrote on Windows (backslashes) on any platform', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      await writeFile(
+        path.join(repo, '.copperhead', 'config.json'),
+        JSON.stringify({ schematic: 'hardware\\open-key.kicad_sch', board: 'hardware\\open-key.kicad_pcb', docs: 'docs/' }),
+        'utf8',
+      );
+      const config = await loadConfig(repo);
+      expect(config.schematic).toBe('hardware/open-key.kicad_sch');
+      expect(config.board).toBe('hardware/open-key.kicad_pcb');
+      expect(existsSync(path.join(repo, config.schematic!))).toBe(true);
     } finally {
       await cleanup();
     }
