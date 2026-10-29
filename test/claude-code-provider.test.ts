@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { ClaudeCodeProvider, type QueryLike, type QueryMessage } from '../src/agent/providers/claude-code.js';
 import { makeProvider } from '../src/agent/loop.js';
 import { AnthropicProvider } from '../src/agent/providers/anthropic.js';
@@ -516,6 +518,59 @@ try {
 } catch {
   sdkInstalled = false;
 }
+
+describe('ClaudeCodeProvider — opt-in trace (COPPERHEAD_CC_TRACE)', () => {
+  const withTrace = async <T>(value: string | undefined, fn: () => Promise<T>): Promise<T> => {
+    const prev = process.env.COPPERHEAD_CC_TRACE;
+    if (value === undefined) delete process.env.COPPERHEAD_CC_TRACE;
+    else process.env.COPPERHEAD_CC_TRACE = value;
+    try {
+      return await fn();
+    } finally {
+      if (prev === undefined) delete process.env.COPPERHEAD_CC_TRACE;
+      else process.env.COPPERHEAD_CC_TRACE = prev;
+    }
+  };
+
+  it('writes the prompt and each non-partial SDK message per turn, and points the CLI debug log there', async () => {
+    const dir = path.join(mkdtempSync(path.join(tmpdir(), 'cc-trace-')), 'run');
+    let options: Record<string, unknown> = {};
+    const provider = new ClaudeCodeProvider(
+      undefined,
+      fakeQuery([streamEvent('message_start'), assistant('hi'), result(3, 4)], (a) => {
+        options = a.options ?? {};
+      }),
+    );
+    await withTrace(dir, () => provider.chat(messages, tools));
+    expect(readdirSync(dir)).toEqual(['turn-1.jsonl']);
+    const records = readFileSync(path.join(dir, 'turn-1.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    expect(records[0].prompt).toContain('do the thing');
+    expect(records.slice(1).map((r: { type: string }) => r.type)).toEqual(['assistant', 'result']);
+    expect(options.debug).toBe(true);
+    expect(options.debugFile).toBe(path.join(dir, 'turn-1.cli.log'));
+  });
+
+  it('is off by default: no debug option and nothing written', async () => {
+    let options: Record<string, unknown> = {};
+    const provider = new ClaudeCodeProvider(
+      undefined,
+      fakeQuery([assistant('hi'), result()], (a) => {
+        options = a.options ?? {};
+      }),
+    );
+    await withTrace(undefined, () => provider.chat(messages, tools));
+    expect(options).not.toHaveProperty('debug');
+    expect(options).not.toHaveProperty('debugFile');
+  });
+
+  it('never fails the turn when the trace cannot be written', async () => {
+    const blocker = path.join(mkdtempSync(path.join(tmpdir(), 'cc-trace-')), 'a-file');
+    writeFileSync(blocker, '');
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('hi'), result()]));
+    const turn = await withTrace(path.join(blocker, 'sub'), () => provider.chat(messages, tools));
+    expect(turn.text).toBe('hi');
+  });
+});
 
 describe('ClaudeCodeProvider — missing optional dependency', () => {
   // Integration-level: only runs when the SDK is genuinely absent (e.g. an

@@ -1,3 +1,4 @@
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { mkdtemp, rm, utimes } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -115,6 +116,8 @@ export class ClaudeCodeProvider implements Provider {
   /** In-flight query aborters, so close() (called by the turn watchdog on a
    * hung turn) can tear down the live subprocess, not just delete its cwd. */
   private readonly inFlight = new Set<AbortController>();
+  /** Turn counter for the opt-in COPPERHEAD_CC_TRACE files. */
+  private traceTurn = 0;
   /** Session-resume state (1.1). `sessionId` is the last session the SDK reported;
    * `sentCount` is how many `messages` we have already handed it, so a resumed
    * turn sends only the delta. Unused unless `sessionResume` is on. */
@@ -168,6 +171,31 @@ export class ClaudeCodeProvider implements Provider {
     // One aborter per turn: close() aborts it to kill a hung subprocess.
     const aborter = new AbortController();
     this.inFlight.add(aborter);
+    // Opt-in trace (COPPERHEAD_CC_TRACE=<dir>): per turn, the prompt and every
+    // non-partial SDK message (turn-N.jsonl) plus the Claude Code CLI's own debug
+    // log (turn-N.cli.log). For diagnosing turns that fail with an opaque
+    // "[ede_diagnostic] result_type=user" error result, where the SDK reports only
+    // the result text and the API response that caused it is otherwise lost. The
+    // files hold the full prompt (design files included), so the trace is off
+    // unless asked for. A trace write failure never fails the turn.
+    const traceDir = process.env.COPPERHEAD_CC_TRACE || undefined;
+    const turnNo = ++this.traceTurn;
+    const trace = (record: unknown): void => {
+      if (!traceDir) return;
+      try {
+        appendFileSync(path.join(traceDir, `turn-${turnNo}.jsonl`), JSON.stringify(record) + '\n');
+      } catch {
+        // best effort: tracing must not change the run's outcome
+      }
+    };
+    if (traceDir) {
+      try {
+        mkdirSync(traceDir, { recursive: true });
+      } catch {
+        // best effort, as above
+      }
+      trace({ promptChars: prompt.length, systemChars: systemPrompt.length, prompt });
+    }
     try {
       for await (const msg of query({
         prompt,
@@ -203,8 +231,10 @@ export class ClaudeCodeProvider implements Provider {
           // / OPENAI_API_KEY, even when one is also set (D2).
           env: { ...process.env, ANTHROPIC_API_KEY: undefined, OPENAI_API_KEY: undefined },
           maxTurns: 1,
+          ...(traceDir ? { debug: true, debugFile: path.join(traceDir, `turn-${turnNo}.cli.log`) } : {}),
         },
       })) {
+        if (msg.type !== 'stream_event') trace(msg);
         if (msg.type === 'stream_event') {
           // Every partial event is progress (thinking and block boundaries too),
           // and reporting it restarts the loop's inactivity watchdog; only text
