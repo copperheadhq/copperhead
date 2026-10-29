@@ -216,7 +216,7 @@ export function rankSymbolNames(
 ): RankedSymbolName[] {
   const canon = canonSymName;
   const q = canon(query);
-  if (q.length < 2) return [];
+  if (!q.length) return [];
   const ranked: RankedSymbolName[] = [];
   const seen = new Set<string>();
   for (const name of names) {
@@ -225,6 +225,9 @@ export function rankSymbolNames(
     const c = canon(name);
     let rank: number;
     if (c === q) rank = 0;
+    // R, C and other single-letter symbols are valid exact queries, but too
+    // broad for prefix or substring matching.
+    else if (q.length < 2) continue;
     else if (c.startsWith(q)) rank = 1;
     else if (c.includes(q)) rank = 2;
     else if (c.length >= 3 && q.includes(c)) rank = 3;
@@ -371,7 +374,10 @@ export async function searchInstalledSymbols(
   dirs: string[],
   cap = 24,
 ): Promise<string[]> {
-  if (canonSymName(query).length < 2) return [];
+  // Accept a returned Lib:Name as input too. Search the symbol name across
+  // all libraries even when the caller guessed the wrong nickname.
+  const nameQuery = query.slice(query.indexOf(':') + 1).trim();
+  if (!canonSymName(nameQuery).length) return [];
   // Rank globally, not per library: a library scanned early contributes only
   // weak matches, and capping in scan order would drop a later library's
   // stronger candidate — the exact case this tool exists to surface, since a
@@ -380,7 +386,7 @@ export async function searchInstalledSymbols(
   for (const [lib, file] of await listInstalledLibraries(dirs)) {
     const names = await libSymbolNames(file);
     if (!names) continue;
-    for (const { name, rank } of rankSymbolNames(names, query, 4)) {
+    for (const { name, rank } of rankSymbolNames(names, nameQuery, 4)) {
       hits.push({ libId: `${lib}:${name}`, rank, name });
     }
   }

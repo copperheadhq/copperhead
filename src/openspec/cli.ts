@@ -31,8 +31,9 @@ export function hasOpenSpec(repo: string): boolean {
 }
 
 export async function openspecInit(repo: string): Promise<OpenSpecResult> {
+  // Keep existing workspaces intact; this is not a validation of their contents.
   if (hasOpenSpec(repo)) return { ok: true, output: 'openspec/ already present' };
-  return openspec(repo, ['init', '--no-interactive']);
+  return openspec(repo, ['init', '--tools', 'none']);
 }
 
 export function openspecValidate(repo: string, changeId?: string): Promise<OpenSpecResult> {
