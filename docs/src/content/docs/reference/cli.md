@@ -18,7 +18,7 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `repl` (default) | [Edit an existing board](/workflows/edit-existing-board/) | Yes | Interactive agent shell; each prompt is one `do`-equivalent run. |
 | `demo` | [Simple demo](/getting-started/demo/) | Tour no / pipeline yes | Tour of what copperhead does, or run the USB-C breakout create pipeline. |
 | `init` | Setup | No | Scaffolds `docs/` from an existing schematic. |
-| `check` (`verify`) | Either | No | ERC, DRC, drift, constraints, spec validation. CI-safe. |
+| `check` (`verify`) | Either | No | ERC, DRC, drift, brief freshness, constraints, spec validation. CI-safe. |
 | `do` | [Edit an existing board](/workflows/edit-existing-board/) | Yes | One change: propose, edit, verify, propagate, commit. |
 | `create` | [Design from a brief](/workflows/create-from-brief/) | Yes | Full pipeline from a markdown brief to an output package. |
 | `sync` | Either | Verify phase no, resolve phase yes | Reconciles docs, files, and constraints. |
@@ -113,7 +113,7 @@ Alias: `copperhead verify`.
 copperhead check
 ```
 
-Runs ERC, DRC, doc-drift detection, constraint checks, and OpenSpec validation. Makes **no LLM calls and no network requests**, which is a contract, not a tendency: this is what makes it safe to run in CI and in a pre-commit hook.
+Runs ERC, DRC, doc-drift detection, constraint checks, brief freshness, and OpenSpec validation. A stale brief or unknown reconciliation state fails the check. Makes **no LLM calls and no network requests**, which is a contract, not a tendency: this is what makes it safe to run in CI and in a pre-commit hook.
 
 ERC and DRC are skipped when no schematic or board is configured, rather than failing.
 
@@ -122,7 +122,7 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `0` | Everything agrees. |
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `brief`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Brief status is `current`, `stale`, `unknown`, or `not-applicable`; explicitly declined brief changes remain visible. Legibility findings never affect the exit code.
 
 ## `copperhead draft schematic`
 
@@ -183,18 +183,23 @@ Verifies the whole design state and resolves drift. Two phases: a deterministic 
 
 ```bash
 copperhead sync [--model <model>] [--dry-run]
+copperhead sync --brief [--model <model>] [--dry-run]
 ```
 
 | Option | Description |
 | --- | --- |
 | `--model <model>` | Model for the resolve phase. |
 | `--dry-run` | Print the inconsistency report and write nothing. |
+| `--brief` | Compare the current brief with the last reconciled version and route each changed block through the gated agent loop. The tracked brief may be the only pre-existing dirty path. |
+| `--brief --dry-run` | Print the brief diff without calling a provider or changing files. |
 
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Clean, or drift resolved successfully. |
 | `1` | The resolve phase failed. |
 | `2` | Requirement violations found. |
+
+With `--brief`, stale changes are reconciled block by block; every block needs an explicit applied or declined decision with rationale. Declines remain visible in `check`. A legacy origin without a reconciliation record is unknown; `sync --brief` can compare it only when the origin text is recoverable from local Git history. The configured tracked brief may be the only pre-existing dirty path, allowing the brief and reconciliation record to be committed together; other dirty or untracked paths are refused.
 
 Exit code 2 is the important one. A requirement violation means the as-built design contradicts a stated requirement, and copperhead will **never** auto-resolve that: the fix is an engineering decision. Drift, where the docs disagree with the files, is resolvable and gets resolved.
 
@@ -208,7 +213,7 @@ copperhead create --brief brief.md [--model <model>] [--interactive]
 
 | Option | Description |
 | --- | --- |
-| `--brief <file>` | **Required.** The product brief, in markdown. |
+| `--brief <file>` | **Required.** The product brief, in markdown. It must be inside the target repository so freshness can be tracked; external paths are rejected before create starts. |
 | `--model <model>` | `codex`, `cursor`, `gpt-5`, `claude`, or `claude-code` (saved-login; no model API key for those three). |
 | `--interactive` | Re-enable the human gates: spec approval, and a pause before export. |
 
