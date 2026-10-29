@@ -10,11 +10,12 @@ that tells a host agent to use it.
 
 ## What the server exposes
 
-Exactly five tools, and nothing finer:
+Exactly six tools, and nothing finer:
 
 | Tool | LLM | Mutates | Purpose |
 | --- | --- | --- | --- |
 | `copperhead_check` | no | no | ERC, DRC, doc drift, spec validation |
+| `copperhead_diff` | no | no | component, connection, and named-net changes against optional `base` (default `HEAD~1`) |
 | `copperhead_init` | no | yes | scaffold docs memory, and install a `pre-commit` hook running `copperhead check` |
 | `copperhead_do` | yes | yes | the full gated change pipeline |
 | `copperhead_sync` | only with `resolve: true` | only with `resolve: true` | design-state consistency, and optionally fix drift |
@@ -24,8 +25,8 @@ There is deliberately no file-edit tool, no raw KiCad tool, and no way to drive 
 single step of the loop. That is the point: a host agent integrating copperhead
 cannot bypass spec-gating or verification-gating by any sequence of calls.
 
-`copperhead_check`, `copperhead_init` and `copperhead_doctor` need no credential. `copperhead_doctor`
-is also the one tool that does not require `kicad-cli` to be present — it reports a missing one as a
+`copperhead_check`, `copperhead_diff`, `copperhead_init` and `copperhead_doctor` need no credential. `copperhead_diff` returns the same report as `diff --json` in the envelope's `data` field and requires no `kicad-cli`. `copperhead_doctor`
+also works without `kicad-cli`: it reports a missing one as a
 failed check, so a host can diagnose its own setup rather than meeting an opaque error elsewhere. `copperhead_do` and
 `copperhead_sync --resolve` return a typed `unavailable` error naming the missing
 variable when no model can be resolved.
@@ -77,7 +78,7 @@ The experimental marker comes off, and registry listings are submitted, when all
 1. The run-protocol handshake (`copperhead capabilities --json` and a
    `copperhead-run/<major>` constant) exists, and the server reports its surface
    through it rather than through its own version constant.
-2. The five tool input schemas carry an explicit version and have stopped changing
+2. The six tool input schemas carry an explicit version and have stopped changing
    shape. (The shared result envelope and its typed error kinds are already in
    place: results are built with the same `seal()` path the agent's own tools use,
    so redaction is inherited rather than reimplemented.)

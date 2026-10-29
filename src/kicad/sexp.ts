@@ -128,7 +128,7 @@ async function loadSheets(rootSch: string): Promise<ParsedSheet[]> {
     for (const sheet of children(root, 'sheet')) {
       const sub = property(sheet, 'Sheetfile') ?? property(sheet, 'Sheet file');
       const name = property(sheet, 'Sheetname') ?? property(sheet, 'Sheet name') ?? 'sheet';
-      if (sub) await load(path.resolve(path.dirname(abs), sub), name);
+      if (sub) await load(path.resolve(path.dirname(abs), sub.replace(/\\/g, '/')), name);
     }
   }
   await load(rootSch, '/');
