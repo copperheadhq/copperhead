@@ -337,7 +337,8 @@ copperhead review [design] --out <dir> [--source …] [--fab …] [--fab-profile
 copperhead explain <refdes|net|pin>
     Deterministic lookup: a refdes (`U1`) lists value, footprint, pins, and
     connected nets; a net (`GND`) lists attached pins; a pin (`U1.GPIO14` or
-    `R2.1`) names the net. Also pulls matching rows from BOM.md / PINOUT.md
+    `R2.1`) names the net; a dotted net like `VDD1.8` still resolves as a
+    net when no such part exists. Also pulls matching rows from BOM.md / PINOUT.md
     and mentions in docs/. No LLM, no network. `--json` emits the same
     structured hit. Unknown queries exit 1 with nearby-name suggestions.
     The REPL exposes the same lookup as `/explain`.
@@ -512,6 +513,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-17.3** `explain U1.GPIO14` and `explain R2.1` both name net KEY_DAH.
 - **AC-17.4** `--json explain GND` is parseable with `ok: true` and `hit.kind === "net"`.
 - **AC-17.5** An unknown query exits 1 and suggests nearby names when they exist.
+- **AC-17.6** A dotted net such as `VDD1.8` resolves as a net when no part `VDD1` exists, and a pin name repeated on one part fails with "use REF.PIN" instead of "nothing named".
 
 ### AC-3 · `copperhead do` — core loop
 

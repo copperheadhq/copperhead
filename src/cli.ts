@@ -194,7 +194,9 @@ program
       else process.stdout.write(text.startsWith('\n') ? text.slice(1) : text);
       process.exit(result.ok ? 0 : 1);
     } catch (err) {
-      console.error((err as Error).message);
+      const message = (err as Error).message;
+      if (json) console.log(JSON.stringify({ ok: false, error: message, suggestions: [] }, null, 2));
+      else console.error(message);
       process.exit(1);
     }
   });

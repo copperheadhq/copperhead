@@ -21,7 +21,7 @@
 ## Decisions
 
 - **D1: Resolve against the schematic, then decorate from docs.** KiCad files are as-built facts (same truth precedence as `sync`). A BOM row that disagrees with the schematic is still shown; `explain` does not run drift.
-- **D2: Closed query grammar, one hit.** Order: `REF.PIN` (number or name), exact refdes, exact net, unique pin name. Ambiguous pin names fail with "use REF.PIN" rather than guessing.
+- **D2: Closed query grammar, one hit.** Order: `REF.PIN` (number or name), exact refdes, exact net, unique pin name. A `REF.PIN`-shaped query whose part or pin does not exist falls through to the later steps, so a dotted net such as `VDD1.8` still resolves; the `no part` / `no pin` error is returned only when nothing else matches. Ambiguous pin names fail with "use REF.PIN" rather than guessing: a bare name on several parts, a bare name on several pins of one part, and `REF.NAME` matching several pins on different nets (which asks for the pin number). Same-named pins on one net resolve to the first and list the others.
 - **D3: No `kicad-cli` dependency.** The command uses the read-only sexp walker, so it runs anywhere `init`'s schematic parse runs, including machines where ERC is unavailable.
 - **D4: Suggestions on miss, never a stack trace.** Prefix and substring matches against refdes and net names, capped at five.
 

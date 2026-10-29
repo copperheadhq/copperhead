@@ -199,4 +199,20 @@ describe('copperhead explain (CLI)', () => {
       await cleanup();
     }
   }, 60_000);
+
+  it('prints JSON on a read error when --json is set', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      await writeFile(path.join(repo, '.copperhead', 'config.json'), '{ not json', 'utf8');
+      const res = await cli(repo, '--json', 'explain', 'U1');
+      expect(res.exitCode).toBe(1);
+      const parsed = JSON.parse(res.stdout) as { ok: false; error: string; suggestions: string[] };
+      expect(parsed.ok).toBe(false);
+      expect(parsed.error.length).toBeGreaterThan(0);
+      expect(parsed.suggestions).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
 });

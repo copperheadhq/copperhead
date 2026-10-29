@@ -56,6 +56,8 @@ export interface ExplainPinHit {
   name: string;
   net: string | null;
   part: { value: string; footprint: string; libId: string; sheet: string } | null;
+  /** Other pin numbers on the same part that share this pin's name and net. */
+  sharedWith?: string[];
   mentions: ExplainMention[];
 }
 
@@ -217,21 +219,9 @@ export async function explainQuery(repoRoot: string, query: string): Promise<Exp
     suggestions: suggestionsFor(q, refs, nets),
   });
 
-  const pinMatch = PIN_QUERY.exec(q);
-  if (pinMatch) {
-    const ref = pinMatch[1]!;
-    const pinTok = pinMatch[2]!;
-    const sym = symbols.find((s) => eq(s.ref, ref));
-    if (!sym) return fail(`no part ${ref}`);
-    const pin = pins.find(
-      (p) => eq(p.ref, ref) && (eq(p.pinNumber, pinTok) || eq(p.pinName, pinTok)),
-    );
-    if (!pin) {
-      const known = pinsOf(ref, pins)
-        .map((p) => (p.name && p.name !== '~' ? `${p.number}/${p.name}` : p.number))
-        .join(', ');
-      return fail(`no pin ${pinTok} on ${ref}${known ? ` (pins: ${known})` : ''}`);
-    }
+  const symOf = (ref: string): SchematicSymbol | null => symbols.find((s) => eq(s.ref, ref)) ?? null;
+  const pinHitOf = async (pin: PinNet, sharedWith: string[] = [], mentionKey?: string): Promise<ExplainSuccess> => {
+    const sym = symOf(pin.ref);
     return {
       ok: true,
       hit: {
@@ -241,10 +231,41 @@ export async function explainQuery(repoRoot: string, query: string): Promise<Exp
         number: pin.pinNumber,
         name: pin.pinName,
         net: pin.net,
-        part: { value: sym.value, footprint: sym.footprint, libId: sym.libId, sheet: sym.sheet },
-        mentions: await docs.mentionsOf(pin.net ?? `${ref}.${pin.pinNumber}`),
+        part: sym ? { value: sym.value, footprint: sym.footprint, libId: sym.libId, sheet: sym.sheet } : null,
+        ...(sharedWith.length ? { sharedWith } : {}),
+        mentions: await docs.mentionsOf(pin.net ?? mentionKey ?? `${pin.ref}.${pin.pinNumber}`),
       },
     };
+  };
+
+  // REF.PIN is tried first, but a miss falls through to the refdes, net, and
+  // pin-name steps so dotted net names like VDD1.8 still resolve.
+  let pinError: string | null = null;
+  const pinMatch = PIN_QUERY.exec(q);
+  if (pinMatch) {
+    const ref = pinMatch[1]!;
+    const pinTok = pinMatch[2]!;
+    if (!symOf(ref)) {
+      pinError = `no part ${ref}`;
+    } else {
+      const onRef = pins.filter((p) => eq(p.ref, ref));
+      const byNumber = onRef.find((p) => eq(p.pinNumber, pinTok));
+      if (byNumber) return pinHitOf(byNumber);
+      const byName = onRef.filter((p) => p.pinName !== '~' && eq(p.pinName, pinTok));
+      if (byName.length > 1) {
+        const nets = new Set(byName.map((p) => p.net));
+        if (nets.size > 1) {
+          const numbers = byName.map((p) => p.pinNumber).join(', ');
+          return fail(`${ref} pins ${numbers} are named ${pinTok}: use ${ref}.<number>`);
+        }
+        return pinHitOf(byName[0]!, byName.slice(1).map((p) => p.pinNumber));
+      }
+      if (byName.length === 1) return pinHitOf(byName[0]!);
+      const known = pinsOf(ref, pins)
+        .map((p) => (p.name && p.name !== '~' ? `${p.number}/${p.name}` : p.number))
+        .join(', ');
+      pinError = `no pin ${pinTok} on ${ref}${known ? ` (pins: ${known})` : ''}`;
+    }
   }
 
   const byRef = symbols.find((s) => eq(s.ref, q));
@@ -265,28 +286,17 @@ export async function explainQuery(repoRoot: string, query: string): Promise<Exp
 
   const named = pins.filter((p) => p.pinName !== '~' && eq(p.pinName, q));
   const uniqueRefs = [...new Set(named.map((p) => p.ref))];
-  if (named.length === 1) {
-    const pin = named[0]!;
-    const sym = symbols.find((s) => eq(s.ref, pin.ref)) ?? null;
-    return {
-      ok: true,
-      hit: {
-        kind: 'pin',
-        query: q,
-        ref: pin.ref,
-        number: pin.pinNumber,
-        name: pin.pinName,
-        net: pin.net,
-        part: sym ? { value: sym.value, footprint: sym.footprint, libId: sym.libId, sheet: sym.sheet } : null,
-        mentions: await docs.mentionsOf(pin.net ?? pin.pinName),
-      },
-    };
+  if (uniqueRefs.length === 1) {
+    if (named.length === 1) return pinHitOf(named[0]!, [], named[0]!.pinName);
+    const ref = uniqueRefs[0]!;
+    const numbers = named.map((p) => p.pinNumber).join(', ');
+    return fail(`pin name ${q} is on ${ref} pins ${numbers}: use REF.PIN`);
   }
   if (uniqueRefs.length > 1) {
     return fail(`pin name ${q} is on ${uniqueRefs.join(', ')} — use REF.PIN`);
   }
 
-  return fail(`nothing named ${q} in the schematic`);
+  return fail(pinError ?? `nothing named ${q} in the schematic`);
 }
 
 function pinLine(p: ExplainPinRow): string {
@@ -340,6 +350,9 @@ export function formatExplain(result: ExplainResult): string {
     const name = hit.name && hit.name !== '~' ? hit.name : '—';
     lines.push(`  ${copper(`${hit.ref}.${hit.number}`)}  ${name}`);
     lines.push(dim(`  net  ${hit.net ?? '(unconnected)'}`));
+    if (hit.sharedWith?.length) {
+      lines.push(dim(`  also ${hit.ref} pin(s) ${hit.sharedWith.join(', ')} (same name, same net)`));
+    }
     if (hit.part) {
       lines.push(dim(`  part ${hit.part.value || hit.ref}  ${hit.part.footprint || hit.part.libId}`));
     }
