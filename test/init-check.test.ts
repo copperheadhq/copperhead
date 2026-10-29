@@ -127,6 +127,19 @@ describe('copperhead check (AC-2)', () => {
     }
   });
 
+  it('fails on a repo path that does not exist instead of passing with every gate skipped', async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), 'copperhead-norepo-'));
+    try {
+      const missing = path.join(parent, 'typo');
+      await expect(runCheck(missing, silent)).rejects.toThrow(/repo not found/);
+      const file = path.join(parent, 'board.kicad_pcb');
+      await writeFile(file, '', 'utf8');
+      await expect(runCheck(file, silent)).rejects.toThrow(/repo not found/);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+
   it('pre-commit hook blocks a desynced hand edit at git commit', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
