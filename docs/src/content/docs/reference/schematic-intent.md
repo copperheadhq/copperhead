@@ -27,6 +27,7 @@ The file lives beside the configured schematic (for `hardware/board.kicad_sch`, 
   "parts":     [ ... ],
   "nets":      [ ... ],
   "noConnect": [ ... ],
+  "ercExclusions": [ ... ],
   "hints":     { ... }
 }
 ```
@@ -37,6 +38,7 @@ The file lives beside the configured schematic (for `hardware/board.kicad_sch`, 
 | `parts` | array | yes | Every symbol to place. |
 | `nets` | array | yes | Every connection, as named nets over `"REF.PIN"` endpoints. |
 | `noConnect` | array of strings | no | Pins deliberately left open. |
+| `ercExclusions` | array of objects | no | ERC findings the design intends, each with the pins it excuses and a reason. |
 | `hints` | object | no | Optional steering: group order, paper size, title-block date. |
 
 Unknown extra fields are ignored. Every field the engine dereferences is type-checked at validation, so a wrong-typed field (a numeric `group`, a string `noConnect`) comes back as a numbered finding, never as a crash.
@@ -84,6 +86,25 @@ Unknown extra fields are ignored. Every field the engine dereferences is type-ch
 
 An array of `"REF.PIN"` strings. Each pin must exist on its part and must not appear in any net; a pin that is both connected and declared no-connect is refused. Every entry is emitted as a KiCad `no_connect` marker at the pin's position, so a deliberately open pin passes ERC without hand intervention.
 
+## `ercExclusions[]`
+
+```json
+"ercExclusions": [
+  { "type": "pin_to_pin", "pins": ["U9.7"], "reason": "SA0 tied to GND selects I2C address 0x18 (SPEC item 20)" },
+  { "type": "pin_to_pin", "pins": ["U3.5", "U3.6"], "reason": "QOD to VOUT enables quick output discharge (SPEC item 17)" }
+]
+```
+
+Some stock symbols type a pin conservatively, so ERC reports wiring the datasheet requires. `Sensor_Motion:LIS3DH` types SDO/SA0 as Output, yet tying it to GND is how the I2C address is set. `Power_Management:TPS22917DBV` types QOD as open collector and VOUT as power output, yet QOD tied to VOUT is the datasheet's quick-output-discharge connection. An entry here records that such a finding is intended.
+
+| Field | Type | Rules |
+| --- | --- | --- |
+| `type` | string | The KiCad ERC check name as `run_erc` prints it, such as `pin_to_pin`. |
+| `pins` | array of strings | `"REF.PIN"` endpoints. Each must exist and be in a net. A finding is excused only when every part pin it names is listed. Power-symbol pins (`#FLG01`, `#PWR03`) are placed by the engine and need not be listed. |
+| `reason` | string | Why the finding is intended. Cite the requirement that makes the connection. |
+
+An exclusion is applied to the ERC report, not written into the sheet or the project. `run_erc`, the stage-4 completion check and `copperhead check` all apply it. Each excused finding stays in the output under "excluded by schematic.intent.json ercExclusions", with its reason, and the run summary lists it, so an exclusion is visible evidence rather than a silent pass. An entry that excuses no finding is reported as stale. A finding with a non-pin item (a label, a wire) is never excused. Exclusions are keyed by pins rather than by KiCad's marker position and UUIDs, so they survive every re-draft. KiCad's own ERC window does not read them and still shows the markers.
+
 ## `hints{}`
 
 ```json
@@ -100,7 +121,7 @@ Hints steer, they never override a rule: the engine will not accept a hint that 
 
 ## Validation contract
 
-Validation runs in full before any placement. It covers, in order: part shape and field types, duplicate refdes, symbol resolution, group membership, net shape and name safety, endpoint existence and exclusivity, the power sanitize-collision rule, no-connect consistency, hint types, and the BOM cross-check. Every violation becomes one numbered finding in the same shape as `verify_symbols` output, all findings are reported together rather than first-failure-only, and a failed validation writes nothing: the previous schematic, the intent file on disk, and the vendored cache are all untouched. The repair loop is always the same: fix the intent (or the doc the finding names), draft again.
+Validation runs in full before any placement. It covers, in order: part shape and field types, duplicate refdes, symbol resolution, group membership, net shape and name safety, endpoint existence and exclusivity, the power sanitize-collision rule, no-connect consistency, ERC-exclusion shape and pins, hint types, and the BOM cross-check. Every violation becomes one numbered finding in the same shape as `verify_symbols` output, all findings are reported together rather than first-failure-only, and a failed validation writes nothing: the previous schematic, the intent file on disk, and the vendored cache are all untouched. The repair loop is always the same: fix the intent (or the doc the finding names), draft again.
 
 ## What is deliberately not in this file
 
@@ -137,4 +158,4 @@ Coordinates, rotations, wire routes, label positions, junctions, power-symbol pl
 
 | `version` | Status | Notes |
 | --- | --- | --- |
-| `1` | current | Initial schema: parts, nets, noConnect, hints as specified on this page. |
+| `1` | current | Initial schema: parts, nets, noConnect, hints as specified on this page. `ercExclusions` added as an optional field (#355); an intent without it is unchanged. |
