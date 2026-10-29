@@ -63,6 +63,8 @@ export interface RunOptions {
   stagePrompt?: string;
   /** Test seam: bypass makeProvider. */
   provider?: Provider;
+  /** Called after each dispatched tool, allowing a stage to persist verified results. */
+  onToolResult?: (toolName: string, args: Record<string, unknown>, result: string, ok: boolean) => Promise<void> | void;
   log?: (line: string) => void;
   /** Progress renderer; defaults to a plain line renderer over `log`. */
   renderer?: ProgressRenderer;
@@ -81,6 +83,25 @@ export interface RunOptions {
    * met, else what is missing.
    */
   stageGate?: () => Promise<string | null>;
+}
+
+export const MAX_INSUFFICIENT_TURN_ESCALATIONS = 3;
+export const MAX_AUTOMATIC_BUDGET_INCREMENT = 10;
+
+export const insufficientTurnRefusalPatterns = [
+  /\bcan(?:not|'t)\s+(?:finish|complete)\b.{0,100}\b(?:in|within)\s+(?:the\s+)?(?:available\s+)?turns?\s+left\b/i,
+  /\binsufficient\s+turns?\b/i,
+  /\bnot enough turns?\b/i,
+  /\bturn budget\b.{0,40}\b(?:insufficient|too small|not enough)\b/i,
+  /\bremaining turns?\b.{0,40}\b(?:too few|insufficient|not enough)\b/i,
+];
+
+export function isInsufficientTurnsRefusal(summary: string | undefined | null): boolean {
+  return !!summary && insufficientTurnRefusalPatterns.some((pattern) => pattern.test(summary));
+}
+
+export function computeBudgetEscalation(currentBudget: number): number {
+  return Math.min(MAX_AUTOMATIC_BUDGET_INCREMENT, Math.max(1, Math.ceil(currentBudget * 0.2)));
 }
 
 export interface RunResult {
@@ -471,6 +492,23 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   };
 
   let budget = maxTurns;
+  let insufficientTurnEscalations = 0;
+  const extendBudget = async (extraTurns: number, reason: string, detail: string): Promise<void> => {
+    budget += extraTurns;
+    await transcript.event('budget-extended', {
+      reason,
+      detail,
+      extraTurns,
+      budget,
+      maxTurns,
+      turnsUsed,
+      tokensIn,
+      tokensOut,
+      filesTouched: [...ctx.filesTouched],
+      openObligations: ctx.ledger.openObligations.length,
+    });
+    log(`turn budget extended by ${extraTurns} (now ${budget})`);
+  };
   for (let turn = 0; ; turn++) {
     if (turn >= budget) {
       // Budget exhausted. In an attended run this is a user decision made with
@@ -515,7 +553,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     // propose→validate→edit batch through, but that traded the spec's structural
     // guarantee for one saved turn — not worth it.)
     const tools = availableTools(ctx).map((t) => t.schema);
-    r.turnStart(turn + 1, maxTurns, tokensIn, tokensOut);
+    r.turnStart(turn + 1, budget, tokensIn, tokensOut);
     r.status('thinking');
     let res: Turn;
     // Liveness heartbeat (5.1): a large-output turn can legitimately run several
@@ -664,6 +702,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       }
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
+      await opts.onToolResult?.(call.name, call.args, result, envelope.ok);
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
       r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
@@ -694,6 +733,28 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       const { outcome, summary } = ctx.finishRequest;
       const files = [...ctx.filesTouched];
       if (outcome === 'refuse') {
+        if (isInsufficientTurnsRefusal(summary)) {
+          if (insufficientTurnEscalations >= MAX_INSUFFICIENT_TURN_ESCALATIONS) {
+            await transcript.event('budget-escalation-cap-hit', {
+              summary,
+              escalationCount: insufficientTurnEscalations,
+              maxEscalations: MAX_INSUFFICIENT_TURN_ESCALATIONS,
+            });
+            return fail(
+              `turn budget exhausted after ${insufficientTurnEscalations} insufficient-turns refusals (${budget} turns)`,
+              'turn-budget-exhausted',
+            );
+          }
+          insufficientTurnEscalations += 1;
+          const extra = computeBudgetEscalation(budget);
+          await extendBudget(extra, 'insufficient-turns-refusal', summary);
+          ctx.finishRequest = null;
+          messages.push({
+            role: 'user',
+            content: `Your previous refusal said there were not enough turns. The budget has been increased by ${extra} turns; continue the part-selection work and finish if the available budget permits.`,
+          });
+          continue;
+        }
         await restore(repoRoot, snap);
         await transcript.event('run-refused', { summary });
         const runStats = stats('refused');

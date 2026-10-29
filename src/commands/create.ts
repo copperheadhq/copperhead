@@ -2,7 +2,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { loadConfig, resolveCompatSettings } from '../config.js';
+import { loadConfig, resolveCompatSettings, resolveStageMaxTurns } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
 import { exportNetlist, exportSvg, runDrc, runErc } from '../kicad/cli.js';
 import { FootprintResolver, formatMissingFootprints, missingFootprints } from '../kicad/footprints.js';
@@ -15,7 +15,7 @@ import {
   populateBoard,
 } from '../kicad/populate.js';
 import { formatViolations } from '../kicad/report.js';
-import { bomFootprintRows } from '../memory/bom-table.js';
+import { bomFootprintRows, parseBomTable } from '../memory/bom-table.js';
 import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
@@ -37,6 +37,13 @@ import { draftQualitySection, isDraftQualityHeading, isFilledDraftQuality } from
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
+import {
+  formatPartVerificationContext,
+  loadPartVerificationCache,
+  parsePartVerificationRows,
+  recordPartVerificationToolResult,
+} from '../util/part-cache.js';
+import type { PartVerificationCache } from '../util/part-cache.js';
 
 /**
  * Mode A (`copperhead create`, SPEC §2.5): staged pipeline, each stage a
@@ -1113,7 +1120,11 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // guidance prepended); on "abort", or once the retry budget is spent, it
     // stops and reports for a human — the loop keeps going by itself for the
     // recoverable cases without silently spinning on the dead-end ones.
-    const stageTurns = config.stageMaxTurns?.[stage.name];
+    const bomRowCount =
+      stage.name === 'part-selection' && existsSync(path.join(opts.repoRoot, config.docs, 'BOM.md'))
+        ? parseBomTable(await readFile(path.join(opts.repoRoot, config.docs, 'BOM.md'), 'utf8')).length
+        : 0;
+    const stageTurns = resolveStageMaxTurns(stage.name, config, bomRowCount);
     const basePrompt = stage.prompt(brief, config.docs);
     let guidance = '';
     let stageDone = false;
@@ -1186,6 +1197,8 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         // rolled-back retry can run against a different BOM than its
         // predecessor. Advisory only: any failure degrades to no block.
         let dossierBlock = '';
+        let partCache: PartVerificationCache | null = null;
+        let partCacheBlock = '';
         if (stage.name === 'schematic') {
           try {
             const bomPath = path.join(opts.repoRoot, config.docs, 'BOM.md');
@@ -1206,13 +1219,20 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
             // the dossier is context, never a gate — the stage runs without it
           }
         }
+        if (stage.name === 'part-selection') {
+          const bomPath = path.join(opts.repoRoot, config.docs, 'BOM.md');
+          const existingBom = existsSync(bomPath) ? await readFile(bomPath, 'utf8') : '';
+          const rows = parsePartVerificationRows(existingBom);
+          partCache = await loadPartVerificationCache(opts.repoRoot);
+          partCacheBlock = formatPartVerificationContext(rows, partCache);
+        }
         const res = await runAgentLoop({
           repoRoot: opts.repoRoot,
           model: opts.model,
           request: `create pipeline stage: ${stage.name}`,
           stagePrompt: guidance
-            ? `${basePrompt}${dossierBlock}\n\n## Recovery guidance (a previous attempt did not complete this stage — do this differently)\n${guidance}`
-            : `${basePrompt}${dossierBlock}`,
+            ? `${basePrompt}${dossierBlock}${partCacheBlock ? `\n\n${partCacheBlock}` : ''}\n\n## Recovery guidance (a previous attempt did not complete this stage — do this differently)\n${guidance}`
+            : `${basePrompt}${dossierBlock}${partCacheBlock ? `\n\n${partCacheBlock}` : ''}`,
           interactive: opts.interactive ?? false,
           allowDirty: true, // stages build on each other's uncommitted state within the pipeline
           // the populated board is this stage's mutation too: finish needs a
@@ -1231,6 +1251,24 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
               }
             : {}),
           ...(stageTurns !== undefined ? { maxTurns: stageTurns } : {}),
+          ...(stage.name === 'part-selection' && partCache
+            ? {
+                onToolResult: async (toolName: string, args: Record<string, unknown>, result: string, ok: boolean) => {
+                  if (!ok) return;
+                  const bomPath = path.join(opts.repoRoot, config.docs, 'BOM.md');
+                  if (!existsSync(bomPath)) return;
+                  const currentRows = parsePartVerificationRows(await readFile(bomPath, 'utf8'));
+                  await recordPartVerificationToolResult(
+                    opts.repoRoot,
+                    partCache!,
+                    currentRows,
+                    toolName,
+                    args,
+                    result,
+                  );
+                },
+              }
+            : {}),
           ...(opts.onBudgetExhausted ? { onBudgetExhausted: opts.onBudgetExhausted } : {}),
           log: opts.log,
           ...(opts.renderer ? { renderer: opts.renderer } : {}),
