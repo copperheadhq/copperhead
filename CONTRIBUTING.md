@@ -6,14 +6,16 @@ By taking part you agree to our [Code of Conduct](.github/CODE_OF_CONDUCT.md). F
 
 ## Development setup
 
-Requirements: Node.js >= 20 and, for the KiCad integration paths, a local `kicad-cli` on your PATH.
+Requirements: Node.js >= 20 and, for the KiCad integration paths, a local `kicad-cli` on your PATH. The Nix development shell supplies Node.js, git, OpenSpec, and KiCad on Linux. On macOS, install KiCad separately:
 
 ```bash
+nix develop              # optional: enter the pinned tool environment
 npm install
-npm run dev -- --help   # run the CLI from source via tsx
-npm run typecheck       # tsc, no emit
-npm test                # vitest, offline suite
-npm run build           # compile to dist/
+npm run dev -- --help    # run the CLI from source via tsx
+npm run typecheck        # tsc, no emit
+npm test                 # vitest, offline suite
+npm run build            # compile to dist/
+nix flake check          # build and evaluate the Nix package
 ```
 
 The offline test suite runs without any credentials. Integration tests that call an LLM are skipped automatically unless an API key environment variable is present, so `npm test` is safe to run anywhere.
