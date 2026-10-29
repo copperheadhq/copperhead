@@ -1,0 +1,54 @@
+{
+  "name": "voltage-regulator-ams1117",
+  "description": "AMS1117 3.3V linear voltage regulator subcircuit with input and output ceramic decoupling capacitors.",
+  "parts": [
+    {
+      "ref": "U1",
+      "libId": "Regulator_Linear:AMS1117-3.3",
+      "value": "AMS1117-3.3",
+      "footprint": "Package_TO_SOT_SMD:SOT-223-3_TabPin2",
+      "group": "Power"
+    },
+    {
+      "ref": "C1",
+      "libId": "Device:C",
+      "value": "10u",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Power"
+    },
+    {
+      "ref": "C2",
+      "libId": "Device:C",
+      "value": "10u",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Power"
+    }
+  ],
+  "nets": [
+    {
+      "name": "VIN",
+      "pins": [
+        "U1.3",
+        "C1.1"
+      ],
+      "kind": "power"
+    },
+    {
+      "name": "+3V3",
+      "pins": [
+        "U1.2",
+        "C2.1"
+      ],
+      "kind": "power"
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "U1.1",
+        "C1.2",
+        "C2.2"
+      ],
+      "kind": "ground"
+    }
+  ]
+}
