@@ -9,6 +9,7 @@ import { openspecValidate } from '../openspec/cli.js';
 import { runAgentLoop, type RunResult } from '../agent/loop.js';
 import type { RunMetaInput } from '../agent/runmeta.js';
 import type { ProgressRenderer } from '../agent/render.js';
+import type { Provider } from '../agent/types.js';
 
 /**
  * `copperhead sync` (design D14): deterministic verify phase, then an optional
@@ -171,7 +172,9 @@ export async function syncResolve(
   report: SyncReport,
   model: string,
   log: (s: string) => void,
-  extras?: { renderer?: ProgressRenderer; meta?: RunMetaInput },
+  // provider: test seam, passed to runAgentLoop's existing `provider` option;
+  // the CLI and MCP server never set it, so behaviour is unchanged
+  extras?: { renderer?: ProgressRenderer; meta?: RunMetaInput; provider?: Provider },
 ): Promise<{ ok: boolean; run: RunResult }> {
   const reportText = formatSyncReport(report);
   const res = await runAgentLoop({
@@ -182,6 +185,7 @@ export async function syncResolve(
     log,
     ...(extras?.renderer ? { renderer: extras.renderer } : {}),
     ...(extras?.meta ? { meta: extras.meta } : {}),
+    ...(extras?.provider ? { provider: extras.provider } : {}),
   });
   // The full RunResult travels with the verdict so a non-CLI caller (the MCP
   // server) can report the transcript path and files touched the way `do` does.
