@@ -102,6 +102,20 @@ export async function makeProvider(
   sessionResume = false,
   compat?: CompatSettings | undefined,
 ): Promise<Provider> {
+  // Strict replay must work without credentials, including recovery diagnosis.
+  // The cache wraps this sentinel; a missed/bypassed cache can never go live.
+  if (process.env.COPPERHEAD_CACHE_ONLY === '1') {
+    const name = model === 'codex' || model.startsWith('codex:') ? 'codex'
+      : model === 'claude-code' || model.startsWith('claude-code:') ? 'claude-code'
+        : model === 'cursor' || model.startsWith('cursor:') ? 'cursor'
+          : model.startsWith('claude') ? 'anthropic' : 'openai';
+    return {
+      name,
+      async chat() {
+        throw new Error('COPPERHEAD_CACHE_ONLY forbids live provider calls, including recovery diagnosis');
+      },
+    };
+  }
   // OpenAI-compatible endpoint (Groq, OpenRouter, Gemini compat, local
   // Ollama). An explicit `compat` prefix is the opt-in: nothing else
   // consults baseURL, so a stray COPPERHEAD_BASE_URL cannot redirect a keyed
@@ -148,6 +162,7 @@ export async function makeProvider(
       client: new Codex({
         // Use the user's installed CLI and its saved login rather than a model API key.
         codexPathOverride: process.env.COPPERHEAD_CODEX_PATH || 'codex',
+        config: { features: { shell_tool: false, apps: false, multi_agent: false } },
       }),
     });
   }
@@ -176,6 +191,7 @@ export async function makeProvider(
 }
 
 function otherProvider(current: Provider): Provider | null {
+  if (process.env.COPPERHEAD_CACHE_ONLY === '1') return null;
   // Only the two keyed providers fail over to each other. A rate-limited
   // 'claude-code' or 'cursor' run returns null here (no silent fallback to a paid API).
   if (current.name === 'openai' && process.env.ANTHROPIC_API_KEY) return new AnthropicProvider();
@@ -311,7 +327,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   // Cache every turn's response so a retried/restarted stage replays what it
   // already paid for instead of re-calling the model (repo-scoped, cross-run).
   // Skip an injected provider (tests drive scripted providers directly).
-  if (config.llmCache && !opts.provider) {
+  if ((config.llmCache || process.env.COPPERHEAD_CACHE_ONLY === '1') && !opts.provider) {
     // Mirrors makeProvider's own gate above (D2/AC-3.16): COPPERHEAD_BASE_URL
     // is consulted only for the explicit `compat:` route, so a gpt-5/claude
     // run's cache key must not vary with a variable that run never reads —

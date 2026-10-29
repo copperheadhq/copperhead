@@ -9,10 +9,11 @@ import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from './types.js';
  * Their cache entries carry the protocol's parser version: a turn cached before the
  * fabricated-result cut (#320) can hold tool calls the model planned after a result it
  * invented, and replaying it would dispatch them again. Bumping the version orphans only
- * these providers' entries; keyed and codex caches are untouched.
+ * these providers' entries. Codex uses a separate protocol version below.
  */
 const TEXT_PROTOCOL_PROVIDERS = new Set(['claude-code', 'cursor']);
 const TEXT_PROTOCOL_VERSION = 2;
+const CODEX_PROTOCOL_VERSION = 2;
 
 /**
  * Wraps a provider so each turn's `(messages, tools) -> Turn` is written to disk
@@ -24,10 +25,11 @@ const TEXT_PROTOCOL_VERSION = 2;
  * guidance is appended), the input hash changes and the model is called fresh —
  * so caching never pins a run to a stale, failing response.
  *
- * Best-effort by construction: a cache miss or any I/O error falls through to the
- * live provider, and a hit reports zero token usage (the real spend was zero).
+ * Best-effort by default: a cache miss or any I/O error falls through to the
+ * live provider. COPPERHEAD_CACHE_ONLY=1 instead fails closed on a miss or a
+ * malformed entry. A hit reports zero token usage (the real spend was zero).
  * The key is a content hash of the full message history and the advertised tool
- * names, so any change to the conversation or available tools is a fresh call.
+ * definitions, so any change to the conversation or available tools is a fresh call.
  */
 export class CachingProvider implements Provider {
   readonly name: string;
@@ -67,8 +69,10 @@ export class CachingProvider implements Provider {
           // is orphaned on the first run after upgrade.
           ...(this.baseURL ? { baseURL: this.baseURL } : {}),
           ...(TEXT_PROTOCOL_PROVIDERS.has(this.name) ? { toolProtocol: TEXT_PROTOCOL_VERSION } : {}),
+          ...(this.name === 'codex' ? { codexProtocol: CODEX_PROTOCOL_VERSION } : {}),
           messages,
           tools: tools.map((t) => t.name),
+          ...(tools.length ? { toolSchemas: tools } : {}),
         }),
       )
       .digest('hex');
@@ -79,6 +83,12 @@ export class CachingProvider implements Provider {
     if (existsSync(file)) {
       try {
         const cached = JSON.parse(await readFile(file, 'utf8')) as Turn;
+        if (
+          !cached || (cached.text !== null && typeof cached.text !== 'string') ||
+          !Array.isArray(cached.toolCalls) || cached.toolCalls.some((call) =>
+            !call || typeof call.id !== 'string' || typeof call.name !== 'string' ||
+            !call.args || typeof call.args !== 'object' || Array.isArray(call.args))
+        ) throw new Error('Invalid cached provider turn');
         this.hits++;
         this.log?.(`llm-cache: replayed a cached response (hit #${this.hits}, no tokens spent)`);
         // Report zero usage: replaying a cached turn costs nothing.
