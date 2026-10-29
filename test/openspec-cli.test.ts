@@ -6,7 +6,7 @@ import path from 'node:path';
 const mockExeca = vi.hoisted(() => vi.fn());
 vi.mock('execa', () => ({ execa: mockExeca }));
 
-import { openspecInit } from '../src/openspec/cli.js';
+import { openspecInit, openspecValidate } from '../src/openspec/cli.js';
 
 describe('OpenSpec initialization', () => {
   let repo: string;
@@ -30,6 +30,18 @@ describe('OpenSpec initialization', () => {
     await mkdir(path.join(repo, 'openspec'));
     expect((await openspecInit(repo)).ok).toBe(true);
     expect(mockExeca).not.toHaveBeenCalled();
+  });
+
+  it('selects all items explicitly for a non-interactive whole-workspace check', async () => {
+    mockExeca.mockResolvedValue({ stdout: 'valid', stderr: '' });
+    expect((await openspecValidate(repo)).ok).toBe(true);
+    expect(mockExeca).toHaveBeenCalledWith('openspec', ['validate', '--all', '--no-interactive'], { cwd: repo });
+  });
+
+  it('validates only the named proposal at the edit gate', async () => {
+    mockExeca.mockResolvedValue({ stdout: 'valid', stderr: '' });
+    expect((await openspecValidate(repo, 'sensor')).ok).toBe(true);
+    expect(mockExeca).toHaveBeenCalledWith('openspec', ['validate', 'sensor', '--no-interactive'], { cwd: repo });
   });
 
   it('reports initialization diagnostics to the caller', async () => {
