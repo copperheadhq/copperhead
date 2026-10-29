@@ -6,13 +6,14 @@ import { tempFixtureRepo } from './helpers.js';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
 
 const mockRunAgentLoop = vi.hoisted(() => vi.fn<(opts: RunOptions) => Promise<RunResult>>());
+const mockOpenSpecInit = vi.hoisted(() => vi.fn());
 
 vi.mock('../src/agent/loop.js', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   runAgentLoop: mockRunAgentLoop,
 }));
 vi.mock('../src/openspec/cli.js', () => ({
-  openspecInit: async () => ({ ok: true, output: '' }),
+  openspecInit: mockOpenSpecInit,
 }));
 vi.mock('../src/commands/check.js', () => ({
   runCheck: async () => ({ ok: true }),
@@ -135,11 +136,27 @@ async function writeStageArtifacts(opts: RunOptions): Promise<void> {
 
 describe('create pipeline deterministic end-to-end contract', () => {
   beforeEach(() => {
+    mockOpenSpecInit.mockReset();
+    mockOpenSpecInit.mockResolvedValue({ ok: true, output: '' });
     mockRunAgentLoop.mockReset();
     mockRunAgentLoop.mockImplementation(async (opts) => {
       await writeStageArtifacts(opts);
       return successfulRun();
     });
+  });
+
+  it('fails before any agent turn when OpenSpec initialization fails', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const brief = path.join(repo, 'brief.md');
+      await writeFile(brief, '# ESP32 soil sensor\n', 'utf8');
+      mockOpenSpecInit.mockResolvedValue({ ok: false, output: 'openspec CLI not found on PATH' });
+      await expect(runCreate({ repoRoot: repo, briefPath: brief, model: 'codex', log: () => {} }))
+        .rejects.toThrow('OpenSpec initialization failed before starting the create pipeline: openspec CLI not found on PATH');
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
   });
 
   it('reaches and commits all eight stages from a medium-complexity brief', async () => {

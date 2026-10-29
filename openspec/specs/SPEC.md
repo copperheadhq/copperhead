@@ -231,6 +231,11 @@ An `affects` item that targets an artifact that does not exist yet (schematic, b
 
 OpenSpec is never user-triggered; copperhead drives it as subprocess tools (same pattern as kicad-cli):
 
+For a fresh target, initialization uses `openspec init --tools none` to avoid
+interactive editor selection or installing editor integrations. `create` must
+stop with the initialization diagnostic before starting any provider turn if
+that command fails; it must not spend model tokens on an unavailable spec gate.
+
 | When | copperhead runs | Effect |
 |---|---|---|
 | `init` / `create` start | `openspec init` (once) | Scaffolds `openspec/`; agent seeds `specs/` from the brief |

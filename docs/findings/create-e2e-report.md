@@ -38,3 +38,36 @@ preserve the complete log and `.copperhead/runs/*`, then rerun with
 `COPPERHEAD_CACHE_ONLY=1`.  
 **Status**: Pending live execution; no payment or full-run claim is made by this
 change alone.
+
+## BLOCKER-1: OpenSpec was absent from the live-run environment
+
+**Priority**: P1
+
+**Where**: `baseline_run.log`, run `2026-10-27T05-29-32-680Z`
+
+**Symptom**: The real Codex run retried proposal validation three times in
+spec-seed because the `openspec` executable was unavailable. Editing remained
+locked and the run refused to proceed.
+
+**Suggested**: Install the documented OpenSpec prerequisite and verify PATH
+before starting a paid provider run.
+
+**Status**: OpenSpec 1.15.0 installed and its version verified on 2026-10-29.
+
+## BLOCKER-2: Fresh-project OpenSpec initialization used an unsupported flag
+
+**Priority**: P1
+
+**Where**: `src/openspec/cli.ts`, `src/commands/create.ts`
+
+**Symptom**: With OpenSpec 1.15.0, `openspec init --no-interactive` exits 1
+with `error: unknown option '--no-interactive'`. `runCreate` previously ignored
+the result and proceeded into the model loop.
+
+**Suggested**: Use the supported `--tools none` selection and propagate
+initialization failures before starting any provider turns.
+
+**Status**: Fixed with regressions in `test/openspec-cli.test.ts` and
+`test/create-e2e-pipeline.test.ts`. All 32 tests in those files plus
+`test/recovery.test.ts` pass. Build, Markdown lint, OpenSpec change validation,
+and real initialization of a fresh target also pass on 2026-10-29.

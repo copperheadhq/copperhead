@@ -29,7 +29,7 @@ copperhead SHALL drive the OpenSpec CLI as a subprocess (never user-triggered): 
 
 #### Scenario: First-run scaffold
 - **WHEN** `copperhead init` runs in a repo without `openspec/`
-- **THEN** `openspec init` is executed once and `openspec/` exists afterward
+- **THEN** `openspec init --tools none` is executed once without interactive editor selection and `openspec/` exists afterward
 
 ### Requirement: Constraint registry with same-turn dual write
 The agent SHALL maintain `.copperhead/constraints.json` (value bounds, source, `affects[]`); whenever a constraint is stated, assumed, or discovered, the doc entry and registry entry MUST be written in the same tool turn. The registry SHALL be loaded into every run's system prompt, and `check` SHALL validate mechanically checkable constraints (leakage sums, forbidden pins).
