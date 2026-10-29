@@ -181,7 +181,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'propose_change',
       description:
-        'Write the OpenSpec change proposal for this run (the plan step). Must be called and validated before edit tools unlock.',
+        'Write the OpenSpec change proposal for this run (the plan step). Include specs with delta requirements and scenarios when an OpenSpec workspace exists. Must be called and validated before edit tools unlock.',
       parameters: {
         type: 'object',
         properties: {
@@ -189,6 +189,19 @@ export const HANDLERS: HandlerDef[] = [
           why: { type: 'string' },
           what_changes: { type: 'string', description: 'markdown bullet list of changes' },
           tasks: { type: 'string', description: 'markdown checklist of implementation steps' },
+          specs: {
+            type: 'array',
+            description: 'Capability deltas required by OpenSpec validation. Use ## ADDED/MODIFIED Requirements, ### Requirement:, and #### Scenario: with WHEN/THEN statements.',
+            items: {
+              type: 'object',
+              properties: {
+                capability: { type: 'string', description: 'single kebab-case capability name, e.g. power' },
+                content: { type: 'string', description: 'complete Markdown spec delta with meaningful requirements and scenarios' },
+              },
+              required: ['capability', 'content'],
+              additionalProperties: false,
+            },
+          },
         },
         required: ['id', 'why', 'what_changes', 'tasks'],
       },
@@ -196,7 +209,28 @@ export const HANDLERS: HandlerDef[] = [
     requiresUnlock: false,
     handler: async (ctx, args) => {
       const id = str(args, 'id');
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new Error('change id must be kebab-case');
+      const rawSpecs = args.specs ?? [];
+      if (!Array.isArray(rawSpecs)) throw new Error('specs must be an array');
+      const capabilities = new Set<string>();
+      const specs = rawSpecs.map((spec: unknown) => {
+        if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw new Error('invalid spec delta');
+        const { capability, content } = spec as Record<string, unknown>;
+        if (typeof capability !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(capability)) {
+          throw new Error('spec capability must be a single kebab-case name');
+        }
+        if (capabilities.has(capability)) throw new Error(`duplicate spec capability: ${capability}`);
+        if (typeof content !== 'string' || !content.trim()) throw new Error('spec delta content must not be empty');
+        capabilities.add(capability);
+        return { capability, content };
+      });
       const dir = resolveInRepo(ctx.repoRoot, path.join('openspec', 'changes', id));
+      const specFiles = specs.map((spec) => ({
+        ...spec,
+        file: resolveInRepo(ctx.repoRoot, path.join('openspec', 'changes', id, 'specs', spec.capability, 'spec.md')),
+      }));
+      ctx.editsUnlocked = false;
+      ctx.proposalValidated = false;
       await mkdir(dir, { recursive: true });
       const auto = ctx.interactive ? '' : '\n> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)\n';
       await writeFile(
@@ -205,6 +239,10 @@ export const HANDLERS: HandlerDef[] = [
         'utf8',
       );
       await writeFile(path.join(dir, 'tasks.md'), `# Tasks\n\n${str(args, 'tasks')}\n`, 'utf8');
+      for (const spec of specFiles) {
+        await mkdir(path.dirname(spec.file), { recursive: true });
+        await writeFile(spec.file, spec.content, 'utf8');
+      }
       ctx.changeId = id;
       return `proposal written to openspec/changes/${id}/ — now call validate_change`;
     },

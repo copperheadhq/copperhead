@@ -140,7 +140,7 @@ export async function toolSearch(
       const st = await stat(abs);
       if (st.isDirectory()) {
         await walk(abs);
-      } else if (st.size < 5_000_000 && (!globRe || globRe.test(rel))) {
+      } else if (st.size < 5_000_000 && (!globRe || globRe.test(rel.split(path.sep).join('/')))) {
         let text: string;
         try {
           text = await readFile(abs, 'utf8');

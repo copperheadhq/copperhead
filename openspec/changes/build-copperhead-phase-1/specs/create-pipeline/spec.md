@@ -13,6 +13,14 @@
 - **WHEN** the brief omits a needed decision (e.g. battery chemistry)
 - **THEN** SPEC.md proposes a default flagged `ASSUMED` for review
 
+#### Scenario: OpenSpec initialization fails
+- **WHEN** a fresh target cannot initialize its OpenSpec workspace
+- **THEN** `create` stops with the initialization diagnostic before any provider turn, without claiming a completed stage
+
+#### Scenario: Strict recorded replay
+- **WHEN** `COPPERHEAD_CACHE_ONLY=1` is set and a response is missing or malformed
+- **THEN** the run fails closed without requiring credentials or making live provider, recovery-diagnosis, or failover calls, even when `llmCache` is disabled
+
 ### Requirement: Run-to-completion guarantee
 Once started, `create` SHALL always finish with the complete output package: gates are quality checks the agent must satisfy, never stops that wait for a human, unless `--interactive` re-enables the spec-approval and pre-export gates.
 

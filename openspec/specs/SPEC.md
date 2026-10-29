@@ -231,6 +231,22 @@ An `affects` item that targets an artifact that does not exist yet (schematic, b
 
 OpenSpec is never user-triggered; copperhead drives it as subprocess tools (same pattern as kicad-cli):
 
+For a fresh target, initialization uses `openspec init --tools none` to avoid
+interactive editor selection or installing editor integrations. `create` must
+stop with the initialization diagnostic before starting any provider turn if
+that command fails; it must not spend model tokens on an unavailable spec gate.
+
+For recorded acceptance replay, `COPPERHEAD_CACHE_ONLY=1` forces response-cache
+use even if `llmCache` is disabled. Missing or malformed entries fail closed.
+Provider construction requires no credential in this mode, and recovery
+diagnosis and failover must not make uncached live calls.
+
+`propose_change` accepts capability spec deltas so an initialized workspace can
+validate meaningful requirements and scenarios before general file edits are
+unlocked. Deltas are confined to the current change's `specs/<capability>/spec.md`;
+submitting a revised proposal re-locks edits until validation passes again.
+Whole-workspace checks select `validate --all --no-interactive` explicitly.
+
 | When | copperhead runs | Effect |
 |---|---|---|
 | `init` / `create` start | `openspec init` (once) | Scaffolds `openspec/`; agent seeds `specs/` from the brief |
