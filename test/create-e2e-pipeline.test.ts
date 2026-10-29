@@ -82,7 +82,7 @@ function successfulRun(): RunResult {
   return {
     outcome: 'success',
     exitPath: 'done',
-    summary: 'deterministic replay',
+    summary: 'offline orchestration harness',
     transcriptDir: '',
     filesTouched: [],
     commit: null,
@@ -97,7 +97,7 @@ function successfulRun(): RunResult {
       perTurn: [],
       durationMs: 1,
     },
-    cacheHits: 1,
+    cacheHits: 0,
   };
 }
 
@@ -134,7 +134,7 @@ async function writeStageArtifacts(opts: RunOptions): Promise<void> {
   await execa('git', ['commit', '-q', '-m', `e2e: ${opts.request}`], { cwd: opts.repoRoot });
 }
 
-describe('create pipeline deterministic end-to-end contract', () => {
+describe('create pipeline offline orchestration contract (not live acceptance)', () => {
   beforeEach(() => {
     mockOpenSpecInit.mockReset();
     mockOpenSpecInit.mockResolvedValue({ ok: true, output: '' });
@@ -171,13 +171,32 @@ describe('create pipeline deterministic end-to-end contract', () => {
       const result = await runCreate({ repoRoot: repo, briefPath: brief, model: 'codex', log: () => {} });
       expect(result).toEqual({ ok: true, completed: STAGES.map((stage) => stage.name) });
       expect(mockRunAgentLoop).toHaveBeenCalledTimes(8);
-      expect((await execa('git', ['log', '--format=%s', '-n', '8'], { cwd: repo })).stdout)
-        .toContain('e2e: create pipeline stage: devplan');
+      const commits = (await execa('git', ['log', '--format=%s', '-n', '8'], { cwd: repo })).stdout.split('\n');
+      expect(commits).toEqual([...STAGES].reverse().map((stage) => `e2e: create pipeline stage: ${stage.name}`));
       expect((await readFile(path.join(repo, 'outputs', 'board-F_Cu.gbr'), 'utf8')).trim()).toBe('deterministic gerber');
       expect((await readFile(path.join(repo, 'firmware', 'pins.h'), 'utf8')).trim()).toContain('SENSOR_PIN');
     } finally {
       await cleanup();
     }
+  }, 120_000);
+
+  it.each(['spec-seed', 'devplan'])('fails when %s claims success without meeting its contract', async (missingStage) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const brief = path.join(repo, 'brief.md');
+      await writeFile(brief, '# ESP32 soil sensor\n', 'utf8');
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      await writeFile(path.join(repo, '.copperhead/config.json'), JSON.stringify({ maxStageRetries: 0 }), 'utf8');
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request !== `create pipeline stage: ${missingStage}`) await writeStageArtifacts(opts);
+        return successfulRun();
+      });
+      const result = await runCreate({ repoRoot: repo, briefPath: brief, model: 'codex', log: () => {} });
+      expect(result.ok).toBe(false);
+      expect(result.completed).toEqual(STAGES.slice(0, STAGES.findIndex((s) => s.name === missingStage)).map((s) => s.name));
+      expect((await execa('git', ['log', '--format=%s'], { cwd: repo })).stdout)
+        .not.toContain(`e2e: create pipeline stage: ${missingStage}`);
+    } finally { await cleanup(); }
   }, 120_000);
 
   it('resumes without rerunning already-completed stages', async () => {
