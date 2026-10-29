@@ -22,9 +22,9 @@ describe('the layout document path is named everywhere the gate reads it (#310)'
     expect(root).not.toContain('is not read');
   });
 
-  it('the stage prompt says edit_file is the tool for tracks, zones and reference text', () => {
+  it('the stage prompt says edit_file is the tool for tracks, zones and Value text', () => {
     const prompt = layout.prompt('brief', 'docs/');
-    expect(prompt).toMatch(/Everything else on the board is an anchored edit_file .* tracks, vias, zones, the outline, and the \(at …\) inside a part's Reference or Value property \(the label's own position, not the footprint's\)/);
+    expect(prompt).toMatch(/Everything else on the board is an anchored edit_file .* tracks, vias, zones, the outline, and the \(at …\) inside a part's Value property \(the label's own position, not the footprint's\)/);
   });
 
   it('the failure text names the path, and the stray root LAYOUT.md when that is the cause', async () => {
