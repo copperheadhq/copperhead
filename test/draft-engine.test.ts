@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtemp, cp, rm, readFile, writeFile } from 'node:fs/promises';
@@ -11,6 +11,8 @@ import { checkLegibility } from '../src/kicad/legibility.js';
 import { listSymbols, pinNets } from '../src/kicad/sexp.js';
 import { verifySchematicSymbols } from '../src/kicad/symlib.js';
 import { runErc } from '../src/kicad/cli.js';
+import { footprintSearchDirs } from '../src/kicad/footprints.js';
+import { seededKicadConfig } from './helpers.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SYMLIB = path.join(HERE, 'fixtures', 'symlib');
@@ -66,6 +68,19 @@ describe('uuidv5 and emitter primitives', () => {
 });
 
 describe('drafting engine: the reference IR end to end', () => {
+  let seeded: { dir: string; cleanup: () => Promise<void> };
+  beforeAll(async () => {
+    seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+  });
+  afterAll(async () => {
+    await seeded?.cleanup();
+  });
+  beforeEach(() => {
+    if (seeded?.dir) vi.stubEnv('KICAD_CONFIG_HOME', seeded.dir);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
   it('drafts byte-identically, passes the legibility gate, and round-trips connectivity (AC-16.1, AC-16.3)', async () => {
     const { repo, symDirs, cleanup } = await draftRepo();
     try {

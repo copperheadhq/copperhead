@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtemp, cp, rm, readFile, readdir } from 'node:fs/promises';
@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { checkLegibility } from '../src/kicad/legibility.js';
 import { runErc } from '../src/kicad/cli.js';
+import { footprintSearchDirs } from '../src/kicad/footprints.js';
+import { seededKicadConfig } from './helpers.js';
 
 /**
  * Reference boards (manual-tests/reference-boards/): committed reference projects with
@@ -18,6 +20,19 @@ import { runErc } from '../src/kicad/cli.js';
 const CONTROL = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'manual-tests', 'reference-boards');
 
 describe('reference boards: the engine reproduces the committed pinned outputs', async () => {
+  let seeded: { dir: string; cleanup: () => Promise<void> };
+  beforeAll(async () => {
+    seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+  });
+  afterAll(async () => {
+    await seeded?.cleanup();
+  });
+  beforeEach(() => {
+    if (seeded?.dir) vi.stubEnv('KICAD_CONFIG_HOME', seeded.dir);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
   const boards = (await readdir(CONTROL, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);
 
   for (const board of boards) {

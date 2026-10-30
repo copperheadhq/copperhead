@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtemp, cp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -7,6 +7,8 @@ import { dispatchTool, type RunContext } from '../src/agent/tools.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import { draftSchematic } from '../src/kicad/draft/draft.js';
 import { STAGES } from '../src/commands/create.js';
+import { footprintSearchDirs } from '../src/kicad/footprints.js';
+import { seededKicadConfig } from './helpers.js';
 
 /**
  * Agent-tool and pipeline wiring for the drafting engine: draft_schematic,
@@ -176,6 +178,19 @@ describe('score_schematic tool', () => {
 });
 
 describe('stage-4 drafting contract (AC-16.20)', () => {
+  let seeded: { dir: string; cleanup: () => Promise<void> };
+  beforeAll(async () => {
+    seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+  });
+  afterAll(async () => {
+    await seeded?.cleanup();
+  });
+  beforeEach(() => {
+    if (seeded?.dir) vi.stubEnv('KICAD_CONFIG_HOME', seeded.dir);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
   it('a stale draft keeps the stage active; a re-draft completes it', async () => {
     const { repo, cleanup } = await draftedRepo();
     try {
