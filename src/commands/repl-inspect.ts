@@ -51,9 +51,12 @@ async function resolveSchematic(
 export async function formatSyncInspect(repoRoot: string): Promise<string> {
   const report = await syncVerify(repoRoot);
   const body = formatSyncReport(report);
+  const uncheckedCount = report.unchecked?.length ?? 0;
   const headline =
     !report.resolvable.length && !report.violations.length
-      ? ok('  sync: clean')
+      ? uncheckedCount
+        ? warn(`  sync: ${uncheckedCount} constraint(s) not mechanically checked`)
+        : ok('  sync: clean')
       : report.violations.length
         ? err(`  sync: ${report.violations.length} requirement violation(s), ${report.resolvable.length} resolvable`)
         : warn(`  sync: ${report.resolvable.length} resolvable inconsistency(ies)`);
