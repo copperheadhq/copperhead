@@ -73,8 +73,8 @@
 - [x] 8.2 Implement --dry-run: propose diff, write nothing (AC-3.9)
 - [x] 8.3 Structured commit message (`copperhead: <request>` + edits/verification summary)
 - [x] 8.4 Integration test AC-3.1 (net rename): propagation to docs, ERC 0, one commit, diff locality < 5% lines (AC-3.7)
-- [ ] 8.5 Integration test AC-3.2 (RTC-capable pin move): strapping table consulted in transcript, schematic/PINOUT agree
-- [ ] 8.6 Integration test AC-3.3 (add RGB LED): unique refdes, valid footprint, UNVERIFIED BOM row with rationale
+- [x] 8.5 Integration test AC-3.2 (RTC-capable pin move): strapping table consulted in transcript, schematic/PINOUT agree. Seeds the `pins.strapping` constraint and PINOUT.md strapping/RTC notes; observed passing live on `--model claude-code` at the final assertions (assistant text names the strapping table, surgical schematic diff); `--model codex` passed 2 of 2 on an earlier, looser version of the transcript check
+- [ ] 8.6 Integration test AC-3.3 (add RGB LED): unique refdes, valid footprint, UNVERIFIED BOM row with rationale. Blocked on the fixture: open-key's U1 exposes only four free GPIOs, two of them strapping (GPIO0, GPIO3), so an RGB LED (three channels) cannot be wired without a strapping pin, and a live `--model codex` run correctly refused for that reason. Needs a fixture with an existing RGB LED and enough free GPIOs, as the AC's "second RGB LED" assumes
 - [x] 8.7 Integration test AC-3.4 (budget refusal): 100kΩ pullup refused citing 25 µA budget — the money demo
 - [x] 8.8 Integration tests AC-3.5/3.6 (repair loop converges; rollback leaves tree byte-identical)
 - [ ] 8.9 Provider parity: AC-3.1 green on both --model gpt-5 and --model claude (AC-3.10)
