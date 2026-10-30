@@ -416,6 +416,19 @@ describe('file tools', () => {
     expect(await readFile(mixedFile, 'utf8')).toBe('hdr\r\nfoo\nadded\nbar\n');
   });
 
+  it('edit_file replace_all learns the right break for several matches on one line', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const a = path.join(dir, 'a.txt');
+    await writeFile(a, '(a "R1" "R1" b)\r\nnext\r\n', 'utf8');
+    await toolEditFile(dir, 'a.txt', '"R1"', '"R1"\n"R2"', true);
+    expect(await readFile(a, 'utf8')).toBe('(a "R1"\r\n"R2" "R1"\r\n"R2" b)\r\nnext\r\n');
+
+    const b = path.join(dir, 'b.txt');
+    await writeFile(b, 'hdr\r\nfoo foo', 'utf8');
+    await toolEditFile(dir, 'b.txt', 'foo', 'foo\nx', true);
+    expect(await readFile(b, 'utf8')).toBe('hdr\r\nfoo\r\nx foo\r\nx');
+  });
+
   it('search finds regex matches with glob filtering', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
     await writeFile(path.join(dir, 'a.md'), 'KEY_DAH here');
