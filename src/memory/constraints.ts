@@ -138,9 +138,6 @@ export interface ConstraintViolation {
 
 export type PinNetEntry = Omit<PinNet, 'pinNumber'> & { pinNumber?: string };
 
-const REFDES_TOKEN_RE =
-  /^(?:U|IC|MCU|R|C|L|D|Q|J|P|SW|S|K|Y|X|F|FB|TP|BT|LED|RN|RV|T|BZ|LS|MK|VR|Z|FL|A|H|M|TH|W)\d+[A-Za-z]*$/;
-
 function normalizeRef(ref: string, knownRefs: ReadonlySet<string>): string {
   if (knownRefs.has(ref)) return ref;
   const m = /^([A-Za-z]+\d+)[A-Za-z]+$/.exec(ref);
@@ -164,7 +161,7 @@ function extractScopedRefs(
       const cleaned = rawToken.replace(/^[(),;.[\]{}'"`]+|[(),;.[\]{}'"`]+$/g, '');
       if (!cleaned) continue;
       const token = normalizeRef(cleaned, knownRefs);
-      if (REFDES_TOKEN_RE.test(token) || (knownRefs.has(token) && !/^(?:GPIO|IO)\d+/i.test(token))) {
+      if (knownRefs.has(token) && !/^(?:GPIO|IO)\d+/i.test(token)) {
         fromAffects.add(token);
       }
     }

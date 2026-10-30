@@ -430,7 +430,12 @@ describe('copperhead sync verify phase (AC-7)', () => {
     expect(v1[0]!.description).toContain('U1 pin IO0 (GPIO0) is connected to net BOOT');
 
     // 2. Unrelated part U5 with a pin named GPIO0 -> not flagged when scoped to U1 via affects, refs, or U1: prefix
-    expect(checkForbiddenPins(strappingReg, [{ ref: 'U5', pinName: 'GPIO0', net: 'LED_EN' }])).toEqual([]);
+    expect(
+      checkForbiddenPins(strappingReg, [
+        { ref: 'U1', pinName: 'IO0', net: null },
+        { ref: 'U5', pinName: 'GPIO0', net: 'LED_EN' },
+      ]),
+    ).toEqual([]);
     expect(
       checkForbiddenPins(
         { 'pins.strapping': { forbidden: ['U1:GPIO0'], source: 'datasheet', affects: [] } },
@@ -579,6 +584,19 @@ describe('copperhead sync verify phase (AC-7)', () => {
     const parenViolations = checkForbiddenPins(parenAffectsReg, phrasePins);
     expect(parenViolations).toHaveLength(1);
     expect(parenViolations[0]!.description).toContain('U1 pin IO0 (GPIO0) is connected to net BOOT');
+
+    const lookalikeAffectsReg = {
+      'pins.no_gpio14': {
+        forbidden: ['GPIO14'],
+        source: 'esp32-s3 datasheet',
+        affects: ['PCB rev A2'],
+      },
+    };
+    const lookalikePins: PinNetEntry[] = [{ ref: 'U1', pinName: 'IO14', net: 'KEY_DAH' }];
+    const lookalikeViolations = checkForbiddenPins(lookalikeAffectsReg, lookalikePins);
+    expect(lookalikeViolations).toHaveLength(1);
+    expect(lookalikeViolations[0]!.description).toContain('U1 pin IO14 (GPIO14) is connected to net KEY_DAH');
+    expect(uncheckedForbiddenConstraints(lookalikeAffectsReg, lookalikePins)).toEqual([]);
 
     // 11. Multi-unit refdes with unit suffix (e.g. U2A:1, refs: ["U2B"], affects: ["U2A"]) normalizes to base ref U2
     const multiUnitPins: PinNetEntry[] = [{ ref: 'U2', pinName: 'OUTA', pinNumber: '1', net: 'AMP_OUT' }];
