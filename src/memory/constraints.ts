@@ -160,9 +160,13 @@ function extractScopedRefs(
   for (const raw of c.affects ?? []) {
     const trimmed = raw.trim();
     if (!trimmed || trimmed.includes(':')) continue;
-    const head = normalizeRef(trimmed.split(/\s+/)[0] ?? '', knownRefs);
-    if (REFDES_TOKEN_RE.test(head) || (knownRefs.has(head) && !/^(?:GPIO|IO)\d+/i.test(head))) {
-      fromAffects.add(head);
+    for (const rawToken of trimmed.split(/\s+/)) {
+      const cleaned = rawToken.replace(/^[(),;.[\]{}'"`]+|[(),;.[\]{}'"`]+$/g, '');
+      if (!cleaned) continue;
+      const token = normalizeRef(cleaned, knownRefs);
+      if (REFDES_TOKEN_RE.test(token) || (knownRefs.has(token) && !/^(?:GPIO|IO)\d+/i.test(token))) {
+        fromAffects.add(token);
+      }
     }
   }
   return { refs: fromAffects.size > 0 ? fromAffects : null, explicit: false };

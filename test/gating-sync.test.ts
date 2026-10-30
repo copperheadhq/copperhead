@@ -542,7 +542,7 @@ describe('copperhead sync verify phase (AC-7)', () => {
     expect(multiFnViolations).toHaveLength(1);
     expect(multiFnViolations[0]!.description).toContain('U1 pin IO0/BOOT (GPIO0) is connected to net BOOT');
 
-    // 10. affects entry containing artifact keywords after refdes (e.g. "U1 strapping pins") still scopes to U1
+    // 10. affects entry containing artifact keywords or non-leading refdes tokens (e.g. "U1 strapping pins", "pinout of U1", "ESP32 strapping (U1)") still scopes to U1
     const affectsPhraseReg = {
       'pins.strapping_phrase': {
         forbidden: ['GPIO0'],
@@ -557,6 +557,28 @@ describe('copperhead sync verify phase (AC-7)', () => {
     const phraseViolations = checkForbiddenPins(affectsPhraseReg, phrasePins);
     expect(phraseViolations).toHaveLength(1);
     expect(phraseViolations[0]!.description).toContain('U1 pin IO0 (GPIO0) is connected to net BOOT');
+
+    const nonLeadingAffectsReg = {
+      'pins.pinout_phrase': {
+        forbidden: ['GPIO0'],
+        source: 'datasheet',
+        affects: ['pinout of U1'],
+      },
+    };
+    const nonLeadingViolations = checkForbiddenPins(nonLeadingAffectsReg, phrasePins);
+    expect(nonLeadingViolations).toHaveLength(1);
+    expect(nonLeadingViolations[0]!.description).toContain('U1 pin IO0 (GPIO0) is connected to net BOOT');
+
+    const parenAffectsReg = {
+      'pins.paren_phrase': {
+        forbidden: ['GPIO0'],
+        source: 'datasheet',
+        affects: ['ESP32 strapping (U1)'],
+      },
+    };
+    const parenViolations = checkForbiddenPins(parenAffectsReg, phrasePins);
+    expect(parenViolations).toHaveLength(1);
+    expect(parenViolations[0]!.description).toContain('U1 pin IO0 (GPIO0) is connected to net BOOT');
 
     // 11. Multi-unit refdes with unit suffix (e.g. U2A:1, refs: ["U2B"], affects: ["U2A"]) normalizes to base ref U2
     const multiUnitPins: PinNetEntry[] = [{ ref: 'U2', pinName: 'OUTA', pinNumber: '1', net: 'AMP_OUT' }];
