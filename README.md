@@ -119,6 +119,7 @@ copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
+copperhead capabilities [--json]     # offline run-protocol handshake: protocol, commands, features, tool versions
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
 copperhead create --brief brief.md   # brief → full output package
 copperhead export bom --supplier jlcpcb   # supplier-ready ordering file from docs/BOM.md

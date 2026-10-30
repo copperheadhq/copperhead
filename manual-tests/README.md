@@ -4,7 +4,7 @@ Sandboxes for exercising the CLI end to end, by hand, against a real git reposit
 
 ## Prerequisites
 
-- `kicad-cli` on your PATH (every command except `--help` checks for it)
+- `kicad-cli` on your PATH (commands that run ERC/DRC or the agent loop check for it up front)
 - An API key in the environment for the LLM-backed commands: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`, or a saved-login provider (`--model codex`, `--model cursor`, `--model claude-code`)
 - `npm install` done at the repo root
 
