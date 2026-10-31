@@ -22,7 +22,11 @@ const CONTROL = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'm
 describe('reference boards: the engine reproduces the committed pinned outputs', async () => {
   let seeded: { dir: string; cleanup: () => Promise<void> };
   beforeAll(async () => {
-    seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+    try {
+      seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+    } catch {
+      // no kicad-cli on PATH: run unseeded, as before
+    }
   });
   afterAll(async () => {
     await seeded?.cleanup();

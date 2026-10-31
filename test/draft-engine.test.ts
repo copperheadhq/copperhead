@@ -70,7 +70,11 @@ describe('uuidv5 and emitter primitives', () => {
 describe('drafting engine: the reference IR end to end', () => {
   let seeded: { dir: string; cleanup: () => Promise<void> };
   beforeAll(async () => {
-    seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+    try {
+      seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+    } catch {
+      // no kicad-cli on PATH: run unseeded, as before
+    }
   });
   afterAll(async () => {
     await seeded?.cleanup();

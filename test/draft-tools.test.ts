@@ -180,7 +180,11 @@ describe('score_schematic tool', () => {
 describe('stage-4 drafting contract (AC-16.20)', () => {
   let seeded: { dir: string; cleanup: () => Promise<void> };
   beforeAll(async () => {
-    seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+    try {
+      seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+    } catch {
+      // no kicad-cli on PATH: run unseeded, as before
+    }
   });
   afterAll(async () => {
     await seeded?.cleanup();
