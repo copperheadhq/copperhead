@@ -366,3 +366,5 @@ export interface TableRow {
     }
     return out;
   }
+/** One-line, pipe-free table cell: a newline or `|` in a field would shift the BOM columns. */
+export const bomCell = (v: string): string => v.replace(/\s*[\r\n]+\s*/g, ' ').replace(/\|/g, '/').trim();

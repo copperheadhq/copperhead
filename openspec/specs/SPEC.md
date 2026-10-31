@@ -269,7 +269,18 @@ copperhead init [--path hardware/]
     Detect .kicad_sch/.kicad_pcb, parse symbols/footprints/nets,
     generate docs/ skeleton pre-filled with the real BOM and pinout
     extracted from the schematic. Idempotent; never overwrites
-    hand-edited docs without --force.
+    hand-edited docs without --force. Writes the normalized design
+    graph to .copperhead/design-graph.json (derived artifact with
+    source hashes; stale graphs are ignored).
+
+copperhead ingest [--json]
+    Parse the KiCad project into the normalized design graph and write
+    .copperhead/design-graph.json. Deterministic, LLM-free,
+    network-free. Prefers the kicad-cli netlist export for
+    connectivity and part identity; falls back to the s-expression
+    parse when the export cannot be produced (a missing or failing
+    kicad-cli, or a timeout), except that a COPPERHEAD_KICAD_CLI set to
+    a path that does not exist is a hard error.
 
 copperhead draft schematic [--json]
     Deterministically draft the schematic from its declared intent
@@ -487,8 +498,8 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 ### AC-1 · `copperhead init`
 
 - **AC-1.1** Given a KiCad repo with no `docs/`, when `copperhead init` runs, then `docs/SPEC.md`, `BOM.md`, `PINOUT.md`, `SUBSYSTEMS.md`, `LAYOUT.md` and `.copperhead/config.json` exist.
-- **AC-1.2** BOM.md contains one row per schematic symbol with real refdes, value, and footprint parsed from the `.kicad_sch` — not placeholders. Row count equals `list_symbols` count.
-- **AC-1.3** PINOUT.md contains the MCU's actual pin-to-net assignments parsed from the schematic.
+- **AC-1.2** BOM.md contains one row per orderable schematic symbol with real refdes, value, and footprint parsed from the `.kicad_sch` — not placeholders. DNP and BOM-excluded symbols are omitted. Parts that carry a real MPN in the schematic keep it; parts with no MPN keep the UNVERIFIED placeholder. Row count equals the orderable symbol count.
+- **AC-1.3** PINOUT.md contains the IC and connector pin-to-net assignments parsed from the schematic (classification derived from library, footprint, and pin count, not a U prefix).
 - **AC-1.4** Re-running `init` on the same repo exits 0 and changes no hand-edited file (idempotent). With modified docs and no `--force`, it refuses and lists what it would overwrite.
 - **AC-1.5** On a repo with no `.kicad_sch`, exits non-zero with a clear message (no stack trace).
 
