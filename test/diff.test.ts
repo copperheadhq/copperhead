@@ -52,6 +52,73 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
     expect(formatDiffReport(res)).toBe('No electrical changes since HEAD~1');
   });
 
+  it('does not report surviving pins as rewired when a component leaves their unlabeled net', () => {
+    // An unlabeled net was identified by its entire member list, so removing
+    // one component renamed the net and every surviving pin on it reported
+    // as disconnected and reconnected. Removing a decoupling cap from a rail
+    // would otherwise light up every pin on that rail.
+    const before = {
+      symbols: [
+        { ref: 'U1', value: 'ESP32', footprint: 'X', libId: 'MCU:ESP32', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: 'u1', unit: 1 },
+        { ref: 'R1', value: '10k', footprint: 'X', libId: 'Device:R', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: 'u2', unit: 1 },
+        { ref: 'C1', value: '100n', footprint: 'X', libId: 'Device:C', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: 'u3', unit: 1 },
+      ],
+      nets: [] as string[],
+      pins: [
+        { ref: 'U1', pinNumber: '3', pinName: 'GPIO0', net: null, group: ['C1.1', 'R1.1', 'U1.3'] },
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: null, group: ['C1.1', 'R1.1', 'U1.3'] },
+        { ref: 'C1', pinNumber: '1', pinName: '~', net: null, group: ['C1.1', 'R1.1', 'U1.3'] },
+      ],
+    };
+    const after = {
+      symbols: before.symbols.filter((s) => s.ref !== 'C1'),
+      nets: [] as string[],
+      pins: [
+        { ref: 'U1', pinNumber: '3', pinName: 'GPIO0', net: null, group: ['R1.1', 'U1.3'] },
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: null, group: ['R1.1', 'U1.3'] },
+      ],
+    };
+
+    const res = diffSnapshots('HEAD~1', 'board.kicad_sch', before, after);
+    // C1's departure is reported as a removed component...
+    expect(res.components.removed.map((c) => c.ref)).toEqual(['C1']);
+    // ...and must not also be reported as rewiring on the pins that remain.
+    expect(res.connections.changes).toEqual([]);
+  });
+
+  it('still reports a genuine rewire on an unlabeled net', () => {
+    // The mirror case: moving U1.3 off R1.1 and onto R2.1 is a real change
+    // and must still be caught, so the fix above cannot be satisfied by
+    // never comparing unlabeled nets at all.
+    const before = {
+      symbols: [
+        { ref: 'U1', value: 'ESP32', footprint: 'X', libId: 'MCU:ESP32', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: 'u1', unit: 1 },
+        { ref: 'R1', value: '10k', footprint: 'X', libId: 'Device:R', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: 'u2', unit: 1 },
+        { ref: 'R2', value: '10k', footprint: 'X', libId: 'Device:R', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: 'u3', unit: 1 },
+      ],
+      nets: [] as string[],
+      pins: [
+        { ref: 'U1', pinNumber: '3', pinName: 'GPIO0', net: null, group: ['R1.1', 'U1.3'] },
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: null, group: ['R1.1', 'U1.3'] },
+        { ref: 'R2', pinNumber: '1', pinName: '~', net: null, group: ['R2.1'] },
+      ],
+    };
+    const after = {
+      symbols: before.symbols,
+      nets: [] as string[],
+      pins: [
+        { ref: 'U1', pinNumber: '3', pinName: 'GPIO0', net: null, group: ['R2.1', 'U1.3'] },
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: null, group: ['R1.1'] },
+        { ref: 'R2', pinNumber: '1', pinName: '~', net: null, group: ['R2.1', 'U1.3'] },
+      ],
+    };
+
+    const res = diffSnapshots('HEAD~1', 'board.kicad_sch', before, after);
+    expect(res.hasChanges).toBe(true);
+    expect(res.connections.changes.length).toBeGreaterThan(0);
+    expect(res.connections.changes.some((c) => c.ref === 'U1' && c.pinNumber === '3')).toBe(true);
+  });
+
   it('summarizes added/modified/removed components, surviving-component connection edits, renamed/merged nets, and affected constraints', () => {
     const before = {
       symbols: [

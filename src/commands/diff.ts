@@ -390,6 +390,37 @@ function effectivePinNet(p: PinGroupNet | undefined): string | null {
   return null;
 }
 
+/**
+ * The identity of an unlabeled net *for comparing two snapshots*.
+ *
+ * `effectivePinNet` names such a net by its entire member list, which is
+ * right within one snapshot but wrong across two: adding or removing any
+ * single component renames the net, and every surviving pin on it then
+ * reports as rewired even though nothing it connects to changed. Removing a
+ * decoupling cap would otherwise report every pin on that rail as
+ * disconnected and reconnected.
+ *
+ * Pins belonging to components that do not survive are already reported
+ * under Components:, so the identity here is the set of members present in
+ * both snapshots — the connectivity that can actually be compared.
+ */
+function comparablePinNet(
+  p: PinGroupNet | undefined,
+  sharedMembers: Set<string>,
+): string | null {
+  if (!p) return null;
+  if (p.net !== null) return p.net;
+  if (!p.group || p.group.length === 0) return null;
+  const shared = p.group
+    .filter((m) => sharedMembers.has(m))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  // One surviving pin is not a net. Keeping the two-pin floor means a pin
+  // left on its own reads as null on both sides rather than as "connected"
+  // to a net whose only member is itself.
+  if (shared.length < 2) return null;
+  return `~{${shared.join(',')}}`;
+}
+
 function matchAffectedConstraints(
   registry: ConstraintRegistry,
   touchedRefs: Set<string>,
@@ -521,6 +552,13 @@ export function diffSnapshots(
     a.localeCompare(b, undefined, { numeric: true }),
   );
 
+  // Group members are `U1.1`; pin keys are `U1:1`. Build the shared set in
+  // member form once, so comparablePinNet can filter by it.
+  const sharedMembers = new Set<string>();
+  for (const k of allPinKeys) {
+    if (beforePins.has(k) && afterPins.has(k)) sharedMembers.add(k.replace(':', '.'));
+  }
+
   const connectionChanges: PinConnectionChange[] = [];
   for (const k of allPinKeys) {
     const bp = beforePins.get(k);
@@ -530,8 +568,8 @@ export function diffSnapshots(
     // components; added/removed components are already summarized under Components:.
     if (!beforeSyms.has(ref) || !afterSyms.has(ref)) continue;
 
-    const bNet = effectivePinNet(bp);
-    const aNet = effectivePinNet(ap);
+    const bNet = comparablePinNet(bp, sharedMembers);
+    const aNet = comparablePinNet(ap, sharedMembers);
     if (bNet === aNet) continue;
 
     if (ap && aNet !== null) {
