@@ -9,6 +9,11 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import {
+  checkFirmwareDrift,
+  formatFirmwareCheckResult,
+  type FirmwareCheckResult,
+} from '../kicad/firmware.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -21,6 +26,7 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  firmware?: FirmwareCheckResult | null;
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -37,7 +43,7 @@ export interface CheckResult {
   };
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+export async function runCheck(repoRoot: string, log: (s: string) => void, opts?: { firmware?: boolean | string; ref?: string }): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
@@ -122,12 +128,23 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let firmware: FirmwareCheckResult | null = null;
+  if (opts?.firmware) {
+    const headerPath = typeof opts.firmware === 'string' ? opts.firmware : undefined;
+    firmware = await checkFirmwareDrift(repoRoot, {
+      ...(headerPath ? { headerPath } : {}),
+      ...(opts.ref ? { ref: opts.ref } : {}),
+    });
+    log(formatFirmwareCheckResult(firmware));
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (firmware?.ok ?? true);
 
   return {
     ok,
@@ -136,6 +153,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    ...(firmware ? { firmware } : {}),
     legibility,
   };
 }

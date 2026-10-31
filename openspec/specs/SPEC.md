@@ -152,7 +152,7 @@ Anything unstated → the agent proposes defaults in SPEC.md and flags them `ASS
 | **Renders** | .svg (sch + pcb), 3D .png | `kicad-cli export svg`, pcb render |
 | **BOM for ordering** | .csv (refdes, MPN, qty, vendor links) | generated from BOM.md |
 | **Firmware scaffold** | src/ (per MCU HAL: ESP-IDF / Zephyr / Arduino) | agent, compiles clean |
-| **Pin map header** | pins.h — generated from PINOUT.md, single source of truth | drift-checked |
+| **Pin map header** | `firmware/src/pins.h` (agent Stage 7 from PINOUT.md, checked by `sync`) or `firmware/inc/pinout.h` (deterministic schematic export via `copperhead export firmware`, checked by `check --firmware`) | drift-checked |
 | **Dev plan** | DEVPLAN.md: bring-up steps, test points, what to meter first, risk list, prototype order plan | agent |
 
 Firmware scope: scaffold + pin definitions + driver stubs + one working happy-path (e.g. key press → BLE HID report). "Compiles clean against the vendor toolchain" is the verification gate — same philosophy as ERC/DRC: nothing is done until the toolchain agrees. A board with nothing programmable on it has no firmware: when every schematic symbol comes from a stock non-programmable KiCad library, `firmware/README.md` opening `# No firmware` and saying why stands in for the scaffold (AC-15.45).
@@ -293,9 +293,14 @@ copperhead skill run <name> [--scope power|all] [--model …]
     Run a skill (currently `generate-report`) via the nested sub-run. Needs a
     model, same as `do`. Does not snapshot or commit.
 
-copperhead check          (alias: copperhead verify)
-    Run ERC + DRC + doc-drift check; exit non-zero on violations.
+copperhead check [--firmware [header]] [--ref <refdes>]   (alias: copperhead verify)
+    Run ERC + DRC + doc-drift check (plus optional schematic-vs-header firmware
+    pinout drift check when `--firmware` is passed); exit non-zero on violations.
     No LLM calls. Usable as CI step / pre-commit hook.
+
+copperhead export firmware [--target c] [--out <path>] [--ref <refdes>]
+    Deterministic, LLM-free, network-free C pinout header generator from the
+    schematic MCU pin/net mapping (default output: `firmware/inc/pinout.h`).
 
 copperhead sync [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs
