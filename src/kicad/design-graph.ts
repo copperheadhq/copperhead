@@ -146,7 +146,7 @@ export function classifyPart(sym: Pick<SchematicSymbol, 'ref' | 'libId' | 'footp
   // Device symbols (Opamp_Dual, Opamp_Quad) are ICs, and an X-prefixed part on a Connector_*
   // footprint is a connector, whatever the library category says.
   if (/^(U|IC)$/i.test(refPrefix)) return { class: 'ic', evidence: `lib:${lib},ref:${sym.ref},pins:${pinCount}` };
-  if (/^Connector/i.test(sym.footprint.slice(0, Math.max(sym.footprint.indexOf(':'), 0)))) {
+  if (/^X/i.test(refPrefix) && /^Connector/i.test(sym.footprint.slice(0, Math.max(sym.footprint.indexOf(':'), 0)))) {
     return { class: 'connector', evidence: `footprint:${sym.footprint}` };
   }
   // Small discretes (diodes, LEDs, transistors, crystals, fuses, switches, ...) are not chips:

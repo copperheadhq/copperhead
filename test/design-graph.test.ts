@@ -236,6 +236,8 @@ describe('classification (table-driven)', () => {
     ['U1', 'Device:Opamp_Quad', 14, 'ic'],
     ['U2', 'Device:Opamp_Dual', 8, 'ic'],
     ['X1', 'Project:USB_C', 16, 'connector', 'Connector_USB:USB_C_Receptacle_GCT_USB4085'],
+    ['JP1', 'Jumper:SolderJumper_2_Open', 2, 'discrete', 'Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical'],
+    ['JP2', 'Jumper:SolderJumper_2_Open', 2, 'discrete', 'Jumper:SolderJumper-2_P1.3mm_Open_RoundedPad1.0x1.5mm'],
     ['X3', 'Device:Crystal', 2, 'discrete', 'Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm'],
     ['H2', 'MountingHole:MountingHole_3.2mm', 1, 'mechanical'],
   ] as [string, string, number, string, string?][])('%s %s (%i pins) is %s', (ref, lib, pins, cls, fp) => {
