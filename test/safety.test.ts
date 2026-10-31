@@ -209,6 +209,12 @@ describe('secret redaction (AC-4.1)', () => {
     expect(out).toContain('myhost:8080/v1');
   });
 
+  it('sanitizeEndpoint redacts a key-shaped segment in the path of a real URL', () => {
+    const out = sanitizeEndpoint('http://127.0.0.1:11434/v1/sk-proj-FAKEdemo0000key1234567890/x');
+    expect(out).not.toContain('FAKEdemo');
+    expect(out).toContain('http://127.0.0.1:11434/v1/');
+  });
+
   it('sanitizeEndpoint drops userinfo behind a non-special scheme, a bare "//", or a "/" in the password', () => {
     // None of these parse to a real origin, and the old structural strip only
     // fired when no "/" came before the "@", so each one came back with the

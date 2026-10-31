@@ -460,8 +460,10 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         `failed work preserved: git stash entry "copperhead failed run ${ctx.runId}" (${preserved.slice(0, 10)}); recover with \`git stash apply\`, discard with \`git stash drop\``,
       );
     }
-    log(`transcript: ${transcript.jsonlPath}`);
-    log(`summary: ${summaryPath}`);
+    // Local paths the user has to open, so not through log(): a folder like
+    // risk-assessment-board-v2 matches the glued sk- rule and would print mangled.
+    r.log(`transcript: ${transcript.jsonlPath}`);
+    r.log(`summary: ${summaryPath}`);
     r.finish(outcomeLine(runStats));
     return {
       outcome: 'failure',

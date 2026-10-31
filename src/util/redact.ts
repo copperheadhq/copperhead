@@ -55,7 +55,7 @@ export function sanitizeEndpoint(url: string | undefined): string {
   if (!url) return '(no endpoint configured)';
   try {
     const u = new URL(url);
-    if (u.origin !== 'null') return `${u.origin}${u.pathname}`;
+    if (u.origin !== 'null') return redactSecrets(`${u.origin}${u.pathname}`);
   } catch {
     // fall through to the structural strip below
   }
