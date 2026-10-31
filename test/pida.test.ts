@@ -183,6 +183,28 @@ describe('External verification checker framework & Ki-PIDA plugin (#176)', () =
     expect(report.violations[2]?.description).toContain('25.04C exceeds 25.0C budget');
   });
 
+  it('never prints a budget at a precision that changes it (round-trip rule)', () => {
+    // Regression: a 0.155V budget used to print as "0.15V budget", naming a
+    // limit the user never set and contradicting constraints.json.
+    const budgets = extractPowerBudgets({
+      'power.rail_drop_max_V': { max: 0.155, source: 'SPEC.md#power', affects: ['board'] },
+      'power.temp_rise_max_C': { max: 22.25, source: 'SPEC.md#power', affects: ['board'] },
+    });
+    const report = evaluatePowerIntegrity(
+      {
+        rails: [{ rail: '3V3', sinkRef: 'U4', irDropV: 0.2 }],
+        thermal: [{ ref: 'U1', tempRiseC: 40 }],
+      },
+      budgets,
+    );
+    const irDrop = report.violations.find((v) => v.type === 'ir_drop_exceeded');
+    const thermal = report.violations.find((v) => v.type === 'thermal_hotspot');
+    expect(irDrop?.description).toContain('0.155V budget');
+    expect(irDrop?.description).not.toContain('0.15V budget');
+    expect(thermal?.description).toContain('22.25C budget');
+    expect(thermal?.description).not.toContain('22.3C budget');
+  });
+
   it('detects circular multi-rail dependency chains', () => {
     const budgets = extractPowerBudgets(sampleRegistry);
     const report = evaluatePowerIntegrity(
@@ -249,8 +271,49 @@ describe('External verification checker framework & Ki-PIDA plugin (#176)', () =
         await writeFile(scriptPath, '#!/usr/bin/env node\nsetTimeout(() => {}, 5000);\n', 'utf8');
         await expect(defaultPidaRunner(boardPath, { timeoutMs: 120 })).rejects.toThrow(/timed out/);
 
-        // 6. Missing binary + runCheck --power skip vs --strict-power fail
-        process.env.COPPERHEAD_KIPIDA_BIN = path.join(dir, 'does-not-exist-kipida');
+        // 6. A solver KILLED BY A SIGNAL must fail closed.
+        //    execa reports `exitCode === undefined` both when a binary cannot
+        //    be spawned and when it is terminated by a signal. Treating the
+        //    two alike made a segfaulting / OOM-killed solver read as "ki-pida
+        //    not installed", so `check --power` skipped the gate and exited 0
+        //    - the fail-open this gate exists to prevent.
+        await writeFile(
+          scriptPath,
+          '#!/usr/bin/env node\nprocess.kill(process.pid, "SIGKILL");\n',
+          'utf8',
+        );
+        await expect(defaultPidaRunner(boardPath)).rejects.toThrow(PidaToolError);
+        await expect(defaultPidaRunner(boardPath)).rejects.toThrow(/terminated by SIGKILL/);
+        // and it must NOT be reported as a merely-missing tool
+        await expect(defaultPidaRunner(boardPath)).rejects.not.toThrow(PidaMissingError);
+
+        // 6b. A crashing runner must propagate through runPowerIntegrity.
+        //     `check.ts` only converts PidaMissingError into a skip, so a
+        //     signal-killed solver has to arrive as PidaToolError or the gate
+        //     silently passes. (Exercised at runPowerIntegrity rather than
+        //     runCheck because runCheck would also run DRC, which needs
+        //     kicad-cli on the host.)
+        const crashRunner = async (): Promise<PidaTelemetry> => {
+          throw new PidaToolError('ki-pida terminated by SIGKILL');
+        };
+        await expect(
+          runPowerIntegrity(boardPath, dir, crashRunner),
+        ).rejects.toThrow(/terminated by SIGKILL/);
+        await expect(
+          runPowerIntegrity(boardPath, dir, crashRunner),
+        ).rejects.toThrow(PidaToolError);
+
+        // 7. Pinned-but-missing COPPERHEAD_KIPIDA_BIN is a configuration error,
+        //    not an absent optional tool: it must name the path and must never
+        //    let the gate report itself as skipped.
+        const pinnedMissing = path.join(dir, 'does-not-exist-kipida');
+        process.env.COPPERHEAD_KIPIDA_BIN = pinnedMissing;
+        await expect(defaultPidaRunner(boardPath)).rejects.toThrow(PidaToolError);
+        await expect(defaultPidaRunner(boardPath)).rejects.toThrow(pinnedMissing);
+        await expect(defaultPidaRunner(boardPath)).rejects.not.toThrow(PidaMissingError);
+
+        // 8. Unpinned missing binary: still the documented skip path.
+        delete process.env.COPPERHEAD_KIPIDA_BIN;
         await expect(defaultPidaRunner(boardPath)).rejects.toThrow(PidaMissingError);
 
         await writeFile(

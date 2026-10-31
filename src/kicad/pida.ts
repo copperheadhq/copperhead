@@ -264,9 +264,17 @@ function formatPairWithPrecision(measured: number, budget: number, minDecimals: 
     const mStr = measured.toFixed(d);
     const bStr = budget.toFixed(d);
     if (mStr !== bStr || measured === budget) {
-      // Trim unnecessary trailing zeros on the budget beyond minDecimals
-      const bDefault = budget.toFixed(minDecimals);
-      const bClean = Number(bDefault) === budget ? bDefault : bStr.replace(/0+$/, '').replace(/\.$/, '');
+      // Round-trip rule: never print the budget at a precision that changes
+      // it. `0.155` rendered as `0.15` names a limit the user never set, and
+      // the message then contradicts constraints.json.
+      let bClean = String(budget);
+      for (let e = minDecimals; e <= 6; e++) {
+        const cand = budget.toFixed(e);
+        if (Number(cand) === budget) {
+          bClean = cand;
+          break;
+        }
+      }
       return [mStr, bClean];
     }
   }
@@ -328,13 +336,54 @@ export async function defaultPidaRunner(
     throw new PidaToolError(`ki-pida timed out after ${secs}s`);
   }
   const errCode = (res as { code?: string }).code;
+  // Whether the user explicitly pinned a binary. A pinned path that cannot be
+  // spawned is a configuration error, not an absent optional tool.
+  const binWasPinned = Boolean(process.env.COPPERHEAD_KIPIDA_BIN?.trim());
+
+  // --- terminated by a signal -------------------------------------------
+  // execa documents `exitCode === undefined` for BOTH "could not be spawned"
+  // and "terminated by a signal". Collapsing the two into PidaMissingError
+  // made a segfaulting or OOM-killed solver read as "ki-pida not installed",
+  // so `runCheck` turned it into `power.skipped` and `check --power` exited 0
+  // - the exact fail-open this gate exists to prevent. A crash must fail
+  // closed, so this is checked before anything else.
+  const signalName = (res as { signal?: string }).signal;
+  const isTerminated =
+    Boolean((res as { isTerminated?: boolean }).isTerminated) || Boolean(signalName);
+  if (isTerminated) {
+    throw new PidaToolError(`ki-pida terminated by ${signalName || 'a signal'}`);
+  }
+
+  // --- genuinely not installed ------------------------------------------
+  if (errCode === 'ENOENT') {
+    if (binWasPinned) {
+      throw new PidaToolError(
+        `COPPERHEAD_KIPIDA_BIN points to a path that does not exist: ${bin}`,
+      );
+    }
+    throw new PidaMissingError();
+  }
+
+  // Windows: cmd.exe reports an unknown command with this message and exit
+  // code 1. Only treat it as "not installed" when the binary was not pinned,
+  // so a typo in COPPERHEAD_KIPIDA_BIN can never silently skip the gate.
   if (
-    errCode === 'ENOENT' ||
-    res.exitCode === undefined ||
+    !binWasPinned &&
     /not recognized as an internal or external command/i.test(String(res.stderr ?? ''))
   ) {
     throw new PidaMissingError();
   }
+
+  // Could not be spawned for any other reason (EACCES, ENOEXEC, ...). Fail
+  // closed rather than let the gate report itself as skipped.
+  if (res.exitCode === undefined) {
+    throw new PidaToolError(
+      `ki-pida could not be spawned (${errCode ?? 'unknown error'})${
+        binWasPinned ? `: ${bin}` : ''
+      }`,
+    );
+  }
+
   if (res.failed) {
     throw new PidaToolError(
       String(res.stderr || res.stdout || `ki-pida exited ${res.exitCode}`).trim(),
