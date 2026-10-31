@@ -62,6 +62,18 @@ export interface ValidatedIntent {
   warnings: string[];
 }
 
+/** Strip leading section numbering (e.g. "1. ", "2) ", "4.1 ") from a heading name. */
+export function stripSectionNumber(s: string): string {
+  return s.replace(/^\d+(?:\.\d+)*[.)]?\s+/, '').trim();
+}
+
+/** Check if a group name matches a SUBSYSTEMS.md heading, allowing unnumbered group names. */
+export function groupMatchesHeading(heading: string, group: string): boolean {
+  const h = heading.trim().toLowerCase();
+  const g = group.trim().toLowerCase();
+  return h === g || stripSectionNumber(heading).toLowerCase() === g;
+}
+
 /** `## Heading` names from a markdown file, in order. */
 async function headingsOf(file: string): Promise<string[] | null> {
   if (!existsSync(file)) return null;
@@ -300,7 +312,6 @@ export async function validateIntent(
 
   // groups: exactly one per non-power part, validated against SUBSYSTEMS.md when present
   const docGroups = docsDir ? await headingsOf(path.join(docsDir, 'SUBSYSTEMS.md')) : null;
-  const stripSectionNumber = (s: string): string => s.replace(/^\d+(\.\d+)*\.?\s+/, '').trim().toLowerCase();
   for (const p of partByRef.values()) {
     const sym = symbols.get(p.ref);
     if (sym?.isPower) continue;
@@ -308,9 +319,7 @@ export async function validateIntent(
       add(`${p.ref} has no group assignment; available groups: ${docGroups?.join(', ') ?? '(SUBSYSTEMS.md absent)'}`);
     } else if (
       docGroups &&
-      !docGroups.some(
-        (g) => g.toLowerCase() === p.group.toLowerCase() || stripSectionNumber(g) === stripSectionNumber(p.group),
-      )
+      !docGroups.some((h) => groupMatchesHeading(h, p.group))
     ) {
       add(`${p.ref} names group "${p.group}", which is not a SUBSYSTEMS.md heading; available: ${docGroups.join(', ')}`);
     }
