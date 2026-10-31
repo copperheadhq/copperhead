@@ -505,6 +505,30 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
     }
   });
 
+  it('labels a resolver hit that sits outside the ranked-display cap by its real rank (#200)', async () => {
+    // Five libraries each hold the same part under the same exact name, so
+    // every resolver hit is rank 0. The display cap is 4. Labelling the
+    // resolver's uncapped list against a *capped* exact-set would push the
+    // fifth, equally exact, hit into "approximate" — claiming a proven
+    // install is approximate. The ranking must decide the label; the cap
+    // may only decide what is printed.
+    const capDir = await mkdtemp(path.join(tmpdir(), 'copperhead-cap-label-'));
+    try {
+      for (const name of ['LibA', 'LibB', 'LibC', 'LibD', 'LibE']) {
+        await writeFile(path.join(capDir, `${name}.kicad_sym`), lib('TPS61165DBV'), 'utf8');
+      }
+      const ranked = await searchInstalledSymbolsRanked('TPS61165DBV', [capDir]);
+      expect(ranked).toHaveLength(5);
+      expect(ranked.every((h) => h.rank === 0)).toBe(true);
+
+      const facts = await symbolAvailabilityFacts('Driver_LED:TPS61165DBV was refused', [capDir]);
+      expect(facts).toContain('installed as:');
+      expect(facts).not.toContain('approximate');
+    } finally {
+      await rm(capDir, { recursive: true, force: true });
+    }
+  });
+
   it('produces no facts block when the text names no lib_ids', async () => {
     expect(await symbolAvailabilityFacts('turn timed out after 300s; see create.ts:311', [dir])).toBe('');
   });

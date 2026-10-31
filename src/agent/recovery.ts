@@ -246,12 +246,30 @@ export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap
       if (r.status === 'ok') {
         lines.push(`- ${libId}: RESOLVES on this machine (${r.pins.length} pins)`);
       } else if (r.status === 'found-elsewhere') {
-        // Only rank-0 matches prove the named part is installed elsewhere;
-        // weaker cross-library resolver hits are approximate candidates.
-        const ranked = await searchInstalledSymbolsRanked(name, searchDirs, 4);
-        const exactSet = new Set(ranked.filter((h) => h.rank === 0).map((h) => h.libId));
-        const exactIds = r.libIds.filter((id) => exactSet.has(id)).slice(0, 4);
-        const approxIds = r.libIds.filter((id) => !exactSet.has(id)).slice(0, 4);
+        // Label from the ranked search only, exactly as the branch below does.
+        // `r.libIds` is the resolver's first-match-per-library list: it is
+        // unranked and unbounded. Splitting it against an exact-set built
+        // from a *capped* ranked list mislabels in both directions — a
+        // resolver hit that fell outside the cap was called "approximate"
+        // even when the ranked search would have proved it exact, and a
+        // resolver hit inside the cap was called exact on the cap's word
+        // rather than the ranking's.
+        // Label from the *full* ranking; cap only what is printed. `r.libIds`
+        // is the resolver's first-match-per-library list: unranked and
+        // unbounded. Splitting it against an exact-set built from a *capped*
+        // ranked list mislabels in both directions — a resolver hit that fell
+        // outside the cap was called "approximate" even when the ranking
+        // proves it exact, and one inside the cap was called exact on the
+        // cap's word rather than the ranking's. So the ranking alone decides
+        // exact vs approximate, and r.libIds is only read for names.
+        const rankedAll = await searchInstalledSymbolsRanked(name, searchDirs);
+        const rankOf = new Map(rankedAll.map((h) => [h.libId, h.rank]));
+        // Only rank 0 proves the part is really installed under that lib_id.
+        // Everything else the resolver named — a weaker rank, or no ranked
+        // entry at all because the ranking judged it too distant to list —
+        // stays approximate. Unproven must never read as proven.
+        const exactIds = r.libIds.filter((id) => rankOf.get(id) === 0).slice(0, 4);
+        const approxIds = r.libIds.filter((id) => rankOf.get(id) !== 0).slice(0, 4);
         const parts: string[] = [];
         if (exactIds.length) parts.push(`but installed as: ${exactIds.join(', ')}`);
         if (approxIds.length) {

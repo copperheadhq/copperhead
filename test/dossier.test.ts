@@ -266,6 +266,9 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
   describe('search_symbols tool', () => {
     beforeAll(() => {
       vi.stubEnv('KICAD_SYMBOL_DIR', libDir);
+      vi.stubEnv('KICAD10_SYMBOL_DIR', '');
+      vi.stubEnv('KICAD9_SYMBOL_DIR', '');
+      vi.stubEnv('KICAD8_SYMBOL_DIR', '');
     });
 
     afterAll(() => {
