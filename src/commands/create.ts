@@ -106,13 +106,28 @@ export async function writeBriefHash(
     (briefMeta.path.startsWith('external:') || !existsSync(path.join(repoRoot, briefMeta.path)))
   ) {
     const inRepoBrief = path.join(repoRoot, docsDir, 'BRIEF.md');
+    let snapshotHoldsThisBrief = false;
     try {
       await writeFile(inRepoBrief, briefContent, { encoding: 'utf8', flag: 'wx' });
+      snapshotHoldsThisBrief = true;
     } catch (err) {
       const e = err as NodeJS.ErrnoException;
       if (e.code !== 'EEXIST') throw err;
+      // Nothing was written: `wx` refuses to clobber. Recording docs/BRIEF.md
+      // as the brief anyway would attach *this* brief's sha256 to content this
+      // run never put there — a hand-written brief, or another run's — and
+      // every later drift check would then compare against the wrong bytes,
+      // reporting drift against a file that was never the source. Claim the
+      // path only when it already holds exactly this brief.
+      try {
+        snapshotHoldsThisBrief = (await readFile(inRepoBrief, 'utf8')) === briefContent;
+      } catch {
+        snapshotHoldsThisBrief = false;
+      }
     }
-    recordedPath = path.posix.join(docsDir.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
+    if (snapshotHoldsThisBrief) {
+      recordedPath = path.posix.join(docsDir.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
+    }
   }
 
   try {

@@ -40,6 +40,57 @@ describe('writeBriefHash & brief provenance (#413)', () => {
     }
   });
 
+  it('does not record docs/BRIEF.md as the brief when the snapshot already holds different content (N3)', async () => {
+    // `wx` refuses to clobber, so on EEXIST nothing was written. Recording
+    // docs/BRIEF.md anyway would attach this brief's sha256 to content this
+    // run never put there — a hand-written brief, or another run's — and
+    // every later drift check would then compare against the wrong bytes.
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(path.join(repo, 'docs', 'BRIEF.md'), '# hand-written old brief\n', 'utf8');
+
+      const content = '# External Brief\n- USB-C PD sink\n';
+      const digest = createHash('sha256').update(content).digest('hex');
+      await writeBriefHash(repo, 'docs', { path: 'external:outside.md', sha256: digest }, content);
+
+      // The existing brief is left untouched.
+      expect(await readFile(path.join(repo, 'docs', 'BRIEF.md'), 'utf8')).toBe(
+        '# hand-written old brief\n',
+      );
+
+      // And the record must not claim that file is this brief.
+      const shaText = await readFile(path.join(repo, 'docs', 'BRIEF.sha256'), 'utf8');
+      expect(shaText).not.toContain('brief: docs/BRIEF.md');
+      expect(shaText).toContain('external:outside.md');
+      expect(shaText).toContain(digest);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('records docs/BRIEF.md when the existing snapshot already holds exactly this brief (N3)', async () => {
+    // The mirror case: the snapshot exists and its bytes already are this
+    // brief, so claiming the in-repo path is true, not merely convenient.
+    const { repo, cleanup } = await tempFixtureRepo();
+
+    try {
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      const content = '# External Brief\n- USB-C PD sink\n';
+      const digest = createHash('sha256').update(content).digest('hex');
+      await writeFile(path.join(repo, 'docs', 'BRIEF.md'), content, 'utf8');
+
+      await writeBriefHash(repo, 'docs', { path: 'external:outside.md', sha256: digest }, content);
+
+      const shaText = await readFile(path.join(repo, 'docs', 'BRIEF.sha256'), 'utf8');
+      expect(shaText).toContain('brief: docs/BRIEF.md');
+      expect(shaText).toContain(digest);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('snapshots an external brief into docs/BRIEF.md, records the in-repo path, and recovers legacy external: records (M1)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
 
