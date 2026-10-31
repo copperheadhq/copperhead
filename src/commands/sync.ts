@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
-import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
+import { loadConstraints, checkForbiddenPins, verifyConstraintEvidence } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { runAgentLoop, type RunResult } from '../agent/loop.js';
@@ -139,6 +139,21 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
         governedBy: v.source,
       });
     }
+  }
+
+  // Evidence verification must run even on a docs-only repo, and must not sit
+  // inside the schematic guard above. runCheck runs it unconditionally, so
+  // leaving it out here let `sync` print "no inconsistencies" and exit 0 on a
+  // repo where `check` fails — contradicting AC-7.5, which permits that
+  // sentence only on a consistent repo. Nothing else catches the failure
+  // during an agent run: record_constraint never verifies, and in `create`
+  // the first check is the final runCheck, after the last repair turn.
+  for (const v of await verifyConstraintEvidence(repoRoot, registry)) {
+    violations.push({
+      kind: 'requirement-violation',
+      description: v.description,
+      governedBy: v.source,
+    });
   }
 
   return { resolvable, violations };

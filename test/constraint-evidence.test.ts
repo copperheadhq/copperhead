@@ -7,6 +7,7 @@ import { HANDLERS } from '../src/capabilities/handlers.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import type { RunContext } from '../src/agent/types.js';
 import { runCheck } from '../src/commands/check.js';
+import { syncVerify, formatSyncReport } from '../src/commands/sync.js';
 import {
   loadConstraints,
   saveConstraints,
@@ -196,16 +197,143 @@ describe('verifyConstraintEvidence (#232)', () => {
         'power.bad_hash',
         'power.altered_quote',
         'power.string_value_drift',
-        'power.non_numeric_value',
         'power.non_numeric_numbers',
         'power.missing_pdf_sidecar',
         'power.escape_path',
         'power.env_probe',
       ]);
       expect(violations[3]?.description).toContain('bound "99" is not present');
-      expect(violations[4]?.description).toContain('not numeric');
-      expect(violations[5]?.description).toContain('non-numeric');
-      expect(violations[6]?.description).toContain('no extracted-text sidecar');
+      expect(violations[4]?.description).toContain('non-numeric');
+      expect(violations[5]?.description).toContain('no extracted-text sidecar');
+      // power.non_numeric_value is deliberately absent: its value is
+      // qualitative ("external-xtal"), the cited quote matches verbatim, and
+      // there is no bound to check. It is not a violation.
+      expect(violations.some((v) => v.key === 'power.non_numeric_value')).toBe(false);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('checks a unit-suffixed value against the quote instead of rejecting it', async () => {
+    // record_constraint declares `value` as a string, so "3.3 V" is the
+    // natural thing for an agent to record. Reading it as non-numeric was a
+    // permanent red check on a board whose quote plainly states 3.3 V.
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-evidence-unit-'));
+    try {
+      await mkdir(path.join(repo, '.copperhead', 'datasheets'), { recursive: true });
+      await writeFile(
+        path.join(repo, '.copperhead', 'datasheets', 'spec.txt'),
+        'Supply 3.3 V nominal.\n',
+        'utf8',
+      );
+
+      const registry: Record<string, EvidenceBackedConstraint> = {
+        'power.unit_value': {
+          value: '3.3 V',
+          source: '.copperhead/datasheets/spec.txt',
+          affects: ['bom'],
+          evidence: { path: '.copperhead/datasheets/spec.txt', quote: 'Supply 3.3 V nominal.' },
+        },
+        'power.unit_value_wrong': {
+          value: '5.0 V',
+          source: '.copperhead/datasheets/spec.txt',
+          affects: ['bom'],
+          evidence: { path: '.copperhead/datasheets/spec.txt', quote: 'Supply 3.3 V nominal.' },
+        },
+      };
+
+      const violations = await verifyConstraintEvidence(repo, registry as ConstraintRegistry);
+      // 3.3 is in the quote; 5.0 is not, and must still be caught. So reading
+      // a leading number cannot be satisfied by skipping the check entirely.
+      expect(violations.map((v) => v.key)).toEqual(['power.unit_value_wrong']);
+      expect(violations[0]?.description).toContain('bound "5" is not present');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts a qualitative value whose quote matches verbatim', async () => {
+    // "external-xtal" has no leading number and the quote has no numbers.
+    // There is no bound to check; the verbatim quote match is the evidence.
+    // Reporting a violation made it unsatisfiable: numbers: [] is rejected,
+    // and any non-empty numbers must appear in a quote that has none at all.
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-evidence-qual-'));
+    try {
+      await mkdir(path.join(repo, '.copperhead', 'datasheets'), { recursive: true });
+      await writeFile(
+        path.join(repo, '.copperhead', 'datasheets', 'spec.txt'),
+        'Use an external crystal.\n',
+        'utf8',
+      );
+
+      const registry: Record<string, EvidenceBackedConstraint> = {
+        'clock.qualitative': {
+          value: 'external-xtal',
+          source: '.copperhead/datasheets/spec.txt',
+          affects: ['bom'],
+          evidence: { path: '.copperhead/datasheets/spec.txt', quote: 'Use an external crystal.' },
+        },
+      };
+
+      const violations = await verifyConstraintEvidence(repo, registry as ConstraintRegistry);
+      expect(violations).toEqual([]);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('reports a failed evidence check in syncVerify too, not only runCheck', async () => {
+    // syncVerify collected only forbidden-pin violations, and those sit
+    // behind a `config.schematic` guard. On a docs-only repo it therefore
+    // printed "no inconsistencies" and exited 0 on a repo where check fails,
+    // which AC-7.5 permits only on a genuinely consistent repo. Nothing else
+    // catches it during an agent run: record_constraint never verifies, and
+    // in create the first check is the final one, with no repair turn left.
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-evidence-sync-'));
+    try {
+      await mkdir(path.join(repo, '.copperhead', 'datasheets'), { recursive: true });
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(
+        path.join(repo, '.copperhead', 'config.json'),
+        JSON.stringify({ docs: 'docs/' }, null, 2),
+        'utf8',
+      );
+      await writeFile(
+        path.join(repo, '.copperhead', 'datasheets', 'spec.txt'),
+        'Maximum sleep current is 40 uA in standby mode.\n',
+        'utf8',
+      );
+      await writeFile(
+        path.join(repo, '.copperhead', 'constraints.json'),
+        JSON.stringify(
+          {
+            'power.iq_uA': {
+              max: 25,
+              source: '.copperhead/datasheets/spec.txt',
+              affects: ['U1'],
+              evidence: {
+                path: '.copperhead/datasheets/spec.txt',
+                quote: 'Maximum sleep current is 40 uA in standby mode.',
+              },
+            },
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      );
+
+      const checkRes = await runCheck(repo, () => {});
+      expect(checkRes.ok).toBe(false);
+      expect(checkRes.constraints.violations[0]?.description).toContain('bound "25" is not present');
+
+      const report = await syncVerify(repo);
+      expect(report.violations).toHaveLength(1);
+      expect(report.violations[0]?.kind).toBe('requirement-violation');
+      expect(report.violations[0]?.description).toContain('bound "25" is not present');
+      // Never auto-resolvable (AC-7.3): it must not appear under `resolvable`.
+      expect(report.resolvable.some((r) => r.kind === 'requirement-violation')).toBe(false);
+      expect(formatSyncReport(report)).not.toContain('no inconsistencies');
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

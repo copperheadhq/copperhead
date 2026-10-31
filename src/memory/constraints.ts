@@ -225,6 +225,23 @@ function isWithinAllowedEvidenceDirs(
   return false;
 }
 
+/**
+ * The leading number of a constraint value, or null when it has none.
+ *
+ * `record_constraint` declares `value` as a string, so an agent reaching for
+ * it naturally records "3.3 V" rather than 3.3. Reading that as non-numeric
+ * produced a permanent red `check` on a board whose datasheet quote plainly
+ * states 3.3 V. Normalizes the same way extractNumericTokens does, so the
+ * value and the quote it is checked against are read identically.
+ */
+function leadingNumber(raw: string): number | null {
+  const normalized = raw.replace(/\u2212/g, '-').replace(/(\d),(?=\d{3}\b)/g, '$1');
+  const m = normalized.match(/^\s*[-+]?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
 function extractNumericTokens(text: string): number[] {
   const normalized = text
     .replace(/\u2212/g, '-')
@@ -432,18 +449,18 @@ export async function verifyConstraintEvidence(
       if (typeof c.value === 'number') {
         requiredNumbers.push(c.value);
       } else if (typeof c.value === 'string') {
-        const trimmed = c.value.trim();
-        const parsed = trimmed === '' ? Number.NaN : Number(trimmed);
-        if (Number.isFinite(parsed)) {
+        const parsed = leadingNumber(c.value);
+        if (parsed !== null) {
           requiredNumbers.push(parsed);
-        } else {
-          violations.push({
-            key,
-            description: `constraint value "${c.value}" is not numeric and no evidence.numbers override was provided`,
-            source: c.source,
-          });
-          continue;
         }
+        // No leading number means the constraint is qualitative —
+        // "external-xtal", "shielded", "low-ESR". There is no bound to hold
+        // against the quote, and the verbatim quote match above is already
+        // the evidence. Reporting a violation here made such a constraint
+        // permanently unsatisfiable: `numbers: []` is rejected above, and any
+        // non-empty `numbers` must then appear in a quote that has no numbers
+        // at all. The only escape was deleting the evidence, which throws
+        // away the one thing that made the constraint trustworthy.
       }
     }
 
