@@ -11,6 +11,7 @@ import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '.
 import { FootprintResolver } from '../kicad/footprints.js';
 import { moveFootprint } from '../kicad/populate.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
+import { bomSymbolDossier } from '../kicad/dossier.js';
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -427,6 +428,53 @@ export const HANDLERS: HandlerDef[] = [
         return `no installed symbol matches "${query}" (searched every library in: ${dirs.join(', ')}). The part is not capturable on this machine as named — choose a part whose symbol exists, or a same-family variant that does.`;
       }
       return `installed symbols matching "${query}":\n${hits.map((h) => `  - ${h}`).join('\n')}`;
+    },
+  },
+  {
+    schema: {
+      name: 'check_bom_symbols',
+      description:
+        'Check every non-passive row in docs/BOM.md against the installed KiCad symbol libraries in one pass, returning the resolved Lib:Name, pin count, unit count, and pin table for each part, or flagging any row with NO INSTALLED SYMBOL so part selection (stage 3) can substitute an installed part before committing BOM.md.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    requiresUnlock: false,
+    handler: async (ctx) => {
+      const docsDir = ctx.config?.docs ?? 'docs';
+      const bomPath = path.join(ctx.repoRoot, docsDir, 'BOM.md');
+      if (!existsSync(bomPath)) {
+        return `no ${path.join(docsDir, 'BOM.md')} found`;
+      }
+      const dirs = await symbolSearchDirs();
+      if (!dirs.length) return 'no installed KiCad symbol library directories found on this machine';
+      const bomMd = await readFile(bomPath, 'utf8');
+      const dossier = await bomSymbolDossier(bomMd, dirs);
+      if (!dossier) {
+        return 'no non-passive BOM.md rows to check (or no readable symbol libraries found)';
+      }
+      const missingCount = (dossier.match(/NO INSTALLED SYMBOL matches/g) ?? []).length;
+      const incomplete =
+        dossier.includes('NOT INCLUDED (') ||
+        dossier.includes('UNRESOLVED (') ||
+        dossier.includes('NOT SEARCHED (') ||
+        dossier.includes('pins unreadable');
+      let summary: string;
+      if (missingCount > 0) {
+        summary = `MISS: ${missingCount} BOM part group(s) have no installed KiCad symbol on this machine. Substitute an installed part before finishing part selection${
+          incomplete
+            ? ' (and verify any NOT SEARCHED / NOT INCLUDED / UNRESOLVED lines with search_symbols and symbol_pins)'
+            : ''
+        }:`;
+      } else if (incomplete) {
+        summary =
+          'INCOMPLETE: some BOM parts were not verified (see NOT SEARCHED / NOT INCLUDED / UNRESOLVED lines); verify them with search_symbols and symbol_pins before finishing part selection:';
+      } else {
+        summary =
+          'OK: every checked BOM.md part has an installed candidate symbol; confirm each top hit is the same part (not a family member or bare die) with symbol_pins:';
+      }
+      return `${summary}\n${dossier}`;
     },
   },
   {
