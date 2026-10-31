@@ -154,8 +154,19 @@ function selectMcuRefs(symbols: SchematicSymbol[], nets: TypedPinNet[], explicit
     }
     arr.push(pn);
   }
+  // Two tiers, and the weaker one is only a fallback. A pin named `IO1` or
+  // `P10` is not evidence of a microcontroller: port expanders, level
+  // shifters, muxes and I/O expanders all carry pin names of exactly that
+  // shape. Treating one matching pin as proof let any such IC be selected
+  // alongside the real MCU, and its pin name then leaked into the header.
+  const hinted = icSymbols.filter(
+    (s) => MCU_HINT_PATTERN.test(s.libId) || MCU_HINT_PATTERN.test(s.value),
+  );
+  // A positive identification beats an inference: once any part names itself
+  // an MCU, the guess is not needed and must not add candidates.
+  if (hinted.length > 0) return new Set(hinted.map((s) => s.ref));
+
   const mcuCandidates = icSymbols.filter((s) => {
-    if (MCU_HINT_PATTERN.test(s.libId) || MCU_HINT_PATTERN.test(s.value)) return true;
     const refPins = pinsByRef.get(s.ref) ?? [];
     return refPins.some((p) => {
       const tok = normalizePinToken(p.pinName);
@@ -231,8 +242,16 @@ export async function extractSchematicPinout(
           `net name macro collision on ${macro}: "${existing.signal}" and "${cleanSignal}" both normalize to ${macro}`,
         );
       }
-      // If two pins are on the same signal net, prefer a named GPIO/port pin over a bare number
-      if (!/[A-Za-z]/.test(existing.pin) && /[A-Za-z]/.test(resolvedPin)) {
+      // If two pins are on the same signal net, prefer a named GPIO/port pin
+      // over a bare number — but only within the same part. Two components
+      // legitimately share a net, and letting the second one replace the
+      // entry made the header report another chip's pin name under this
+      // macro. One macro must name one part's pin, consistently.
+      if (
+        pn.ref === existing.ref &&
+        !/[A-Za-z]/.test(existing.pin) &&
+        /[A-Za-z]/.test(resolvedPin)
+      ) {
         byMacro.set(macro, {
           macro,
           signal: cleanSignal,

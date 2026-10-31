@@ -78,6 +78,58 @@ const MCU_SCHEMATIC = `(kicad_sch
   (label "VCC_3V3" (at 89.84 107.62 0))
 )`;
 
+// U1 is a real MCU; U2 is an I/O expander whose pins are named `IO0`/`IO1`,
+// which matches GPIO_SEGMENT_PATTERN. They share the SPI_CS net.
+const EXPANDER_SHARED_NET_SCHEMATIC = `(kicad_sch
+  (version 20231120)
+  (generator "eeschema")
+  (lib_symbols
+    (symbol "MCU:STM32"
+      (symbol "STM32_1_1"
+        (pin bidirectional line (at -10.16 0 0) (length 2.54)
+          (name "~" (effects (font (size 1.27 1.27))))
+          (number "4" (effects (font (size 1.27 1.27))))
+        )
+        (pin power_in line (at -10.16 -2.54 0) (length 2.54)
+          (name "VDD" (effects (font (size 1.27 1.27))))
+          (number "33" (effects (font (size 1.27 1.27))))
+        )
+      )
+    )
+    (symbol "Interface_Expansion:TCA9555"
+      (symbol "TCA9555_1_1"
+        (pin bidirectional line (at -10.16 0 0) (length 2.54)
+          (name "IO0" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin bidirectional line (at -10.16 -2.54 0) (length 2.54)
+          (name "IO1" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin power_in line (at -10.16 -5.08 0) (length 2.54)
+          (name "VDD" (effects (font (size 1.27 1.27))))
+          (number "24" (effects (font (size 1.27 1.27))))
+        )
+      )
+    )
+  )
+  (symbol (lib_id "MCU:STM32") (at 100 100 0) (unit 1)
+    (uuid "u1-exp")
+    (property "Reference" "U1" (at 100 90 0))
+    (property "Value" "STM32F4" (at 100 92 0))
+  )
+  (label "SPI_CS" (at 89.84 100 0))
+  (label "VCC_3V3" (at 89.84 97.46 0))
+  (symbol (lib_id "Interface_Expansion:TCA9555") (at 150 100 0) (unit 1)
+    (uuid "u2-exp")
+    (property "Reference" "U2" (at 150 90 0))
+    (property "Value" "TCA9555" (at 150 92 0))
+  )
+  (label "SPI_CS" (at 139.84 100 0))
+  (label "IO_OTHER" (at 139.84 97.46 0))
+  (label "VCC_3V3" (at 139.84 94.92 0))
+)`;
+
 async function setupProject(): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-fw-'));
   await mkdir(path.join(dir, '.copperhead'), { recursive: true });
@@ -417,5 +469,40 @@ describe('copperhead export firmware and check --firmware (#263)', () => {
     expect(parsed.get('PIN_INLINE_COMMENT')).toBe('PA2');
     expect(parsed.has('PIN_FAKE')).toBe(false);
     expect(parsed.has('PIN_BLOCK_COMMENTED')).toBe(false);
+  });
+
+  it('does not take a non-MCU IC\'s pin name when it shares a net with the real MCU (H)', async () => {
+    // U2 is an I/O expander: its pins are named `IO0`/`IO1`, which matches
+    // GPIO_SEGMENT_PATTERN. U1 is the MCU. They share the SPI_CS net. A pin
+    // name of that shape is not evidence of a microcontroller, and letting
+    // the expander be selected too made the *other* chip's pin name win the
+    // macro: U1's pin resolves to a bare number, U2's to "IO0", and the
+    // named-pin preference replaced the entry cross-refdes.
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-fw-h-'));
+    try {
+      await mkdir(path.join(dir, '.copperhead'), { recursive: true });
+      await mkdir(path.join(dir, 'docs'), { recursive: true });
+      await writeFile(
+        path.join(dir, '.copperhead', 'config.json'),
+        JSON.stringify({ schematic: 'board.kicad_sch', docs: 'docs/' }, null, 2),
+        'utf8',
+      );
+      await writeFile(
+        path.join(dir, 'board.kicad_sch'),
+        EXPANDER_SHARED_NET_SCHEMATIC,
+        'utf8',
+      );
+
+      const entries = await extractSchematicPinout(dir);
+      const cs = entries.find((e) => e.macro === 'PIN_SPI_CS');
+      expect(cs).toBeDefined();
+      // The macro must name the MCU's pin, and must belong to U1.
+      expect(cs?.ref).toBe('U1');
+      expect(cs?.pin).not.toBe('IO0');
+      // The expander contributes no macros of its own: it is not an MCU.
+      expect(entries.some((e) => e.ref === 'U2')).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
