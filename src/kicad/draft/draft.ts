@@ -223,3 +223,4 @@ export function formatSchematicDraftReport(report: SchematicDraftReport): string
   for (const n of report.notes) lines.push(`  note: ${n}`);
   return lines.join('\n');
 }
+
