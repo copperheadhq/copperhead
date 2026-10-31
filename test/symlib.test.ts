@@ -8,7 +8,9 @@ import {
   symbolSearchDirs,
   findSymbolAcrossLibraries,
   closestSymbolNames,
+  isTrailingPackageWildcard,
   searchInstalledSymbols,
+  searchInstalledSymbolsRanked,
   findLibraryFile,
 } from '../src/kicad/symlib.js';
 import { symbolAvailabilityFacts } from '../src/agent/recovery.js';
@@ -364,11 +366,26 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
     expect(await searchInstalledSymbols('TLP2361', [dir])).toEqual([]);
   });
 
-  it('finds a family-variant spelling instead of declaring it absent', async () => {
+  it('finds a family-variant spelling and multi-x package wildcards while enforcing prefix/mid-x guards', async () => {
     // Before the edit-distance tier, search returned [] here while
     // findSymbolAcrossLibraries found the part, and the dossier rendered the
     // disagreement as a false NO INSTALLED SYMBOL under a machine-verified label.
     expect(await searchInstalledSymbols('STM32F103C8T6', [dir])).toEqual(['MCU_ST_STM32F1:STM32F103C8Tx']);
+    expect(isTrailingPackageWildcard('tsop31238', 'tsop312xx')).toBe(true);
+    expect(isTrailingPackageWildcard('max3232abc', 'max3232xxx')).toBe(true);
+    expect(isTrailingPackageWildcard('mua508', 'mux508')).toBe(false);
+    expect(isTrailingPackageWildcard('ab123', 'abxxx')).toBe(false);
+    expect(isTrailingPackageWildcard('tsop312', 'tsop312xx')).toBe(false);
+
+    const wcDir = await mkdtemp(path.join(tmpdir(), 'copperhead-multi-x-'));
+    try {
+      await writeFile(path.join(wcDir, 'Interface_Optical.kicad_sym'), lib('TSOP312xx', 'MAX3232xxx'), 'utf8');
+      expect(await searchInstalledSymbols('TSOP31238', [wcDir])).toEqual(['Interface_Optical:TSOP312xx']);
+      expect(await searchInstalledSymbols('MAX3232ABC', [wcDir])).toEqual(['Interface_Optical:MAX3232xxx']);
+      expect(await searchInstalledSymbols('TSOP312xx', [wcDir])).toEqual(['Interface_Optical:TSOP312xx']);
+    } finally {
+      await rm(wcDir, { recursive: true, force: true });
+    }
   });
 
   it('renders a genuinely absent lib_id with the not-found line, never a fabricated location', async () => {
@@ -445,6 +462,71 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
     expect(facts).toContain('NOT RE-PROBED (probe limit 2)');
     expect(facts).toContain('Device:R');
     expect(facts).toContain('Device:C');
+  });
+
+  it('does not evict an exact trailing-x wildcard behind weaker per-library prefix or base-part matches (#200)', async () => {
+    const capDir = await mkdtemp(path.join(tmpdir(), 'copperhead-perlib-cap-'));
+    try {
+      await writeFile(
+        path.join(capDir, 'Sensor_Humidity.kicad_sym'),
+        lib('SHT40-AD1B', 'SHT40-BD1B', 'SHT40-CD1B', 'SHT40-AD1F', 'SHT4x'),
+        'utf8',
+      );
+      await writeFile(
+        path.join(capDir, 'MCU_ST.kicad_sym'),
+        lib('STM32', 'STM32F1', 'STM32F10', 'STM32F103', 'STM32F103C8Tx'),
+        'utf8',
+      );
+      const sht = await searchInstalledSymbolsRanked('SHT40', [capDir]);
+      expect(sht[0]).toEqual({ libId: 'Sensor_Humidity:SHT4x', name: 'SHT4x', rank: 0 });
+
+      const stm = await searchInstalledSymbolsRanked('STM32F103C8T6', [capDir]);
+      expect(stm).toEqual([{ libId: 'MCU_ST:STM32F103C8Tx', name: 'STM32F103C8Tx', rank: 0 }]);
+    } finally {
+      await rm(capDir, { recursive: true, force: true });
+    }
+  });
+
+  it('labels approximate cross-library and same-library hits as approximate rather than installed as (#200)', async () => {
+    const approxDir = await mkdtemp(path.join(tmpdir(), 'copperhead-approx-facts-'));
+    try {
+      await writeFile(path.join(approxDir, 'MCU_Espressif.kicad_sym'), lib('ESP32-C3'), 'utf8');
+      await writeFile(path.join(approxDir, 'Logic.kicad_sym'), lib('SN74LVC1G17'), 'utf8');
+
+      const espFacts = await symbolAvailabilityFacts('Espressif:ESP32-C3-MINI-1 was refused', [approxDir]);
+      expect(espFacts).toContain('approximate (different part or package; confirm with symbol_pins): MCU_Espressif:ESP32-C3');
+      expect(espFacts).not.toContain('installed as');
+
+      const logicFacts = await symbolAvailabilityFacts('Logic:SN74LVC1G was refused', [approxDir]);
+      expect(logicFacts).toContain('approximate: Logic:SN74LVC1G17');
+      expect(logicFacts).not.toContain('installed as');
+    } finally {
+      await rm(approxDir, { recursive: true, force: true });
+    }
+  });
+
+  it('labels a resolver hit that sits outside the ranked-display cap by its real rank (#200)', async () => {
+    // Five libraries each hold the same part under the same exact name, so
+    // every resolver hit is rank 0. The display cap is 4. Labelling the
+    // resolver's uncapped list against a *capped* exact-set would push the
+    // fifth, equally exact, hit into "approximate" — claiming a proven
+    // install is approximate. The ranking must decide the label; the cap
+    // may only decide what is printed.
+    const capDir = await mkdtemp(path.join(tmpdir(), 'copperhead-cap-label-'));
+    try {
+      for (const name of ['LibA', 'LibB', 'LibC', 'LibD', 'LibE']) {
+        await writeFile(path.join(capDir, `${name}.kicad_sym`), lib('TPS61165DBV'), 'utf8');
+      }
+      const ranked = await searchInstalledSymbolsRanked('TPS61165DBV', [capDir]);
+      expect(ranked).toHaveLength(5);
+      expect(ranked.every((h) => h.rank === 0)).toBe(true);
+
+      const facts = await symbolAvailabilityFacts('Driver_LED:TPS61165DBV was refused', [capDir]);
+      expect(facts).toContain('installed as:');
+      expect(facts).not.toContain('approximate');
+    } finally {
+      await rm(capDir, { recursive: true, force: true });
+    }
   });
 
   it('produces no facts block when the text names no lib_ids', async () => {

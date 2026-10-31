@@ -178,12 +178,23 @@ const canonSymName = (s: string): string => s.toLowerCase().replace(/[_\-.]/g, '
 export interface RankedSymbolName {
   name: string;
   /** 0 = exact (separator-insensitive), 1 = prefix, 2 = substring,
-   * 3 = name-inside-query, 4 = one-edit family variant. */
+   * 3 = name-inside-query, 4 = one-edit family variant or trailing package wildcard. */
   rank: number;
 }
 
 /** Names must be this long before a single edit is distinctive enough to match. */
 const MIN_EDIT_MATCH_LEN = 5;
+
+/** True when `wildcardSym` is `mpn` with 1+ trailing package characters replaced by `x` (prefix >= 4 chars). */
+export function isTrailingPackageWildcard(mpn: string, wildcardSym: string): boolean {
+  if (mpn.length !== wildcardSym.length || mpn.length < MIN_EDIT_MATCH_LEN) return false;
+  const m = wildcardSym.match(/x+$/);
+  if (!m) return false;
+  const xLen = m[0].length;
+  const prefixLen = wildcardSym.length - xLen;
+  if (prefixLen < MIN_EDIT_MATCH_LEN - 1) return false;
+  return mpn.slice(0, prefixLen) === wildcardSym.slice(0, prefixLen);
+}
 
 /**
  * The shared one-edit rule for "same part family, variant spelling": within one
@@ -195,6 +206,7 @@ const MIN_EDIT_MATCH_LEN = 5;
  */
 function oneEditFamilyVariant(a: string, b: string): boolean {
   if (a.length < MIN_EDIT_MATCH_LEN || b.length < MIN_EDIT_MATCH_LEN) return false;
+  if (isTrailingPackageWildcard(a, b) || isTrailingPackageWildcard(b, a)) return true;
   if (editDistanceWithin(a, b, 1) > 1) return false;
   if (a.length === b.length) {
     for (let i = 0; i < a.length; i++) {
@@ -358,6 +370,21 @@ export async function findSymbolAcrossLibraries(
   return [...exact, ...fuzzy];
 }
 
+export interface RankedInstalledSymbol {
+  libId: string;
+  name: string;
+  /** 0 = exact (separator-insensitive or full-length trailing-x package wildcard),
+   * 1 = prefix, 2 = substring, 4 = one-edit near-miss (different part). */
+  rank: number;
+}
+
+/** Human-readable tier label for approximate (> 0) symbol search ranks. */
+export function matchTierLabel(rank: number): string {
+  if (rank === 1) return 'prefix match';
+  if (rank === 2) return 'substring match';
+  return 'one-edit near-miss (different part)';
+}
+
 /**
  * Search every installed library for symbols matching a part name, returning
  * ranked `Lib:Name` lib_ids with exact (separator-insensitive) matches first.
@@ -366,22 +393,29 @@ export async function findSymbolAcrossLibraries(
  * and KiCad's nicknames rarely follow from the part number (TPS61165DBV lives
  * in Driver_LED, AudioJack3 in Connector_Audio, INA226 in Sensor_Energy).
  */
-export async function searchInstalledSymbols(
+export async function searchInstalledSymbolsRanked(
   query: string,
   dirs: string[],
   cap = 24,
-): Promise<string[]> {
-  if (canonSymName(query).length < 2) return [];
+): Promise<RankedInstalledSymbol[]> {
+  const qCanon = canonSymName(query);
+  if (qCanon.length < 2) return [];
   // Rank globally, not per library: a library scanned early contributes only
   // weak matches, and capping in scan order would drop a later library's
   // stronger candidate — the exact case this tool exists to surface, since a
   // caller reaching for it has already guessed the nickname wrong.
-  const hits: { libId: string; rank: number; name: string }[] = [];
+  const hits: RankedInstalledSymbol[] = [];
   for (const [lib, file] of await listInstalledLibraries(dirs)) {
     const names = await libSymbolNames(file);
     if (!names) continue;
-    for (const { name, rank } of rankSymbolNames(names, query, 4)) {
-      hits.push({ libId: `${lib}:${name}`, rank, name });
+    for (const { name, rank } of rankSymbolNames(names, query, Number.POSITIVE_INFINITY)) {
+      if (rank === 3) continue;
+      const nCanon = canonSymName(name);
+      const effectiveRank =
+        rank === 4 && (isTrailingPackageWildcard(qCanon, nCanon) || isTrailingPackageWildcard(nCanon, qCanon))
+          ? 0
+          : rank;
+      hits.push({ libId: `${lib}:${name}`, rank: effectiveRank, name });
     }
   }
   hits.sort(
@@ -390,7 +424,15 @@ export async function searchInstalledSymbols(
       a.name.length - b.name.length ||
       (a.libId < b.libId ? -1 : a.libId > b.libId ? 1 : 0),
   );
-  return hits.slice(0, cap).map((h) => h.libId);
+  return hits.slice(0, cap);
+}
+
+export async function searchInstalledSymbols(
+  query: string,
+  dirs: string[],
+  cap = 24,
+): Promise<string[]> {
+  return (await searchInstalledSymbolsRanked(query, dirs, cap)).map((h) => h.libId);
 }
 
 /** Collect pins (number, name, electrical type) from a `(symbol …)` node,

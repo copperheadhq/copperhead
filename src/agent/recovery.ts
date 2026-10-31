@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Msg, Provider } from './types.js';
-import { resolveLibrarySymbol, searchInstalledSymbols, symbolSearchDirs, listInstalledLibraries } from '../kicad/symlib.js';
+import { resolveLibrarySymbol, searchInstalledSymbolsRanked, symbolSearchDirs, listInstalledLibraries } from '../kicad/symlib.js';
 
 /**
  * How many times a hung provider turn is retried before the run gives up. One
@@ -246,19 +246,53 @@ export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap
       if (r.status === 'ok') {
         lines.push(`- ${libId}: RESOLVES on this machine (${r.pins.length} pins)`);
       } else if (r.status === 'found-elsewhere') {
-        // The resolver already located the part under another lib_id; saying
-        // "not installed" here would be the exact false absence claim this
-        // block exists to prevent.
-        lines.push(`- ${libId}: not at that lib_id, but installed as: ${r.libIds.slice(0, 4).join(', ')}`);
+        // Label from the ranked search only, exactly as the branch below does.
+        // `r.libIds` is the resolver's first-match-per-library list: it is
+        // unranked and unbounded. Splitting it against an exact-set built
+        // from a *capped* ranked list mislabels in both directions — a
+        // resolver hit that fell outside the cap was called "approximate"
+        // even when the ranked search would have proved it exact, and a
+        // resolver hit inside the cap was called exact on the cap's word
+        // rather than the ranking's.
+        // Label from the *full* ranking; cap only what is printed. `r.libIds`
+        // is the resolver's first-match-per-library list: unranked and
+        // unbounded. Splitting it against an exact-set built from a *capped*
+        // ranked list mislabels in both directions — a resolver hit that fell
+        // outside the cap was called "approximate" even when the ranking
+        // proves it exact, and one inside the cap was called exact on the
+        // cap's word rather than the ranking's. So the ranking alone decides
+        // exact vs approximate, and r.libIds is only read for names.
+        const rankedAll = await searchInstalledSymbolsRanked(name, searchDirs);
+        const rankOf = new Map(rankedAll.map((h) => [h.libId, h.rank]));
+        // Only rank 0 proves the part is really installed under that lib_id.
+        // Everything else the resolver named — a weaker rank, or no ranked
+        // entry at all because the ranking judged it too distant to list —
+        // stays approximate. Unproven must never read as proven.
+        const exactIds = r.libIds.filter((id) => rankOf.get(id) === 0).slice(0, 4);
+        const approxIds = r.libIds.filter((id) => rankOf.get(id) !== 0).slice(0, 4);
+        const parts: string[] = [];
+        if (exactIds.length) parts.push(`but installed as: ${exactIds.join(', ')}`);
+        if (approxIds.length) {
+          parts.push(`approximate (different part or package; confirm with symbol_pins): ${approxIds.join(', ')}`);
+        }
+        lines.push(
+          parts.length
+            ? `- ${libId}: not at that lib_id, ${parts.join('; ')}`
+            : `- ${libId}: not at that lib_id; no installed symbol matches "${name}" in any library`,
+        );
       } else {
-        const elsewhere = await searchInstalledSymbols(name, searchDirs, 4);
+        const elsewhere = await searchInstalledSymbolsRanked(name, searchDirs, 4);
+        const exactElsewhere = elsewhere.filter((h) => h.rank === 0).map((h) => h.libId);
+        const approxElsewhere = elsewhere.filter((h) => h.rank > 0).map((h) => h.libId);
         const inThat =
           r.status === 'no-symbol' && r.candidates.length
             ? ` (closest in that library: ${r.candidates.slice(0, 4).join(', ')})`
             : '';
-        const where = elsewhere.length
-          ? `; installed as: ${elsewhere.join(', ')}`
-          : `; no installed symbol matches "${name}" in any library`;
+        const where = exactElsewhere.length
+          ? `; installed as: ${exactElsewhere.join(', ')}`
+          : approxElsewhere.length
+            ? `; approximate: ${approxElsewhere.join(', ')}`
+            : `; no installed symbol matches "${name}" in any library`;
         lines.push(
           r.status === 'no-symbol'
             ? `- ${libId}: not in that library${inThat}${where}`

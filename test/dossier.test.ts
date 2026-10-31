@@ -215,6 +215,9 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
 
     beforeAll(() => {
       vi.stubEnv('KICAD_SYMBOL_DIR', libDir);
+      vi.stubEnv('KICAD10_SYMBOL_DIR', '');
+      vi.stubEnv('KICAD9_SYMBOL_DIR', '');
+      vi.stubEnv('KICAD8_SYMBOL_DIR', '');
     });
 
     afterAll(() => {
@@ -263,6 +266,9 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
   describe('search_symbols tool', () => {
     beforeAll(() => {
       vi.stubEnv('KICAD_SYMBOL_DIR', libDir);
+      vi.stubEnv('KICAD10_SYMBOL_DIR', '');
+      vi.stubEnv('KICAD9_SYMBOL_DIR', '');
+      vi.stubEnv('KICAD8_SYMBOL_DIR', '');
     });
 
     afterAll(() => {
@@ -294,6 +300,75 @@ describe('pin dossier (R14: stage-4 entry pin facts)', () => {
       const out = await dispatchTool(ctx(), 'search_symbols', { query: 'SN74LVC1G17' });
       expect(out).toContain('installed symbols matching "SN74LVC1G17"');
       expect(out).toContain('Logic:SN74LVC1G17');
+    });
+
+    it('separates exact matches (including trailing-x wildcards) from approximate tiers and rejects rank-3 base-part substrings (#200)', async () => {
+      const exactWildcard = await dispatchTool(ctx(), 'search_symbols', { query: 'STM32F103C8T6' });
+      expect(exactWildcard).toContain('installed symbols matching "STM32F103C8T6":');
+      expect(exactWildcard).toContain('MCU_ST_STM32F1:STM32F103C8Tx');
+      expect(exactWildcard).not.toContain('approximate / near-miss');
+
+      const prefixOut = await dispatchTool(ctx(), 'search_symbols', { query: 'SN74LVC1G' });
+      expect(prefixOut).toContain('no exact installed symbol matches "SN74LVC1G"');
+      expect(prefixOut).toContain('Logic:SN74LVC1G17 (prefix match)');
+
+      const substrOut = await dispatchTool(ctx(), 'search_symbols', { query: 'LVC1G17' });
+      expect(substrOut).toContain('Logic:SN74LVC1G17 (substring match)');
+
+      const nearMissOut = await dispatchTool(ctx(), 'search_symbols', { query: 'SN74LVC1GA17' });
+      expect(nearMissOut).toContain('Logic:SN74LVC1G17 (one-edit near-miss (different part))');
+
+      const espDir = await mkdtemp(path.join(tmpdir(), 'ch-esp-tier-'));
+      try {
+        await writeFile(
+          path.join(espDir, 'MCU_Espressif.kicad_sym'),
+          `(kicad_symbol_lib (version 20231120) (generator test)
+            (symbol "ESP32-C3" (in_bom yes) (on_board yes)
+              (symbol "ESP32-C3_1_1"
+                (pin bidirectional line (at 0 0 0) (length 2.54) (name "LNA_IN" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
+              )
+            )
+            (symbol "SN74LVC1G" (in_bom yes) (on_board yes)
+              (symbol "SN74LVC1G_1_1"
+                (pin input line (at 0 0 0) (length 2.54) (name "A" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
+              )
+            )
+            (symbol "SN74LVC1G17" (in_bom yes) (on_board yes)
+              (symbol "SN74LVC1G17_1_1"
+                (pin input line (at 0 0 0) (length 2.54) (name "A" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
+              )
+            )
+          )`,
+          'utf8',
+        );
+        vi.stubEnv('KICAD_SYMBOL_DIR', espDir);
+        try {
+          const espOut = await dispatchTool(ctx(), 'search_symbols', { query: 'ESP32-C3-MINI-1' });
+          expect(espOut).toContain('no installed symbol matches "ESP32-C3-MINI-1"');
+          expect(espOut).not.toContain('MCU_Espressif:ESP32-C3');
+
+          const bothOut = await dispatchTool(ctx(), 'search_symbols', { query: 'SN74LVC1G' });
+          expect(bothOut).toContain('installed symbols matching "SN74LVC1G":');
+          expect(bothOut).toContain('MCU_Espressif:SN74LVC1G');
+          expect(bothOut).toContain('approximate / near-miss candidates (different part or package wildcard; confirm pinout with symbol_pins before committing to BOM.md):');
+          expect(bothOut).toContain('MCU_Espressif:SN74LVC1G17 (prefix match)');
+
+          const espBom = [
+            '| Refdes | Value | Footprint | MPN |',
+            '| --- | --- | --- | --- |',
+            '| U1 | ESP32-C3-MINI-1 | RF_Module:ESP32-C3-MINI-1 | ESP32-C3-MINI-1 |',
+            '| U2 |ESP32-C | Package_DFN_QFN:QFN-32 | ESP32-C |',
+          ].join('\n');
+          const d = await bomSymbolDossier(espBom, [espDir]);
+          expect(d).toContain('U1 (ESP32-C3-MINI-1): NO INSTALLED SYMBOL');
+          expect(d).not.toContain('1=LNA_IN');
+          expect(d).toContain('U2 (ESP32-C): NO EXACT SYMBOL; closest approximate: MCU_Espressif:ESP32-C3 (prefix match)');
+        } finally {
+          vi.stubEnv('KICAD_SYMBOL_DIR', libDir);
+        }
+      } finally {
+        await rm(espDir, { recursive: true, force: true });
+      }
     });
 
     it('states a genuine miss with the searched directories', async () => {
