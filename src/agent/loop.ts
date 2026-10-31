@@ -625,6 +625,13 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     tokensIn += res.usage.inputTokens;
     tokensOut += res.usage.outputTokens;
     perTurn.push({ turn: turn + 1, in: res.usage.inputTokens, out: res.usage.outputTokens });
+    await transcript.recordTurnMetrics({
+      turn: turn + 1,
+      in: res.usage.inputTokens,
+      out: res.usage.outputTokens,
+      durationMs: Math.max(0, Date.now() - turnStartMs),
+      ...(opts.meta?.stage?.name !== undefined ? { stage: opts.meta.stage.name } : {}),
+    });
     await transcript.event('assistant', { text: res.text, toolCalls: res.toolCalls });
     // #320: the provider cut a reply that invented its own tool results. Keep the cut
     // text: it is the evidence a reader needs to see what the model believed.
