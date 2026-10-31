@@ -26,6 +26,7 @@ import { ObligationsLedger } from './ledger.js';
 import { markTouched } from '../capabilities/helpers.js';
 import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun } from '../util/git.js';
 import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
+import { redactSecrets, sanitizeEndpoint } from '../util/redact.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import { OpenAIProvider } from './providers/openai.js';
@@ -118,9 +119,13 @@ export async function makeProvider(
     // provider that silently sends the literal string "gpt-5" (OpenAIProvider's
     // own default) to a host that almost certainly does not serve it.
     if (!compatModel) {
+      // sanitizeEndpoint, not the raw settings.baseURL: some endpoints embed
+      // a credential in the URL itself (Gemini's compat endpoint does this
+      // with ?key=...). This message reaches the terminal, and formatCliError's
+      // pattern redaction cannot catch a URL credential with no known key shape.
       throw new Error(
         settings.baseURL
-          ? `compat requires a model id; use "compat:<model-id>" (endpoint ${settings.baseURL} is configured, but has no default model)`
+          ? `compat requires a model id; use "compat:<model-id>" (endpoint ${sanitizeEndpoint(settings.baseURL)} is configured, but has no default model)`
           : 'compat requires a model id and an endpoint; use "compat:<model-id>" and set baseURL (COPPERHEAD_BASE_URL or .copperhead/config.json)',
       );
     }
@@ -243,7 +248,7 @@ export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
 
 async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Promise<RunResult> {
   const r = opts.renderer ?? plainRenderer(opts.log ?? ((l: string) => console.log(l)));
-  const log = (l: string): void => r.log(l);
+  const log = (l: string): void => r.log(redactSecrets(l));
   const repoRoot = opts.repoRoot;
   const config = await loadConfig(repoRoot);
   const maxTurns = opts.maxTurns ?? config.maxTurns;
@@ -455,13 +460,15 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         `failed work preserved: git stash entry "copperhead failed run ${ctx.runId}" (${preserved.slice(0, 10)}); recover with \`git stash apply\`, discard with \`git stash drop\``,
       );
     }
-    log(`transcript: ${transcript.jsonlPath}`);
-    log(`summary: ${summaryPath}`);
+    // Local paths the user has to open, so not through log(): a folder like
+    // risk-assessment-board-v2 matches the glued sk- rule and would print mangled.
+    r.log(`transcript: ${transcript.jsonlPath}`);
+    r.log(`summary: ${summaryPath}`);
     r.finish(outcomeLine(runStats));
     return {
       outcome: 'failure',
       exitPath,
-      summary: reason,
+      summary: redactSecrets(reason),
       transcriptDir: transcript.dir,
       filesTouched: [],
       commit: null,
