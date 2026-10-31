@@ -101,8 +101,11 @@ const DEFAULT_WIN_ROOTS = [
  * On Windows, version-numbered directories (e.g. 10.0, 9.0, 8.0) under the KiCad root
  * are probed in descending numerical order, mirroring symlib.ts.
  */
-export function defaultFallbackBinaries(winRoots: readonly string[] = DEFAULT_WIN_ROOTS): string[] {
-  const candidates: string[] = [...MACOS_FALLBACK_BINARIES];
+export function defaultFallbackBinaries(
+  winRoots: readonly string[] = DEFAULT_WIN_ROOTS,
+  macosBinaries: readonly string[] = MACOS_FALLBACK_BINARIES,
+): string[] {
+  const candidates: string[] = [...macosBinaries];
   const seenRoots = new Set<string>();
 
   for (const winRoot of winRoots) {
@@ -198,7 +201,11 @@ function envOverride(): string | null {
  */
 function fallbackAfterMissing(): string {
   const candidates =
-    fallbackBinariesOverride ?? defaultFallbackBinaries(fallbackWinRootsOverride ?? undefined);
+    fallbackBinariesOverride ??
+    defaultFallbackBinaries(
+      fallbackWinRootsOverride ?? undefined,
+      fallbackWinRootsOverride ? [] : undefined,
+    );
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
       cachedBinary = candidate;
