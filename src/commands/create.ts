@@ -95,16 +95,46 @@ export async function writeBriefHash(
   repoRoot: string,
   docsDir: string,
   briefMeta: { path: string; sha256: string },
+  briefContent?: string,
 ): Promise<void> {
   const file = path.join(repoRoot, docsDir, 'BRIEF.sha256');
-
   await mkdir(path.dirname(file), { recursive: true });
+
+  let recordedPath = briefMeta.path;
+  if (
+    briefContent !== undefined &&
+    (briefMeta.path.startsWith('external:') || !existsSync(path.join(repoRoot, briefMeta.path)))
+  ) {
+    const inRepoBrief = path.join(repoRoot, docsDir, 'BRIEF.md');
+    let snapshotHoldsThisBrief = false;
+    try {
+      await writeFile(inRepoBrief, briefContent, { encoding: 'utf8', flag: 'wx' });
+      snapshotHoldsThisBrief = true;
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      if (e.code !== 'EEXIST') throw err;
+      // Nothing was written: `wx` refuses to clobber. Recording docs/BRIEF.md
+      // as the brief anyway would attach *this* brief's sha256 to content this
+      // run never put there — a hand-written brief, or another run's — and
+      // every later drift check would then compare against the wrong bytes,
+      // reporting drift against a file that was never the source. Claim the
+      // path only when it already holds exactly this brief.
+      try {
+        snapshotHoldsThisBrief = (await readFile(inRepoBrief, 'utf8')) === briefContent;
+      } catch {
+        snapshotHoldsThisBrief = false;
+      }
+    }
+    if (snapshotHoldsThisBrief) {
+      recordedPath = path.posix.join(docsDir.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
+    }
+  }
 
   try {
     await writeFile(
       file,
-      `brief: ${briefMeta.path}
-sha256: ${briefMeta.sha256}
+      `brief: ${recordedPath}
+sha256: ${briefMeta.sha256.trim().toLowerCase()}
 `,
       {
         encoding: 'utf8',
@@ -1096,7 +1126,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       completed.push(stage.name);
       if (stage.name === 'spec-seed') {
         try {
-          await writeBriefHash(opts.repoRoot, config.docs, briefMeta);
+          await writeBriefHash(opts.repoRoot, config.docs, briefMeta, brief);
         } catch (err) {
           opts.log(
             `warning: could not record brief provenance (${(err as Error).message})`,
@@ -1326,7 +1356,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     completed.push(stage.name);
     if (stage.name === 'spec-seed') {
       try {
-        await writeBriefHash(opts.repoRoot, config.docs, briefMeta);
+        await writeBriefHash(opts.repoRoot, config.docs, briefMeta, brief);
       } catch (err) {
         opts.log(
           `warning: could not record brief provenance (${(err as Error).message})`,

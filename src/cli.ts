@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { Command } from 'commander';
 import { setMaxListeners } from 'node:events';
 import { createRequire } from 'node:module';
@@ -9,6 +11,7 @@ import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
+import { checkBriefProvenance, reconcileBriefHash } from './memory/drift.js';
 import { runCreate } from './commands/create.js';
 import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
@@ -377,12 +380,91 @@ program
   .description('verify the whole design state for inconsistencies and resolve drift')
   .option('--model <model>', 'model for the resolve phase')
   .option('--dry-run', 'print the inconsistency report, write nothing')
-  .action(async (opts: { model?: string; dryRun?: boolean }) => {
+  .option('--brief', 'mark the current brief as applied to the design (no design change is made)')
+  .action(async (opts: { model?: string; dryRun?: boolean; brief?: boolean }) => {
     const repo = repoOf(program.opts());
     try {
-      const kicadVer = await kicadCliVersion();
+      const config = await loadConfig(repo);
       const report = await syncVerify(repo);
       const json = Boolean(program.opts().json);
+      const briefStatus = opts.brief ? await checkBriefProvenance(repo, config.docs) : null;
+      const snapRel = path.posix.join(config.docs.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
+      const shaRel = `${config.docs.replace(/\\/g, '/').replace(/\/+$/, '')}/BRIEF.sha256`;
+      const isAcknowledgeableBriefChange = Boolean(
+        briefStatus &&
+          !briefStatus.ok &&
+          briefStatus.current !== 'outside-repo' &&
+          briefStatus.current !== 'invalid' &&
+          (briefStatus.current !== 'missing' ||
+            (briefStatus.path.startsWith('external:') && existsSync(path.join(repo, snapRel)))),
+      );
+      const otherViolations = opts.brief
+        ? report.violations.filter(
+            (v) =>
+              !(
+                isAcknowledgeableBriefChange &&
+                briefStatus &&
+                (v.governedBy === briefStatus.path ||
+                  (briefStatus.path.startsWith('external:') && v.governedBy === shaRel))
+              ),
+          )
+        : report.violations;
+
+      if (opts.brief && opts.dryRun) {
+        if (json) {
+          console.log(JSON.stringify({ ...report, brief: briefStatus }, null, 2));
+        } else {
+          console.log(formatSyncReport(report));
+          if (briefStatus) {
+            console.log(
+              briefStatus.ok
+                ? `brief dry-run: ${briefStatus.path} already matches (${briefStatus.recorded.slice(0, 8)})`
+                : `brief dry-run: would acknowledge ${briefStatus.path} (${briefStatus.recorded.slice(0, 8)} -> ${briefStatus.current.slice(0, 8)}, origin ${briefStatus.origin.slice(0, 8)}); the design is not re-verified`,
+            );
+          } else {
+            console.log('brief dry-run: no BRIEF.sha256 present');
+          }
+        }
+        process.exit(otherViolations.length ? 2 : 0);
+      }
+      if (opts.brief) {
+        if (otherViolations.length) {
+          if (json) console.log(JSON.stringify(report, null, 2));
+          else console.log(formatSyncReport(report));
+          process.exit(2);
+        }
+        if (report.resolvable.length && !opts.model) {
+          if (json) console.log(JSON.stringify(report, null, 2));
+          else {
+            console.log(formatSyncReport(report));
+            console.error('sync --brief refused: resolve doc drift first (copperhead sync) or pass --model <model>');
+          }
+          process.exit(2);
+        }
+        if (report.resolvable.length && opts.model) {
+          const kicadVer = await kicadCliVersion();
+          const { model, source } = resolveModel(opts.model, config);
+          const filteredReport = { ...report, violations: otherViolations };
+          const res = await syncResolve(repo, filteredReport, model, json ? () => {} : (s) => console.log(s), {
+            renderer: rendererOf(),
+            meta: { command: 'sync', modelSource: source, version, kicadCliVersion: kicadVer },
+          });
+          if (!res.ok) process.exit(1);
+        }
+        const reconciled = await reconcileBriefHash(repo, config.docs);
+        if (json) {
+          console.log(JSON.stringify(reconciled, null, 2));
+        } else {
+          const transition =
+            reconciled.previous && reconciled.previous !== reconciled.recorded
+              ? `${reconciled.previous.slice(0, 8)} -> ${reconciled.recorded.slice(0, 8)}`
+              : `${reconciled.recorded.slice(0, 8)}`;
+          console.log(
+            `brief acknowledged: ${reconciled.path} (${transition}); the design was not re-verified against it`,
+          );
+        }
+        process.exit(0);
+      }
       if (json) console.log(JSON.stringify(report, null, 2));
       else console.log(formatSyncReport(report));
       if (opts.dryRun) {
@@ -395,7 +477,7 @@ program
       if (!report.resolvable.length) {
         process.exit(0);
       }
-      const config = await loadConfig(repo);
+      const kicadVer = await kicadCliVersion();
       const { model, source } = resolveModel(opts.model, config);
       const res = await syncResolve(repo, report, model, json ? () => {} : (s) => console.log(s), {
         renderer: rendererOf(),
