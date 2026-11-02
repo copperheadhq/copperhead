@@ -63,8 +63,18 @@ export interface RunOptions {
   stagePrompt?: string;
   /** Test seam: bypass makeProvider. */
   provider?: Provider;
-  /** Called after each dispatched tool, allowing a stage to persist verified results. */
+  /**
+   * Called after each dispatched tool, allowing a stage to persist verified
+   * results. Advisory: a throw is logged as a `tool-result-callback-error`
+   * transcript event and the run continues through its normal exit paths.
+   */
   onToolResult?: (toolName: string, args: Record<string, unknown>, result: string, ok: boolean) => Promise<void> | void;
+  /**
+   * Treat a refusal that cites too few turns as budget exhaustion and extend
+   * the budget automatically (bounded). Off by default: only the create
+   * part-selection stage opts in, so attended runs keep their continue prompt.
+   */
+  escalateInsufficientTurnRefusals?: boolean;
   log?: (line: string) => void;
   /** Progress renderer; defaults to a plain line renderer over `log`. */
   renderer?: ProgressRenderer;
@@ -702,7 +712,16 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       }
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
-      await opts.onToolResult?.(call.name, call.args, result, envelope.ok);
+      if (opts.onToolResult) {
+        try {
+          await opts.onToolResult(call.name, call.args, result, envelope.ok);
+        } catch (err) {
+          await transcript.event('tool-result-callback-error', {
+            name: call.name,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
       r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
@@ -733,7 +752,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       const { outcome, summary } = ctx.finishRequest;
       const files = [...ctx.filesTouched];
       if (outcome === 'refuse') {
-        if (isInsufficientTurnsRefusal(summary)) {
+        if (opts.escalateInsufficientTurnRefusals && isInsufficientTurnsRefusal(summary)) {
           if (insufficientTurnEscalations >= MAX_INSUFFICIENT_TURN_ESCALATIONS) {
             await transcript.event('budget-escalation-cap-hit', {
               summary,
@@ -751,7 +770,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           ctx.finishRequest = null;
           messages.push({
             role: 'user',
-            content: `Your previous refusal said there were not enough turns. The budget has been increased by ${extra} turns; continue the part-selection work and finish if the available budget permits.`,
+            content: `Your previous refusal said there were not enough turns. The turn budget has been increased by ${extra} turns; continue the task and finish if the available budget permits.`,
           });
           continue;
         }
