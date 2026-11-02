@@ -140,6 +140,14 @@ One directory per \`do\`/\`create\`/\`sync\` run: \`transcript.jsonl\` (full aud
 trail) and \`summary.md\` (human-readable: request, plan, files touched,
 verification results, decisions, open obligations). Both redact secrets at
 write time. This directory is gitignored.
+
+## part-cache.json
+
+Machine-local cache of the \`create\` part-selection stage's successful
+\`search_symbols\`, \`symbol_pins\`, and \`check_footprints\` results, so a retried
+attempt skips checks an earlier attempt already passed. Advisory only: it is
+gitignored, survives a rollback, is never committed, and is safe to delete
+(the next run simply verifies again).
 `;
 }
 

@@ -19,6 +19,18 @@ import { PreflightError } from './preflight.js';
 const GIT_ADD_EXCLUDES = ['.history/'];
 
 /**
+ * The create part-selection verification cache (`src/util/part-cache.ts`). It
+ * is machine-local advisory state: it must survive a rollback (that is its
+ * purpose) and must never be committed. Repo-relative, POSIX separators.
+ */
+export const PART_CACHE_PATH = '.copperhead/part-cache.json';
+
+/** Excludes for `git add -A`, plus the part cache once one exists. */
+function addExcludes(repo: string): string[] {
+  return existsSync(path.join(repo, PART_CACHE_PATH)) ? [...GIT_ADD_EXCLUDES, PART_CACHE_PATH] : GIT_ADD_EXCLUDES;
+}
+
+/**
  * Ensure the repo's root .gitignore lists each entry, appending only the
  * missing ones. Idempotent and best-effort: a failure here must never block a
  * commit, so it swallows its own errors. Run before any `git add -A` so a
@@ -256,6 +268,16 @@ export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
   const runs = path.join(repo, '.copperhead', 'runs');
   let backupRoot: string | null = null;
   let backup: string | null = null;
+  // The part cache is kept the same way, in memory: `reset --hard` deletes it
+  // when staged, and restoreUntracked() would put back a pre-run copy when the
+  // snapshot captured it while it was not yet ignored.
+  const partCache = path.join(repo, PART_CACHE_PATH);
+  let partCacheBytes: Buffer | null = null;
+  try {
+    partCacheBytes = existsSync(partCache) ? await readFile(partCache) : null;
+  } catch (err) {
+    console.warn(`warning: could not preserve the part verification cache before rollback: ${(err as Error).message}`);
+  }
   try {
     try {
       backupRoot = await mkdtemp(path.join(tmpdir(), 'copperhead-runs-'));
@@ -268,7 +290,7 @@ export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
 
     try {
       await git(repo, ['reset', '--hard', snap.head]);
-      await git(repo, ['clean', '-fd', '-e', '.copperhead/runs']);
+      await git(repo, ['clean', '-fd', '-e', '.copperhead/runs', '-e', PART_CACHE_PATH]);
       if (snap.stash) {
         await git(repo, ['stash', 'apply', snap.stash]);
       }
@@ -285,6 +307,14 @@ export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
         }
       }
     } finally {
+      if (partCacheBytes) {
+        try {
+          await mkdir(path.dirname(partCache), { recursive: true });
+          await writeFile(partCache, partCacheBytes);
+        } catch (err) {
+          console.warn(`warning: could not restore the part verification cache: ${(err as Error).message}`);
+        }
+      }
       if (backup && existsSync(backup)) {
         try {
           await mkdir(path.dirname(runs), { recursive: true });
@@ -317,7 +347,7 @@ export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
 export async function preserveFailedRun(repo: string, runId: string): Promise<string | null> {
   try {
     if (!(await isDirty(repo))) return null;
-    await ensureIgnored(repo, GIT_ADD_EXCLUDES);
+    await ensureIgnored(repo, addExcludes(repo));
     // Never leave the audit trail staged: a staged-but-not-in-HEAD path is
     // deleted by restore()'s `reset --hard`, which silently defeats its
     // `clean -e .copperhead/runs` protection (that flag only spares untracked
@@ -326,7 +356,7 @@ export async function preserveFailedRun(repo: string, runId: string): Promise<st
     // errors outright when a pathspec touches gitignored paths, and runs/ is
     // gitignored in some target repos but tracked in others.
     await git(repo, ['add', '-A']);
-    await git(repo, ['reset', '-q', '--', '.copperhead/runs']);
+    await git(repo, ['reset', '-q', '--', '.copperhead/runs', PART_CACHE_PATH]);
     const sha = await git(repo, ['stash', 'create']);
     if (!sha) return null;
     await git(repo, ['stash', 'store', '-m', `copperhead failed run ${runId}`, sha]);
@@ -358,8 +388,10 @@ export async function uncommittedCount(repo: string): Promise<number> {
 }
 
 export async function commitAll(repo: string, message: string): Promise<string> {
-  await ensureIgnored(repo, GIT_ADD_EXCLUDES);
+  await ensureIgnored(repo, addExcludes(repo));
   await git(repo, ['add', '-A']);
+  // the part cache stays out of history even when ensureIgnored could not write
+  await git(repo, ['reset', '-q', '--', PART_CACHE_PATH]);
   await git(repo, ['commit', '-m', message]);
   return git(repo, ['rev-parse', 'HEAD']);
 }

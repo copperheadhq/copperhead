@@ -29,6 +29,7 @@
 
 - [x] 5.1 `src/config.ts`: optional `stageMaxTurns: Record<string, number>` parsed from config
 - [x] 5.2 `src/commands/create.ts`: pass `maxTurns: config.stageMaxTurns[stage.name]` when present
+- [x] 5.3 `src/config.ts`, `src/commands/create.ts`: part-selection default `max(maxTurns, ceil(rows * 0.4) + 10)` floored at the configured `maxTurns`, sized per attempt from the larger of the current BOM and the rolled-back attempt's rows (#446)
 
 ## 6. Tests (all offline)
 

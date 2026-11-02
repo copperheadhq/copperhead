@@ -4,17 +4,22 @@
 
 ### Requirement: Per-stage turn budgets
 
-`.copperhead/config.json` SHALL accept an optional `stageMaxTurns` object mapping create-pipeline stage names to turn budgets. When a stage runs and its name has an entry, that value SHALL be the run's `maxTurns`; stages without an entry use the global `maxTurns`. Unknown stage names in the map SHALL be ignored.
+`.copperhead/config.json` SHALL accept an optional `stageMaxTurns` object mapping create-pipeline stage names to turn budgets. When a stage runs and its name has an entry, that value SHALL be the run's `maxTurns`; stages without an entry use the global `maxTurns`, except `part-selection`, whose default SHALL be `max(maxTurns, ceil(rows * 0.4) + 10)`, where `rows` is the larger of the BOM.md row count when the attempt starts and the most rows an earlier attempt of the stage wrote before its rollback. Unknown stage names in the map SHALL be ignored.
 
 #### Scenario: Stage-specific budget applies (AC-15.18)
 
 - **WHEN** config contains `"stageMaxTurns": {"spec-seed": 60}` and the spec-seed stage runs
 - **THEN** that stage's run enforces a 60-turn budget while other stages keep the global `maxTurns`
 
-#### Scenario: Absent map changes nothing (AC-15.19)
+#### Scenario: Absent map keeps the configured budget as the floor (AC-15.19)
 
-- **WHEN** config has no `stageMaxTurns`
-- **THEN** every stage uses the global `maxTurns` exactly as before
+- **WHEN** config has `"maxTurns": 100`, no `stageMaxTurns`, and a 10-row BOM
+- **THEN** every stage, part selection included, runs with a 100-turn budget
+
+#### Scenario: Part-selection retry is sized from the rolled-back attempt (AC-15.19)
+
+- **WHEN** part selection starts from the header-only BOM scaffold with the default `maxTurns` of 40, writes 100 rows, and is rolled back
+- **THEN** the first attempt runs with 40 turns and the retry runs with `ceil(100 * 0.4) + 10 = 50` turns
 
 ### Requirement: Content-aware stage completion
 
