@@ -48,7 +48,7 @@ The schema gains an optional `resolutions: [{constraint_key, item, resolution}]`
 
 ### D6: Per-stage budgets via `stageMaxTurns` config
 
-`.copperhead/config.json` gains optional `stageMaxTurns: Record<string, number>` keyed by pipeline stage name. `create` passes `stageMaxTurns[stage.name]` as the run's `maxTurns` when present; otherwise the global default applies. Stage names not in the map are unaffected; unknown keys are ignored. Rejected alternative: hardcoded per-stage defaults in `STAGES`, rejected because the right budget depends on the design's size, not just the stage kind.
+`.copperhead/config.json` gains optional `stageMaxTurns: Record<string, number>` keyed by pipeline stage name. `create` passes `stageMaxTurns[stage.name]` as the run's `maxTurns` when present; otherwise the global default applies. Stage names not in the map are unaffected; unknown keys are ignored. Part selection is the one computed default (#446): `max(maxTurns, ceil(rows * 0.4) + 10)`, so a large BOM gets more turns while the configured `maxTurns` stays the floor. `rows` comes from state that survives a rollback (the most rows an earlier attempt wrote), because the stage starts from the header-only scaffold. Rejected alternative: hardcoded per-stage defaults in `STAGES`, rejected because the right budget depends on the design's size, not just the stage kind.
 
 ### D7: Content-aware stage completion with a post-run contract gate
 
