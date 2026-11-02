@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
 import { dispatchTool, type RunContext } from '../src/agent/tools.js';
-import { ObligationsLedger } from '../src/agent/ledger.js';
+import { ObligationsLedger, DRC_AFTER_BOARD_EDIT, DRC_AFTER_RULES_EDIT } from '../src/agent/ledger.js';
 import { Transcript } from '../src/agent/transcript.js';
 import { markTouched } from '../src/capabilities/helpers.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -47,8 +47,11 @@ describe('files that configure DRC are verified like the board', () => {
       await runInit({ repoRoot: repo });
       for (const f of ['hardware/open-key.kicad_pro', 'hardware/open-key.kicad_dru']) {
         const ctx = await unlockedCtx(repo);
+        ctx.lastDrc = { ok: true, source: 'drc', violations: [] };
         markTouched(ctx, f);
-        expect(ctx.ledger.openObligations.map((o) => o.kind), f).toContain('drc');
+        expect(ctx.ledger.openOfKind('drc').map((o) => o.detail), f).toEqual([DRC_AFTER_RULES_EDIT]);
+        // the earlier passing DRC no longer describes the board under the new rules
+        expect(ctx.lastDrc, f).toBeNull();
       }
     } finally {
       await cleanup();
@@ -61,7 +64,7 @@ describe('files that configure DRC are verified like the board', () => {
       await runInit({ repoRoot: repo });
       const ctx = await unlockedCtx(repo);
       // a run that tightened a clearance in the project file and passed ERC
-      ctx.filesTouched.add('hardware/open-key.kicad_pro');
+      markTouched(ctx, 'hardware/open-key.kicad_pro');
       ctx.lastErc = { ok: true, source: 'erc', violations: [] };
       const res = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'raised the clearance to 0.3 mm' });
       expect(res).toMatch(/cannot finish yet/);
@@ -83,6 +86,50 @@ describe('files that configure DRC are verified like the board', () => {
       });
       expect(res).toMatch(/refuses KiCad files/);
       expect(existsSync(path.join(repo, 'hardware', 'open-key.kicad_dru'))).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  // with no board in .copperhead/config.json, run_drc has nothing to check. that
+  // waives a design-rules edit, but must not waive an edit to a real .kicad_pcb.
+  it('with no board configured, a .kicad_pcb edit still cannot finish without DRC', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await unlockedCtx(repo);
+      ctx.config = { ...ctx.config, board: null };
+      markTouched(ctx, 'hardware/open-key.kicad_pcb');
+      expect(ctx.ledger.openOfKind('drc').map((o) => o.detail)).toEqual([DRC_AFTER_BOARD_EDIT]);
+      ctx.lastErc = { ok: true, source: 'erc', violations: [] };
+      ctx.ledger.clear('erc');
+      ctx.ledger.clear('drift');
+      const drc = await dispatchTool(ctx, 'run_drc', {});
+      expect(drc).toMatch(/a \.kicad_pcb was edited/);
+      expect(ctx.ledger.openOfKind('drc').map((o) => o.detail)).toEqual([DRC_AFTER_BOARD_EDIT]);
+      const res = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'widened a trace' });
+      expect(res).toMatch(/cannot finish yet/);
+      expect(ctx.finishRequest).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('with no board configured, a design-rules-only edit finishes after run_drc', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await unlockedCtx(repo);
+      ctx.config = { ...ctx.config, board: null };
+      markTouched(ctx, 'hardware/open-key.kicad_pro');
+      ctx.lastErc = { ok: true, source: 'erc', violations: [] };
+      ctx.ledger.clear('erc');
+      ctx.ledger.clear('drift');
+      const drc = await dispatchTool(ctx, 'run_drc', {});
+      expect(drc).toMatch(/DRC does not apply yet/);
+      expect(ctx.ledger.openOfKind('drc')).toEqual([]);
+      const res = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'set a clearance for later' });
+      expect(res).toMatch(/all gates satisfied/);
     } finally {
       await cleanup();
     }

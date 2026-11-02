@@ -15,6 +15,14 @@ export type ObligationKind =
   | 'constraint-dual-write'
   | 'affects-revisit';
 
+/**
+ * DRC obligation details. A board edit and a design-rules edit (.kicad_pro,
+ * .kicad_dru) are separate obligations so that, with no board configured,
+ * run_drc can waive the second without waiving the first.
+ */
+export const DRC_AFTER_BOARD_EDIT = 'DRC must pass after board edits';
+export const DRC_AFTER_RULES_EDIT = 'DRC must pass after design-rule edits';
+
 export interface Obligation {
   kind: ObligationKind;
   detail: string;
@@ -59,7 +67,8 @@ export class ObligationsLedger {
   /** A KiCad edit re-opens verification obligations even if previously cleared. */
   onKicadEdit(file: string): void {
     this.add('erc', 'ERC must pass after schematic edits', file);
-    if (affectsDrc(file)) this.add('drc', 'DRC must pass after board edits', file);
+    if (file.endsWith('.kicad_pcb')) this.add('drc', DRC_AFTER_BOARD_EDIT, file);
+    else if (affectsDrc(file)) this.add('drc', DRC_AFTER_RULES_EDIT, file);
     if (file.endsWith('.kicad_sch') && this.gateLegibility) {
       this.add('legibility', 'check_legibility must run clean after schematic edits', file);
     }
