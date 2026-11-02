@@ -32,6 +32,13 @@ export interface RunContext {
   boardAtStart?: string | null;
   /** Unrouted connections on `boardAtStart`, computed on the first run_drc. */
   unroutedBaseline?: number;
+  /**
+   * ERC and DRC on the design as the run found it, on a repo copperhead did
+   * not create: run_erc and run_drc pass when they add nothing to these
+   * (`applyBaseline`). Absent on a create-produced repo, and null for a check
+   * that could not run at the start: both keep the zero-violation gate.
+   */
+  checkBaseline?: { erc: CheckReport | null; drc: CheckReport | null };
   /** The caller's completion contract, checked by `finish` (see RunOptions.stageGate). */
   stageGate?: () => Promise<string | null>;
   /** Last check_legibility counts; feeds the run summary's verification section. */

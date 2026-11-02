@@ -3,7 +3,7 @@ import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
 import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
-import { formatViolations, type CheckReport } from '../kicad/report.js';
+import { applyBaseline, formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
 import { scoreSchematic, formatScore } from '../kicad/score.js';
@@ -385,7 +385,7 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.schematic)
         return 'no schematic configured; ERC does not apply yet — skip it until a schematic exists and is set in .copperhead/config.json';
       const schPath = path.join(ctx.repoRoot, ctx.config.schematic);
-      const report = await runErc(schPath);
+      const report = applyBaseline(await runErc(schPath), ctx.checkBaseline?.erc);
       countRepairCycle(ctx, 'erc', report);
       ctx.lastErc = report;
       if (report.ok) ctx.ledger.clear('erc');
@@ -656,7 +656,8 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.board)
         return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
       const boardPath = path.join(ctx.repoRoot, ctx.config.board);
-      const report = await unroutedGuard(ctx, boardPath, await runDrc(boardPath));
+      // the unrouted guard first: its finding is never in a baseline, so it stays a failure
+      const report = applyBaseline(await unroutedGuard(ctx, boardPath, await runDrc(boardPath)), ctx.checkBaseline?.drc);
       countRepairCycle(ctx, 'drc', report);
       ctx.lastDrc = report;
       if (report.ok) ctx.ledger.clear('drc');
