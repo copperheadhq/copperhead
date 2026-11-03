@@ -1,0 +1,74 @@
+stage spec-seed: already complete (resuming past it)
+stage spec-seed: committed already-complete work 419c554281 so a later rollback cannot wipe it (2.4)
+stage architecture: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage architecture (2/8) · model experimental-native:native-500ma-architecture-v9-20261008 (experimental-native, via flag) · turns ≤5 · master@419c554 clean
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  … still working — 4m00s elapsed (no output yet)
+  … still working — 4m15s elapsed (no output yet)
+  … still working — 4m30s elapsed (no output yet)
+  … still working — 4m45s elapsed (no output yet)
+  … still working — 5m00s elapsed (no output yet)
+  … still working — 5m15s elapsed (no output yet)
+  … still working — 5m30s elapsed (no output yet)
+  … still working — 5m45s elapsed (no output yet)
+  … still working — 6m00s elapsed (no output yet)
+  [check_drift] no schematic configured; drift vacuously clean
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  [check_drift] no schematic configured; drift vacuously clean
+  [finish] all gates satisfied; run will commit
+committed 18296f0338 (5 file(s))
+done · ERC not run · committed 18296f0338 · 11m03s · 0 in / 0 out
+pipeline so far: 2/8 stages · 11m03s · 0 out tokens · 0% cache hits
+stage part-selection: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage part-selection (3/8) · model experimental-native:native-500ma-architecture-v9-20261008 (experimental-native, via flag) · turns ≤5 · master@18296f0 clean
+[turn 1/5 · 0 in / 0 out]
+stage part-selection: the run ended as "failure" (provider-error): provider error: EXPERIMENTAL_STAGE_BOUNDARY: part-selection is outside this trial's bound stage; no request queued; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage             Wall  Turns  Out tok  Cache
+  --------------  ------  -----  -------  -----
+  spec-seed            —      —        —      —
+  architecture    11m03s      3        0     0%
+  part-selection      0s      0        0      —
+  --------------  ------  -----  -------  -----
+  TOTAL           11m03s      3        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

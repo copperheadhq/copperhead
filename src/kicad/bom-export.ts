@@ -1,4 +1,4 @@
-import { parseMarkdownTables, type TableRow } from '../memory/bom-table.js';
+import { parseHeaderTables, type TableRow } from '../memory/bom-table.js';
 
 /**
  * Supplier-format BOM export (capability supplier-bom-export). Deterministic,
@@ -73,47 +73,41 @@ const UNVERIFIED_RE = /\bUNVERIFIED\b/i;
 
 /**
  * Parse BOM.md into rows by column header, tolerating extra/reordered columns.
- * Only the header row and data rows of the first parts table are used; a table
- * without a recognizable Refdes header yields no rows.
- *
- * NOTE: the drift gate this exporter runs behind (checkDrift in
- * ../memory/drift.ts) reads Refdes|Value|Footprint *by position*, not by header.
- * So while this parser tolerates reordering those base columns, reordering them
- * makes checkDrift compare the wrong cells and the export refuses with a bogus
- * drift message. Keep the base three columns first and in order; only append.
+ * Read every recognized parts table using its own header. Supporting tables and
+ * fenced examples are excluded; column aliases and reordering remain supported.
  */
 export function parseBom(md: string): BomRow[] {
-  const tableRows = parseMarkdownTables(md);
-  const headerIdx = tableRows.findIndex((r) => r.cells.some((c) => HEADER_ALIASES[norm(c)] === 'refdes'));
-  const header = headerIdx === -1 ? undefined : tableRows[headerIdx];
-  if (!header) return [];
-  const col: Partial<Record<keyof BomRow, number>> = {};
-  header.cells.forEach((c, i) => {
-    const field = HEADER_ALIASES[norm(c)];
-    // First occurrence wins, so a stray later column never shadows the real one.
-    if (field && col[field] === undefined) col[field] = i;
-  });
-
-  const at = (row: TableRow, field: keyof BomRow): string => {
-    const i = col[field];
-    return i === undefined ? '' : (row.cells[i] ?? '').trim();
-  };
-
   const rows: BomRow[] = [];
-  for (const row of tableRows.slice(headerIdx + 1)) {
-    const refdes = at(row, 'refdes');
-    if (!refdes) continue; // blank line / stray row
-    const mpn = at(row, 'mpn');
-    rows.push({
-      refdes,
-      value: at(row, 'value'),
-      footprint: at(row, 'footprint'),
-      mpn,
-      manufacturer: at(row, 'manufacturer'),
-      lcsc: at(row, 'lcsc'),
-      unverified: row.cells.some((c) => UNVERIFIED_RE.test(c)),
-      hasMpn: !isMpnPlaceholder(mpn),
+  for (const { header, rows: tableRows } of parseHeaderTables(md)) {
+    if (!header.cells.some(c => HEADER_ALIASES[norm(c)] === 'refdes')) continue;
+    const col: Partial<Record<keyof BomRow, number>> = {};
+    header.cells.forEach((c, i) => {
+      const field = HEADER_ALIASES[norm(c)];
+      // First occurrence wins, so a stray later column never shadows the real one.
+      if (field && col[field] === undefined) col[field] = i;
     });
+
+    const at = (row: TableRow, field: keyof BomRow): string => {
+      const i = col[field];
+      return i === undefined ? '' : (row.cells[i] ?? '').trim();
+    };
+
+    for (const row of tableRows) {
+      if (row.cells.length === header.cells.length && row.cells.every((c, i) => norm(c) === norm(header.cells[i]!))) continue;
+      const refdes = at(row, 'refdes');
+      if (!refdes) continue; // blank line / stray row
+      const mpn = at(row, 'mpn');
+      rows.push({
+        refdes,
+        value: at(row, 'value'),
+        footprint: at(row, 'footprint'),
+        mpn,
+        manufacturer: at(row, 'manufacturer'),
+        lcsc: at(row, 'lcsc'),
+        unverified: row.cells.some((c) => UNVERIFIED_RE.test(c)),
+        hasMpn: !isMpnPlaceholder(mpn),
+      });
+    }
   }
   return rows;
 }
@@ -309,7 +303,7 @@ export function buildExport(rows: BomRow[], supplier: Supplier, opts: ExportOpti
   const { included, excluded } = partition(rows, opts.includeUnverified);
   const lines =
     supplier === 'jlcpcb'
-      ? groupBy(included, (r) => `${r.value} ${r.footprint} ${r.lcsc}`)
+      ? groupBy(included, (r) => `${r.value}\0${r.footprint}\0${r.lcsc}`)
       : groupBy(included, (r) => r.mpn);
 
   let csv: string;

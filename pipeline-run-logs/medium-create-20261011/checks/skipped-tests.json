@@ -1,0 +1,212 @@
+{
+  "fullSuitePassed": 1396,
+  "fullSuiteSkipped": 23,
+  "collected": 1419,
+  "rows": [
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with gpt-5",
+      "test": "AC-3.1: net rename propagates, ERC clean, one commit, surgical diff (AC-3.7)",
+      "reason": "OPENAI_API_KEY absent in offline invocation",
+      "sourceLine": 81,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with gpt-5",
+      "test": "AC-3.4: budget-violating pullup is refused, citing the budget",
+      "reason": "OPENAI_API_KEY absent in offline invocation",
+      "sourceLine": 119,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with gpt-5",
+      "test": "AC-3.6: a structurally forced failure rolls back to a byte-identical tree",
+      "reason": "OPENAI_API_KEY absent in offline invocation",
+      "sourceLine": 149,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with claude",
+      "test": "AC-3.1: net rename propagates, ERC clean, one commit, surgical diff (AC-3.7)",
+      "reason": "ANTHROPIC_API_KEY absent in offline invocation",
+      "sourceLine": 81,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with claude",
+      "test": "AC-3.4: budget-violating pullup is refused, citing the budget",
+      "reason": "ANTHROPIC_API_KEY absent in offline invocation",
+      "sourceLine": 119,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with claude",
+      "test": "AC-3.6: a structurally forced failure rolls back to a byte-identical tree",
+      "reason": "ANTHROPIC_API_KEY absent in offline invocation",
+      "sourceLine": 149,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with codex",
+      "test": "AC-3.1: net rename propagates, ERC clean, one commit, surgical diff (AC-3.7)",
+      "reason": "COPPERHEAD_TEST_CODEX !== '1' in offline invocation",
+      "sourceLine": 81,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with codex",
+      "test": "AC-3.4: budget-violating pullup is refused, citing the budget",
+      "reason": "COPPERHEAD_TEST_CODEX !== '1' in offline invocation",
+      "sourceLine": 119,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with codex",
+      "test": "AC-3.6: a structurally forced failure rolls back to a byte-identical tree",
+      "reason": "COPPERHEAD_TEST_CODEX !== '1' in offline invocation",
+      "sourceLine": 149,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with claude-code",
+      "test": "AC-3.1: net rename propagates, ERC clean, one commit, surgical diff (AC-3.7)",
+      "reason": "Optional SDK plus CLAUDE_CODE_OAUTH_TOKEN gate not satisfied in offline invocation",
+      "sourceLine": 81,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with claude-code",
+      "test": "AC-3.4: budget-violating pullup is refused, citing the budget",
+      "reason": "Optional SDK plus CLAUDE_CODE_OAUTH_TOKEN gate not satisfied in offline invocation",
+      "sourceLine": 119,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with claude-code",
+      "test": "AC-3.6: a structurally forced failure rolls back to a byte-identical tree",
+      "reason": "Optional SDK plus CLAUDE_CODE_OAUTH_TOKEN gate not satisfied in offline invocation",
+      "sourceLine": 149,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with cursor",
+      "test": "AC-3.1: net rename propagates, ERC clean, one commit, surgical diff (AC-3.7)",
+      "reason": "COPPERHEAD_TEST_CURSOR !== '1' in offline invocation",
+      "sourceLine": 81,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with cursor",
+      "test": "AC-3.4: budget-violating pullup is refused, citing the budget",
+      "reason": "COPPERHEAD_TEST_CURSOR !== '1' in offline invocation",
+      "sourceLine": 119,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with cursor",
+      "test": "AC-3.6: a structurally forced failure rolls back to a byte-identical tree",
+      "reason": "COPPERHEAD_TEST_CURSOR !== '1' in offline invocation",
+      "sourceLine": 149,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with compat",
+      "test": "AC-3.1: net rename propagates, ERC clean, one commit, surgical diff (AC-3.7)",
+      "reason": "COPPERHEAD_TEST_COMPAT_MODEL and COPPERHEAD_BASE_URL gate not satisfied in offline invocation",
+      "sourceLine": 81,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with compat",
+      "test": "AC-3.4: budget-violating pullup is refused, citing the budget",
+      "reason": "COPPERHEAD_TEST_COMPAT_MODEL and COPPERHEAD_BASE_URL gate not satisfied in offline invocation",
+      "sourceLine": 119,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "agent loop with compat",
+      "test": "AC-3.6: a structurally forced failure rolls back to a byte-identical tree",
+      "reason": "COPPERHEAD_TEST_COMPAT_MODEL and COPPERHEAD_BASE_URL gate not satisfied in offline invocation",
+      "sourceLine": 149,
+      "coverage": "This particular live AC test was not run. The genuine Codex create run does not substitute for it or establish other-provider parity."
+    },
+    {
+      "file": "test/agent-integration.test.ts",
+      "suite": "safety net",
+      "test": "AC-4.1: no API key material anywhere in the tree after a real run",
+      "reason": "No configured provider in offline test invocation; not run.",
+      "sourceLine": 201,
+      "coverage": "Dedicated post-real-run API-key scan not run; session action attestation does not substitute for this AC test."
+    },
+    {
+      "file": "test/create-recorded-e2e.test.ts",
+      "suite": "real eight-stage recorded experimental replay",
+      "test": "creates and commits every stage from only a brief and configuration",
+      "reason": "COPPERHEAD_TEST_RECORDED_CREATE opt-in absent in full suite; separately enabled original replay script passed all 5 tests without modifying historical turns/hashes.",
+      "sourceLine": 154,
+      "coverage": "This exact recorded test separately ran and passed in the explicit 5/5 recorded regression job; not a live provider invocation."
+    },
+    {
+      "file": "test/create-recorded-e2e.test.ts",
+      "suite": "real eight-stage recorded experimental replay",
+      "test": "fails and does not commit devplan when its final recorded reply is omitted",
+      "reason": "COPPERHEAD_TEST_RECORDED_CREATE opt-in absent in full suite; separately enabled original replay script passed all 5 tests without modifying historical turns/hashes.",
+      "sourceLine": 172,
+      "coverage": "This exact recorded test separately ran and passed in the explicit 5/5 recorded regression job; not a live provider invocation."
+    },
+    {
+      "file": "test/claude-code-provider.test.ts",
+      "test": "fails with an actionable install message when the SDK is absent",
+      "reason": "it.skipIf(sdkInstalled): optional SDK present; real missing-SDK branch was not exercised.",
+      "sourceLine": 493,
+      "coverage": "Real missing-SDK installation case not run. The unconditional SDK-agnostic injected importer test at line505 covers the same module-not-found error handling branch and is part of the passing suite."
+    },
+    {
+      "file": "test/draft-real-corpus.test.ts",
+      "test": "reports what the corpus covered",
+      "reason": "COPPERHEAD_TEST_CORPUS=1 and installed corpus directory gate not enabled. No per-project corpus cases collected; no real corpus round-trip claimed.",
+      "sourceLine": 211,
+      "coverage": "Real corpus not run; projects=[] when disabled, so no per-project round-trip cases were collected."
+    }
+  ],
+  "sourceAnchors": {
+    "agent": "17,79,80,118,148,199,200",
+    "recorded": "153,154,172",
+    "claude": "493",
+    "corpus": "57,184,211"
+  },
+  "finalSuite": "publication-checks/full-kicad9.filtered.log",
+  "documentationCorrection": {
+    "at": "2026-10-12T00:16:31.156321+00:00",
+    "previousFullV5Counts": [
+      1389,
+      1412
+    ],
+    "wrongLiteralNewlineNamesCorrected": 12,
+    "cause": "Unanchored it(...) regex also matched split(...); names now read only from source-line test declarations.",
+    "testsRerun": false,
+    "testLogsChanged": false
+  },
+  "historicalLiveFinalSuite": {
+    "passed": 1392,
+    "skipped": 23,
+    "collected": 1415
+  }
+}

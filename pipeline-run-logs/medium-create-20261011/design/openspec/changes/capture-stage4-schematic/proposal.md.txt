@@ -1,0 +1,14 @@
+# Proposal: capture-stage4-schematic
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+Create the Stage4 schematic from the existing 39-part BOM and subsystem architecture while preserving electrical budgets and distinguishing capture verification from hardware qualification.
+
+## What Changes
+
+- Create schematic.intent.json with exact BOM metadata, verified library endpoints, documented nets and explicit unused pins.
+- Generate the configured schematic exclusively through draft_schematic after resolving manufacturer pin-function prerequisites.
+- Create docs/PINOUT.md and synchronize affected design documents, decisions, constraints and changelog.
+- Preserve startup, reset, leakage, source qualification and mechanical/RF acceptance limits without claiming measured compliance.

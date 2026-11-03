@@ -1,0 +1,13 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "CopperheadLocal")(type "KiCad")(uri "${KIPRJMOD}/libraries/CopperheadLocal.kicad_sym")(options "")(descr "Installed component definitions; not application circuitry"))
+	(lib (name "74xGxx")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/74xGxx.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Connector")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Connector.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Connector_Generic")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Connector_Generic.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Device")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Device.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Power_Protection")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Power_Protection.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Regulator_Switching")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Regulator_Switching.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Sensor_Humidity")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Sensor_Humidity.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "Switch")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/Switch.kicad_sym")(options "")(descr "copperhead vendored"))
+	(lib (name "copperhead_power")(type "KiCad")(uri "${KIPRJMOD}/sym-lib-cache/copperhead_power.kicad_sym")(options "")(descr "copperhead vendored"))
+)

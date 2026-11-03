@@ -1,0 +1,75 @@
+stage spec-seed: already complete (resuming past it)
+stage spec-seed: committed already-complete work 972d4d1366 so a later rollback cannot wipe it (2.4)
+stage architecture: already complete (resuming past it)
+stage part-selection: already complete (resuming past it)
+stage schematic: already complete (resuming past it)
+stage layout-draft: already complete (resuming past it)
+stage outputs: already complete (resuming past it)
+stage outputs: emitted outputs/jlcpcb-bom.csv (JLCPCB assembly BOM)
+stage firmware: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage firmware (7/8) · model experimental-native:native-500ma-firmware-v19-20261008 (experimental-native, via flag) · turns ≤5 · master@972d4d1 clean
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+  [verify_symbols] verify_symbols: 11 symbol(s) match the installed libraries or exact engine power templates. No divergences.
+  [run_erc] ERC: clean
+  [check_drift] drift: clean
+  [check_legibility] legibility: 0 error, 1 advisory finding(s) across 1 sheet(s):
+  [run_drc] DRC: clean
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  [check_drift] drift: clean
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  [finish] cannot finish yet:
+[turn 4/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  [check_drift] drift: clean
+  [finish] all gates satisfied; run will commit
+committed 0c2fb31c8f (5 file(s))
+done · ERC clean · DRC clean · committed 0c2fb31c8f · 6m52s · 0 in / 0 out
+pipeline so far: 7/8 stages · 6m52s · 0 out tokens · 0% cache hits
+stage devplan: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage devplan (8/8) · model experimental-native:native-500ma-firmware-v19-20261008 (experimental-native, via flag) · turns ≤5 · master@0c2fb31 clean
+[turn 1/5 · 0 in / 0 out]
+stage devplan: the run ended as "failure" (provider-error): provider error: native stage identity is unrecognized; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage            Wall  Turns  Out tok  Cache
+  --------------  -----  -----  -------  -----
+  spec-seed           —      —        —      —
+  architecture        —      —        —      —
+  part-selection      —      —        —      —
+  schematic           —      —        —      —
+  layout-draft        —      —        —      —
+  outputs             —      —        —      —
+  firmware        6m52s      4        0     0%
+  devplan            0s      0        0      —
+  --------------  -----  -----  -------  -----
+  TOTAL           6m52s      4        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

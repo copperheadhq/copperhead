@@ -50,6 +50,7 @@
     "dev": "tsx src/cli.ts",
     "demo:simple": "bash scripts/demo-simple.sh",
     "demo:ui": "tsx scripts/ui-demo.ts",
+    "lint": "npm run lint:md",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules/**\" \"#**/node_modules/**\" \"#dist/**\" \"#**/dist/**\" \"#docs/.astro/**\" \"#demo-runs/**\" \"#.copperhead/runs/**\" \"#_site/**\"",
     "test": "vitest run",
     "test:watch": "vitest",

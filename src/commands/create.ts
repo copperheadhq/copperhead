@@ -1,3 +1,4 @@
+import { outputsPackageGap } from './outputs.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
@@ -37,6 +38,9 @@ import { draftQualitySection, isDraftQualityHeading, isFilledDraftQuality } from
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
+import { firmwareNotApplicable, hasFirmwareSource, NON_PROGRAMMABLE_SYMBOLS } from './firmware-applicability.js';
+import { firmwareBuildGap, prepareFirmwareBuildArtifacts, type FirmwareToolchain } from './firmware-build.js';
+import { devplanStageCommitted, devplanReviewGap } from './devplan.js';
 
 /**
  * Mode A (`copperhead create`, SPEC §2.5): staged pipeline, each stage a
@@ -117,27 +121,50 @@ sha256: ${briefMeta.sha256}
   }
 }
 
-/**
- * Returns true when a directory exists and contains at least one file
- * matching the optional glob-style extension list (case-insensitive).
- * No extension list = any file.
- */
-async function dirHasFiles(dirPath: string, exts?: string[]): Promise<boolean> {
-  if (!existsSync(dirPath)) return false;
-  async function walk(dir: string): Promise<boolean> {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        if (await walk(path.join(dir, entry.name))) return true;
-      } else if (!exts || exts.some((e) => entry.name.toLowerCase().endsWith(e))) {
-        return true;
-      }
-    }
-    return false;
-  }
-  return walk(dirPath);
+/** The existing requirements-seed contract, with actionable finish-time feedback. */
+export async function specDocGap(root: string, docs: string): Promise<string | null> {
+  // The init scaffold writes SPEC.md with a "## Budgets" heading and an
+  // HTML comment placeholder — that alone must not count as complete.
+  // Require the heading AND at least one non-comment, non-blank line
+  // of real budget content beneath it (a filled section vs. an empty placeholder).
+  const specDoc = path.posix.join(docs, 'SPEC.md');
+  const p = path.join(root, docs, 'SPEC.md');
+  if (!existsSync(p)) return `${specDoc} is missing; write it with a non-empty "## Budgets" section`;
+  const text = await readFile(p, 'utf8');
+  const heading = /^(#{1,6})\s.*\bBudgets?\b.*$/im.exec(text);
+  if (!heading) return `${specDoc} has no Budget or Budgets heading; add a "## Budgets" section with the actual budget constraints`;
+  // The section runs to the next heading of the SAME OR SHALLOWER depth, not to
+  // the next heading of any depth (I17): a real spec routinely splits its budgets
+  // into subsections — "## 3. Electrical budgets" followed immediately by
+  // "### 3.1 Input and rails" — which leaves the parent's own body empty and read
+  // as an unfilled placeholder. Subheadings are part of the section, not its end.
+  const depth = heading[1]!.length;
+  const afterHeadingLine = text.slice(heading.index + heading[0].length);
+  const nextSection = afterHeadingLine.search(new RegExp(`^#{1,${depth}}\\s`, 'm'));
+  const section = nextSection >= 0 ? afterHeadingLine.slice(0, nextSection) : afterHeadingLine;
+  // Strip HTML comments (single or multi-line); headings inside the section are
+  // structure, not content, so a section of nothing but subheadings still fails.
+  const cleanSection = section.replace(/<!--[\s\S]*?-->/g, '');
+  const realLines = cleanSection
+    .split('\n')
+    .filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
+  return realLines.length > 0 ? null : `${specDoc} has an empty budget section; add real budget content, not only comments or subheadings`;
 }
 
-const FIRMWARE_SOURCE_EXTS = ['.c', '.h', '.cpp', '.hpp', '.py', '.rs', '.ino', '.s'];
+/** The existing part-selection MPN contract, with actionable column feedback. */
+export async function partSelectionDocGap(root: string, docs: string): Promise<string | null> {
+  const p = path.join(root, docs, 'BOM.md');
+  if (!existsSync(p)) return `${path.posix.join(docs, 'BOM.md')} is missing; write the selected parts table`;
+  const rows = (await readFile(p, 'utf8')).split('\n').filter(
+    l => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
+  );
+  if (!rows.length) return 'BOM.md has no selected component rows';
+  const selected = rows.some(row => {
+    const mpn = row.split('|').map(c => c.trim())[4] ?? '';
+    return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
+  });
+  return selected ? null : 'BOM.md has no selected MPN in its MPN column. Put the actual part number alone in MPN and keep the UNVERIFIED qualification in Rationale; an UNVERIFIED-prefixed MPN is not the required selected-part field.';
+}
 
 /**
  * Stock KiCad libraries with nothing programmable in them (#377). Only these
@@ -183,35 +210,9 @@ async function noFirmwareReadme(root: string): Promise<boolean> {
 export const STAGES: Stage[] = [
   {
     name: 'spec-seed',
-    isComplete: async (root, docs) => {
-      // The init scaffold writes SPEC.md with a "## Budgets" heading and an
-      // HTML comment placeholder — that alone must not count as complete.
-      // Require the heading AND at least one non-comment, non-blank line
-      // of real budget content beneath it (a filled section vs. an empty placeholder).
-      const p = path.join(root, docs, 'SPEC.md');
-      if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      const heading = /^(#{1,6})\s.*\bBudgets?\b.*$/im.exec(text);
-      if (!heading) return false;
-      // The section runs to the next heading of the SAME OR SHALLOWER depth, not to
-      // the next heading of any depth (I17): a real spec routinely splits its budgets
-      // into subsections — "## 3. Electrical budgets" followed immediately by
-      // "### 3.1 Input and rails" — which leaves the parent's own body empty and read
-      // as an unfilled placeholder. Subheadings are part of the section, not its end.
-      const depth = heading[1]!.length;
-      const afterHeadingLine = text.slice(heading.index + heading[0].length);
-      const nextSection = afterHeadingLine.search(new RegExp(`^#{1,${depth}}\\s`, 'm'));
-      const section = nextSection >= 0 ? afterHeadingLine.slice(0, nextSection) : afterHeadingLine;
-      // Strip HTML comments (single or multi-line); headings inside the section are
-      // structure, not content, so a section of nothing but subheadings still fails.
-      const cleanSection = section.replace(/<!--[\s\S]*?-->/g, '');
-      const realLines = cleanSection
-        .split('\n')
-        .filter((l) => l.trim().length > 0 && !/^#{1,6}\s/.test(l.trim()));
-      return realLines.length > 0;
-    },
+    isComplete: async (root, docs) => (await specDocGap(root, docs)) === null,
     prompt: (brief) =>
-      `Stage 1 of the create pipeline: seed the requirements. From the product brief below, write docs/SPEC.md (what the device is, top-level constraints and budgets). Every budget you state must also be recorded with record_constraint. Anything the brief does not state: propose a sensible default and flag it ASSUMED. If an openspec/ workspace exists, also seed openspec/specs/ with per-capability requirements using Given/When/Then scenarios.\n\nBrief:\n${brief}`,
+      `Stage 1 of the create pipeline: seed the requirements. From the product brief below, write docs/SPEC.md (what the device is, top-level constraints and budgets). Include a "## Budgets" section with real budget content beneath the heading, not just an empty placeholder. Every budget you state must also be recorded with record_constraint. Anything the brief does not state: propose a sensible default and flag it ASSUMED. If an openspec/ workspace exists, also seed openspec/specs/ with per-capability requirements using Given/When/Then scenarios.\n\nBrief:\n${brief}`,
   },
   {
     name: 'architecture',
@@ -244,25 +245,12 @@ export const STAGES: Stage[] = [
       // init scaffolds BOM.md with a table pre-filled with UNVERIFIED MPNs
       // extracted from the schematic. Require at least one row whose MPN
       // column is NOT the UNVERIFIED placeholder — i.e. a real part was chosen.
-      const p = path.join(root, docs, 'BOM.md');
-      if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      // Find table rows (lines starting with |) that are not the header or separator
-      const rows = text.split('\n').filter(
-        (l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
-      );
-      if (!rows.length) return false;
-      // At least one row must have a non-UNVERIFIED MPN (4th column)
-      return rows.some((row) => {
-        const cols = row.split('|').map((c) => c.trim());
-        const mpn = cols[4] ?? ''; // 0=empty, 1=Refdes, 2=Value, 3=Footprint, 4=MPN
-        return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
-      }) && !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
+      return (await partSelectionDocGap(root, docs)) === null && !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
       // ^ every footprint resolves, except a library the user must install
       // (that stops the run before the schematic stage, #314)
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing.',
+      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. The MPN column holds the actual selected part number alone (for example TPS62162DSGR), never an UNVERIFIED prefix. Flag every introduced MPN as UNVERIFIED in the Rationale column with a datasheet-verifiable justification; this records selection without claiming verification or procurement readiness. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing.',
   },
   {
     name: 'schematic',
@@ -340,28 +328,23 @@ export const STAGES: Stage[] = [
   },
   {
     name: 'outputs',
-    isComplete: async (root) => {
-      // An empty outputs/ dir (e.g. from a failed export run) must not count
-      // as complete. Require at least one Gerber file (any .gbr variant).
-      return dirHasFiles(path.join(root, 'outputs'), ['.gbr', '.gtl', '.gbl', '.gbs', '.gbo', '.gbp', '.gbd', '.gto', '.gts', '.gml']);
-    },
+    isComplete: async (root) => (await outputsPackageGap(root, await loadConfig(root))) === null,
     prompt: () =>
-      'Stage 6: outputs package. Export into outputs/: gerbers+drill (JLC profile), DXF and STEP outline, SVG renders (export_svg), and an ordering BOM.csv generated from BOM.md (refdes, MPN, qty). Every export must succeed.',
+      'Stage 6: outputs package. Call export_outputs to produce outputs/: complete Gerbers/drill and fabrication.zip, DXF and STEP outline, board and schematic SVG renders, ordering BOM.csv from BOM.md, and export-manifest.json. Every export must succeed and current source/file hashes must match. The default outputProfile is generic: profile settings and zone fills are not verified. Only an explicit outputProfile=jlcpcb-kicad9-2026-09-24 selects the KiCad 9 JLC checks and jlcpcb.zip; that profile rejects copper-fill zones and unsupported versions without fallback. Do not change the selected profile to bypass a failure. Missing legacy manifests or a profile change require rerunning export_outputs; do not fabricate evidence. These are draft outputs, never manufacturer acceptance or fabrication release.',
   },
   {
     name: 'firmware',
-    isComplete: async (root) => {
-      // An empty firmware/ dir must not count. Require at least one source file.
-      if (await dirHasFiles(path.join(root, 'firmware'), FIRMWARE_SOURCE_EXTS)) return true;
-      // A board with nothing programmable on it (#377) completes on a written
-      // "# No firmware" README, but only when the schematic, not the model,
-      // shows there is no part to program.
+    isComplete: async (root, docs) => {
+      // Keep nonempty source and the exact-identity evidence path from this PR.
+      if (await hasFirmwareSource(path.join(root, 'firmware')) || await firmwareNotApplicable(root, docs)) return true;
+      // Preserve upstream's separate stock-library waiver and README format.
       if (!(await noFirmwareReadme(root))) return false;
       const parts = await programmableParts(root);
       return parts !== null && parts.length === 0;
     },
-    prompt: () =>
-      'Stage 7: firmware scaffold. Generate firmware/ for the chosen MCU HAL: pins.h generated from PINOUT.md (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md. ' +
+    prompt: (_brief, docs) =>
+      `Stage 7: firmware applicability and scaffold. For a design with a programmable component, generate firmware/ for the chosen MCU HAL: pins.h generated from ${path.posix.join(docs, 'PINOUT.md')} (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md. For a genuinely non-programmable design, do not invent an MCU or dummy source files. Instead, write firmware/README.md with exactly these three nonblank lines: "# Firmware not applicable", "Programmable components: none", and "Reason: <a concrete explanation of the hardware-only operation>". This evidence is accepted only with a nonempty, ERC-clean, BOM/PINOUT-consistent schematic using only these reviewed non-firmware symbols: ${[...NON_PROGRAMMABLE_SYMBOLS].join(", ")}. Unknown/custom symbols and unreviewed ICs are unsupported, not assumed non-programmable. The Reason must be concrete, at least 20 characters, and contain no TODO, TBD or placeholder text. The README records the completed firmware stage; all other stages and checks still apply.` +
+      "\n\nAlternatively, the stock-library waiver is supported: " +
       'Only if the board has nothing programmable on it (every schematic symbol comes from a stock non-programmable KiCad library: Device, Connector*, Diode*, Transistor_*, Regulator_*, Mechanical, power, Power_Protection, LED, Switch, Jumper, Graphic, Amplifier_Operational, Amplifier_Instrumentation, Comparator, Reference_Voltage, Relay, Timer) do not invent code: write firmware/README.md beginning with the heading "# No firmware" and, below it, why, citing the documents that record it (SPEC.md, SUBSYSTEMS.md). The stage gate reads the schematic: a part from any other library, a project library included, still needs source.',
   },
   {
@@ -378,8 +361,8 @@ export const STAGES: Stage[] = [
       );
       return contentLines.length > 0;
     },
-    prompt: () =>
-      'Stage 8: DEVPLAN.md. Write docs/DEVPLAN.md: bring-up steps in order, test points and what to meter first, risk list, and the prototype order plan.',
+    prompt: (_brief, docs) =>
+      `Stage 8: development plan. Review the actual committed design, PINOUT, output manifest, firmware/build evidence and remaining risks. Write or substantively improve ${path.posix.join(docs, 'DEVPLAN.md')}: bring-up steps in order, test points and what to meter first, risk list, and the prototype order plan. A candidate written by an earlier stage is input to this review, not evidence that this final stage ran. Preserve accurate draft/compile limitations; do not edit the engineering artifacts to hide risks, add dummy markers or create an empty commit. Finish only after improving the plan; the normal stage commit must record the actual final-stage change.`,
   },
 ];
 
@@ -388,6 +371,10 @@ export interface CreateOptions {
   briefPath: string;
   model: string;
   interactive?: boolean;
+  /** Optional automatic reference clearance; default keeps library placement. */
+  populateReferences?: 'library' | 'clearance';
+  /** Explicit installed-SDK adapter and build evidence gate, absent by default. */
+  firmwareToolchain?: FirmwareToolchain;
   /** Forwarded to each stage's run (attended continue-on-exhaustion prompt). */
   onBudgetExhausted?: (stats: BudgetExhaustedStats) => Promise<number>;
   log: (s: string) => void;
@@ -500,7 +487,9 @@ async function populateStop(opts: CreateOptions): Promise<string | null> {
   const config = await loadConfig(opts.repoRoot);
   if (!config.board || !config.schematic) return 'no board or schematic is configured; the schematic stage did not scaffold one';
   try {
-    const r = await populateBoard({ repoRoot: opts.repoRoot, schematic: config.schematic, board: config.board });
+    const r = await populateBoard({ repoRoot: opts.repoRoot, schematic: config.schematic, board: config.board,
+      ...(opts.populateReferences ? { referencePlacement: opts.populateReferences } : {}),
+    });
     // An already-populated board gets the same DRC: it may be a committed
     // attempt's (verified, and cheap to confirm) or the board of a run killed
     // between the populate write and its DRC, which the resume commit sweeps
@@ -585,7 +574,14 @@ async function layoutDraftGap(root: string, docs: string, opts: { drcFailed?: bo
 
 export async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
+  if (stageName === 'outputs') return (await outputsPackageGap(root, await loadConfig(root))) ?? generic;
+  if (stageName === 'spec-seed') {
+    const gap = await specDocGap(root, config.docs);
+    return gap ? `the spec-seed contract is not met: ${gap}` : generic;
+  }
   if (stageName === 'part-selection') {
+    const docGap = await partSelectionDocGap(root, config.docs);
+    if (docGap) return `the part-selection contract is not met: ${docGap}`;
     const r = await bomFootprintMisses(root, config.docs);
     const fixable = r?.missing.filter(modelFixable) ?? [];
     if (fixable.length) {
@@ -817,6 +813,11 @@ function resumeCommand(opts: CreateOptions): string {
   // Absolute --brief so the command resolves the same from any cwd; a relative
   // path would break when resumed from a different directory (F6).
   parts.push('create', '--brief', shellQuote(path.resolve(opts.briefPath)), '--model', shellQuote(opts.model));
+  if (opts.populateReferences) parts.push('--populate-references', opts.populateReferences);
+  if (opts.firmwareToolchain) {
+    parts.push('--firmware-idf', shellQuote(opts.firmwareToolchain.idfRoot), '--firmware-tools', shellQuote(opts.firmwareToolchain.toolsRoot));
+    if (opts.firmwareToolchain.reproducible) parts.push('--firmware-reproducible');
+  }
   if (opts.interactive) parts.push('--interactive');
   return parts.join(' ');
 }
@@ -1039,6 +1040,17 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     sha256: createHash('sha256').update(brief).digest('hex'),
   };
   const config = await loadConfig(opts.repoRoot);
+  const complete = async (stage: Stage): Promise<boolean> =>
+    await stage.isComplete(opts.repoRoot, config.docs) &&
+    !(stage.name === 'firmware' && opts.firmwareToolchain && await hasFirmwareSource(path.join(opts.repoRoot, 'firmware')) &&
+      await firmwareBuildGap(opts.repoRoot, config.docs, opts.firmwareToolchain));
+  const gap = async (stage: Stage): Promise<string> => {
+    if (stage.name === 'firmware' && opts.firmwareToolchain && await hasFirmwareSource(path.join(opts.repoRoot, 'firmware'))) {
+      const buildGap = await firmwareBuildGap(opts.repoRoot, config.docs, opts.firmwareToolchain);
+      if (buildGap) return buildGap;
+    }
+    return contractGapDetail(stage.name, opts.repoRoot, config);
+  };
   // Fail fast on a nearly-full disk (4.1): a create run writes fab outputs and
   // KiCad local history and can otherwise fill the disk mid-stage, failing with
   // an opaque ENOSPC only after doing expensive work. Threshold overridable via
@@ -1062,6 +1074,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
   // resumed runs whose project predates the marker (bootstrapKicadProject
   // no-ops on those, so it cannot be the only writer).
   await markCreateOrigin(opts.repoRoot);
+  if (opts.firmwareToolchain) await prepareFirmwareBuildArtifacts(opts.repoRoot);
   const completed: string[] = [];
   const stageCosts: StageCost[] = [];
 
@@ -1090,7 +1103,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         opts.log(stageLine('schematic', `scaffolded empty KiCad project (${created} + board + project), wired into config`));
       }
     }
-    if (await stage.isComplete(opts.repoRoot, config.docs)) {
+    if (await complete(stage) && (stage.name !== 'devplan' || await devplanStageCommitted(opts.repoRoot, config.docs))) {
       opts.log(stageLine(stage.name, 'already complete (resuming past it)', 'ok'));
       await commitResumedStage(opts, config, stage.name);
       completed.push(stage.name);
@@ -1114,7 +1127,12 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // stops and reports for a human — the loop keeps going by itself for the
     // recoverable cases without silently spinning on the dead-end ones.
     const stageTurns = config.stageMaxTurns?.[stage.name];
-    const basePrompt = stage.prompt(brief, config.docs);
+    const devplanBefore = stage.name === 'devplan'
+      ? await readFile(path.join(opts.repoRoot, config.docs, 'DEVPLAN.md'), 'utf8').catch(() => null)
+      : null;
+    const basePrompt = stage.prompt(brief, config.docs) + (stage.name === 'firmware' && opts.firmwareToolchain
+      ? '\n\nThe operator explicitly supplied an installed ESP-IDF SDK/tools cache. After validating your OpenSpec proposal, use build_firmware to obtain real build evidence before finish. It builds isolated copies of your current firmware and PINOUT and records actual logs and source/binary hashes. No external supervisor receipt is needed. Source/PINOUT changes invalidate the build; call it again. ' + (opts.firmwareToolchain.reproducible ? 'Two independent builds must produce identical ELF/bin files. Use SDK supported CONFIG_APP_REPRODUCIBLE_BUILD and a fixed PROJECT_VER; do not claim reproducibility from version pinning alone.' : 'Successful compilation is required; reproducibility is not claimed.')
+      : '');
     let guidance = '';
     let stageDone = false;
     let stageTranscriptDir = '';
@@ -1218,15 +1236,20 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           // the populated board is this stage's mutation too: finish needs a
           // passing DRC on it even when the agent never edits the board
           ...(layoutBoard ? { preTouched: [layoutBoard] } : {}),
-          // #310: in layout-draft, finish checks the stage's own contract, so the agent
-          // hears what is missing while its board still exists, not after the rollback.
-          // Other stages keep ending at the post-run check: their gaps have no specific
-          // message yet, and a generic one would only spend turns.
-          ...(stage.name === 'layout-draft'
+          // These stages have actionable contract gaps: report them during finish,
+          // before committing, so the agent can repair the artifact in this run.
+          // Other stages retain their post-run checks.
+          ...(stage.name === 'firmware' && opts.firmwareToolchain ? { firmwareToolchain: opts.firmwareToolchain } : {}),
+          ...(stage.name === 'devplan' || stage.name === 'layout-draft' || stage.name === 'spec-seed' || stage.name === 'outputs' || stage.name === 'part-selection' || (stage.name === 'firmware' && opts.firmwareToolchain)
             ? {
                 stageGate: async () => {
-                  const gap = await layoutDraftGap(opts.repoRoot, config.docs);
-                  return gap && `the layout-draft contract is not met: ${gap}`;
+                  if (stage.name === 'layout-draft') {
+                    const layoutGap = await layoutDraftGap(opts.repoRoot, config.docs);
+                    return layoutGap && `the layout-draft contract is not met: ${layoutGap}`;
+                  }
+                  return stage.name === 'devplan'
+                    ? devplanReviewGap(opts.repoRoot, config.docs, devplanBefore)
+                    : (await complete(stage)) ? null : gap(stage);
                 },
               }
             : {}),
@@ -1261,9 +1284,11 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         const failure =
           res.outcome !== 'success'
             ? `the run ended as "${res.outcome}" (${res.exitPath})${res.summary ? `: ${res.summary}` : ''}`
-            : !(await stage.isComplete(opts.repoRoot, config.docs))
-              ? await contractGapDetail(stage.name, opts.repoRoot, config)
-              : null;
+            : !(await complete(stage))
+              ? await gap(stage)
+              : stage.name === 'devplan' && !(await devplanStageCommitted(opts.repoRoot, config.docs))
+                ? 'the final development plan has no matching normal devplan-stage commit; resume to review and improve it'
+                : null;
         if (!failure) {
           stageDone = true;
           break;

@@ -1,0 +1,1066 @@
+[
+  {
+    "published": "runtime/initial/pipeline.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/pipeline.log",
+    "originalBytes": 31239,
+    "originalSHA256": "5a704e383ed064f26317738f3ded5164c276eb2951f888d640c7cf23600cd1cc",
+    "publishedBytes": 31148,
+    "publishedSHA256": "e2091077ff4e0bf1ce0d73720e468766725a84af1573e7a42a15ac193e2a37ae",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "runtime/resume-cli-1/pipeline.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/resume-cli-1/pipeline.log",
+    "originalBytes": 13499,
+    "originalSHA256": "dee5a8638f92afc382912e1f450c0ace7c25a786416d133c9844ed94a839e18a",
+    "publishedBytes": 13435,
+    "publishedSHA256": "854779207a36bdb22be948fa88c0571537d6693db9c5e4b91117c33ae35186d2",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "runtime/resume-cli-2/pipeline.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/resume-cli-2/pipeline.log",
+    "originalBytes": 2599,
+    "originalSHA256": "4d6836b408a70471e4ed38c2ca482fdcb7e7ebf2badf8880b1439595d786d857",
+    "publishedBytes": 2375,
+    "publishedSHA256": "1efb9bc0c7dfeded9c53f5a7854d14f44722b0885764854d677a5c3943847c34",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "runtime/resume-cli-3/pipeline.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/resume-cli-3/pipeline.log",
+    "originalBytes": 49669,
+    "originalSHA256": "96919a72885be0d1583aa88605798c0ce5a1eb8772aca6670aec5ef5f784699b",
+    "publishedBytes": 49182,
+    "publishedSHA256": "dbe48408492a55853a797a866f8431693b6a4a4f25081b7f436c14155bff689d",
+    "changedByPathOrSecretRedaction": true,
+    "operatorOnlyInstructionsRedacted": true
+  },
+  {
+    "published": "runtime/resume-cli-4/pipeline.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/resume-cli-4/pipeline.log",
+    "originalBytes": 8377,
+    "originalSHA256": "b2a013e211e91d5011d51b9dc419d9688284b81be18e29d7194350ea842d2be2",
+    "publishedBytes": 8377,
+    "publishedSHA256": "b2a013e211e91d5011d51b9dc419d9688284b81be18e29d7194350ea842d2be2",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "runtime/resume-cli-5-artifact-bookkeeping/pipeline.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/resume-cli-5-artifact-bookkeeping/pipeline.log",
+    "originalBytes": 1799,
+    "originalSHA256": "2f77e161bbd2ceee529e7e2bf67b3e97e47b840e0c97095b7acde7f1ec79185d",
+    "publishedBytes": 1799,
+    "publishedSHA256": "2f77e161bbd2ceee529e7e2bf67b3e97e47b840e0c97095b7acde7f1ec79185d",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "runtime/resume-cli-6-devplan-review/pipeline.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/resume-cli-6-devplan-review/pipeline.log",
+    "originalBytes": 13962,
+    "originalSHA256": "7da8a955ba381afea0b58bf83e00e90ef1d86af80e31941087b305961a8ad430",
+    "publishedBytes": 13962,
+    "publishedSHA256": "7da8a955ba381afea0b58bf83e00e90ef1d86af80e31941087b305961a8ad430",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "summaries/2026-10-11T19-07-40-308Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-07-40-308Z/summary.md",
+    "originalBytes": 8209,
+    "originalSHA256": "f0fdd1586154503bcc54bca7047d96a32130bbd1d583bfabd4abbc5fe6e17cde",
+    "publishedBytes": 8200,
+    "publishedSHA256": "2fcc7218763b015c2c8803a11e0afbe4013dabb82b44da12317554df9fd15bd1",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T19-14-28-508Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-14-28-508Z/summary.md",
+    "originalBytes": 2896,
+    "originalSHA256": "e86dbd7d12a5b0186694c4b7e5dc4cf046a354a19cff78fbbcbbef37fc57e317",
+    "publishedBytes": 2887,
+    "publishedSHA256": "7156d47b944c1085fab74e398e4b334f8014d727329820c521169633399e4d2a",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T19-18-05-561Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-18-05-561Z/summary.md",
+    "originalBytes": 5175,
+    "originalSHA256": "1f068cb14d6a70ba8fa2d3a5241c0e1c0b4ebbee75f0017a0f2ce7dcae4bdd4f",
+    "publishedBytes": 5166,
+    "publishedSHA256": "a5b958d54658ac97ab7d44c97bb29202b6f9fdf23d78f040969bb6cd7201fd4d",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T19-31-00-550Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-31-00-550Z/summary.md",
+    "originalBytes": 2601,
+    "originalSHA256": "02338fbf52df4a10426a5233b5f28d2f8254dac804022da00b93648e55062265",
+    "publishedBytes": 2592,
+    "publishedSHA256": "6da5ed1c37764d2c19b5db95959017fefc8ae0b31b9d8ba441df10c87d8f961b",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T19-37-10-374Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-37-10-374Z/summary.md",
+    "originalBytes": 2647,
+    "originalSHA256": "7f0f92d013c30e483d9181c92314f27b34c93eb6dbd75751098ac6c03249d840",
+    "publishedBytes": 2638,
+    "publishedSHA256": "37f96ad1968685f91f1fbaa118765f1c36b4882fc73c207c670c70bf9ef19bff",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T19-41-23-304Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-41-23-304Z/summary.md",
+    "originalBytes": 2796,
+    "originalSHA256": "1f0af6e165f87cbdeb92d6c15f9c946a2b3736875f2f3df1cc26bc0fdcbab5fa",
+    "publishedBytes": 2787,
+    "publishedSHA256": "2f46fce254975debff7215757e8ee3ac560cc6653f815d55258d79ec39d3671b",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T19-46-10-934Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-46-10-934Z/summary.md",
+    "originalBytes": 1442,
+    "originalSHA256": "8556da505f1faf21f6f336eecc2463cf462ef53a6554e086c75189f709f2de83",
+    "publishedBytes": 1424,
+    "publishedSHA256": "643fa8675b05cda0be5b3387dcacc34df6a1c518bc2fefd4a888612456943cfb",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T19-47-49-091Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-47-49-091Z/summary.md",
+    "originalBytes": 4937,
+    "originalSHA256": "5c8990fa0a079dea3ce34f071f6130971f6c92a42581b8c76fb8fe4abe3eb891",
+    "publishedBytes": 4928,
+    "publishedSHA256": "9b23435f964386ce867e0eb34c3a6fa5f1a3f1a68a16ebee6798fd01173c7bbc",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T19-57-43-743Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T19-57-43-743Z/summary.md",
+    "originalBytes": 5122,
+    "originalSHA256": "9e0f965563ed76311c5e8868b0b7bbe69ccc5e23e7e4acc0dcd751c27a53a296",
+    "publishedBytes": 5113,
+    "publishedSHA256": "e57515b1dc7a4daa09f350831b98e93d273896668a8159e0f37b559284b42302",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T20-12-52-543Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T20-12-52-543Z/summary.md",
+    "originalBytes": 2840,
+    "originalSHA256": "6192d90dd1ea8f29dd2911b1fa3bd6f68832bb77921d875bdc1640ea3dd6482a",
+    "publishedBytes": 2831,
+    "publishedSHA256": "ca5025b422d167466a4bb041659a7bcf47f4d6710695226e68dad0927441bd5c",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T20-16-49-113Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T20-16-49-113Z/summary.md",
+    "originalBytes": 5061,
+    "originalSHA256": "e3555abe85d51908d9e59b31ccf522164a2761c1cdc6ddb463b7cce8040dd714",
+    "publishedBytes": 5052,
+    "publishedSHA256": "61941880e9308ecc56b62d5052e49a384cca78f1982692ea7384748bc8b446e6",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T21-00-20-749Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T21-00-20-749Z/summary.md",
+    "originalBytes": 3764,
+    "originalSHA256": "7dc2564dbf0df403c0ac3d5bc8dfc4372ac033cd2dc8331d739a2893e5b227ab",
+    "publishedBytes": 3755,
+    "publishedSHA256": "91c116c30070cdb89786c35c6f389a2abd7393cba20e6d99b683a12df74f7219",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "summaries/2026-10-11T21-45-04-873Z/summary.filtered.txt",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/runs/2026-10-11T21-45-04-873Z/summary.md",
+    "originalBytes": 3204,
+    "originalSHA256": "8491e98aec800f44f385f212820f7ff2958b3dd576ed709ae499846690cba64c",
+    "publishedBytes": 3195,
+    "publishedSHA256": "b35980bf0a5cf3d60e7e32e7ec973a28422729d00a0d93a49cfd27d85cbecc10",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "design/docs/BOM.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/BOM.md",
+    "originalBytes": 27671,
+    "originalSHA256": "79d7e181447eb5e9194683554090e51d6f53861d4f7c637a452cff81fe9b2251",
+    "publishedBytes": 27671,
+    "publishedSHA256": "79d7e181447eb5e9194683554090e51d6f53861d4f7c637a452cff81fe9b2251",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/docs/BRIEF.sha256",
+    "originalRelativePath": "clean-medium-20261011/design/docs/BRIEF.sha256",
+    "originalBytes": 98,
+    "originalSHA256": "21352fb8ae4ca4417492c6e927ffe11645b29e4357d1a1bf1c52fdf1a2f846c0",
+    "publishedBytes": 98,
+    "publishedSHA256": "21352fb8ae4ca4417492c6e927ffe11645b29e4357d1a1bf1c52fdf1a2f846c0",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/docs/CHANGELOG.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/CHANGELOG.md",
+    "originalBytes": 13975,
+    "originalSHA256": "ead155c6386993835f5ed3037ada6c6dcaec00e10e8647cf03100dad030abf20",
+    "publishedBytes": 13975,
+    "publishedSHA256": "ead155c6386993835f5ed3037ada6c6dcaec00e10e8647cf03100dad030abf20",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/docs/DECISIONS.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/DECISIONS.md",
+    "originalBytes": 13074,
+    "originalSHA256": "ffb3e33ed318a72d1d152c682f86fa7f3938767fba2594466dc0726aaeb694e7",
+    "publishedBytes": 13074,
+    "publishedSHA256": "ffb3e33ed318a72d1d152c682f86fa7f3938767fba2594466dc0726aaeb694e7",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/docs/DEVPLAN.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/DEVPLAN.md",
+    "originalBytes": 23018,
+    "originalSHA256": "362199e8dd38bdd1b0aa31641870b086ddfd3f843f866bf402dde00c13268faf",
+    "publishedBytes": 23018,
+    "publishedSHA256": "362199e8dd38bdd1b0aa31641870b086ddfd3f843f866bf402dde00c13268faf",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/docs/LAYOUT.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/LAYOUT.md",
+    "originalBytes": 8176,
+    "originalSHA256": "28470aeaafed9278c3754dec2b097578aa34be49f310a48bab1fbe4286e296b2",
+    "publishedBytes": 8176,
+    "publishedSHA256": "28470aeaafed9278c3754dec2b097578aa34be49f310a48bab1fbe4286e296b2",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/docs/OUTPUTS.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/OUTPUTS.md",
+    "originalBytes": 4094,
+    "originalSHA256": "9554b191809f0a89f23e0b25e779cfac0ef336132c86a21e0d782edf3d171c39",
+    "publishedBytes": 4094,
+    "publishedSHA256": "9554b191809f0a89f23e0b25e779cfac0ef336132c86a21e0d782edf3d171c39",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/docs/PINOUT.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/PINOUT.md",
+    "originalBytes": 7490,
+    "originalSHA256": "63260f9d6da22585ddb92d93276cd130131728fd3260d438e2c9c3ad650bb6d6",
+    "publishedBytes": 7490,
+    "publishedSHA256": "63260f9d6da22585ddb92d93276cd130131728fd3260d438e2c9c3ad650bb6d6",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/docs/SPEC.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/SPEC.md",
+    "originalBytes": 23770,
+    "originalSHA256": "c2ef704900d635c08f0ad4ee0f1785f72469288e879f157714c8a7495ccfd287",
+    "publishedBytes": 23372,
+    "publishedSHA256": "4b23b41aa364d64a59eedda60307ffd5a12d4d6b581ebb152e0e7d8a1c95c5db",
+    "changedByPathOrSecretRedaction": true,
+    "operatorOnlyInstructionsRedacted": true
+  },
+  {
+    "published": "design/docs/SUBSYSTEMS.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/docs/SUBSYSTEMS.md",
+    "originalBytes": 22109,
+    "originalSHA256": "41e0c1b3c759e397698868bb75cc1a570840594bcc286d7537b74f6e0308c824",
+    "publishedBytes": 22109,
+    "publishedSHA256": "41e0c1b3c759e397698868bb75cc1a570840594bcc286d7537b74f6e0308c824",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/CMakeLists.txt",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/CMakeLists.txt",
+    "originalBytes": 249,
+    "originalSHA256": "cb3344c0351ace934f60c042708ab42b475b34a3b56e5ed51836e4d3e74e87db",
+    "publishedBytes": 249,
+    "publishedSHA256": "cb3344c0351ace934f60c042708ab42b475b34a3b56e5ed51836e4d3e74e87db",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/README.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/README.md",
+    "originalBytes": 3325,
+    "originalSHA256": "ce87dabb32be790f82a83b83c8cd3c13768852e447241720da58ff1c6c16a428",
+    "publishedBytes": 3325,
+    "publishedSHA256": "ce87dabb32be790f82a83b83c8cd3c13768852e447241720da58ff1c6c16a428",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/main/CMakeLists.txt",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/main/CMakeLists.txt",
+    "originalBytes": 951,
+    "originalSHA256": "2378a8e2a4351f946627f1630b5c82b3a5e47405336cc26d6af831b9750796c5",
+    "publishedBytes": 951,
+    "publishedSHA256": "2378a8e2a4351f946627f1630b5c82b3a5e47405336cc26d6af831b9750796c5",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/main/app_main.c",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/main/app_main.c",
+    "originalBytes": 1988,
+    "originalSHA256": "b1433967062b2768f04beb438f8fceb5584f6fa229593c973bdff3ea3b829417",
+    "publishedBytes": 1988,
+    "publishedSHA256": "b1433967062b2768f04beb438f8fceb5584f6fa229593c973bdff3ea3b829417",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/main/board_hal.c",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/main/board_hal.c",
+    "originalBytes": 1682,
+    "originalSHA256": "fa86d7a669e06bb7bdd1336993a1f000ddbc56d39ba6c3d6e0a2a39a9c3feb8c",
+    "publishedBytes": 1682,
+    "publishedSHA256": "fa86d7a669e06bb7bdd1336993a1f000ddbc56d39ba6c3d6e0a2a39a9c3feb8c",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/main/board_hal.h",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/main/board_hal.h",
+    "originalBytes": 323,
+    "originalSHA256": "e827c0287a7e230375d6f1a1c77f81f86036580cbc8d4ad2d283b76860300bb5",
+    "publishedBytes": 323,
+    "publishedSHA256": "e827c0287a7e230375d6f1a1c77f81f86036580cbc8d4ad2d283b76860300bb5",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/main/drivers.c",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/main/drivers.c",
+    "originalBytes": 4698,
+    "originalSHA256": "ba6bcb57bd6ddb5cc9ddb9c04e835d0c178d99617aefecc1789716eb40fe4aaf",
+    "publishedBytes": 4698,
+    "publishedSHA256": "ba6bcb57bd6ddb5cc9ddb9c04e835d0c178d99617aefecc1789716eb40fe4aaf",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/main/drivers.h",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/main/drivers.h",
+    "originalBytes": 468,
+    "originalSHA256": "f25ca329e829b2e95d2075b19587b928bb4824958ce1dc186ae0a8747488512b",
+    "publishedBytes": 468,
+    "publishedSHA256": "f25ca329e829b2e95d2075b19587b928bb4824958ce1dc186ae0a8747488512b",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/pins.h",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/pins.h",
+    "originalBytes": 318,
+    "originalSHA256": "d5a9ba66847bd9156e46524934d02246a436848aabc499449d511a1cb3613a8e",
+    "publishedBytes": 318,
+    "publishedSHA256": "d5a9ba66847bd9156e46524934d02246a436848aabc499449d511a1cb3613a8e",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/sdkconfig.defaults",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/sdkconfig.defaults",
+    "originalBytes": 158,
+    "originalSHA256": "345c2b073b4637fb7417b184f5e7380d6465614e17837768af7d8c93de798b78",
+    "publishedBytes": 158,
+    "publishedSHA256": "345c2b073b4637fb7417b184f5e7380d6465614e17837768af7d8c93de798b78",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/firmware/tools/generate_pins.py",
+    "originalRelativePath": "clean-medium-20261011/design/firmware/tools/generate_pins.py",
+    "originalBytes": 2121,
+    "originalSHA256": "d4599f7c1deaa32f8c3aeaa74551d10b19a7d59bdc59902c581d26b14a89b469",
+    "publishedBytes": 2121,
+    "publishedSHA256": "d4599f7c1deaa32f8c3aeaa74551d10b19a7d59bdc59902c581d26b14a89b469",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/fp-lib-table",
+    "originalRelativePath": "clean-medium-20261011/design/fp-lib-table",
+    "originalBytes": 1418,
+    "originalSHA256": "b8b1560e81ef46b5e7408e5e06bdcd013e16959b2ef80d320fca6f0a7fd53fc0",
+    "publishedBytes": 1418,
+    "publishedSHA256": "b8b1560e81ef46b5e7408e5e06bdcd013e16959b2ef80d320fca6f0a7fd53fc0",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Capacitor_SMD.pretty/C_0603_1608Metric.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Capacitor_SMD.pretty/C_0603_1608Metric.kicad_mod",
+    "originalBytes": 1758,
+    "originalSHA256": "86a101f1dbc512aa9a73532f4b837db141edd5bded65094b0d13dca3fc3f6c68",
+    "publishedBytes": 1758,
+    "publishedSHA256": "86a101f1dbc512aa9a73532f4b837db141edd5bded65094b0d13dca3fc3f6c68",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Capacitor_SMD.pretty/C_0805_2012Metric.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Capacitor_SMD.pretty/C_0805_2012Metric.kicad_mod",
+    "originalBytes": 1860,
+    "originalSHA256": "1e9871a31457c9d9932d22edb68ed91c275a6270066239b08d192eead990c301",
+    "publishedBytes": 1860,
+    "publishedSHA256": "1e9871a31457c9d9932d22edb68ed91c275a6270066239b08d192eead990c301",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Capacitor_SMD.pretty/C_1210_3225Metric.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Capacitor_SMD.pretty/C_1210_3225Metric.kicad_mod",
+    "originalBytes": 1766,
+    "originalSHA256": "dc1d0a7bce3d19e41856e1e02896abcc84ef4ee752999c7f4162f4519df9d5f8",
+    "publishedBytes": 1766,
+    "publishedSHA256": "dc1d0a7bce3d19e41856e1e02896abcc84ef4ee752999c7f4162f4519df9d5f8",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Connector_USB.pretty/USB_C_Receptacle_GCT_USB4125-xx-x_6P_TopMnt_Horizontal.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Connector_USB.pretty/USB_C_Receptacle_GCT_USB4125-xx-x_6P_TopMnt_Horizontal.kicad_mod",
+    "originalBytes": 4695,
+    "originalSHA256": "9fb596ebefc36034832fb31117444e6437efbcfe358b92b8103c9c6612866ae3",
+    "publishedBytes": 4695,
+    "publishedSHA256": "9fb596ebefc36034832fb31117444e6437efbcfe358b92b8103c9c6612866ae3",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.kicad_sym",
+    "originalBytes": 24321,
+    "originalSHA256": "afbcd636b0d85aa167dd13dee9cb3c41f32450145d39fbb62c7257b9d1fef334",
+    "publishedBytes": 24321,
+    "publishedSHA256": "afbcd636b0d85aa167dd13dee9cb3c41f32450145d39fbb62c7257b9d1fef334",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/ESP32-C3-MINI-1-N4X.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/ESP32-C3-MINI-1-N4X.kicad_mod",
+    "originalBytes": 13321,
+    "originalSHA256": "5d137d1f52b5e268b83fd4218ab0663e0b301fba169b1e74b765375893691aa1",
+    "publishedBytes": 13321,
+    "publishedSHA256": "5d137d1f52b5e268b83fd4218ab0663e0b301fba169b1e74b765375893691aa1",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/SMAJ6.0A_Littelfuse_DO214AC.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/SMAJ6.0A_Littelfuse_DO214AC.kicad_mod",
+    "originalBytes": 869,
+    "originalSHA256": "b2c5e2dfde44ae2abe96ba44cecb5cc7769cfdce5d2e28785952c98547bccf14",
+    "publishedBytes": 869,
+    "publishedSHA256": "b2c5e2dfde44ae2abe96ba44cecb5cc7769cfdce5d2e28785952c98547bccf14",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/SN74LVC2G125DCUR_DCU0008A.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/SN74LVC2G125DCUR_DCU0008A.kicad_mod",
+    "originalBytes": 1953,
+    "originalSHA256": "34528ebd38cd8d21bcae3353bd934646aab301e7bb4f837ef29297f977afebc5",
+    "publishedBytes": 1953,
+    "publishedSHA256": "34528ebd38cd8d21bcae3353bd934646aab301e7bb4f837ef29297f977afebc5",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/Samtec_TSW_103_07_G_S.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/Samtec_TSW_103_07_G_S.kicad_mod",
+    "originalBytes": 2702,
+    "originalSHA256": "094bf4c45d067a526469333b4390f232c970407fa8bfb72bac3b7472df9dc65f",
+    "publishedBytes": 2702,
+    "publishedSHA256": "094bf4c45d067a526469333b4390f232c970407fa8bfb72bac3b7472df9dc65f",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/Samtec_TSW_104_07_G_S.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/Samtec_TSW_104_07_G_S.kicad_mod",
+    "originalBytes": 2819,
+    "originalSHA256": "d280e0ec80f7965f0630dcf5f5356debc5514b758da7a58256b818a76a509cf7",
+    "publishedBytes": 2819,
+    "publishedSHA256": "d280e0ec80f7965f0630dcf5f5356debc5514b758da7a58256b818a76a509cf7",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/TL3342F160QG.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/TL3342F160QG.kicad_mod",
+    "originalBytes": 1225,
+    "originalSHA256": "b9e5f55f3b2c0e13ffaad4b149242947249345a8c631cede90ab61e0b5484472",
+    "publishedBytes": 1225,
+    "publishedSHA256": "b9e5f55f3b2c0e13ffaad4b149242947249345a8c631cede90ab61e0b5484472",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/TPD1S414YZR_YZ0012_C02.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/TPD1S414YZR_YZ0012_C02.kicad_mod",
+    "originalBytes": 2209,
+    "originalSHA256": "685f01c277af35d1bbb35cecffdeff3a13cfda4ddb60ccc7f1ce09057ba8fcd8",
+    "publishedBytes": 2209,
+    "publishedSHA256": "685f01c277af35d1bbb35cecffdeff3a13cfda4ddb60ccc7f1ce09057ba8fcd8",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/TPD2E2U06DRL_DRL0005A.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/TPD2E2U06DRL_DRL0005A.kicad_mod",
+    "originalBytes": 1438,
+    "originalSHA256": "ab4f2a04d7f6c9aa1a4e52d5be4dd91d75cf3c8b92bef58b145e63ec3e110aee",
+    "publishedBytes": 1438,
+    "publishedSHA256": "ab4f2a04d7f6c9aa1a4e52d5be4dd91d75cf3c8b92bef58b145e63ec3e110aee",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/TPS22918DBVR_DBV0006A.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/TPS22918DBVR_DBV0006A.kicad_mod",
+    "originalBytes": 1604,
+    "originalSHA256": "f5f81a29314dd1b1dd7245c0f2404d5fd8f383a0f8f2c939d484f339695a8c10",
+    "publishedBytes": 1604,
+    "publishedSHA256": "f5f81a29314dd1b1dd7245c0f2404d5fd8f383a0f8f2c939d484f339695a8c10",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/TPS2553DBVR_DBV0006A.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/TPS2553DBVR_DBV0006A.kicad_mod",
+    "originalBytes": 1603,
+    "originalSHA256": "fc1b1b1ff420c0261560a6fba6c3a0e0a669d3a3bed929bd24431e2a9d1a0b44",
+    "publishedBytes": 1603,
+    "publishedSHA256": "fc1b1b1ff420c0261560a6fba6c3a0e0a669d3a3bed929bd24431e2a9d1a0b44",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/TPS259470ARPWR_RPW0010A.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/TPS259470ARPWR_RPW0010A.kicad_mod",
+    "originalBytes": 2669,
+    "originalSHA256": "c26a8ca81056c4bfd5ddf9054d1cfa11c312a814215ce9919ad744000ec852dd",
+    "publishedBytes": 2669,
+    "publishedSHA256": "c26a8ca81056c4bfd5ddf9054d1cfa11c312a814215ce9919ad744000ec852dd",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/TPS259533DSGR_DSG0008A.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/TPS259533DSGR_DSG0008A.kicad_mod",
+    "originalBytes": 5467,
+    "originalSHA256": "9f07a20d0b27e9fb4452b19b3e164d1beef45b07881ccf05a6fe2cd76ef8a150",
+    "publishedBytes": 5467,
+    "publishedSHA256": "9f07a20d0b27e9fb4452b19b3e164d1beef45b07881ccf05a6fe2cd76ef8a150",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/CopperheadLocal.pretty/TPS62162DSGR_DSG0008A.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/CopperheadLocal.pretty/TPS62162DSGR_DSG0008A.kicad_mod",
+    "originalBytes": 5463,
+    "originalSHA256": "d24f1f123257ce450c6202e31bad36dd82c08f02ebcbd524efe2e5419e2b0bad",
+    "publishedBytes": 5463,
+    "publishedSHA256": "d24f1f123257ce450c6202e31bad36dd82c08f02ebcbd524efe2e5419e2b0bad",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Diode_SMD.pretty/D_SMA.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Diode_SMD.pretty/D_SMA.kicad_mod",
+    "originalBytes": 4509,
+    "originalSHA256": "b3365739de128e75186439cbdda353beab3ccfd08fa7a6fe407b6d779d922129",
+    "publishedBytes": 4509,
+    "publishedSHA256": "b3365739de128e75186439cbdda353beab3ccfd08fa7a6fe407b6d779d922129",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Inductor_SMD.pretty/L_Coilcraft_XxL4020.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Inductor_SMD.pretty/L_Coilcraft_XxL4020.kicad_mod",
+    "originalBytes": 3290,
+    "originalSHA256": "f95cdebd0beb21da3838720b8e51529d8150ba9aa4c98ea158e5d914b5281811",
+    "publishedBytes": 3290,
+    "publishedSHA256": "f95cdebd0beb21da3838720b8e51529d8150ba9aa4c98ea158e5d914b5281811",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Package_TO_SOT_SMD.pretty/SOT-23.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Package_TO_SOT_SMD.pretty/SOT-23.kicad_mod",
+    "originalBytes": 4350,
+    "originalSHA256": "5fbcd830e62b2a7096210c50f4507b6110c79a844412200da276e0ee2e27ed14",
+    "publishedBytes": 4350,
+    "publishedSHA256": "5fbcd830e62b2a7096210c50f4507b6110c79a844412200da276e0ee2e27ed14",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Resistor_SMD.pretty/R_0603_1608Metric.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Resistor_SMD.pretty/R_0603_1608Metric.kicad_mod",
+    "originalBytes": 1773,
+    "originalSHA256": "32e6f926b4be772aeabae6060210133fbf78854a3fe12ca7011b4916ed49f134",
+    "publishedBytes": 1773,
+    "publishedSHA256": "32e6f926b4be772aeabae6060210133fbf78854a3fe12ca7011b4916ed49f134",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/Sensor_Humidity.pretty/Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad.kicad_mod",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/Sensor_Humidity.pretty/Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad.kicad_mod",
+    "originalBytes": 4943,
+    "originalSHA256": "e242ffa52cc8bb477de27f05ff72b410ec30b3d8bcd80196427893dda08f52ca",
+    "publishedBytes": 4943,
+    "publishedSHA256": "e242ffa52cc8bb477de27f05ff72b410ec30b3d8bcd80196427893dda08f52ca",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/licenses/Espressif-LICENSE.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/licenses/Espressif-LICENSE.md",
+    "originalBytes": 982,
+    "originalSHA256": "6eb43c2548ac6714db47ccbd62354bd194e918f606b071a5e9893680b941d75a",
+    "publishedBytes": 982,
+    "publishedSHA256": "6eb43c2548ac6714db47ccbd62354bd194e918f606b071a5e9893680b941d75a",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/libraries/licenses/KiCad-attribution.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/libraries/licenses/KiCad-attribution.md",
+    "originalBytes": 653,
+    "originalSHA256": "c75c8e76264f084801105b302ec59695184396fa64d198b20b0ac062f9558bb7",
+    "publishedBytes": 653,
+    "publishedSHA256": "c75c8e76264f084801105b302ec59695184396fa64d198b20b0ac062f9558bb7",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_dru",
+    "originalRelativePath": "clean-medium-20261011/design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_dru",
+    "originalBytes": 100,
+    "originalSHA256": "8af4ab1d0852653e7c593e0a0c563b8e92c3a955ea72a91e6333fa1f364fc480",
+    "publishedBytes": 100,
+    "publishedSHA256": "8af4ab1d0852653e7c593e0a0c563b8e92c3a955ea72a91e6333fa1f364fc480",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb",
+    "originalRelativePath": "clean-medium-20261011/design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb",
+    "originalBytes": 123664,
+    "originalSHA256": "e2e2dc560ef3ec97ba531bd226ef4cd65260ff30f594c3d5383c6034ce2f3912",
+    "publishedBytes": 123664,
+    "publishedSHA256": "e2e2dc560ef3ec97ba531bd226ef4cd65260ff30f594c3d5383c6034ce2f3912",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pro",
+    "originalRelativePath": "clean-medium-20261011/design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pro",
+    "originalBytes": 1380,
+    "originalSHA256": "4543afaae8fd9625b155db8930f8ae629a3156a9690a64ae026b31ec3331607c",
+    "publishedBytes": 1380,
+    "publishedSHA256": "4543afaae8fd9625b155db8930f8ae629a3156a9690a64ae026b31ec3331607c",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch",
+    "originalRelativePath": "clean-medium-20261011/design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch",
+    "originalBytes": 203876,
+    "originalSHA256": "8f669f04057bcd5e4a884075e0cb8e66af91fe35c769bbeaf18aca04e15205d9",
+    "publishedBytes": 203876,
+    "publishedSHA256": "8f669f04057bcd5e4a884075e0cb8e66af91fe35c769bbeaf18aca04e15205d9",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/capture-stage4-schematic/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/capture-stage4-schematic/proposal.md",
+    "originalBytes": 821,
+    "originalSHA256": "e7e5a34f6a63b6d74021ab9290926c24eba46892001e712bfc3ba5fbf8ae691e",
+    "publishedBytes": 821,
+    "publishedSHA256": "e7e5a34f6a63b6d74021ab9290926c24eba46892001e712bfc3ba5fbf8ae691e",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/capture-stage4-schematic/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/capture-stage4-schematic/tasks.md",
+    "originalBytes": 565,
+    "originalSHA256": "e116fcc7332fd48dd448c856c4a87fbb3cdb04e02db37729d70d09451338ae16",
+    "publishedBytes": 565,
+    "publishedSHA256": "e116fcc7332fd48dd448c856c4a87fbb3cdb04e02db37729d70d09451338ae16",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/correct-part-selection-mpn-format/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/correct-part-selection-mpn-format/proposal.md",
+    "originalBytes": 837,
+    "originalSHA256": "787a969d3f62412330d17dab40233eb8e1234ffbb490eccaea780506f2ecdd02",
+    "publishedBytes": 837,
+    "publishedSHA256": "787a969d3f62412330d17dab40233eb8e1234ffbb490eccaea780506f2ecdd02",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/correct-part-selection-mpn-format/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/correct-part-selection-mpn-format/tasks.md",
+    "originalBytes": 523,
+    "originalSHA256": "adcb4d5e9edf80d498dccaf43e9270b6bbaff6415ee682d738594f5f0262d458",
+    "publishedBytes": 523,
+    "publishedSHA256": "adcb4d5e9edf80d498dccaf43e9270b6bbaff6415ee682d738594f5f0262d458",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/document-subsystem-architecture/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/document-subsystem-architecture/proposal.md",
+    "originalBytes": 1387,
+    "originalSHA256": "262cbdb11cf853c32dbcf61cdcfc9ff96b2542a0a35d25f486ec0c17d2a0db1e",
+    "publishedBytes": 1387,
+    "publishedSHA256": "262cbdb11cf853c32dbcf61cdcfc9ff96b2542a0a35d25f486ec0c17d2a0db1e",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/document-subsystem-architecture/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/document-subsystem-architecture/tasks.md",
+    "originalBytes": 2310,
+    "originalSHA256": "314ab1ff215bbf57b7cc54825b1580d897bdf116dac7a1a02f1985c06f992f94",
+    "publishedBytes": 2310,
+    "publishedSHA256": "314ab1ff215bbf57b7cc54825b1580d897bdf116dac7a1a02f1985c06f992f94",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/export-stage6-draft-outputs/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/export-stage6-draft-outputs/proposal.md",
+    "originalBytes": 858,
+    "originalSHA256": "226b7a17ec6b3bf91fe14c3998547f0c5c52e7b39510cf6107b0075046ea0539",
+    "publishedBytes": 858,
+    "publishedSHA256": "226b7a17ec6b3bf91fe14c3998547f0c5c52e7b39510cf6107b0075046ea0539",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/export-stage6-draft-outputs/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/export-stage6-draft-outputs/tasks.md",
+    "originalBytes": 818,
+    "originalSHA256": "71163e8c2bd138645551352d33da27af4283a9cc9178d0aae9527ce1c7734a82",
+    "publishedBytes": 818,
+    "publishedSHA256": "71163e8c2bd138645551352d33da27af4283a9cc9178d0aae9527ce1c7734a82",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/implement-stage7-firmware/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/implement-stage7-firmware/proposal.md",
+    "originalBytes": 1228,
+    "originalSHA256": "75f1f2b3eeb1e9bff4d5659ffe5bb22eceac2a3d209c4ce0f6afa6d869f2e0d5",
+    "publishedBytes": 1228,
+    "publishedSHA256": "75f1f2b3eeb1e9bff4d5659ffe5bb22eceac2a3d209c4ce0f6afa6d869f2e0d5",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/implement-stage7-firmware/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/implement-stage7-firmware/tasks.md",
+    "originalBytes": 893,
+    "originalSHA256": "f3e1bd948c60d05304e794f4d9356254b24fd844201728b0f7b813cb32738b49",
+    "publishedBytes": 893,
+    "publishedSHA256": "f3e1bd948c60d05304e794f4d9356254b24fd844201728b0f7b813cb32738b49",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/place-route-stage5-layout-draft/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/place-route-stage5-layout-draft/proposal.md",
+    "originalBytes": 901,
+    "originalSHA256": "4f8b999786285fbcdbb2cddd7b9b37b7ccbe336aca9048b7815886f2aec4511f",
+    "publishedBytes": 901,
+    "publishedSHA256": "4f8b999786285fbcdbb2cddd7b9b37b7ccbe336aca9048b7815886f2aec4511f",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/place-route-stage5-layout-draft/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/place-route-stage5-layout-draft/tasks.md",
+    "originalBytes": 621,
+    "originalSHA256": "5aa01df1348a22560d17eb55325ef8e8d2a9f6d630a3f25c6aae91f3bd08099d",
+    "publishedBytes": 621,
+    "publishedSHA256": "5aa01df1348a22560d17eb55325ef8e8d2a9f6d630a3f25c6aae91f3bd08099d",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/repair-part-selection-bom/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/repair-part-selection-bom/proposal.md",
+    "originalBytes": 774,
+    "originalSHA256": "d7576128661560e86c5257862944d249b956dbb09039aedbf8f4d29ac323bbec",
+    "publishedBytes": 774,
+    "publishedSHA256": "d7576128661560e86c5257862944d249b956dbb09039aedbf8f4d29ac323bbec",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/repair-part-selection-bom/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/repair-part-selection-bom/tasks.md",
+    "originalBytes": 970,
+    "originalSHA256": "d24863325a04af6351891d7273e8d1a2fe15e23438c8dc7f6b86f34e172864f9",
+    "publishedBytes": 970,
+    "publishedSHA256": "d24863325a04af6351891d7273e8d1a2fe15e23438c8dc7f6b86f34e172864f9",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/review-stage8-development-plan/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/review-stage8-development-plan/proposal.md",
+    "originalBytes": 798,
+    "originalSHA256": "6555601ec0acf319763f030e8803ae30b35dc3606e607208d2ba4a82875d5bfb",
+    "publishedBytes": 798,
+    "publishedSHA256": "6555601ec0acf319763f030e8803ae30b35dc3606e607208d2ba4a82875d5bfb",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/review-stage8-development-plan/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/review-stage8-development-plan/tasks.md",
+    "originalBytes": 1185,
+    "originalSHA256": "7f05af5c258a1e1ef6336bfe650c1ceee331a75ad8592d45f6208bce80e98724",
+    "publishedBytes": 1185,
+    "publishedSHA256": "7f05af5c258a1e1ef6336bfe650c1ceee331a75ad8592d45f6208bce80e98724",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/seed-device-requirements/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/seed-device-requirements/proposal.md",
+    "originalBytes": 1074,
+    "originalSHA256": "fbd284e0cd1e2ad567b04ecda768676534a0f6ca4f797ae229939f9ce9c0682c",
+    "publishedBytes": 1074,
+    "publishedSHA256": "fbd284e0cd1e2ad567b04ecda768676534a0f6ca4f797ae229939f9ce9c0682c",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/seed-device-requirements/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/seed-device-requirements/tasks.md",
+    "originalBytes": 4512,
+    "originalSHA256": "59300a1f467606706e4bd03cab3676f0a1b4ac690790c7d009123bce5f3dbb61",
+    "publishedBytes": 4512,
+    "publishedSHA256": "59300a1f467606706e4bd03cab3676f0a1b4ac690790c7d009123bce5f3dbb61",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/select-capturable-parts/proposal.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/select-capturable-parts/proposal.md",
+    "originalBytes": 792,
+    "originalSHA256": "945ccd47435d2a2b6738659143b9236f4891f271160f0381bf9626c543c887ee",
+    "publishedBytes": 792,
+    "publishedSHA256": "945ccd47435d2a2b6738659143b9236f4891f271160f0381bf9626c543c887ee",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/changes/select-capturable-parts/tasks.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/changes/select-capturable-parts/tasks.md",
+    "originalBytes": 1082,
+    "originalSHA256": "8c72ed91382c96d294cf7f7d48349e9158889da232a4b8304939966639c977f2",
+    "publishedBytes": 1082,
+    "publishedSHA256": "8c72ed91382c96d294cf7f7d48349e9158889da232a4b8304939966639c977f2",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/specs/display/spec.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/specs/display/spec.md",
+    "originalBytes": 926,
+    "originalSHA256": "ac09c0ff18738dc389881de51c78622169a73174846968dde5e2326791e10672",
+    "publishedBytes": 926,
+    "publishedSHA256": "ac09c0ff18738dc389881de51c78622169a73174846968dde5e2326791e10672",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/specs/firmware-workflow/spec.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/specs/firmware-workflow/spec.md",
+    "originalBytes": 1849,
+    "originalSHA256": "8f16d211dd46d5211cc149c842a2cf9d98466ef00312cef501a3ea977808457a",
+    "publishedBytes": 1849,
+    "publishedSHA256": "8f16d211dd46d5211cc149c842a2cf9d98466ef00312cef501a3ea977808457a",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/specs/mcu-programming/spec.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/specs/mcu-programming/spec.md",
+    "originalBytes": 827,
+    "originalSHA256": "212f16767ae8f231addc58abfbd219f1b7b20d07954539cef48783aa8c88273a",
+    "publishedBytes": 827,
+    "publishedSHA256": "212f16767ae8f231addc58abfbd219f1b7b20d07954539cef48783aa8c88273a",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/specs/protected-input/spec.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/specs/protected-input/spec.md",
+    "originalBytes": 1595,
+    "originalSHA256": "27a37773da4b0be9d921cd2b3b714c368df6e4410e24b43ee855bc89840368a2",
+    "publishedBytes": 1595,
+    "publishedSHA256": "27a37773da4b0be9d921cd2b3b714c368df6e4410e24b43ee855bc89840368a2",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/specs/regulation/spec.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/specs/regulation/spec.md",
+    "originalBytes": 950,
+    "originalSHA256": "5b49cf5aa610732cc46688e33134ec335c6d6857b56d18af611824e9a10144ce",
+    "publishedBytes": 950,
+    "publishedSHA256": "5b49cf5aa610732cc46688e33134ec335c6d6857b56d18af611824e9a10144ce",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/specs/rf-mechanics/spec.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/specs/rf-mechanics/spec.md",
+    "originalBytes": 1048,
+    "originalSHA256": "7d4715ccf571c8eff95567c719d55a84b516b3b3e50158309838d4a9e980c3e2",
+    "publishedBytes": 1048,
+    "publishedSHA256": "7d4715ccf571c8eff95567c719d55a84b516b3b3e50158309838d4a9e980c3e2",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/openspec/specs/sensing/spec.md.txt",
+    "originalRelativePath": "clean-medium-20261011/design/openspec/specs/sensing/spec.md",
+    "originalBytes": 791,
+    "originalSHA256": "a6954b6664c083402437697ab63b1137d9452552d2e194725e3d610705ecac02",
+    "publishedBytes": 791,
+    "publishedSHA256": "a6954b6664c083402437697ab63b1137d9452552d2e194725e3d610705ecac02",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/schematic.intent.json",
+    "originalRelativePath": "clean-medium-20261011/design/schematic.intent.json",
+    "originalBytes": 7540,
+    "originalSHA256": "00ad6f928e1554aaee9720d83a716321fce49ad552072b31d5d14da32e2e523d",
+    "publishedBytes": 7540,
+    "publishedSHA256": "00ad6f928e1554aaee9720d83a716321fce49ad552072b31d5d14da32e2e523d",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/74xGxx.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/74xGxx.kicad_sym",
+    "originalBytes": 3672,
+    "originalSHA256": "8473e19efebaa1429e7ea4f6a8b9245e08ba168d4ad1b0af0f374eca1b98350c",
+    "publishedBytes": 3672,
+    "publishedSHA256": "8473e19efebaa1429e7ea4f6a8b9245e08ba168d4ad1b0af0f374eca1b98350c",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/Connector.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/Connector.kicad_sym",
+    "originalBytes": 6625,
+    "originalSHA256": "f4093bcedb1025ae3d6bfc11522b33b1f899db0e46110af5dcd82b66b10eb6a2",
+    "publishedBytes": 6625,
+    "publishedSHA256": "f4093bcedb1025ae3d6bfc11522b33b1f899db0e46110af5dcd82b66b10eb6a2",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/Connector_Generic.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/Connector_Generic.kicad_sym",
+    "originalBytes": 5768,
+    "originalSHA256": "898d4162ecb0144a0c1ac17207dd307c9e12812f46730255b3d43998e739c3ba",
+    "publishedBytes": 5768,
+    "publishedSHA256": "898d4162ecb0144a0c1ac17207dd307c9e12812f46730255b3d43998e739c3ba",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/Device.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/Device.kicad_sym",
+    "originalBytes": 7864,
+    "originalSHA256": "c012a36665481927adf2111cf54e022b5d49ede3709a8fb29697733c0069650f",
+    "publishedBytes": 7864,
+    "publishedSHA256": "c012a36665481927adf2111cf54e022b5d49ede3709a8fb29697733c0069650f",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/Power_Protection.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/Power_Protection.kicad_sym",
+    "originalBytes": 5875,
+    "originalSHA256": "890b073a785a955f086eb6bf9f7915a8cd0a69a352cca8f4bb0d339eeb4ac962",
+    "publishedBytes": 5875,
+    "publishedSHA256": "890b073a785a955f086eb6bf9f7915a8cd0a69a352cca8f4bb0d339eeb4ac962",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/Regulator_Switching.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/Regulator_Switching.kicad_sym",
+    "originalBytes": 7389,
+    "originalSHA256": "bfb98b692e0f2e52a5278c4dda6ec6c2098a811d769b26a9ef4580fe0c84b787",
+    "publishedBytes": 7389,
+    "publishedSHA256": "bfb98b692e0f2e52a5278c4dda6ec6c2098a811d769b26a9ef4580fe0c84b787",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/Sensor_Humidity.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/Sensor_Humidity.kicad_sym",
+    "originalBytes": 2546,
+    "originalSHA256": "51414e26dfafd521781bd2e78a8cd4b4a92aff442920aa7da62afac252995c7d",
+    "publishedBytes": 2546,
+    "publishedSHA256": "51414e26dfafd521781bd2e78a8cd4b4a92aff442920aa7da62afac252995c7d",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/Switch.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/Switch.kicad_sym",
+    "originalBytes": 2128,
+    "originalSHA256": "a4864360689dcd7d3eb87142f6c8211b3957a64d388664a7dda813fe8bee8e18",
+    "publishedBytes": 2128,
+    "publishedSHA256": "a4864360689dcd7d3eb87142f6c8211b3957a64d388664a7dda813fe8bee8e18",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-cache/copperhead_power.kicad_sym",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-cache/copperhead_power.kicad_sym",
+    "originalBytes": 3515,
+    "originalSHA256": "04f46ad92d89446acb6d7c00c455e7b3ff50218b7ce75a8c3ab498342bd91df1",
+    "publishedBytes": 3515,
+    "publishedSHA256": "04f46ad92d89446acb6d7c00c455e7b3ff50218b7ce75a8c3ab498342bd91df1",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/sym-lib-table",
+    "originalRelativePath": "clean-medium-20261011/design/sym-lib-table",
+    "originalBytes": 1475,
+    "originalSHA256": "5552d4fe04db2b2a8741ba4859f18ad40903c40856f0369b7b9e21776574c9bd",
+    "publishedBytes": 1475,
+    "publishedSHA256": "5552d4fe04db2b2a8741ba4859f18ad40903c40856f0369b7b9e21776574c9bd",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "design/configuration.json",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/config.json",
+    "originalBytes": 669,
+    "originalSHA256": "b7214ee0017f67b5b1ebe12e5ab4bdbb26984038eadbc34625f151fdd538af96",
+    "publishedBytes": 669,
+    "publishedSHA256": "b7214ee0017f67b5b1ebe12e5ab4bdbb26984038eadbc34625f151fdd538af96",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "export-manifest.json",
+    "originalRelativePath": "clean-medium-20261011/design/outputs/export-manifest.json",
+    "originalBytes": 7523,
+    "originalSHA256": "c9506bee0f105bcde0c3d4e7b07bf3da64fa2b0ed10a47f813997cdb75798d16",
+    "publishedBytes": 7523,
+    "publishedSHA256": "c9506bee0f105bcde0c3d4e7b07bf3da64fa2b0ed10a47f813997cdb75798d16",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "firmware/receipt.filtered.json",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/firmware-build/receipt.json",
+    "originalBytes": 5416,
+    "originalSHA256": "a8cc29166625c651d0780653db2714b31838b7b311ea99a5d1bf45dc1b34ca5d",
+    "publishedBytes": 5352,
+    "publishedSHA256": "5cd001a1f3a9692ec300d8e8ef43bc15e6e287bb206f4246ad7740a0863455c7",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "firmware/attempt-2/build.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-2/build.log",
+    "originalBytes": 138793,
+    "originalSHA256": "784d948aff77998d8ba5c49d729956d5c4b2787171aa997f9d62746b4ba7e1b9",
+    "publishedBytes": 131913,
+    "publishedSHA256": "bb21ab02b541f1e499ed43e1e5ca33dd9d136cc379eb1c3b31bf37f7d64bb3db",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "firmware/attempt-1/build.filtered.log",
+    "originalRelativePath": "clean-medium-20261011/design/.copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-1/build.log",
+    "originalBytes": 138793,
+    "originalSHA256": "2c153b153984359f0c958d5fc11869aedc1a3b559452364aa41f2fadcda004bf",
+    "publishedBytes": 131913,
+    "publishedSHA256": "69e09b57f666e2e547d75e74ac9f8a2dbfeec85aee46ed611f7500d8a60b4590",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "checks/final-native-drc.json",
+    "originalRelativePath": "strict-final-audit-20261011/final-native-drc.json",
+    "originalBytes": 73605,
+    "originalSHA256": "9ac21431e256f83cfb64988e1feb5915637704c32d279cb35b35abae04994275",
+    "publishedBytes": 73605,
+    "publishedSHA256": "9ac21431e256f83cfb64988e1feb5915637704c32d279cb35b35abae04994275",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "checks/final-native-drc-execution.json",
+    "originalRelativePath": "strict-final-audit-20261011/final-native-drc-execution.json",
+    "originalBytes": 1130,
+    "originalSHA256": "932d83f7588debe039077e3a8fb316e9c4d112ba4e763e438bc08672d0df21df",
+    "publishedBytes": 1034,
+    "publishedSHA256": "7e3379168420be01e97d9a029a12c0b291bd85d9d28d0465710f1d657d209274",
+    "changedByPathOrSecretRedaction": true
+  },
+  {
+    "published": "checks/final-hash-recheck.json",
+    "originalRelativePath": "stage8-final-review/final-hash-recheck.json",
+    "originalBytes": 457,
+    "originalSHA256": "e33e022f06674bfa112f5e8094274b61ec14db7dc15a49096115d45577496e6d",
+    "publishedBytes": 457,
+    "publishedSHA256": "e33e022f06674bfa112f5e8094274b61ec14db7dc15a49096115d45577496e6d",
+    "changedByPathOrSecretRedaction": false
+  },
+  {
+    "published": "checks/skipped-tests.json",
+    "originalRelativePath": "strict-final-audit-20261011/skipped-tests.json",
+    "originalBytes": 11246,
+    "originalSHA256": "3da0e8ed7fc6ed4f7772edd7ed4ffb08978295b22dedf3ce88b27f937544482d",
+    "publishedBytes": 11246,
+    "publishedSHA256": "3da0e8ed7fc6ed4f7772edd7ed4ffb08978295b22dedf3ce88b27f937544482d",
+    "changedByPathOrSecretRedaction": false
+  }
+]

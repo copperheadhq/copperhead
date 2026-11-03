@@ -1,0 +1,95 @@
+stage spec-seed: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage spec-seed (1/8) · model experimental-native:native-500ma-spec-v7-20261008 (experimental-native, via flag) · turns ≤5 · master@83eaca8 dirty(1)
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  … still working — 4m00s elapsed (no output yet)
+  … still working — 4m15s elapsed (no output yet)
+  … still working — 4m30s elapsed (no output yet)
+  … still working — 4m45s elapsed (no output yet)
+  … still working — 5m00s elapsed (no output yet)
+  … still working — 5m15s elapsed (no output yet)
+  … still working — 5m30s elapsed (no output yet)
+  … still working — 5m45s elapsed (no output yet)
+  … still working — 6m00s elapsed (no output yet)
+  … still working — 6m15s elapsed (no output yet)
+  … still working — 6m30s elapsed (no output yet)
+  … still working — 6m45s elapsed (no output yet)
+  … still working — 7m00s elapsed (no output yet)
+  … still working — 7m15s elapsed (no output yet)
+  … still working — 7m30s elapsed (no output yet)
+  … still working — 7m45s elapsed (no output yet)
+  … still working — 8m00s elapsed (no output yet)
+  … still working — 8m15s elapsed (no output yet)
+  … still working — 8m30s elapsed (no output yet)
+  [check_drift] no schematic configured; drift vacuously clean
+[turn 4/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  [finish] all gates satisfied; run will commit
+committed ca57cd59f8 (7 file(s))
+done · ERC not run · committed ca57cd59f8 · 17m21s · 0 in / 0 out
+pipeline so far: 1/8 stages · 17m21s · 0 out tokens · 0% cache hits
+stage architecture: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage architecture (2/8) · model experimental-native:native-500ma-spec-v7-20261008 (experimental-native, via flag) · turns ≤5 · master@ca57cd5 dirty(1)
+[turn 1/5 · 0 in / 0 out]
+stage architecture: the run ended as "failure" (provider-error): provider error: EXPERIMENTAL_STAGE_BOUNDARY: architecture is outside this trial's bound stage; no request queued; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage           Wall  Turns  Out tok  Cache
+  ------------  ------  -----  -------  -----
+  spec-seed     17m21s      4        0     0%
+  architecture      0s      0        0      —
+  ------------  ------  -----  -------  -----
+  TOTAL         17m21s      4        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

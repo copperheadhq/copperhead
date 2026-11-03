@@ -1,0 +1,5 @@
+# Byte-pinned replay and frozen evidence must not change on CRLF checkouts.
+/test/fixtures/create-recorded-500ma/** -text
+/test/fixtures/generated-power/kicad10-upgrade.txt -text
+/reports/evidence/native-500ma-20261009/** -text
+/pipeline-run-logs/medium-create-20261011/** -text

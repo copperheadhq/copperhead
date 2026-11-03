@@ -1,0 +1,22 @@
+{
+  "baseCommit": "e26be947ed31a35fbbb52623174bb25017d6cd44",
+  "experimentId": "native-500ma-architecture-v8-20261008",
+  "files": {
+    "src/commands/create.ts": "6f402d49605f904e8ec30ad970aa94b18118d36fc037283ddb68afd8b3814c3a",
+    "src/commands/firmware-applicability.ts": "58995f155161b24b5fa1d13f1d805bc45d930e9ae50336bb4deb00e8f4e3280f",
+    "src/agent/providers/experimental-native.ts": "b9956e98ed49c8e6436430a8ec7fe5990bd9e62b5dbcfc8bd11c6aa8068c14ce",
+    "src/agent/loop.ts": "52b68093d126944e6d525671ab66b65cc0a0a414316300a434185b493f86aaa7",
+    "src/agent/recovery.ts": "e4af1d4918b01620b598eeca359b8f27c0c9bc24989db34fe087c05ecc7c12a2",
+    "src/util/retry.ts": "c977511d2deddff4c0dae80c9f2e6ac5eb582e857059ee197afa82f3eff40250",
+    "scripts/experimental-native-control.mjs": "2f87f5ad46a38edad0c37dbc6671f251dbf3a759fa35b266615639b5920b0e92",
+    "dist/commands/create.js": "9f1a25f93fa6771cb2783c485b41ac81d384145144efb24863429cc452a0c249",
+    "dist/commands/firmware-applicability.js": "80370855f661b079fa6f85d23fb39f0d72deb9a4cf9e604188af6b5d3f4720c8",
+    "dist/agent/providers/experimental-native.js": "16277ee5311cf9c5674cad14fa35e9dbeda3df1ea92b01cd9db0370a5965fc64"
+  },
+  "publicPatchSha256": {
+    "spec-seed-contract-fix": "559b67081f6bdf6d5b4ce6765bc9eb88fd1432b8b4de533308467074e1dabcf5",
+    "firmware-applicability-v2": "e0771d8cb118e93eaed49072839ee7a3e8cdb71828a1028c65e415a004d230a6"
+  },
+  "supervisorSha256": "2a1df228d96698d92398976280a9d16731c8d620ccf936b15fef6624ffa9c79d",
+  "briefSha256": "4185465cbc16b103d012147c987bb609399930448f4c6c2992116bf5cccbffde"
+}

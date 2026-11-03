@@ -2,6 +2,7 @@ import type { CopperheadConfig } from '../config.js';
 import type { CheckReport } from '../kicad/report.js';
 import type { ObligationsLedger } from './ledger.js';
 import type { Transcript } from './transcript.js';
+import type { FirmwareToolchain } from '../commands/firmware-build.js';
 
 export interface FinishRequest {
   outcome: 'done' | 'refuse';
@@ -34,6 +35,8 @@ export interface RunContext {
   unroutedBaseline?: number;
   /** The caller's completion contract, checked by `finish` (see RunOptions.stageGate). */
   stageGate?: () => Promise<string | null>;
+  /** Operator-selected installed SDK; models cannot choose build executables. */
+  firmwareToolchain?: FirmwareToolchain;
   /** Last check_legibility counts; feeds the run summary's verification section. */
   lastLegibility: { error: number; advisory: number } | null;
   /** Last score composite (AC-16.21); recorded in the run summary. */

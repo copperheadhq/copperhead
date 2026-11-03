@@ -1,9 +1,10 @@
 import { execa, ExecaError } from 'execa';
 import { existsSync, readdirSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { duplicateFootprintRefs, normalizeReport, type CheckReport } from './report.js';
+import { JLC_DRILL_ARGS, type JlcProfile } from './jlc-profile.js';
 import { PreflightError, isNotFoundError } from '../util/preflight.js';
 
 export class KicadCliMissingError extends PreflightError {
@@ -385,35 +386,95 @@ export async function exportNetlist(schPath: string): Promise<string> {
   }
 }
 
+export interface FabExportFile {
+  artifact: string;
+  /** Actual file path relative to the requested output directory, using / separators. */
+  path: string;
+  bytes: number;
+}
+
 export interface FabExportResult {
+  /** Stable artifact labels retained for callers; these are not file paths. */
   produced: string[];
+  files: FabExportFile[];
   failed: { artifact: string; reason: string }[];
+  /** Optional documents can be incomplete while generic board exports succeed. */
+  warnings?: string[];
+}
+
+/** Inventory only regular, nonempty files, never following an exported symlink. */
+async function exportFiles(root: string, artifact: string, dir = root): Promise<FabExportFile[]> {
+  const files: FabExportFile[] = [];
+  for (const name of (await readdir(dir)).sort()) {
+    const file = path.join(dir, name);
+    const info = await lstat(file);
+    const relative = path.relative(root, file).split(path.sep).join('/');
+    if (info.isDirectory()) files.push(...await exportFiles(root, artifact, file));
+    else if (!info.isFile() || info.size === 0) {
+      throw new Error(`export produced a non-regular or empty file: ${relative}`);
+    } else files.push({ artifact, path: relative, bytes: info.size });
+  }
+  return files;
+}
+
+/** Copy checked output files without following an existing destination symlink. */
+async function publishExportFiles(root: string, outDir: string, files: FabExportFile[]): Promise<void> {
+  for (const file of files) {
+    const parts = file.path.split('/');
+    let dir = outDir;
+    for (const part of ['', ...parts.slice(0, -1)]) {
+      dir = path.join(dir, part);
+      await mkdir(dir, { recursive: true });
+      if (!(await lstat(dir)).isDirectory()) throw new Error(`export destination is not a directory: ${dir}`);
+    }
+    const destination = path.join(outDir, ...parts);
+    try {
+      if (!(await lstat(destination)).isFile()) throw new Error(`export destination is not a regular file: ${file.path}`);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    }
+  }
+  // Reject known destination conflicts before replacing any file in this job.
+  for (const file of files) {
+    await copyFile(path.join(root, file.path), path.join(outDir, file.path));
+  }
 }
 
 /**
- * Export the fabrication package (SPEC §2.5 outputs): gerbers + drill, DXF and
- * STEP outline, SVG renders. Each artifact fails independently with a reason so
- * a missing STEP exporter never sinks the rest of the package.
+ * Export the fabrication package (SPEC §2.5 outputs). Artifact labels describe
+ * jobs; files records their real paths, including multi-file DXF/SVG exports.
+ * A fresh directory per job prevents stale outputs from satisfying a failed
+ * export. File existence is checked; manufacturer-profile approval is not.
  */
-export async function exportFab(pcbPath: string, schPath: string | null, outDir: string): Promise<FabExportResult> {
-  const result: FabExportResult = { produced: [], failed: [] };
-  const jobs: { artifact: string; args: string[] }[] = [
-    { artifact: 'gerbers', args: ['pcb', 'export', 'gerbers', '--output', path.join(outDir, 'gerbers'), pcbPath] },
-    { artifact: 'drill', args: ['pcb', 'export', 'drill', '--output', path.join(outDir, 'gerbers'), pcbPath] },
-    { artifact: 'outline.dxf', args: ['pcb', 'export', 'dxf', '--output', path.join(outDir, 'outline.dxf'), '--layers', 'Edge.Cuts', pcbPath] },
-    { artifact: 'board.step', args: ['pcb', 'export', 'step', '--output', path.join(outDir, 'board.step'), pcbPath] },
-    { artifact: 'board.svg', args: ['pcb', 'export', 'svg', '--output', path.join(outDir, 'board.svg'), '--layers', 'F.Cu,B.Cu,Edge.Cuts', pcbPath] },
+export async function exportFab(pcbPath: string, schPath: string | null, outDir: string, profile?: JlcProfile): Promise<FabExportResult> {
+  const result: FabExportResult = { produced: [], files: [], failed: [] };
+  const jobs: { artifact: string; output: string; args: string[]; matches: RegExp }[] = [
+    { artifact: 'gerbers', output: 'gerbers', args: ['pcb', 'export', 'gerbers', ...(profile ? ['--layers', profile.layers.join(','), '--precision', '6'] : [])], matches: /\.(?:gbr|g[bt][lospa]|gm\d+|g\d+)$/i },
+    { artifact: 'drill', output: 'gerbers', args: ['pcb', 'export', 'drill', ...(profile ? JLC_DRILL_ARGS : [])], matches: /\.drl$/i },
+    { artifact: 'outline.dxf', output: 'outline.dxf', args: ['pcb', 'export', 'dxf', '--layers', 'Edge.Cuts'], matches: /\.dxf$/i },
+    { artifact: 'board.step', output: 'board.step', args: ['pcb', 'export', 'step'], matches: /\.step$/i },
+    { artifact: 'board.svg', output: 'board.svg', args: ['pcb', 'export', 'svg', '--layers', 'F.Cu,B.Cu,Edge.Cuts'], matches: /\.svg$/i },
   ];
   if (schPath) {
-    jobs.push({ artifact: 'schematic.svg', args: ['sch', 'export', 'svg', '--output', path.join(outDir, 'renders'), schPath] });
+    jobs.push({ artifact: 'schematic.svg', output: 'renders', args: ['sch', 'export', 'svg'], matches: /\.svg$/i });
   }
   for (const job of jobs) {
+    const staged = await mkdtemp(path.join(tmpdir(), 'copperhead-export-'));
     try {
-      await runKicad(job.args);
+      const input = job.args[0] === 'sch' ? schPath! : pcbPath;
+      await runKicad([...job.args, '--output', path.join(staged, job.output), input]);
+      const files = await exportFiles(staged, job.artifact);
+      if (!files.some((file) => job.matches.test(file.path))) {
+        throw new Error(`export exited successfully but produced no ${job.artifact} files`);
+      }
+      await publishExportFiles(staged, outDir, files);
       result.produced.push(job.artifact);
+      result.files.push(...files);
     } catch (err) {
       if (err instanceof KicadCliMissingError) throw err;
       result.failed.push({ artifact: job.artifact, reason: String((err as ExecaError).stderr ?? (err as Error).message).slice(0, 200) });
+    } finally {
+      await rm(staged, { recursive: true, force: true });
     }
   }
   return result;

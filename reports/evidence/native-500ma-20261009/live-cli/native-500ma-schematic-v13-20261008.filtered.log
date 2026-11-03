@@ -1,0 +1,89 @@
+stage spec-seed: already complete (resuming past it)
+stage spec-seed: committed already-complete work 171a77fb81 so a later rollback cannot wipe it (2.4)
+stage architecture: already complete (resuming past it)
+stage part-selection: already complete (resuming past it)
+stage schematic: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage schematic (4/8) · model experimental-native:native-500ma-schematic-v13-20261008 (experimental-native, via flag) · turns ≤5 · master@171a77f clean
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  [verify_symbols] verify_symbols: 7 verified, 0 unverifiable (library not installed), 4 issue(s) to reconcile:
+  [run_erc] ERC: clean
+  [check_legibility] legibility: 0 error, 1 advisory finding(s) across 1 sheet(s):
+  [check_drift] drift: clean
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  [check_drift] drift: clean
+[turn 4/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  [verify_symbols] verify_symbols: 7 verified, 0 unverifiable (library not installed), 4 issue(s) to reconcile:
+  [run_erc] ERC: clean
+  [check_legibility] legibility: 0 error, 1 advisory finding(s) across 1 sheet(s):
+  [check_drift] drift: clean
+[turn 5/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  [finish] refusal recorded; run will end
+stage schematic: the run ended as "refused" (refused): This attempt cannot truthfully satisfy pipeline.deliverables_and_gates and the recorded pipeline.generated_symbol_verification constraint: the latest actual verify_symbols reports four unresolved wrong-library findings for draft_schematic-generated copperhead_power:+5V_PROTECTED, GND, PWR_FLAG and VBUS_RAW. The exposed intent workflow provides no safe library-selection repair and prohibits direct drafted-sheet edits. VBUS_RAW and +5V_PROTECTED must stay distinct; no electrical target or gate was weakened. The attempted draft did generate ten fitted BOM parts, four groups and seven intentional no-connects; actual ERC and BOM/PINOUT drift are clean, and legibility has zero errors plus one documented low-utilization advisory. Seven physical symbol types verify. Full changed-document readback and document-revisit reconciliation completed. Raw readback additionally exposes inherited TPS2051C descriptive metadata within the TPS2065C embedded definition while the actual U1 instance remains correctly TPS2065CDBVR. A supported capture-engine/verifier repair and a real rerun are required before successful stage completion. This is a tooling-blocked attempt, not evidence of an electrical-budget violation or hardware qualification. No PCB implementation, physical test, manufacturing release or downstream-stage completion is claimed.; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage             Wall  Turns  Out tok  Cache
+  --------------  ------  -----  -------  -----
+  spec-seed            —      —        —      —
+  architecture         —      —        —      —
+  part-selection       —      —        —      —
+  schematic       14m03s      5        0     0%
+  --------------  ------  -----  -------  -----
+  TOTAL           14m03s      5        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

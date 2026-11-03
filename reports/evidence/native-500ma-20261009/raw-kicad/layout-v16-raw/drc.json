@@ -1,0 +1,103 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-09T07:49:42+0900",
+    "kicad_version": "9.0.2",
+    "schematic_parity": [],
+    "source": "protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)",
+            "items": [
+                {
+                    "description": "NPTH pad of J1",
+                    "pos": {
+                        "x": 104.11,
+                        "y": 123.72
+                    },
+                    "uuid": "e4d092a5-a591-5782-9369-8a31b485019d"
+                },
+                {
+                    "description": "Pad A1 [GND] of J1 on F.Cu",
+                    "pos": {
+                        "x": 103.8,
+                        "y": 122.645
+                    },
+                    "uuid": "6b4b4dd3-4ae9-5975-939e-12f4f1933d91"
+                }
+            ],
+            "severity": "error",
+            "type": "hole_clearance"
+        },
+        {
+            "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)",
+            "items": [
+                {
+                    "description": "NPTH pad of J1",
+                    "pos": {
+                        "x": 104.11,
+                        "y": 123.72
+                    },
+                    "uuid": "e4d092a5-a591-5782-9369-8a31b485019d"
+                },
+                {
+                    "description": "Pad B12 [GND] of J1 on F.Cu",
+                    "pos": {
+                        "x": 103.8,
+                        "y": 122.645
+                    },
+                    "uuid": "6f6e2a20-1118-52c9-b1f3-ecec6b6b67f4"
+                }
+            ],
+            "severity": "error",
+            "type": "hole_clearance"
+        },
+        {
+            "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)",
+            "items": [
+                {
+                    "description": "NPTH pad of J1",
+                    "pos": {
+                        "x": 109.89,
+                        "y": 123.72
+                    },
+                    "uuid": "dbdfe58a-00d2-5915-8b22-e6ba8cf13db3"
+                },
+                {
+                    "description": "Pad A12 [GND] of J1 on F.Cu",
+                    "pos": {
+                        "x": 110.2,
+                        "y": 122.645
+                    },
+                    "uuid": "8e302429-2759-5295-b070-7710ff709da7"
+                }
+            ],
+            "severity": "error",
+            "type": "hole_clearance"
+        },
+        {
+            "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)",
+            "items": [
+                {
+                    "description": "NPTH pad of J1",
+                    "pos": {
+                        "x": 109.89,
+                        "y": 123.72
+                    },
+                    "uuid": "dbdfe58a-00d2-5915-8b22-e6ba8cf13db3"
+                },
+                {
+                    "description": "Pad B1 [GND] of J1 on F.Cu",
+                    "pos": {
+                        "x": 110.2,
+                        "y": 122.645
+                    },
+                    "uuid": "a9cc82fa-97af-555d-8acd-cc621467b833"
+                }
+            ],
+            "severity": "error",
+            "type": "hole_clearance"
+        }
+    ]
+}

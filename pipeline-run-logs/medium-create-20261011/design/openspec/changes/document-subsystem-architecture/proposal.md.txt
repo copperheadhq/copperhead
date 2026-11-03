@@ -1,0 +1,16 @@
+# Proposal: document-subsystem-architecture
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+Define the Stage 2 subsystem architecture and interfaces before selecting parts or capturing hardware, while preserving all requirements and unresolved verification in SPEC.md.
+
+## What Changes
+
+- Create docs/SUBSYSTEMS.md with a prose block diagram and one section per subsystem, including reasoning, key values, interfaces, and later verification gates.
+- Preserve USB-C qualified-source deployment, separate 5.1k CC resistors, grounded shell, protection/startup requirements, and prohibition of data/PD/battery/external voltage input.
+- Carry forward every input/rail current, voltage, efficiency, ambient, mechanical, RF, sensing, display, and firmware requirement without treating allocations or candidates as verified performance.
+- Document power-loss/inrush/quiescent/leakage accounting and the narrow peak margin as unresolved acceptance work.
+- Keep GPIO assignments, support values, exact packages/footprints, connectors beyond USB-C, and refdes/net names deferred; explicitly preserve strapping, RTC, back-power, I2C, and antenna checks.
+- Update docs/DECISIONS.md and docs/CHANGELOG.md, record architectural decisions and any newly selected assumptions/constraints, and complete change tasks. No schematic, board, or firmware edits are planned.

@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "ok": true,
+  "toolchain": {
+    "idfRoot": "<WORKSPACE>/tool-cache/esp-idf-v5.5.3",
+    "toolsRoot": "<WORKSPACE>/tool-cache/espressif-tools-v5.5.3",
+    "reproducible": true
+  },
+  "sdkFingerprint": "79bc225d112be61b062a066cc16b80e9ddf0c34934cf7c022f952f011d05329d",
+  "sources": [
+    {
+      "path": "docs/PINOUT.md",
+      "sha256": "63260f9d6da22585ddb92d93276cd130131728fd3260d438e2c9c3ad650bb6d6",
+      "bytes": 7490
+    },
+    {
+      "path": "firmware/CMakeLists.txt",
+      "sha256": "cb3344c0351ace934f60c042708ab42b475b34a3b56e5ed51836e4d3e74e87db",
+      "bytes": 249
+    },
+    {
+      "path": "firmware/main/app_main.c",
+      "sha256": "b1433967062b2768f04beb438f8fceb5584f6fa229593c973bdff3ea3b829417",
+      "bytes": 1988
+    },
+    {
+      "path": "firmware/main/board_hal.c",
+      "sha256": "fa86d7a669e06bb7bdd1336993a1f000ddbc56d39ba6c3d6e0a2a39a9c3feb8c",
+      "bytes": 1682
+    },
+    {
+      "path": "firmware/main/board_hal.h",
+      "sha256": "e827c0287a7e230375d6f1a1c77f81f86036580cbc8d4ad2d283b76860300bb5",
+      "bytes": 323
+    },
+    {
+      "path": "firmware/main/CMakeLists.txt",
+      "sha256": "2378a8e2a4351f946627f1630b5c82b3a5e47405336cc26d6af831b9750796c5",
+      "bytes": 951
+    },
+    {
+      "path": "firmware/main/drivers.c",
+      "sha256": "ba6bcb57bd6ddb5cc9ddb9c04e835d0c178d99617aefecc1789716eb40fe4aaf",
+      "bytes": 4698
+    },
+    {
+      "path": "firmware/main/drivers.h",
+      "sha256": "f25ca329e829b2e95d2075b19587b928bb4824958ce1dc186ae0a8747488512b",
+      "bytes": 468
+    },
+    {
+      "path": "firmware/pins.h",
+      "sha256": "d5a9ba66847bd9156e46524934d02246a436848aabc499449d511a1cb3613a8e",
+      "bytes": 318
+    },
+    {
+      "path": "firmware/README.md",
+      "sha256": "ce87dabb32be790f82a83b83c8cd3c13768852e447241720da58ff1c6c16a428",
+      "bytes": 3325
+    },
+    {
+      "path": "firmware/sdkconfig.defaults",
+      "sha256": "345c2b073b4637fb7417b184f5e7380d6465614e17837768af7d8c93de798b78",
+      "bytes": 158
+    },
+    {
+      "path": "firmware/tools/generate_pins.py",
+      "sha256": "d4599f7c1deaa32f8c3aeaa74551d10b19a7d59bdc59902c581d26b14a89b469",
+      "bytes": 2121
+    }
+  ],
+  "outputs": [
+    {
+      "path": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-1/build/bootloader/bootloader.bin",
+      "sha256": "2b1170d5481fdd9e12e3ee0f5970af51a2a858681d075b0f050dcb2280ffa836",
+      "bytes": 20896
+    },
+    {
+      "path": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-1/build/environment_display.bin",
+      "sha256": "549ccb4590b7085991c5010930dcbb73db283de897c27ba31979b82c978f438d",
+      "bytes": 202624
+    },
+    {
+      "path": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-1/build/environment_display.elf",
+      "sha256": "b238363c6f66d45f5e719c81f3fed6cf9ffe32dca3a0401b569487c76e433b18",
+      "bytes": 3789892
+    },
+    {
+      "path": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-1/build/partition_table/partition-table.bin",
+      "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "bytes": 3072
+    },
+    {
+      "path": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-2/build/bootloader/bootloader.bin",
+      "sha256": "2b1170d5481fdd9e12e3ee0f5970af51a2a858681d075b0f050dcb2280ffa836",
+      "bytes": 20896
+    },
+    {
+      "path": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-2/build/environment_display.bin",
+      "sha256": "549ccb4590b7085991c5010930dcbb73db283de897c27ba31979b82c978f438d",
+      "bytes": 202624
+    },
+    {
+      "path": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-2/build/environment_display.elf",
+      "sha256": "b238363c6f66d45f5e719c81f3fed6cf9ffe32dca3a0401b569487c76e433b18",
+      "bytes": 3789892
+    },
+    {
+      "path": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-2/build/partition_table/partition-table.bin",
+      "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+      "bytes": 3072
+    }
+  ],
+  "attempts": [
+    {
+      "directory": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-1",
+      "exitCode": 0,
+      "log": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-1/build.log",
+      "startedAt": "2026-10-11T21:05:33.699Z",
+      "finishedAt": "2026-10-11T21:05:52.347Z",
+      "command": [
+        "bash",
+        "-c",
+        "source \"$IDF_PATH/export.sh\" >/dev/null && python \"$IDF_PATH/tools/idf.py\" --version && exec python \"$IDF_PATH/tools/idf.py\" -B \"$COPPERHEAD_BUILD_DIRECTORY\" build"
+      ]
+    },
+    {
+      "directory": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-2",
+      "exitCode": 0,
+      "log": ".copperhead/firmware-build/6c1d182f-fb16-45b3-9671-c4e1fe6cf7ed/attempt-2/build.log",
+      "startedAt": "2026-10-11T21:05:52.357Z",
+      "finishedAt": "2026-10-11T21:06:11.176Z",
+      "command": [
+        "bash",
+        "-c",
+        "source \"$IDF_PATH/export.sh\" >/dev/null && python \"$IDF_PATH/tools/idf.py\" --version && exec python \"$IDF_PATH/tools/idf.py\" -B \"$COPPERHEAD_BUILD_DIRECTORY\" build"
+      ]
+    }
+  ],
+  "reproducible": true,
+  "reason": null
+}

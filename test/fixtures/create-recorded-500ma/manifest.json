@@ -1,0 +1,260 @@
+{
+  "schema": 1,
+  "kind": "sequential-recorded-experimental-model-replay",
+  "recordedUsage": "unknown; zero counters in original Turn are placeholders",
+  "briefSha256": "4185465cbc16b103d012147c987bb609399930448f4c6c2992116bf5cccbffde",
+  "stageCount": 8,
+  "stages": [
+    {
+      "name": "spec-seed",
+      "recordedRun": "native-500ma-spec-v7-20261008",
+      "turns": [
+        {
+          "file": "spec-seed-1.json",
+          "sha256": "d08f9a2e569f6063cbc36fb061ee8b5058f7aa55dba1b5948b5e3aade90b8060",
+          "sourceRequestSha256": "bb69b813428a44ecaf9e93340e1ad6e4a401b17e1cc73266f3278193820112d4",
+          "sourceResponseSha256": "4b9f57b03c522c84e36bed5ddb2faac7e01d24394ab9c73fe198ef14de15586b",
+          "sourceCacheKey": "b029c408736c6f99c0f4f01500e1983618c24ea4d393fe74eda9cb4cad0d8a68"
+        },
+        {
+          "file": "spec-seed-2.json",
+          "sha256": "b369c8d4b968d9ea713f37d6efa1cc6183ef64911a6bb0148195856b9581b62e",
+          "sourceRequestSha256": "2827695d41e83aa8124267c860ccc6b082ea813430b2855f6e9e184873c9ba37",
+          "sourceResponseSha256": "a5c7d2520f3fde7302ac8e5d70a210f38da16f048218f228bcfd4ab9911121a7",
+          "sourceCacheKey": "bcd3b857d723fec27ae8c9b64c75833aa78994209ead6132e2377c469869c293"
+        },
+        {
+          "file": "spec-seed-3.json",
+          "sha256": "75c06a1b7eb6071b572c001974757dd21145192c23989110f5620d9b33b2763f",
+          "sourceRequestSha256": "27b7be0f62f6bc0d5b8805518de177fde3d7493106b5aa97a3f0d81c5f889f02",
+          "sourceResponseSha256": "d3e69344e34ee1122ba47f827cb797fade0970981626ea83bc18e44d00c223bf",
+          "sourceCacheKey": "9168d98052cf782b44dfb318088e1ee3958c1dbb03cc2547c810bef096c88ec9"
+        },
+        {
+          "file": "spec-seed-4.json",
+          "sha256": "f478dc7e3e71af44aa896d6ea4d9fcbf6e306a8ef8fba73c18a2ca54542b7d8b",
+          "sourceRequestSha256": "a8ce394b6cf583cf779bc61853fb07348ff88444cf71f4b4b2142545ff724762",
+          "sourceResponseSha256": "4f8e14783b9d39d398b40f88263caa75cc07339fc3d5418d22f8ae03a752e626",
+          "sourceCacheKey": "a12b10cd16f2f239aa0ebcca765f348891256b11e558d32c7c302844735aad41"
+        }
+      ]
+    },
+    {
+      "name": "architecture",
+      "recordedRun": "native-500ma-architecture-v9-20261008",
+      "turns": [
+        {
+          "file": "architecture-1.json",
+          "sha256": "991f440eb42d47acd9dc4d4bb565fd316ce13b73ea1876ddb5bb06cafe992fd8",
+          "sourceRequestSha256": "8d2d85b93cf1e2af38fc741dd74a083fd005733269ec32e7045197574300436e",
+          "sourceResponseSha256": "7a2bce7a1ae61ed848ecdbe78c3762d2b592cdeb78063d3b4a1861c3cf1e6859",
+          "sourceCacheKey": "8ddbe65c2cab3a3279659ce2d2026d1aa7d51d709bdfea9625f0b9a624a7d7a0"
+        },
+        {
+          "file": "architecture-2.json",
+          "sha256": "8271ead1902616db9117bb5f4b7a27b94bbc74e615f07d26bae083fdd3374f3f",
+          "sourceRequestSha256": "2be99ca7d0117f88f68ad011efd3732417d875230820300186e411243e4c2567",
+          "sourceResponseSha256": "bf1272e3efcef2f5dd4e07f4dfc2177414ec7374928176387978b66aca1fbc66",
+          "sourceCacheKey": "b017cc1ce32a58f26165bcedcd4cf13cfcb6b1bf966fa5dfbc35e3f9dacb862e"
+        },
+        {
+          "file": "architecture-3.json",
+          "sha256": "20084885e0758e7a9f86085b85a825537fab85b517ec62c080c830c031f59808",
+          "sourceRequestSha256": "cdc91e0338ef1935acd1bc4a1a66f6135ed3ebad6165639d8fbb9c4305d9606c",
+          "sourceResponseSha256": "91513c7251acc3db2f7c19e8cd42eb3a494da627e49c138f52acbdbfd0d16d10",
+          "sourceCacheKey": "2f36b979434888f92b3b2a54b4323ae70fd451a96df3a367e9635127202591b9"
+        }
+      ]
+    },
+    {
+      "name": "part-selection",
+      "recordedRun": "native-500ma-parts-v12-20261008",
+      "turns": [
+        {
+          "file": "part-selection-1.json",
+          "sha256": "83043b76c97b4bb18c7c451e72aca0b7bf746bd21ffd5cf861a10d0f3b8be901",
+          "sourceRequestSha256": "7e46c932c87140d2a65eea67e949e4c9cb2d66bb0cf8eff6f044ae4783499340",
+          "sourceResponseSha256": "10fdf48452c7c8942077aa605bc88891946e6811d64efdc966fe3c813ecadff1",
+          "sourceCacheKey": "43a7b0cde4c0f5809b55c500b1210540193f8eb269f28101cc93cd34e5be19e8"
+        },
+        {
+          "file": "part-selection-2.json",
+          "sha256": "5d5838714d8cb24bc73e98592aafc12a0a2f5d2dc5c20f53041a5bf4bfd94bfc",
+          "sourceRequestSha256": "3da705596ffc2bc464ac44a7b80e60d65d2cf5d688f73d10f2e505e053325a0c",
+          "sourceResponseSha256": "d1954a3b8949520ba55cf288bb08751c6a9396697ea09619b71a3e5dfb9e810b",
+          "sourceCacheKey": "9868e1f9d19e93f85bb88d6ddbbd7b231913609cd7f6a79ca7876b6a63ae8632"
+        },
+        {
+          "file": "part-selection-3.json",
+          "sha256": "c880792d56b8a1fd21c7d06bd494bb27932325bf2b369c5d5b2daffa2a326736",
+          "sourceRequestSha256": "d42413f4f5be8e0d3dafd166bdb8d97023a41d3966e9e28b3007de1ac75a86b2",
+          "sourceResponseSha256": "b4f012b564f257cdf459c78c4e30e5707e5f65b7f01dd0d595a1e79c36db8f3f",
+          "sourceCacheKey": "fd338e94f6275e9a3f19cdff68ecb4a666ef374909cab9b506410db41c3b415b"
+        }
+      ]
+    },
+    {
+      "name": "schematic",
+      "recordedRun": "native-500ma-schematic-v14-20261008",
+      "turns": [
+        {
+          "file": "schematic-1.json",
+          "sha256": "ed00141af65baa4b108247f65d2fa30da1bd981aa86e23a142a5f67b76b1014e",
+          "sourceRequestSha256": "6f8f7cb7d9aaa5c56fb2b849d3033fe241eb37b3a699829303ca567534c96786",
+          "sourceResponseSha256": "0d663e41916346a84811b7dc7f1f961077930df37bcf8b197dd5512c2b3ae57b",
+          "sourceCacheKey": "e3d44b19eb084ab6b844b22cfa3cc2a388e441c3a234ec7b72306863006233e0"
+        },
+        {
+          "file": "schematic-2.json",
+          "sha256": "f9ade49c423fc2ea1774168c82362a526facbacc71f73ef523a410bc81a0e9f7",
+          "sourceRequestSha256": "ed72259739923c81d382bdf566acf475102035549261e4cb4ea7eda101f6eb60",
+          "sourceResponseSha256": "da5ded9667db8c4a055de92c3338813c41654a2673c90a71ce4c2d724418ac33",
+          "sourceCacheKey": "d739bbf53b59e877bbb2e50caf25f6b3fd7e58530086d608c9de4354fd8c28c9"
+        },
+        {
+          "file": "schematic-3.json",
+          "sha256": "2b73b6da60396d3d227874f698137668679649b51c5c2c9524a680d334548276",
+          "sourceRequestSha256": "6dea0c337c818d3369240da2c2c7e7a8f32bae1bbe1d93d831de7e5616d846c9",
+          "sourceResponseSha256": "47b4bab1a0f467f8882e22c3056522a41156da13a76c44eac489c7dea872b3c1",
+          "sourceCacheKey": "f711a3250edbbde0f62add254acfabee3aa4427044e97bab83ce187f223f28b4"
+        },
+        {
+          "file": "schematic-4.json",
+          "sha256": "ac08a9c425f6dab5aa0e4d060a7d71644c9aaa640c7fef729aca235d771ab597",
+          "sourceRequestSha256": "5882c2b2b6161140c55e6d31475e9cfb0de4156e85080c011b90856d40dd81d6",
+          "sourceResponseSha256": "32de66ffbb97755716a16d03171145148d9e5fed0f9f08016fb37357c345999e",
+          "sourceCacheKey": "e5b465032a5985d5e1d95c0844e8e418e7f54aa3eb3d451ed784d18bd7601524"
+        }
+      ]
+    },
+    {
+      "name": "layout-draft",
+      "recordedRun": "native-500ma-layout-v16-20261008",
+      "turns": [
+        {
+          "file": "layout-draft-1.json",
+          "sha256": "b3f207a07c984d3345c4abeebff6b6d810379e29f33ab322ddcaa2a964885e1a",
+          "sourceRequestSha256": "b19ea8b75a6bc9b6acde18f2b5ff2d501c1bc8514e756ee047196e58f1ae9c41",
+          "sourceResponseSha256": "a3fe1e64ae42c8ce4ade1ef1260821dd26dca97dba8388cba32b329b1b5b9299",
+          "sourceCacheKey": "05823c60043962c07356514d41fd2f34381972ce5b8d911b2f930ce4a2bd6d08"
+        },
+        {
+          "file": "layout-draft-2.json",
+          "sha256": "58d30031e21fcfb4d192a2f13f693a2e5fb064bea6368bc1bcd3589546761f67",
+          "sourceRequestSha256": "c4f0e89d887a1332833b8159ea91bb5e33958a87732fb41523d56ea775dc3e85",
+          "sourceResponseSha256": "c95f6e02ce939d0119a95392dc5d83a38f961bec4e64adb07b8a750180fa991f",
+          "sourceCacheKey": "eb181b720ea870da759245d89279d6b29c2dbc8679e376a1609d90b1db2ade01"
+        },
+        {
+          "file": "layout-draft-3.json",
+          "sha256": "e221e15ddc7c1461d2dce255419e526281cba217ba87fda1b2d4c39758336cf7",
+          "sourceRequestSha256": "89f2368b677def3c5c08036a72a45ac1ad5848c60957b41c88214754d4bb8497",
+          "sourceResponseSha256": "64123f5d1b769e258bcad584ab9aac5067dd7b9d7d7f86cbcab8342d36869b6d",
+          "sourceCacheKey": "457d8331830c0688d51b32dd021fb21941fe352a657bc2237a20051e5689da94"
+        },
+        {
+          "file": "layout-draft-4.json",
+          "sha256": "f9861b9dccda10d9ec8053112089bb24b4bb89444e9997240c991dfb9b2632ff",
+          "sourceRequestSha256": "c7700b2a19d131f3105f857f337199157f3571195736dc0e9e997dfcae9c538a",
+          "sourceResponseSha256": "f78ff3d1f0782b5708d5c102be0c8c31b89cc82185de773d723ad80ec9e718bf",
+          "sourceCacheKey": "90b8a4690375c655d01913e7bb0795811b2eb9023ced8fb5d7acfd1ed0958baa"
+        }
+      ]
+    },
+    {
+      "name": "outputs",
+      "recordedRun": "native-500ma-outputs-v18-20261008",
+      "turns": [
+        {
+          "file": "outputs-1.json",
+          "sha256": "5a28a45b8b5363d7339ec9136809c5799a5de70add5e32ee8a74cbd6f0a6c811",
+          "sourceRequestSha256": "7c500fa2857c050f4f9b72101e20b6f93ccbee878a28c032d7700f74dc1f31bb",
+          "sourceResponseSha256": "b3a035864c0448097747584547ebbdc33215876a2c10b02a9285c3a147093538",
+          "sourceCacheKey": "eb1e50fe7613384582d3cd1a16c6ce00aec8d37c79555b7c43c8fcd2ff93ec2a"
+        },
+        {
+          "file": "outputs-2.json",
+          "sha256": "a625ac19afa762d295c8ab459fa52f03b0a2e876adcca05891ce207bc69f383c",
+          "sourceRequestSha256": "408c6fb59c927a9e469f3e3033e30e572aedeb7597db0cab49dd52f4f43ecbe0",
+          "sourceResponseSha256": "6e2b60e54067620d337fdb933eb2397f8b52843b1f912534644abc0935417eb2",
+          "sourceCacheKey": "79b6d4382e0ec0cf9d40911293d6b6666d4369dc2bbe8845709584a103144211"
+        },
+        {
+          "file": "outputs-3.json",
+          "sha256": "657c7b331941710c111e9f1152eeee94307df4ea12a56c4c231e8b7280e40c45",
+          "sourceRequestSha256": "9e93838063e0c79e41f9ebf00faa3c8d5d7a1f669a597fa61bc84710b4701477",
+          "sourceResponseSha256": "fa30d8d9b80b4602ac3e14e150a716731b36f3d535dee0d9027f4b24f5fd454c",
+          "sourceCacheKey": "05858fb394a6f0359c95d592190aa716c8db8cdaf1b9977fc5b2988d0e6d9fd9"
+        },
+        {
+          "file": "outputs-4.json",
+          "sha256": "9dce7c26b522540852f71ed2704a767f11330cc3a413d84f7953985f220ca364",
+          "sourceRequestSha256": "94e434b87aa5b93b77714a2d0dd3a41304f543c900ba2657a79d7df13dd02ef2",
+          "sourceResponseSha256": "12ed4c12c2dbf14810daa3d0e97ea871683598c59ee9d7e6552a76614af2e4b9",
+          "sourceCacheKey": "6f07b632675ebe8fdb9c26965a6d72863f02ab8217ba1c8354cfadfb2e00c2bf"
+        }
+      ]
+    },
+    {
+      "name": "firmware",
+      "recordedRun": "native-500ma-firmware-v19-20261008",
+      "turns": [
+        {
+          "file": "firmware-1.json",
+          "sha256": "386512f2a37e83c4ff9f7fa798df4c2aca6bc38eea8824807a1e8042c8228875",
+          "sourceRequestSha256": "1908e2db297e4dffef2edb0c5224577ce786e0a7a65c2b81fcde5db8a55aee05",
+          "sourceResponseSha256": "1ad01c0aaa91394435d76fa1142aaa04f1e514506a2baae69284a07759688557",
+          "sourceCacheKey": "e1cdb0556a5cb659d5a00a1d4d18726e3deb5dee1e5d7a212f7c8743e5e082c2"
+        },
+        {
+          "file": "firmware-2.json",
+          "sha256": "b119eec5078f8f858d36d7f1b7be33386bbd3f62f96a8e6b10c4026aecd62a7d",
+          "sourceRequestSha256": "1b8c865e412613d6addd27497e3a1f85fb4cfc43597764fbec4e7cfad8ae6382",
+          "sourceResponseSha256": "0f85068e3e0674af167cd2095a00701fc1e44939451f83494de6db17a00c280b",
+          "sourceCacheKey": "16401d4970f3b343d99c7401cfc25752301a3d958aa5ce56218a6d9c8a611a3f"
+        },
+        {
+          "file": "firmware-3.json",
+          "sha256": "13487e71d460d738e8518c21bfdcbf0252c409c0d10dc23fe689284eb44b8f67",
+          "sourceRequestSha256": "74cf9e3cd00a2570bb0f6d07cfd86dbc50cdb08d8747f68ad81626c59e7adcc0",
+          "sourceResponseSha256": "0caa36cd4bddd3d05fccf9c674201daa77860ec06cded28dec2d68fe8f1ad796",
+          "sourceCacheKey": "d57ad0b62659ff39deaf63d9b057afac77aed4c25667d7715012c19407359fbd"
+        },
+        {
+          "file": "firmware-4.json",
+          "sha256": "3fbff7e5ca6c26380ba6622a96beb10f0f475f0ebb6077bb3f2e45ed6d774e69",
+          "sourceRequestSha256": "7da045fd3389830eda967598ddcb800f1bc8c5102cb7914adee61c69a13b5050",
+          "sourceResponseSha256": "4a9113793a9c07b944c941070e00a73511307366cf48629dc913e6821457f741",
+          "sourceCacheKey": "afd4a1fa613d6519741512a4f552b12a7d27a448ce57627773e97425f3e2b175"
+        }
+      ]
+    },
+    {
+      "name": "devplan",
+      "recordedRun": "native-500ma-devplan-v21-20261009",
+      "turns": [
+        {
+          "file": "devplan-1.json",
+          "sha256": "965ff7aab1298c34dac66e05dd107dd246cee6a34c6a0bcb978a2d0b5dbb9ece",
+          "sourceRequestSha256": "edbf48b2cd820039e7744313b70bda4058e2ea964119a12ea5e0986bf844ec00",
+          "sourceResponseSha256": "f09190d3e308ca2984bc61ce7c8972b744d43e7be5bb8db7e03e18dbdf608a64",
+          "sourceCacheKey": "9c83e80ae67b171df8a5b5a3ee5c3986f6bba1eca909304f25ebd0d205f5b370"
+        },
+        {
+          "file": "devplan-2.json",
+          "sha256": "19ef24603138f854d811badd22778fa1e0e360b3e8cfbf89e9c339551953689f",
+          "sourceRequestSha256": "2be845ebcf78695291a9b5f1949e0b4664823f8e6a6bddd6839f5875fc546e1b",
+          "sourceResponseSha256": "458465396a78402d34df6896d84e9fcb6516eac0e8327dc1a55eb8d0530868ca",
+          "sourceCacheKey": "3ecfd5cb6eda28337dd7ad496729445a55c9dc393007fc1357c93eced633e94f"
+        },
+        {
+          "file": "devplan-3.json",
+          "sha256": "5ae815ca4db7c3a6455781be5aa452cfd69d859902c0b1c1951ce0f111da6f28",
+          "sourceRequestSha256": "018d97c30299b3fb788f8c133e8818cea10ad5a79a99c70cbfff41c11c17f289",
+          "sourceResponseSha256": "dfc7c44c3dcce4e33bfbee408424a118e1a2f6e17ac8c1018e20c585d03f3562",
+          "sourceCacheKey": "721e143e5e94dd02f6346bdc3240dde13152be5d64e09814790322dd593d55d9"
+        }
+      ]
+    }
+  ]
+}

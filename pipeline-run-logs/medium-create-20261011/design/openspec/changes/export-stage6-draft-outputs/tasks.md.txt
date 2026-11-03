@@ -1,0 +1,10 @@
+# Tasks
+
+- [x] Validate this proposal before edits or export generation.
+- [x] Inspect export configuration and relevant output documentation through Copperhead tools.
+- [x] Run ERC, DRC and drift checks; read and reconcile any findings without suppression.
+- [x] Call export_outputs with the selected generic profile and require all requested artifacts to succeed.
+- [ ] Verify export-manifest.json against current source and output hashes through the finish completion gate; manifest readback complete, no independent hash result inferred.
+- [x] Document artifact paths, profile, actual verification and draft-only status, including93 unrouted connections and unresolved qualifications.
+- [x] Record decisions/constraints and resolve synchronization obligations.
+- [ ] Finish only after all Stage6 obligations pass.

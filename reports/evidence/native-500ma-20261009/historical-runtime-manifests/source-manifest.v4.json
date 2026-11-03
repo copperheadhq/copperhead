@@ -1,0 +1,14 @@
+{
+  "baseCommit": "e26be947ed31a35fbbb52623174bb25017d6cd44",
+  "files": {
+    "src/commands/create.ts": "df71b23f448165bb04e467efe07a8d7a21945f77cc2705ba14bc14a748edcb9f",
+    "src/agent/providers/experimental-native.ts": "b9956e98ed49c8e6436430a8ec7fe5990bd9e62b5dbcfc8bd11c6aa8068c14ce",
+    "src/agent/loop.ts": "52b68093d126944e6d525671ab66b65cc0a0a414316300a434185b493f86aaa7",
+    "src/agent/recovery.ts": "e4af1d4918b01620b598eeca359b8f27c0c9bc24989db34fe087c05ecc7c12a2",
+    "src/util/retry.ts": "c977511d2deddff4c0dae80c9f2e6ac5eb582e857059ee197afa82f3eff40250",
+    "scripts/experimental-native-control.mjs": "2f87f5ad46a38edad0c37dbc6671f251dbf3a759fa35b266615639b5920b0e92",
+    "dist/commands/create.js": "05a2ef1297ddfcfc343ddcabbe93934f6930b553019d486686c3881e4ca2c5d4",
+    "dist/agent/providers/experimental-native.js": "16277ee5311cf9c5674cad14fa35e9dbeda3df1ea92b01cd9db0370a5965fc64"
+  },
+  "contractFixPatchSha256": "559b67081f6bdf6d5b4ce6765bc9eb88fd1432b8b4de533308467074e1dabcf5"
+}

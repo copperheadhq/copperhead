@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { ThreadOptions, TurnOptions, Usage } from '@openai/codex-sdk';
+import type { ThreadEvent, ThreadOptions, TurnOptions, Usage } from '@openai/codex-sdk';
 import type { ChatOpts, Msg, Provider, ToolCall, ToolSchema, Turn } from '../types.js';
 
 type CodexUsage = Pick<Usage, 'input_tokens' | 'output_tokens'>;
@@ -24,6 +24,7 @@ interface CodexTurnLike {
 
 interface CodexThreadLike {
   run(input: string, options?: CodexTurnOptions): Promise<CodexTurnLike>;
+  runStreamed?(input: string, options?: CodexTurnOptions): Promise<{ events: AsyncGenerator<ThreadEvent> }>;
 }
 
 export interface CodexClientLike {
@@ -73,7 +74,7 @@ export class CodexProvider implements Provider {
     this.client = options.client;
   }
 
-  async chat(messages: Msg[], tools: ToolSchema[], _opts: ChatOpts = {}): Promise<Turn> {
+  async chat(messages: Msg[], tools: ToolSchema[], opts: ChatOpts = {}): Promise<Turn> {
     const generation = this.generation;
     const aborter = new AbortController();
     this.inFlight.add(aborter);
@@ -97,7 +98,12 @@ export class CodexProvider implements Provider {
       const schema = turnSchema(tools);
       const toolCatalog = new Map(tools.map((tool) => [tool.name, tool]));
       const attempts: CodexTurnLike[] = [];
-      let result = await this.runThread(thread, renderTurnPrompt(messages, cursor, tools), schema, aborter.signal);
+      let streamedChars = 0;
+      const progress = (delta: number): void => {
+        streamedChars += delta;
+        opts.onStream?.(streamedChars);
+      };
+      let result = await this.runThread(thread, renderTurnPrompt(messages, cursor, tools), schema, aborter.signal, progress);
       this.assertCurrent(generation);
       attempts.push(result);
 
@@ -106,7 +112,7 @@ export class CodexProvider implements Provider {
         parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
       } catch (err) {
         const validationError = (err as Error).message;
-        result = await this.runThread(thread, renderCorrectionPrompt(tools, validationError), schema, aborter.signal);
+        result = await this.runThread(thread, renderCorrectionPrompt(tools, validationError), schema, aborter.signal, progress);
         this.assertCurrent(generation);
         attempts.push(result);
         parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
@@ -173,11 +179,41 @@ export class CodexProvider implements Provider {
     prompt: string,
     outputSchema: Record<string, unknown>,
     signal: AbortSignal,
+    progress: (delta: number) => void,
   ): Promise<CodexTurnLike> {
     try {
       // The turn's own thread, not `this.thread`, which close() may have
       // replaced; the signal lets close() kill the `codex exec` subprocess.
-      return await thread.run(prompt, { outputSchema, signal });
+      // Older/fake clients may only offer run(); never invent activity for them.
+      if (!thread.runStreamed) return await thread.run(prompt, { outputSchema, signal });
+      const { events } = await thread.runStreamed(prompt, { outputSchema, signal });
+      const lengths = new Map<string, number>();
+      let finalResponse = '';
+      let usage: CodexUsage | null = null;
+      let completed = false;
+      for await (const event of events) {
+        signal.throwIfAborted();
+        if (event.type === 'error') throw new Error(event.message);
+        if (event.type === 'turn.failed') throw new Error(event.error.message);
+        if (event.type === 'item.updated' || event.type === 'item.completed') {
+          const item = event.item;
+          if (item.type === 'agent_message' || item.type === 'reasoning') {
+            const prior = lengths.get(item.id) ?? 0;
+            if (item.text.length > prior) {
+              lengths.set(item.id, item.text.length);
+              progress(item.text.length - prior);
+            }
+            if (event.type === 'item.completed' && item.type === 'agent_message') finalResponse = item.text;
+          }
+        }
+        if (event.type === 'turn.completed') {
+          usage = event.usage;
+          completed = true;
+        }
+      }
+      signal.throwIfAborted();
+      if (!completed) throw new Error('Codex stream ended without turn.completed');
+      return { finalResponse, usage };
     } catch (err) {
       const original = err as Error & { status?: number; statusCode?: number };
       const setupHint = isCliSetupError(original)

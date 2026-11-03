@@ -1,0 +1,187 @@
+{
+  "warning": "Current source is a post-run observed worktree, not an immutable historical runtime snapshot. Mismatches must not be silently substituted. Some exact historical partial backups survive. No new project code or model run was executed for this audit.",
+  "comparisons": [
+    {
+      "manifest": "source-manifest.v4.json",
+      "path": "src/commands/create.ts",
+      "historical_expected_sha256": "df71b23f448165bb04e467efe07a8d7a21945f77cc2705ba14bc14a748edcb9f",
+      "current_sha256": "8805c62dc7367c9858086e1e6c789b9ece486cc7f9c88a6961684aa7faf088d0",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v4.json",
+      "path": "src/agent/providers/experimental-native.ts",
+      "historical_expected_sha256": "b9956e98ed49c8e6436430a8ec7fe5990bd9e62b5dbcfc8bd11c6aa8068c14ce",
+      "current_sha256": "a9b9e46b77c78f96b1831c1ce5a9966d92341e6b6b4ad034b74095632fe53789",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v4.json",
+      "path": "src/agent/loop.ts",
+      "historical_expected_sha256": "52b68093d126944e6d525671ab66b65cc0a0a414316300a434185b493f86aaa7",
+      "current_sha256": "52b68093d126944e6d525671ab66b65cc0a0a414316300a434185b493f86aaa7",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v4.json",
+      "path": "src/agent/recovery.ts",
+      "historical_expected_sha256": "e4af1d4918b01620b598eeca359b8f27c0c9bc24989db34fe087c05ecc7c12a2",
+      "current_sha256": "e4af1d4918b01620b598eeca359b8f27c0c9bc24989db34fe087c05ecc7c12a2",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v4.json",
+      "path": "src/util/retry.ts",
+      "historical_expected_sha256": "c977511d2deddff4c0dae80c9f2e6ac5eb582e857059ee197afa82f3eff40250",
+      "current_sha256": "c977511d2deddff4c0dae80c9f2e6ac5eb582e857059ee197afa82f3eff40250",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v4.json",
+      "path": "scripts/experimental-native-control.mjs",
+      "historical_expected_sha256": "2f87f5ad46a38edad0c37dbc6671f251dbf3a759fa35b266615639b5920b0e92",
+      "current_sha256": "2f87f5ad46a38edad0c37dbc6671f251dbf3a759fa35b266615639b5920b0e92",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v4.json",
+      "path": "dist/commands/create.js",
+      "historical_expected_sha256": "05a2ef1297ddfcfc343ddcabbe93934f6930b553019d486686c3881e4ca2c5d4",
+      "current_sha256": "f4979761c31fb60babee7fd1df49ff07966defdce116a49a70eb528ffbb59ab3",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v4.json",
+      "path": "dist/agent/providers/experimental-native.js",
+      "historical_expected_sha256": "16277ee5311cf9c5674cad14fa35e9dbeda3df1ea92b01cd9db0370a5965fc64",
+      "current_sha256": "6d00351262caf6d10090ae9b79a180166983e52e4e7ab36e7bace7469a0c306b",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v7.json",
+      "path": "src/commands/create.ts",
+      "historical_expected_sha256": "df71b23f448165bb04e467efe07a8d7a21945f77cc2705ba14bc14a748edcb9f",
+      "current_sha256": "8805c62dc7367c9858086e1e6c789b9ece486cc7f9c88a6961684aa7faf088d0",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v7.json",
+      "path": "src/agent/providers/experimental-native.ts",
+      "historical_expected_sha256": "b9956e98ed49c8e6436430a8ec7fe5990bd9e62b5dbcfc8bd11c6aa8068c14ce",
+      "current_sha256": "a9b9e46b77c78f96b1831c1ce5a9966d92341e6b6b4ad034b74095632fe53789",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v7.json",
+      "path": "src/agent/loop.ts",
+      "historical_expected_sha256": "52b68093d126944e6d525671ab66b65cc0a0a414316300a434185b493f86aaa7",
+      "current_sha256": "52b68093d126944e6d525671ab66b65cc0a0a414316300a434185b493f86aaa7",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v7.json",
+      "path": "src/agent/recovery.ts",
+      "historical_expected_sha256": "e4af1d4918b01620b598eeca359b8f27c0c9bc24989db34fe087c05ecc7c12a2",
+      "current_sha256": "e4af1d4918b01620b598eeca359b8f27c0c9bc24989db34fe087c05ecc7c12a2",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v7.json",
+      "path": "src/util/retry.ts",
+      "historical_expected_sha256": "c977511d2deddff4c0dae80c9f2e6ac5eb582e857059ee197afa82f3eff40250",
+      "current_sha256": "c977511d2deddff4c0dae80c9f2e6ac5eb582e857059ee197afa82f3eff40250",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v7.json",
+      "path": "scripts/experimental-native-control.mjs",
+      "historical_expected_sha256": "2f87f5ad46a38edad0c37dbc6671f251dbf3a759fa35b266615639b5920b0e92",
+      "current_sha256": "2f87f5ad46a38edad0c37dbc6671f251dbf3a759fa35b266615639b5920b0e92",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v7.json",
+      "path": "dist/commands/create.js",
+      "historical_expected_sha256": "05a2ef1297ddfcfc343ddcabbe93934f6930b553019d486686c3881e4ca2c5d4",
+      "current_sha256": "f4979761c31fb60babee7fd1df49ff07966defdce116a49a70eb528ffbb59ab3",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v7.json",
+      "path": "dist/agent/providers/experimental-native.js",
+      "historical_expected_sha256": "16277ee5311cf9c5674cad14fa35e9dbeda3df1ea92b01cd9db0370a5965fc64",
+      "current_sha256": "6d00351262caf6d10090ae9b79a180166983e52e4e7ab36e7bace7469a0c306b",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "src/commands/create.ts",
+      "historical_expected_sha256": "6f402d49605f904e8ec30ad970aa94b18118d36fc037283ddb68afd8b3814c3a",
+      "current_sha256": "8805c62dc7367c9858086e1e6c789b9ece486cc7f9c88a6961684aa7faf088d0",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "src/commands/firmware-applicability.ts",
+      "historical_expected_sha256": "58995f155161b24b5fa1d13f1d805bc45d930e9ae50336bb4deb00e8f4e3280f",
+      "current_sha256": "e74a044c1ea5adb2a8f0167171737898b453596f00d8e71740c3d6bd4cf12004",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "src/agent/providers/experimental-native.ts",
+      "historical_expected_sha256": "b9956e98ed49c8e6436430a8ec7fe5990bd9e62b5dbcfc8bd11c6aa8068c14ce",
+      "current_sha256": "a9b9e46b77c78f96b1831c1ce5a9966d92341e6b6b4ad034b74095632fe53789",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "src/agent/loop.ts",
+      "historical_expected_sha256": "52b68093d126944e6d525671ab66b65cc0a0a414316300a434185b493f86aaa7",
+      "current_sha256": "52b68093d126944e6d525671ab66b65cc0a0a414316300a434185b493f86aaa7",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "src/agent/recovery.ts",
+      "historical_expected_sha256": "e4af1d4918b01620b598eeca359b8f27c0c9bc24989db34fe087c05ecc7c12a2",
+      "current_sha256": "e4af1d4918b01620b598eeca359b8f27c0c9bc24989db34fe087c05ecc7c12a2",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "src/util/retry.ts",
+      "historical_expected_sha256": "c977511d2deddff4c0dae80c9f2e6ac5eb582e857059ee197afa82f3eff40250",
+      "current_sha256": "c977511d2deddff4c0dae80c9f2e6ac5eb582e857059ee197afa82f3eff40250",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "scripts/experimental-native-control.mjs",
+      "historical_expected_sha256": "2f87f5ad46a38edad0c37dbc6671f251dbf3a759fa35b266615639b5920b0e92",
+      "current_sha256": "2f87f5ad46a38edad0c37dbc6671f251dbf3a759fa35b266615639b5920b0e92",
+      "matches_current": true
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "dist/commands/create.js",
+      "historical_expected_sha256": "9f1a25f93fa6771cb2783c485b41ac81d384145144efb24863429cc452a0c249",
+      "current_sha256": "f4979761c31fb60babee7fd1df49ff07966defdce116a49a70eb528ffbb59ab3",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "dist/commands/firmware-applicability.js",
+      "historical_expected_sha256": "80370855f661b079fa6f85d23fb39f0d72deb9a4cf9e604188af6b5d3f4720c8",
+      "current_sha256": "c692d70db27e914c43eda0343458ad0e58a663ecab69460307c0bff4b6d306ff",
+      "matches_current": false
+    },
+    {
+      "manifest": "source-manifest.v8.json",
+      "path": "dist/agent/providers/experimental-native.js",
+      "historical_expected_sha256": "16277ee5311cf9c5674cad14fa35e9dbeda3df1ea92b01cd9db0370a5965fc64",
+      "current_sha256": "6d00351262caf6d10090ae9b79a180166983e52e4e7ab36e7bace7469a0c306b",
+      "matches_current": false
+    }
+  ]
+}

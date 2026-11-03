@@ -1,0 +1,4 @@
+EXCLUDED (no MPN): R1 (10k) — add an MPN in BOM.md — unorderable without one
+EXCLUDED (no MPN): R2 (1k) — add an MPN in BOM.md — unorderable without one
+EXCLUDED (no MPN): U1 (ESP32-S3-MINI) — add an MPN in BOM.md — unorderable without one
+wrote outputs/jlcpcb-bom.csv (0 part(s), 3 excluded)

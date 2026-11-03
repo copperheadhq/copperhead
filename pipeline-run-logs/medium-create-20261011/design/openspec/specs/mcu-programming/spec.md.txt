@@ -1,0 +1,11 @@
+# MCU and programming
+## Requirements
+ESP32-C3-MINI-1-N4X SHALL remain an unverified architecture candidate until package/pins/library and operating-mode evidence is checked. Manual EN/RESET and BOOT and an external 3.3V UART TX/RX/GND interface SHALL be provided.
+### Scenario: GPIO assignment
+- **Given** a proposed pin assignment
+- **When** capture is planned
+- **Then** GPIO2/8/9 strapping levels and external loading SHALL first be checked against the manufacturer table, and RTC capability SHALL be checked for any feature requiring it.
+### Scenario: Programming connection
+- **Given** an external 3.3V-level programmer/debug adapter
+- **When** connected or the target is unpowered
+- **Then** connector orientation SHALL be labeled and target back-power SHALL be prevented; no automatic USB programming SHALL be claimed.

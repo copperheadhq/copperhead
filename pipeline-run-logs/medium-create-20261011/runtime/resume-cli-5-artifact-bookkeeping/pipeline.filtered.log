@@ -1,0 +1,32 @@
+stage spec-seed: already complete (resuming past it)
+stage spec-seed: committed already-complete work 55feeea587 so a later rollback cannot wipe it (2.4)
+stage architecture: already complete (resuming past it)
+stage part-selection: already complete (resuming past it)
+stage schematic: already complete (resuming past it)
+stage layout-draft: already complete (resuming past it)
+stage outputs: already complete (resuming past it)
+stage outputs: emitted outputs/jlcpcb-bom.csv (JLCPCB assembly BOM)
+stage firmware: already complete (resuming past it)
+stage devplan: already complete (resuming past it)
+ERC ✓
+DRC ✓ (93 unrouted)
+drift ✓
+legibility: 0 error, 2 advisory finding(s) across 1 sheet(s):
+  1. [advisory] cross-group-wire @ / (368.93, 113.03) refs: MCU and programming, (unlabeled) — a 67.31mm wire on net (unlabeled) exceeds the 50.8mm maximum; shorten the route or use a net label pair
+  2. [advisory] cross-group-wire @ / (359.41, 156.21) refs: MCU and programming, (unlabeled) — a 86.36mm wire on net (unlabeled) exceeds the 50.8mm maximum; shorten the route or use a net label pair
+legibility score: 75.11/100
+constraints ✓
+create pipeline complete; all checks green
+
+Per-stage cost summary
+  Stage           Wall  Turns  Out tok  Cache
+  --------------  ----  -----  -------  -----
+  spec-seed          —      —        —      —
+  architecture       —      —        —      —
+  part-selection     —      —        —      —
+  schematic          —      —        —      —
+  layout-draft       —      —        —      —
+  outputs            —      —        —      —
+  firmware           —      —        —      —
+  devplan            —      —        —      —
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

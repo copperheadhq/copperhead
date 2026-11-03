@@ -1,0 +1,350 @@
+npm notice run copperhead@0.11.0 test
+npm notice run vitest run
+
+ RUN  v3.2.7 <WORKSPACE>/bounded-live-20261011/strict-final-audit-20261011/pr-head-checkout
+
+ERC skipped (no schematic configured; run copperhead init)
+DRC skipped (no board configured)
+legibility skipped (no schematic configured)
+copperhead mcp 0.1.0 (EXPERIMENTAL — unstable surface: tool names, inputs and results may change in any release)
+repo: /tmp/copperhead-test-248mzJ
+ERC skipped (no schematic configured; run copperhead init)
+DRC skipped (no board configured)
+legibility skipped (no schematic configured)
+ERC skipped (no schematic configured; run copperhead init)
+DRC skipped (no board configured)
+legibility skipped (no schematic configured)
+ ✓ test/create-hardening.test.ts (8 tests) 1952ms
+   ✓ KiCad edit probe validation (AC-15.20..15.22) > kicadLoadError: null on a good schematic, text on a corrupt one, null on unprobeable kinds  609ms
+   ✓ KiCad edit probe validation (AC-15.20..15.22) > an edit that corrupts a loadable schematic is reverted with the kicad-cli reason (AC-15.20)  599ms
+   ✓ KiCad edit probe validation (AC-15.20..15.22) > an already-unloadable schematic keeps repair edits instead of deadlocking (AC-15.22)  425ms
+ ✓ test/draft-engine.test.ts (18 tests) 2145ms
+   ✓ drafting engine: the reference IR end to end > drafts byte-identically, passes the legibility gate, and round-trips connectivity (AC-16.1, AC-16.3)  390ms
+   ✓ drafting engine: the reference IR end to end > passes ERC clean on the drafted output (gate-resolvability, AC-16.9/AC-16.10/AC-16.12)  474ms
+copperhead mcp 0.1.0 (EXPERIMENTAL — unstable surface: tool names, inputs and results may change in any release)
+repo: /tmp/copperhead-test-EqPI0f
+ ✓ test/mcp-stdio.test.ts (2 tests) 2228ms
+   ✓ copperhead mcp over real stdio > completes a handshake and serves the pipeline tools with stdout uncorrupted  1164ms
+   ✓ copperhead mcp over real stdio > diagnoses a broken kicad-cli instead of failing opaquely (design D10)  1063ms
+ ✓ test/draft-tools.test.ts (11 tests) 2606ms
+   ✓ draft_schematic tool > re-drafts, embeds checker findings and score, and updates the ledger (AC-16.11)  548ms
+   ✓ stage-4 drafting contract (AC-16.20) > a stale draft keeps the stage active; a re-draft completes it  1561ms
+ERC ✓
+ ✓ test/budget-efficiency.test.ts (19 tests) 3444ms
+   ✓ turn-budget exhaustion (AC-15.1..15.4) > granting extra turns continues the run to success, with a budget-extended event  416ms
+   ✓ turn-budget exhaustion (AC-15.1..15.4) > declining keeps fail-and-restore, but preserves the touched work in a stash (AC-15.16)  385ms
+   ✓ turn-budget exhaustion (AC-15.1..15.4) > no callback (non-interactive) fails exactly as before, no stash for an untouched tree (AC-15.3, AC-15.17)  374ms
+   ✓ turn-budget exhaustion (AC-15.1..15.4) > a throwing callback reads as declined: the run still restores instead of crashing past rollback  409ms
+   ✓ turn-budget exhaustion (AC-15.1..15.4) > the 5-turns-remaining nudge tells the model to batch tool calls (AC-15.6)  315ms
+   ✓ empty-completion tolerance (agent loop) > sporadic tool-less turns between productive ones do not fail the run  351ms
+   ✓ empty-completion tolerance (agent loop) > three consecutive tool-less turns still fail the run  356ms
+ ✓ test/draft-opamp.test.ts (7 tests) 3841ms
+   ✓ op-amp stages (AC-16.73 to AC-16.80) > p18-inverting-amplifier: inverting input on top, ERC and legibility clean  529ms
+   ✓ op-amp stages (AC-16.73 to AC-16.80) > p58-summing-integrator: inverting input on top, ERC and legibility clean  742ms
+   ✓ op-amp stages (AC-16.73 to AC-16.80) > p56-simple-integrator: inverting input on top, ERC and legibility clean  577ms
+   ✓ op-amp stages (AC-16.73 to AC-16.80) > p15-voltage-follower: library orientation kept, ERC and legibility clean  477ms
+   ✓ op-amp stages (AC-16.73 to AC-16.80) > p53-non-inverting-amplifier: library orientation kept, ERC and legibility clean  508ms
+   ✓ op-amp stages (AC-16.73 to AC-16.80) > p53-switched-gain: library orientation kept, ERC and legibility clean  686ms
+   ✓ op-amp stages (AC-16.73 to AC-16.80) > a summer stacks its inputs on rows of their own, terminals at the ends (AC-16.39, AC-16.76)  319ms
+DRC ✓
+drift ✓
+legibility: 1 error, 5 advisory finding(s) across 1 sheet(s):
+  1. [error] unlabeled-group @ / (118, 102) refs: Keyer — group caption "Keyer" names nothing in SUBSYSTEMS.md or BOM.md; use a documented name (e.g. "Sheet /")
+  2. [advisory] label-orientation @ / (88.9, 91.44) refs: 3V3 — label "3V3" is rotated 90° where a horizontal label would collide with nothing; draw it horizontal
+  3. [advisory] label-orientation @ / (88.9, 99.06) refs: EN — label "EN" is rotated 270° where a horizontal label would collide with nothing; draw it horizontal
+  4. [advisory] label-orientation @ / (96.52, 106.68) refs: KEY_DAH — label "KEY_DAH" is rotated 90° where a horizontal label would collide with nothing; draw it horizontal
+  5. [advisory] label-orientation @ / (96.52, 114.3) refs: GND — label "GND" is rotated 270° where a horizontal label would collide with nothing; draw it horizontal
+  6. [advisory] low-utilization @ / (118, 102) refs: / — content occupies 0.06 of the usable frame (threshold 0.5); paper "A5" would fit this content
+legibility score: 40/100 (capped: 1 error-severity legibility finding(s) cap the composite below the known-good floor (85))
+ ✓ test/entry-point-parity.test.ts (3 tests) 3953ms
+   ✓ entry-point results are byte-identical to the CLI --json output > runCheck matches `check --json`  2295ms
+   ✓ entry-point results are byte-identical to the CLI --json output > syncVerify matches `sync --dry-run --json`  800ms
+   ✓ entry-point results are byte-identical to the CLI --json output > runInit matches `init --json`  855ms
+ ✓ test/observability.test.ts (22 tests) 4022ms
+   ✓ interactive renderer (task 5.7) > a renderer reused across two runs keeps rendering the second (create pipeline)  365ms
+   ✓ liveness heartbeat distinguishes slow from hung (5.1) > the loop fires a heartbeat while a slow provider turn is in flight  453ms
+   ✓ turn watchdog: inactivity deadline + hard cap > lets a turn run past turnTimeoutMs while it keeps streaming progress  573ms
+   ✓ turn watchdog: inactivity deadline + hard cap > still aborts and retries a turn that reports no progress for turnTimeoutMs  369ms
+   ✓ turn watchdog: inactivity deadline + hard cap > stops a turn still streaming at turnMaxMs and fails without resending it  561ms
+   ✓ turn watchdog: inactivity deadline + hard cap > fails as provider-error once a silent turn has timed out on every retry  423ms
+ ✓ test/create-footprints.test.ts (3 tests) 4008ms
+   ✓ create stops for an uninstalled footprint (#314) > explains an UNVERIFIED-prefixed MPN during finish while keeping its qualification in Rationale  1456ms
+   ✓ create stops for an uninstalled footprint (#314) > stops before the schematic stage with an actionable message, then resumes once the library is installed  2495ms
+ ✓ test/draft-hardening.test.ts (34 tests) 1913ms
+   ✓ derived (extends) symbols > a drafted sheet with a derived symbol loads in KiCad and matches its vendored copy  867ms
+   ✓ net labels are global flags shaped by their pin and turned with their stub > emits global flags at stubs, per-pin shapes, stub-following rotation, and one label kind per net  398ms
+ ✓ test/dossier.test.ts (22 tests) 1816ms
+   ✓ pin dossier (R14: stage-4 entry pin facts) > symbol_pins tool > redirects a wrong-library guess to where the symbol lives  1268ms
+ ✓ test/gating-sync.test.ts (16 tests) 1720ms
+   ✓ spec gating: structural edit lock (invariant 1) > finish blocks on open obligations and unverified ERC  745ms
+ ✓ test/cli-draft.test.ts (4 tests) 5146ms
+   ✓ copperhead draft schematic (CLI) > exits 0 and prints the report on a good intent; --json is machine-readable  2214ms
+   ✓ copperhead draft schematic (CLI) > exits 1 with numbered findings on a refused intent, and writes nothing  1245ms
+   ✓ copperhead draft schematic (CLI) > exits 1 when no schematic is configured  522ms
+   ✓ copperhead score schematic (CLI) > exits 0 regardless of the composite, in prose and JSON  1162ms
+ ✓ test/firmware-applicability.test.ts (40 tests) 4767ms
+   ✓ firmware applicability stage > accepts documented passive hardware without any source file  398ms
+   ✓ firmware applicability stage > accepts only the explicitly reviewed fixed-function MIC2544-2YM  427ms
+   ✓ firmware applicability stage > accepts the exact reviewed TPS2065CDBV with real ERC and coherent docs  421ms
+   ✓ firmware applicability stage > rejects an ERC failure without weakening other checks  314ms
+   ✓ firmware applicability stage > uses the configured docs path for evidence consistency  384ms
+ ✓ test/jlc-profile.test.ts (27 tests) 1522ms
+[turn 1/40 · 10 in / 20 out]
+  [read_file] ok
+  … still working — 1s elapsed (no output yet)
+done
+[turn 3/40 · 0 in / 0 out]
+  [run_erc] ERC ✓
+some line
+[turn 1/40 · 0 in / 0 out]
+ ✓ test/mcp-server.test.ts (29 tests) 4978ms
+   ✓ mutating tools are serialized per repo (spec: serialization) > rejects a concurrent mutating call with a typed busy error  501ms
+   ✓ copperhead_check over a configured repo runs real ERC > reports ERC on an initialized project and still matches runCheck  1755ms
+   ✓ copperhead_doctor > matches runDoctor on the same repo  390ms
+ ✓ test/init-check.test.ts (13 tests) 5401ms
+   ✓ copperhead check (AC-2) > clean fixture: everything green (AC-2.1) and stable JSON keys (AC-2.4)  708ms
+   ✓ copperhead check (AC-2) > broken schematic (unconnected pin): fails with location (AC-2.2)  765ms
+   ✓ copperhead check (AC-2) > pre-commit hook blocks a desynced hand edit at git commit  1327ms
+   ✓ fab export (create stage 6 tooling) > produces gerbers, drill, dxf, and svg for the fixture board  2236ms
+ ✓ test/draft-analog.test.ts (13 tests) 1612ms
+   ✓ feedback around the amplifier > wires a follower output to its own inverting input, as one run  392ms
+   ✓ the placement search spends its passes where they can help > does not search a large sheet with no label on anything and no crossing  491ms
+ ✓ test/recovery.test.ts (23 tests) 1590ms
+   ✓ withWatchdog (inactivity deadline + hard cap) > keeps a call alive past idleMs while it reports activity  301ms
+stderr | test/safety.test.ts > git guard (AC-3.8, AC-3.6) > still rolls back when temporary audit backup storage is unavailable
+warning: could not preserve failed-run audit trail before rollback: ENOENT: no such file or directory, mkdtemp '/tmp/copperhead-test-EJU9Wj/missing-temp-directory/copperhead-runs-qi1G62'
+
+ ✓ test/safety.test.ts (29 tests) 1301ms
+ ✓ test/draft-idioms.test.ts (13 tests) 1284ms
+ ✓ test/doctor.test.ts (43 tests) 1029ms
+ ✓ test/mutation-probe-failure.test.ts (20 tests) 1459ms
+ ✓ test/cli-surface.test.ts (15 tests) 1019ms
+   ✓ demo --tour honours --json > emits structured JSON, not prose, under --json  507ms
+   ✓ demo --tour honours --json > still prints prose without --json  499ms
+ ✓ test/stage-completion.test.ts (36 tests) 1114ms
+   ✓ schematic isComplete: legibility gate > error-severity findings keep the stage active; a clean sheet completes  839ms
+ ✓ test/draft-ir-bom.test.ts (19 tests) 631ms
+ ✓ test/long-turn.test.ts (4 tests) 772ms
+ ✓ test/create-spec-seed-gate.test.ts (17 tests) 945ms
+   ✓ create spec-seed finish and commit, with a deterministic OFFLINE provider > commits the spec stage only after the provider sees the gap and repairs the heading in the same run  366ms
+ ✓ test/create-resilience.test.ts (8 tests) 1217ms
+   ✓ create pipeline resilience (review F3) > a retry verdict drives a successful second attempt, prepends the guidance, and accumulates cost across attempts  329ms
+stdout | test/repl.test.ts > session log file > mirrors session lines to .copperhead/runs/repl-*.log with keys redacted
+
+   ▄▟▙▄    copperhead v0.7.0
+ ███  ███  gpt-5 via flag · kicad-cli 9.0.0
+   ▀▜▛▀    /tmp/copperhead-repl-log-AavaJU
+
+ ▎ New repository?
+ ▎  `copperhead init` scaffolds docs/ from an existing schematic
+ ▎  `copperhead demo` runs the USB-C breakout create pipeline
+ ▎ Docs: https://docs.copperhead.sh
+
+
+stdout | test/repl.test.ts > session log file > mirrors session lines to .copperhead/runs/repl-*.log with keys redacted
+❯ do the thing
+
+stdout | test/repl.test.ts > session log file > mirrors session lines to .copperhead/runs/repl-*.log with keys redacted
+
+leaked sk-SECRET_KEY_123 in output
+
+stdout | test/repl.test.ts > session log file > mirrors session lines to .copperhead/runs/repl-*.log with keys redacted
+
+
+stdout | test/repl.test.ts > session log file > mirrors session lines to .copperhead/runs/repl-*.log with keys redacted
+❯ /quit
+
+stdout | test/repl.test.ts > session log file > mirrors session lines to .copperhead/runs/repl-*.log with keys redacted
+  → /quit
+
+stdout | test/repl.test.ts > session log file > mirrors session lines to .copperhead/runs/repl-*.log with keys redacted
+  copperhead session ended
+  session log: /tmp/copperhead-repl-log-AavaJU/.copperhead/runs/repl-2026-10-12T01-14-50-975Z.log
+
+stdout | test/repl.test.ts > session log file > redacts every AC-4.1 pattern, not just sk- keys
+
+   ▄▟▙▄    copperhead v0.7.0
+ ███  ███  gpt-5 via flag · kicad-cli 9.0.0
+   ▀▜▛▀    /tmp/copperhead-repl-log-fab5Ex
+
+ ▎ New repository?
+ ▎  `copperhead init` scaffolds docs/ from an existing schematic
+ ▎  `copperhead demo` runs the USB-C breakout create pipeline
+ ▎ Docs: https://docs.copperhead.sh
+
+
+stdout | test/repl.test.ts > session log file > redacts every AC-4.1 pattern, not just sk- keys
+❯ publish it
+
+stdout | test/repl.test.ts > session log file > redacts every AC-4.1 pattern, not just sk- keys
+
+tool output: sk-SECRET_KEY_123 trailing
+tool output: Bearer abcdefghijklmnopqrstuvwxyz012345 trailing
+tool output: npm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa trailing
+tool output: [REDACTED token-like test data] trailing
+tool output: [REDACTED token-like test data] trailing
+
+stdout | test/repl.test.ts > session log file > redacts every AC-4.1 pattern, not just sk- keys
+
+
+stdout | test/repl.test.ts > session log file > redacts every AC-4.1 pattern, not just sk- keys
+❯ /quit
+
+stdout | test/repl.test.ts > session log file > redacts every AC-4.1 pattern, not just sk- keys
+  → /quit
+
+stdout | test/repl.test.ts > session log file > redacts every AC-4.1 pattern, not just sk- keys
+  copperhead session ended
+  session log: /tmp/copperhead-repl-log-fab5Ex/.copperhead/runs/repl-2026-10-12T01-14-51-072Z.log
+
+ ✓ test/bootstrap.test.ts (5 tests) 608ms
+   ✓ KiCad project bootstrap (create schematic-stage gap #19) > scaffolds an empty, loadable project and wires config  577ms
+ ✓ test/pre-touched.test.ts (2 tests) 709ms
+   ✓ preTouched files carry the run’s verification (AC-15.43) > finish refuses until DRC passes on a pre-touched board the agent never edited  386ms
+   ✓ preTouched files carry the run’s verification (AC-15.43) > without preTouched the same run finishes: nothing it touched needs verifying  318ms
+ ✓ test/create-devplan.test.ts (3 tests) 780ms
+   ✓ final-stage review and commit evidence > normal create resumes only final stage, requires improvement and commit, then skips on next invocation  452ms
+ ✓ test/draft-multi-unit.test.ts (4 tests) 504ms
+   ✓ multi-unit placement > drafts both units as separate instances sharing the refdes  303ms
+ ✓ test/export-inventory.test.ts (13 tests) 499ms
+ ✓ test/repl.test.ts (36 tests) 700ms
+ ✓ test/golden-corpus.test.ts (5 tests) 433ms
+   ✓ golden corpus: Tier C (engine output, AC-16.18) > the reference IR drafts byte-identically to the pinned golden with the pinned score  374ms
+ ✓ test/preflight.test.ts (18 tests) 509ms
+ ✓ test/create-firmware-build.test.ts (2 tests) 636ms
+   ✓ create explicit build gate (scripted agent, no real model) > keeps existing source-based default resume behavior when no SDK was selected  370ms
+ ✓ test/openai-compat.test.ts (22 tests) 384ms
+ ✓ test/create-recorded-e2e.test.ts (5 tests | 2 skipped) 451ms
+ ✓ test/generated-power-verification.test.ts (32 tests) 1286ms
+   ✓ verification of engine-generated power symbols > drafts and really ERC-checks distinct raw/protected rails, with read-only verification and stable bytes  888ms
+ ✓ test/net-merge-guard.test.ts (6 tests) 365ms
+ ✓ test/openai-provider.test.ts (7 tests) 215ms
+ ✓ test/bom-export.test.ts (25 tests) 369ms
+ ✓ test/draft-stub-clearance.test.ts (3 tests) 364ms
+ ✓ test/create-stage-turns.test.ts (2 tests) 406ms
+   ✓ create pipeline per-stage turn budgets (AC-15.18, AC-15.19) > a stage with a stageMaxTurns entry gets that budget; others get the default  302ms
+ ✓ test/firmware-build.test.ts (5 tests) 237ms
+ ✓ test/kicad-cli-resolve.test.ts (18 tests) 216ms
+ ✓ test/runmeta.test.ts (4 tests) 326ms
+ ✓ test/sexp.test.ts (8 tests) 167ms
+ ✓ test/firmware-build-ignore.test.ts (1 test) 270ms
+ ✓ test/capability-conformance.test.ts (6 tests) 187ms
+ ✓ test/tmp-sweep.test.ts (6 tests) 30ms
+ ✓ test/score.test.ts (14 tests) 73ms
+ ✓ test/stored-zip.test.ts (41 tests) 39ms
+ ✓ test/legibility.test.ts (31 tests) 105ms
+ ✓ test/symlib.test.ts (28 tests) 76ms
+ ✓ test/codex-provider.test.ts (13 tests) 170ms
+ ✓ test/codex-streaming.test.ts (9 tests) 94ms
+ ✓ test/create-provenance.test.ts (2 tests) 173ms
+ ✓ test/envelope.test.ts (9 tests) 25ms
+ ✓ test/fab-docs.test.ts (12 tests) 16ms
+ ✓ test/spice.test.ts (40 tests) 40ms
+ ✓ test/cursor-provider.test.ts (17 tests) 127ms
+ ✓ test/repl-inspect.test.ts (6 tests) 161ms
+ ✓ test/watchdog-config.test.ts (4 tests) 28ms
+ ✓ test/claude-code-provider.test.ts (35 tests | 1 skipped) 68ms
+ ✓ test/bom-table.test.ts (49 tests) 29ms
+ ✓ test/session-limit-disk.test.ts (6 tests) 23ms
+ ✓ test/env.test.ts (10 tests) 13ms
+ ✓ test/tool-protocol.test.ts (8 tests) 13ms
+ ✓ test/docs-rehype-table-labels.test.ts (12 tests) 20ms
+ ✓ test/strokefont.test.ts (5 tests) 8ms
+ ✓ test/docs-drift.test.ts (1 test) 4ms
+ ✓ test/ledger.test.ts (5 tests) 12ms
+ ✓ test/report.test.ts (11 tests) 24ms
+ ✓ test/toolcall-extra.test.ts (3 tests) 10ms
+ ✓ test/dock.test.ts (31 tests) 35ms
+ ✓ test/draft-bank-guards.test.ts (18 tests) 14ms
+ ✓ test/layout-doc-path.test.ts (7 tests) 16ms
+ ✓ test/cli-process.test.ts (4 tests) 6ms
+ ✓ test/repair-cycles.test.ts (12 tests) 7ms
+ ✓ test/fab.test.ts (3 tests) 3ms
+ ✓ test/tool-registry.test.ts (33 tests) 9531ms
+   ✓ tool-registry catalog > generate_report cannot write and its report is the envelope  772ms
+   ✓ tool-registry catalog > nested skill does not set parent finishRequest  764ms
+   ✓ tool-registry catalog > verify_symbols stays ok when the only findings are uninstalled libraries  1646ms
+   ✓ tool-registry catalog > a thrown 429 retries through withRetry; a plain exception surfaces once (design D10)  814ms
+   ✓ tool-registry catalog > a skill provider 429 retries with backoff and then resumes the sub-run  832ms
+   ✓ tool-registry catalog > a skill turn that keeps streaming outlives turnTimeoutMs  302ms
+   ✓ skill CLI > copperhead --help lists skill  546ms
+   ✓ skill CLI > skill list works without API keys  633ms
+   ✓ skill CLI > CLI catch paths print friendly errors without stack traces  1282ms
+ ✓ test/version.test.ts (1 test) 4ms
+ ✓ test/repl-dirty-gate.test.ts (3 tests) 5ms
+ ✓ test/corruption-guard.test.ts (4 tests) 5ms
+ ↓ test/draft-real-corpus.test.ts (1 test | 1 skipped)
+ ↓ test/agent-integration.test.ts (19 tests | 19 skipped)
+ ✓ test/output-profiles.test.ts (42 tests) 4487ms
+   ✓ default and explicit output profiles > packs only manufacturing layers and drills, retaining inner copper (legacy)  410ms
+   ✓ default and explicit output profiles > keeps generic board exports available with an incomplete BOM, without completing Stage 6  334ms
+   ✓ default and explicit output profiles > requires fresh export evidence after either profile switch  653ms
+ ✓ test/draft-reference-boards.test.ts (4 tests) 13103ms
+   ✓ reference boards: the engine reproduces the committed pinned outputs > buck-12v-5v: byte-identical draft, clean ERC, clean legibility  8469ms
+   ✓ reference boards: the engine reproduces the committed pinned outputs > ldo-demo: byte-identical draft, clean ERC, clean legibility  531ms
+   ✓ reference boards: the engine reproduces the committed pinned outputs > npn-switch: byte-identical draft, clean ERC, clean legibility  763ms
+   ✓ reference boards: the engine reproduces the committed pinned outputs > usb-atmega-node: byte-identical draft, clean ERC, clean legibility  3337ms
+ ✓ test/draft-layout.test.ts (30 tests) 16850ms
+   ✓ shelf-wrap: the group ribbon reflows into rows (design D12) > wraps a long ribbon into rows, preserves reading order, and fits a smaller sheet  3212ms
+   ✓ shelf-wrap: the group ribbon reflows into rows (design D12) > wraps to the hinted paper width and keeps the hint  590ms
+   ✓ shelf-wrap: the group ribbon reflows into rows (design D12) > a wrapped sheet still passes the legibility gate  2468ms
+   ✓ column banding: a group wider than every sheet wraps into bands (#219) > bands an oversized single group instead of overflowing the frame, and keeps the paper small  1482ms
+   ✓ column banding: a group wider than every sheet wraps into bands (#219) > bands the oversized group while small groups still shelf-wrap around it  1407ms
+   ✓ column banding: a group wider than every sheet wraps into bands (#219) > a banded sheet passes the legibility gate with zero out-of-frame findings  1021ms
+   ✓ column banding: a group wider than every sheet wraps into bands (#219) > long edge-facing net names stay inside the frame on a banded sheet (#220 phase 1)  359ms
+   ✓ passive banks chain on one trunk (#233, #220 phase 3) > a hinted sheet too small for the content overflows loudly, budgets and all  327ms
+   ✓ label nudging keeps a stub label attached and clear > rides a colliding label outward along its own stub  1454ms
+   ✓ group boxes: tight, padded, on a sheet grid > packs each row on its own when a column would hold boxes far apart in width  1385ms
+   ✓ group boxes: tight, padded, on a sheet grid > lays wrapped rows out as a grid when every column is near its width: shared tops and lefts, even gutters  1081ms
+   ✓ group boxes: tight, padded, on a sheet grid > keeps every gutter four units wide on a crowded sheet, re-tiling instead of squeezing a row  1413ms
+ ✓ test/board-populate.test.ts (46 tests) 22332ms
+   ✓ exact footprint resolution (AC-15.29, AC-15.30, AC-15.33) > a typo in both the library and the name still shows the installed id, flagged as a guess  764ms
+   ✓ exact footprint resolution (AC-15.29, AC-15.30, AC-15.33) > the stop message names every part, the fix, and no absolute path  370ms
+   ✓ populateBoard against kicad-cli (AC-15.36, AC-15.37) > puts every part on the board with its exact footprint, pads, and nets; DRC and schematic parity are clean  2371ms
+   ✓ populateBoard against kicad-cli (AC-15.36, AC-15.37) > is idempotent and deterministic: a second run writes nothing, and two fresh runs agree byte-for-byte  1725ms
+   ✓ populateBoard against kicad-cli (AC-15.36, AC-15.37) > a footprint that is not installed throws and leaves the board byte-identical  834ms
+   ✓ populateBoard against kicad-cli (AC-15.36, AC-15.37) > refuses a pin its footprint has no pad for, instead of silently dropping the net  439ms
+   ✓ populateBoard against kicad-cli (AC-15.36, AC-15.37) > places a footprint from a project-local library under its exact id  758ms
+   ✓ populateBoard against kicad-cli (AC-15.36, AC-15.37) > refuses to touch a board whose footprints disagree with the schematic  1079ms
+   ✓ layout-draft completion compares the board with the schematic (AC-15.38) > an outline-only board never completes the stage, even with the LAYOUT.md section  436ms
+   ✓ layout-draft completion compares the board with the schematic (AC-15.38) > the populated board completes it; a renamed or swapped footprint does not  1995ms
+   ✓ layout-draft completion compares the board with the schematic (AC-15.38) > a board that fails DRC does not complete it, even with every part and the LAYOUT.md section  2033ms
+   ✓ layout-draft completion compares the board with the schematic (AC-15.38) > a pad moved to another net does not complete it, and populate will not keep stale nets  1004ms
+   ✓ moving placed footprints (#314) > rotating with moveFootprint turns the pads too: the part still matches its library  1489ms
+   ✓ populate edge cases (#314) > moves a footprint's zones with it: ESP32 modules match their library wherever they are placed or turned  2404ms
+   ✓ populate edge cases (#314) > packs inside an outline it cannot grow, or stops when the parts do not fit  578ms
+   ✓ populate edge cases (#314) > stops instead of packing parts into a corner an L-shaped outline leaves off the board, or onto a cutout  388ms
+   ✓ populate edge cases (#314) > the scaffold holds board vias to a 0.3 mm drill  415ms
+   ✓ an agent run may not raise the unrouted count (AC-15.39) > counts the starting board with KiCad when the board has changed since  1400ms
+ ✓ test/create-layout-draft.test.ts (11 tests) 24161ms
+   ✓ create layout-draft around board populate (#314) > clearance is an explicit populate input and survives the normal resume command  3309ms
+   ✓ create layout-draft around board populate (#314) > a failed stage leaves the board byte-identical to the pre-stage board (AC-15.43)  2951ms
+   ✓ create layout-draft around board populate (#314) > a stage that fails after an attempt committed leaves that verified board, not the pre-stage one  3562ms
+   ✓ create layout-draft around board populate (#314) > hands the layout stage a finish-time gate that names the layout document it reads (#310)  2083ms
+   ✓ create layout-draft around board populate (#314) > a retry starts from the board an earlier attempt committed, not a fresh populate (#327)  3808ms
+   ✓ create layout-draft around board populate (#314) > the schematic stage's completion runs the pin/pad checks, so a mismatched footprint sends the run back to stage 4 (#325)  591ms
+   ✓ create layout-draft around board populate (#314) > the populated board counts as touched by the run, so finish needs a passing DRC on it  1332ms
+   ✓ create layout-draft around board populate (#314) > a populated board that fails DRC stops before any agent turn, restores the board, and says why  1183ms
+   ✓ create layout-draft around board populate (#314) > a board populated but never verified (a run killed before its DRC) gets that DRC on resume, and stops on a failure  1553ms
+   ✓ create layout-draft around board populate (#314) > a retry after an attempt that changed a footprint re-populates and runs the agent again  3619ms
+ ✓ test/draft-sheet-fit.test.ts (23 tests) 44134ms
+   ✓ the decoupling bank counts against the sheet budget > lands a bank-heavy group on the sheet its cells need, not the one its bank rows forced  534ms
+   ✓ a failed compaction is reported, never silent > gate: a sheet inked below the floor always carries a compaction verdict with a note behind it  567ms
+   ✓ the IC leads its group > puts the converter at the top-left of its group with the passives fanned to its right  7319ms
+   ✓ the IC leads its group > keeps the connector column to the left of the IC  3568ms
+   ✓ group boxes enclose their text > gate: no label or field text crosses a group box edge on any reference board  5910ms
+   ✓ text keeps clear of text at paper width > gate: no two text items overlap on any reference board  5020ms
+   ✓ pin-anchored hangs (#220 phase 3) > gate: the reference boards attach their two-pin parts at least this well  4484ms
+   ✓ pin-anchored hangs (#220 phase 3) > hangs the compensation network on the converter's COMP pin and wires it  2400ms
+   ✓ pin-anchored hangs (#220 phase 3) > lays a series part on its pin's row, turned to face the pin, and wires it (AC-16.36, AC-16.37)  2304ms
+   ✓ pin-anchored hangs (#220 phase 3) > a hang the clearance check refuses is reported, never silently dropped  2228ms
+   ✓ nets are coloured by function > colours a signal family together, rails and grounds by class, and leaves a lone signal alone  2247ms
+   ✓ reference boards pass the sheet-fit gate > every committed board explains its paper when it inks less than the floor  4361ms
+   ✓ masonry wrap: groups dealt to columns that each stack their own (AC-16.62) > names the number of columns the boxes are drawn in, not the number of groups (AC-16.49)  2015ms
+   ✓ masonry wrap: groups dealt to columns that each stack their own (AC-16.62) > drafts twelve groups in seconds: the deal search cuts branches that cannot win  306ms
+
+ Test Files  93 passed | 2 skipped (95)
+      Tests  1396 passed | 23 skipped (1419)
+   Start at  09:14:43
+   Duration  45.09s (transform 4.00s, setup 0ms, collect 30.54s, tests 216.13s, environment 22ms, prepare 9.28s)
+

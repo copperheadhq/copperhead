@@ -1,0 +1,9 @@
+# Tasks
+
+- [x] Confirm connector, switch and unidirectional diode symbols and real endpoints.
+- [x] Resolve U5/U6 manufacturer pin-function prerequisites and review available current/startup evidence.
+- [x] Author the complete intent IR using all 39 unchanged BOM parts and subsystem headings.
+- [x] Draft and repair exclusively through the intent IR.
+- [x] Verify symbols, ERC and error-free legibility.
+- [x] Synchronize PINOUT and affected documentation; record decisions and constraints.
+- [x] Run drift verification and finish with an accurate Stage4 outcome.

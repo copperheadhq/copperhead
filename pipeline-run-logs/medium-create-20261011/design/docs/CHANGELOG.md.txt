@@ -1,0 +1,105 @@
+# Changelog
+
+## 2026-10-11 — create pipeline stage: devplan
+
+- Change: review-stage8-development-plan
+- Files: docs/DEVPLAN.md, docs/SPEC.md, docs/SUBSYSTEMS.md, docs/OUTPUTS.md, docs/CHANGELOG.md, docs/DECISIONS.md, openspec/changes/review-stage8-development-plan/tasks.md
+- Verification: ERC clean, DRC clean
+
+## Stage8 — review-stage8-development-plan
+
+Substantively improved docs/DEVPLAN.md from the Stage7 candidate after reviewing actual PCB/intent,PINOUT,export manifest,firmware source/configuration and real build receipt/log evidence. Added ordered unpowered/power/reset/UART/sensor/OLED/error/corner/protection bring-up,existing numbered measurement-pad table,prioritized risk register and a gated five-board/three-assembled prototype proposal. Synchronized SPEC.md,SUBSYSTEMS.md,OUTPUTS.md and decision/constraint records. No engineering artifacts or generated evidence changed. Rationale: make the final development-plan stage an actual reviewable change while preserving incomplete-routing and compile-only limitations.
+
+Review verification: ERC/drift clean;DRC clean with93 connections unrouted;19 symbol definitions match;legibility0 errors/2 existing advisories. Build receipt retains two exitCode0 attempts and matching binaries;manifest retains generic/unverified manufacturer status. Current hash integrity remains a completion-gate requirement. No order,flash,physical measurement,manufacturing acceptance or independent commit-hash verification is claimed.
+
+## 2026-10-11 — create pipeline stage: firmware
+
+- Change: implement-stage7-firmware
+- Files: firmware/CMakeLists.txt, firmware/sdkconfig.defaults, firmware/pins.h, firmware/tools/generate_pins.py, firmware/main/CMakeLists.txt, firmware/main/board_hal.h, firmware/main/board_hal.c, firmware/main/drivers.h, firmware/main/drivers.c, firmware/main/app_main.c, firmware/README.md, docs/DEVPLAN.md, docs/DECISIONS.md, docs/SPEC.md, docs/SUBSYSTEMS.md, docs/OUTPUTS.md, docs/CHANGELOG.md, openspec/changes/implement-stage7-firmware/tasks.md
+- Verification: ERC clean, DRC clean
+
+## Stage7 — implement-stage7-firmware
+
+Created firmware/ ESP-IDF5.5.3 ESP32-C3 project with fixed PROJECT_VER0.1.0 and supported reproducible-build configuration; configure-time PINOUT-derived pins and snapshot checks, functional GPIO/I2C HAL, real heater-off SHT40 measurement with both CRC checks,1Hz sensing,2Hz SSD1306-compatible OLED text rendering, invalid/error/log/retry behavior and fault reporting. Created docs/DEVPLAN.md; synchronized SPEC.md,SUBSYSTEMS.md,OUTPUTS.md and decision/constraint records. Rationale: provide executable firmware for programmable U1 while retaining every hardware budget and qualification boundary.
+
+build_firmware passed: two independent isolated builds produced identical ELF/bin outputs; actual source/PINOUT/binary hashes and logs are recorded in .copperhead/firmware-build/receipt.json. ERC/DRC/drift clean; legibility0 errors/2 existing advisories;93 connections remain unrouted. No hardware/BOM/PINOUT or export source changed, no flash or measured functionality/current compliance claimed. Module/sensor/timing/source/power/RF/mechanical qualifications and Stage8 review remain open.
+
+## 2026-10-11 — create pipeline stage: outputs
+
+- Change: export-stage6-draft-outputs
+- Files: outputs/, docs/OUTPUTS.md, docs/SPEC.md, docs/SUBSYSTEMS.md, docs/CHANGELOG.md, docs/DECISIONS.md, openspec/changes/export-stage6-draft-outputs/tasks.md
+- Verification: ERC clean, DRC clean
+
+## Stage6 — export-stage6-draft-outputs
+Generated outputs/ through export_outputs with unchanged generic profile and KiCad9.0.9: complete Gerber/drill export jobs,fabrication.zip,DXF/STEP,board/schematic SVG,ordering BOM.csv and source-bound export-manifest.json. All jobs succeeded; readback confirmed complete manifest with4 source/28 artifact hashes and39 matching BOM refdes/MPNs at Qty1. Added docs/OUTPUTS.md and synchronized SPEC.md,SUBSYSTEMS.md and decision/constraint records. No hardware/BOM source or budget changed. Verification: ERC/DRC/drift clean;93 connections remain unrouted; legibility0 errors/2 advisories. Current source/file hash matching is required by the completion gate. Generic settings/zone fills and manufacturer acceptance remain unverified; no fabrication release. All prior qualification and real-build obligations remain open. Rationale: deliver a reviewable draft package with explicit evidence boundaries.
+
+
+## 2026-10-11 — create pipeline stage: layout-draft
+
+- Change: place-route-stage5-layout-draft
+- Files: new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb, docs/DECISIONS.md, docs/LAYOUT.md, docs/SPEC.md, docs/SUBSYSTEMS.md, docs/CHANGELOG.md, openspec/changes/place-route-stage5-layout-draft/tasks.md
+- Verification: ERC clean, DRC clean
+
+## Stage5 — place-route-stage5-layout-draft
+Moved all39 existing exact footprints using move_footprint; corrected Edge.Cuts to45x40mm and nominal thickness to1.00mm while retaining two copper layers, every pad net and library keepout. Added partial power/critical routes and explicit ground tracks; removed an unfilled ground zone after DRC showed dangling vias. Repositioned Reference text and repaired all reported placement/routing clearances without changing pads/drills or suppressing findings. Wrote docs/LAYOUT.md with exact placement, rationale and Draft quality; synchronized SPEC.md, SUBSYSTEMS.md, decisions and constraints. Rationale: make the first physical draft reviewable without claiming functional or manufacturing acceptance.
+
+Verification: final DRC clean,93 unrouted versus132 baseline; ERC clean; drift clean; board SVG exported under .copperhead/renders/. No final intrinsic library-footprint findings were reported. RF15mm target, filled-plane/return redesign, complete bypass/interface routing, electrical/startup/thermal/source/module/mechanical qualification and later real firmware build remain open.
+
+
+## 2026-10-11 — create pipeline stage: schematic
+
+- Change: capture-stage4-schematic
+- Files: docs/BOM.md, docs/DECISIONS.md, schematic.intent.json, new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch, docs/PINOUT.md, docs/SPEC.md, docs/SUBSYSTEMS.md, docs/CHANGELOG.md, openspec/changes/capture-stage4-schematic/tasks.md
+- Verification: ERC clean
+
+## Stage4 — capture-stage4-schematic
+Created schematic.intent.json and generated the configured schematic exclusively through draft_schematic:39 unchanged BOM parts, five existing subsystem groups,24 nets and22 explicit no-connects. Created docs/PINOUT.md with complete numbered endpoints, MCU/header assignments and cable contracts; synchronized BOM.md, SPEC.md, SUBSYSTEMS.md, decision and constraint records. Inspected locally supplied TI SCES204Q/SLLSEG9C texts: corrected the Stage3 swapped U5 outputs to1Y=6/2Y=3 and confirmed U6 DRL channels3/5,GND4. Generic connector/switch symbols preserve the physical selections; Device:D_Zener preserves D1 cathode1/anode2. Rationale: manufacturer functions and real library endpoints govern capture without substituting BOM parts or hand-authoring geometry.
+
+Verification on the final regenerated sheet: ERC clean; verify_symbols reports19 matching library/engine definitions and no divergences; check_legibility reports0 errors and2 long-wire advisories; check_drift clean. The engine selected A2 and reported score75.11/100, wiring style87.19/100. UART family labels were shortened to U_ through the intent and documented; two residual label-overlap notes and two long-wire advisories are deliberately acknowledged presentation limitations, not hidden or manually suppressed. Schematic SVG exported into .copperhead/renders/. No board edits or DRC/layout acceptance are claimed at this schematic stage.
+
+All electrical budgets,39 part Values/footprints and UNVERIFIED selection status remain unchanged. Startup/recycle450mA, PG-off reset behavior,82% actual conversion target, U5 dynamic/input-level allowance,U6 combined2uA leakage, remaining component/package/source/module/RF/mechanical qualification and later firmware real build remain open. Rationale: clean capture/ERC does not establish measured hardware compliance or manufacturing readiness.
+
+## 2026-10-11 — create pipeline stage: part-selection
+
+- Change: correct-part-selection-mpn-format
+- Files: docs/BOM.md, docs/SPEC.md, docs/SUBSYSTEMS.md, docs/CHANGELOG.md, docs/DECISIONS.md, openspec/changes/correct-part-selection-mpn-format/tasks.md
+- Verification: ERC not required
+
+## Stage3 — correct-part-selection-mpn-format
+Moved UNVERIFIED from all39 MPN cells into their Rationale cells, preserving the fixed table, individual refdes, component-only Values, selected parts and exact footprints. Synchronized the format contract in SPEC.md and SUBSYSTEMS.md. Renewed11 distinct active/module/connector/switch searches and14 symbol endpoint checks; re-read available TI power-IC current/leakage limits and Espressif strap evidence. Every part remains included in budget accounting; unavailable manufacturer limits, anonymous U5/U6 functions and startup/reset/efficiency risks remain explicitly unqualified. Rationale: repair capture metadata without weakening requirements or claiming electrical acceptance. Verification: saved BOM readback confirmed all39 correctly formatted rows; all39 Footprint cells returned OK; check_drift reported no schematic configured and vacuously clean. Documentation-only; no KiCad or library edits, hardware ERC/DRC result or procurement claim.
+
+## 2026-10-11 — create pipeline stage: part-selection
+
+- Change: repair-part-selection-bom
+- Files: docs/BOM.md, docs/SPEC.md, docs/SUBSYSTEMS.md, docs/CHANGELOG.md, docs/DECISIONS.md, openspec/changes/repair-part-selection-bom/tasks.md
+- Verification: ERC not required
+
+## Stage3 recovery — repair-part-selection-bom
+Inspected and retained all39 individually referenced BOM rows with the exact five-column format, component-only Values and UNVERIFIED MPNs. Renewed installed active/connector/switch symbol searches and all14 selected symbol endpoint checks. Re-read Espressif strap evidence and both TI power datasheets. Corrected the PG reset-holdoff claim and documented typical buck capacitor-charging demand as an unresolved startup qualification risk; synchronized SPEC.md and SUBSYSTEMS.md. No electrical budget, part, refdes, Value, footprint, KiCad source or library geometry was changed. Verification after the last BOM edit: all39 Footprint cells returned OK; check_drift reported no schematic configured and vacuously clean; final saved BOM readback confirmed the usable39-row artifact. Documentation-only: no ERC/DRC hardware result is claimed. Rationale: recover the usable BOM without concealing evidence and startup limitations.
+
+## 2026-10-11 — create pipeline stage: part-selection
+
+- Change: select-capturable-parts
+- Files: docs/BOM.md, docs/SPEC.md, docs/SUBSYSTEMS.md, openspec/specs/protected-input/spec.md, docs/CHANGELOG.md, docs/DECISIONS.md, openspec/changes/select-capturable-parts/tasks.md
+- Verification: ERC not required
+
+## Stage 3 — select-capturable-parts
+Created docs/BOM.md with one row per board refdes, component-only Values, exact installed footprints, UNVERIFIED MPNs and datasheet-verifiable rationales. Verified installed active/connector symbols and actual endpoint numbers; checked footprint resolution and documented anonymous signal-name qualification. Selected adjustable-slew TPS259533 instead of TPS2553 with explicit package/pin/current rationale, strap support, UART Ioff buffers and external OLED cable interface. Recorded per-part current/leakage accounting and stronger ASSUMED82% efficiency target because75% alone fails the upper-rail corner. Updated SPEC.md, SUBSYSTEMS.md and protected-input capability; all hardware/startup/ESD/package/build qualifications remain open. Verification: all39 BOM Footprint cells returned OK; active/connector symbol searches and symbol_pins completed; check_drift vacuously clean because no schematic exists. Documentation-only; no KiCad/library/generated-artifact edits or hardware acceptance claim. Rationale: make Stage4 capture deterministic without concealing electrical or evidence limitations.
+
+## 2026-10-11 — create pipeline stage: architecture
+
+- Change: document-subsystem-architecture
+- Files: docs/SUBSYSTEMS.md, docs/CHANGELOG.md, docs/DECISIONS.md, openspec/changes/document-subsystem-architecture/tasks.md
+- Verification: ERC not required
+
+## Stage 2 — document-subsystem-architecture
+Created docs/SUBSYSTEMS.md with a prose block diagram and subsystem reasoning, key values, interfaces and verification boundaries. Preserved every SPEC.md requirement and candidate-only status; documented continuous and peak conversion estimates without claiming compliance, and intentionally deferred pins/support parts/mechanical details. Updated decision/constraint records. Rationale: establish architecture before part selection and capture. Documentation-only; no schematic, board or firmware changes and no hardware/build acceptance claimed.
+
+## 2026-10-11 — create pipeline stage: spec-seed
+
+- Change: seed-device-requirements
+- Files: docs/SPEC.md, openspec/specs/protected-input/spec.md, openspec/specs/regulation/spec.md, openspec/specs/mcu-programming/spec.md, openspec/specs/sensing/spec.md, openspec/specs/display/spec.md, openspec/specs/rf-mechanics/spec.md, openspec/specs/firmware-workflow/spec.md, docs/CHANGELOG.md, docs/DECISIONS.md, openspec/changes/seed-device-requirements/tasks.md
+- Verification: ERC not required
+
+## Stage 1 — seed-device-requirements
+Seeded SPEC.md and seven OpenSpec capabilities from the fresh experimental brief. Preserved electrical/mechanical budgets, candidate-only status, source pointers, unresolved engineering work, mandatory firmware/build and all eight stage gates. Flagged assumptions explicitly. Rationale: establish reviewable requirements before part selection; no hardware or firmware acceptance is claimed.

@@ -1,0 +1,14 @@
+# Proposal: repair-part-selection-bom
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+Recover Stage3 by inspecting the saved artifact and rechecking installed symbol endpoints, final footprint cells and current accounting without claiming unverified hardware qualification.
+
+## What Changes
+
+- Repair docs/BOM.md where inspection identifies gaps; preserve the exact five-column table, individual refdes, component-only Values and UNVERIFIED MPNs.
+- Document symbol/package function prerequisites and per-part leakage/current evidence accurately.
+- Synchronize docs/SPEC.md, docs/SUBSYSTEMS.md, docs/CHANGELOG.md and decision/constraint records for any substantive repair.
+- Change no KiCad source, library geometry or electrical budget.

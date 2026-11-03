@@ -1,3 +1,4 @@
+import { cliProcessArgs } from './cli-process.js';
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,8 +28,8 @@ describe('copperhead mcp over real stdio', () => {
     const { repo, cleanup } = await tempFixtureRepo();
     cleanups.push(cleanup);
     const transport = new StdioClientTransport({
-      command: 'npx',
-      args: ['tsx', 'src/cli.ts', 'mcp', '--repo', repo],
+      command: process.execPath,
+      args: cliProcessArgs(['mcp', '--repo', repo]),
       cwd: ROOT,
       env: { ...process.env, NO_COLOR: '1' } as Record<string, string>,
     });
@@ -60,8 +61,8 @@ describe('copperhead mcp over real stdio', () => {
     cleanups.push(() => rm(shimDir, { recursive: true, force: true }));
 
     const transport = new StdioClientTransport({
-      command: 'npx',
-      args: ['tsx', 'src/cli.ts', 'mcp', '--repo', repo],
+      command: process.execPath,
+      args: cliProcessArgs(['mcp', '--repo', repo]),
       cwd: ROOT,
       env: { ...process.env, PATH: `${shimDir}:${process.env.PATH ?? ''}`, NO_COLOR: '1' } as Record<string, string>,
     });

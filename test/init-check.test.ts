@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFile, writeFile, rm, mkdtemp, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, rm, mkdtemp, mkdir, lstat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -190,8 +190,20 @@ describe('fab export (create stage 6 tooling)', () => {
       );
       for (const artifact of ['gerbers', 'drill', 'outline.dxf', 'board.svg', 'schematic.svg']) {
         expect(res.produced, artifact).toContain(artifact);
+        expect(res.files.some((file) => file.artifact === artifact), artifact).toBe(true);
       }
-      expect(existsSync(path.join(out, 'gerbers'))).toBe(true);
+      expect(res.files.length).toBeGreaterThan(0);
+      for (const file of res.files) {
+        expect(path.isAbsolute(file.path), file.path).toBe(false);
+        expect(file.path.split(/[\\/]/), file.path).not.toContain('..');
+        const stat = await lstat(path.join(out, file.path));
+        expect(stat.isFile(), file.path).toBe(true);
+        expect(stat.size, file.path).toBeGreaterThan(0);
+        expect(file.bytes, file.path).toBe(stat.size);
+        expect(res.produced).toContain(file.artifact);
+      }
+      expect(res.files.filter((file) => file.artifact === 'outline.dxf').every((file) => /\.dxf$/i.test(file.path))).toBe(true);
+      expect(res.files.filter((file) => file.artifact === 'schematic.svg').every((file) => /\.svg$/i.test(file.path))).toBe(true);
     } finally {
       await cleanup();
     }

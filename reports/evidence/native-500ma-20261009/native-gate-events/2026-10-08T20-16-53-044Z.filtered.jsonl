@@ -1,0 +1,8 @@
+{"ts":"2026-10-08T20:16:53.056Z","type":"run-start","data":{"model":"experimental-native:native-500ma-architecture-v9-20261008","provider":"experimental-native","stage":{"name":"architecture","index":2,"total":8},"config":{"schematic":null,"board":null,"docs":"docs/","maxTurns":5,"maxRepairCycles":0,"budgets":{}},"brief":{"path":"external:usb-c-500ma-protected-v1.md","sha256":"4185465cbc16b103d012147c987bb609399930448f4c6c2992116bf5cccbffde"},"startedAt":"2026-10-08T20:16:53.053Z","request":"create pipeline stage: architecture"}}
+{"ts":"2026-10-08T20:19:16.279Z","type":"edit-tools-unlocked","data":{"changeId":"define-independent-500ma-architecture"}}
+{"ts":"2026-10-08T20:19:16.280Z","type":"tool","data":{"name":"validate_change","result":"validation passed; edit tools are now unlocked"}}
+{"ts":"2026-10-08T20:25:19.028Z","type":"tool","data":{"name":"check_drift","result":"no schematic configured; drift vacuously clean"}}
+{"ts":"2026-10-08T20:27:55.736Z","type":"tool","data":{"name":"check_drift","result":"no schematic configured; drift vacuously clean"}}
+{"ts":"2026-10-08T20:27:55.737Z","type":"tool","data":{"name":"finish","result":"all gates satisfied; run will commit"}}
+{"ts":"2026-10-08T20:27:55.757Z","type":"run-committed","data":{"commit":"18296f033848ffd3e9fe52e0782902b1413070d4","files":["docs/SUBSYSTEMS.md","docs/SPEC.md","openspec/specs/protected-outputs/spec.md","docs/DECISIONS.md","openspec/changes/define-independent-500ma-architecture/tasks.md"]}}
+{"ts":"2026-10-08T20:27:55.758Z","type":"run-end","data":{"exitPath":"done","turnsUsed":3,"maxTurns":5,"repairCyclesUsed":0,"maxRepairCycles":0,"tokensIn":0,"tokensOut":0,"perTurn":[{"turn":1,"in":0,"out":0},{"turn":2,"in":0,"out":0},{"turn":3,"in":0,"out":0}],"durationMs":662712}}

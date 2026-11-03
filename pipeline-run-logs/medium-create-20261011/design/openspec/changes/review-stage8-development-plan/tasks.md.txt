@@ -1,0 +1,10 @@
+# Tasks
+
+- [x] Review current design, PINOUT, output manifest and firmware/build evidence.
+- [x] Validate this proposal before editing.
+- [x] Improve DEVPLAN with bring-up sequence, measurement table, risks and prototype-order gates.
+- [x] Update relevant documentation and record decisions/constraints.
+- [x] Verify ERC, DRC, drift and legibility; retain accurate draft/compile limitations and require current export/build integrity at the completion gate.
+- [x] Record substantive final-stage documentation changes, read back DEVPLAN and submit to finish; completion remains conditional on its verification gate.
+
+Evidence: fresh ERC/drift clean; DRC clean with93 connections unrouted;19 matching symbol definitions;legibility0 errors/2 advisories. Actual manifest/receipt and firmware sources inspected. DEVPLAN readback confirms ordered bring-up,existing-pad probes,risk closure evidence and gated prototype-order proposal. No engineering artifact,firmware/PINOUT or generated evidence edits. Current export/build hash validation is enforced by finish; a failed gate must be resolved before stage completion. The normal stage commit must record these actual documentation changes.

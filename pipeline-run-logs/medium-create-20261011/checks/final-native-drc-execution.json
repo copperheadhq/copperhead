@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-11T21:31:54.404522+00:00",
+  "command": [
+    "kicad-cli",
+    "pcb",
+    "drc",
+    "--format",
+    "json",
+    "--exit-code-violations",
+    "--output",
+    "<WORKSPACE>/bounded-live-20261011/firmware-adapter-investigation/final-native-drc.json",
+    "<WORKSPACE>/bounded-live-20261011/clean-medium-20261011/design/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb"
+  ],
+  "exitCode": 5,
+  "stdout": "\u53d1\u73b0 0 \u6761\u8fdd\u89c4\u9879\n\u53d1\u73b0 93 \u4e2a\u672a\u8fde\u63a5\u7684\u9879\u76ee\n\u4fdd\u5b58 DRC \u62a5\u544a\u5230 <WORKSPACE>/bounded-live-20261011/firmware-adapter-investigation/final-native-drc.json\n",
+  "stderr": "",
+  "boardSHA256": "e2e2dc560ef3ec97ba531bd226ef4cd65260ff30f594c3d5383c6034ce2f3912",
+  "boardUnchanged": true,
+  "violationCount": 0,
+  "unconnectedCount": 93,
+  "interpretation": "Raw native exit 5 with zero violations and 93 unconnected items; product normalizes allowed draft ratsnest, not manufacturing/full-routing acceptance"
+}

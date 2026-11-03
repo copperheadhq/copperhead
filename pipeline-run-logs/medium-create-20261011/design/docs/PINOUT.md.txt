@@ -1,0 +1,82 @@
+# Stage4 schematic pinout
+
+Canonical connectivity is schematic.intent.json; the schematic is generated only by draft_schematic. All39 BOM parts, Values and footprints are retained. ASSUMED net names implement the documented Stage3 interfaces; U_A means adapter TX before R14, U_T means MCU TX before U5. The U_ prefix denotes the UART family: U_A adapter TX, U_T MCU TX, U_RX MCU RX, U_IN/U_OUT buffer nodes and U_ARX adapter RX. The initial UART_ shortening still collided; shortening the entire family reduces text width consistently. Rationale: readable labels with explicit endpoint meanings and unchanged connectivity.
+
+## MCU and external interfaces
+
+| Ref | Pin | Net | Function / rationale |
+|---|---|---|---|
+| U1 | 3 | 3V3 | Module supply; full original150/400mA allocations remain. |
+| U1 | 8 | MCU_EN | R6/C6, RESET and buck PG; reset holdoff remains unqualified when PG floats. |
+| U1 | 5 | BOOT_IO2 | GPIO2, R7 pullup; reserved strap. |
+| U1 | 22 | BOOT_IO8 | GPIO8, R8 pullup; reserved strap. |
+| U1 | 23 | BOOT_IO9 | GPIO9, R9 pullup and BOOT switch. |
+| U1 | 18 | I2C_SDA | ASSUMED GPIO4, shared100kHz bus. |
+| U1 | 19 | I2C_SCL | ASSUMED GPIO5, shared100kHz bus. |
+| U1 | 20 | OLED_RST | ASSUMED GPIO6, external reset with R13. |
+| U1 | 21 | EF_FAULT_N | ASSUMED GPIO7 input, R4 defines open-drain fault state. |
+| U1 | 30 | U_RX | RXD0 receives U5 buffer1 output pin6. |
+| U1 | 31 | U_T | TXD0 drives U5 buffer2 input pin5. |
+| J1 | A5 | USB_CC1 | Separate5.1k Rd R1 and U6 channel1. |
+| J1 | B5 | USB_CC2 | Separate5.1k Rd R2 and U6 channel2. |
+| J1 | A9 | VBUS | USB5V raw input. |
+| J1 | B9 | VBUS | USB5V raw input. |
+| J1 | A12 | GND | Input return. |
+| J1 | B12 | GND | Input return. |
+| J1 | S1 | GND | All four identically numbered shell stakes; ASSUMED direct grounding. |
+| J2 | 1 | GND | ASSUMED UART host cable pin1 ground. |
+| J2 | 2 | U_ARX | Target TX to adapter RX through U5 and R15. |
+| J2 | 3 | U_A | Adapter TX to target RX through R14 and U5. |
+| J3 | 1 | GND | ASSUMED OLED host cable pin1 ground. |
+| J3 | 2 | 3V3 | OLED supply, full50mA allocation. |
+| J3 | 3 | I2C_SCL | OLED clock. |
+| J3 | 4 | I2C_SDA | OLED data. |
+| J3 | 5 | OLED_RST | OLED reset. |
+
+Pin numbers, rather than an assumed viewing direction, define J2/J3 orientation: locate the footprint pin1 marker and map the mating cable by numbered contacts. J2 has no power pin and requires a powered or disconnected3.3V adapter. J3 is the host cable order, not an assertion about Adafruit326 header order; actual module revision/header/address/reset/pullups and cable mapping remain prerequisites for connection. Rationale: prevent reversed cables and unqualified external loading.
+
+Espressif supplied v2.2 Tables4-1/4-2/4-3 were re-read before assignment: SPI GPIO2=1,GPIO8=either,GPIO9=1; joint download GPIO2=1,GPIO8=1,GPIO9=0. Hold straps>=3ms after EN rises; hold BOOT through manual RESET and release. GPIO4/5/6/7 do not load straps. No RTC-dependent feature is introduced. Rationale: preserve verified boot levels without assigning an unverified RTC function.
+
+## Complete net endpoint contract
+
+Every endpoint below uses the installed symbol's real package pin number. U5 functions use TI SCES204Q DCU section5:1OE1_N,2A1,3Y2,4GND,5A2,6Y1,7OE2_N,8VCC; the earlier swapped Stage3 output labels are superseded. U6 uses TI SLLSEG9C DRL section5:NC1/2,IO1=3,GND=4,IO2=5. Rationale: manufacturer function tables govern anonymous library endpoints.
+
+| Net | Pins | Rationale |
+|---|---|---|
+| GND | J1.A12,J1.B12,J1.S1,U3.2,U3.8,U3.9,U6.4,D1.2,R1.2,R2.2,R3.2,C1.2,C10.2,U2.1,U2.4,U2.5,U2.9,C2.2,C3.2,C11.2,U1.1,U1.2,U1.11,U1.14,U1.36,U1.37,U1.38,U1.39,U1.40,U1.41,U1.42,U1.43,U1.44,U1.45,U1.46,U1.47,U1.48,U1.49,U1.50,U1.51,U1.52,U1.53,U5.1,U5.4,U5.7,J2.1,SW1.2,SW2.2,C4.2,C5.2,C6.2,C8.2,U4.4,C7.2,J3.1,C9.2 | Common return; active-low U3 enable and both U5 OEs grounded; fixed-output U2 FB/PAD grounded. |
+| VBUS | J1.A9,J1.B9,U3.3,U3.4,D1.1,C1.1 | Raw5V, unidirectional D1 cathode and input bypass. |
+| USB_CC1 | J1.A5,R1.1,U6.3 | Independent Rd and protection channel. |
+| USB_CC2 | J1.B5,R2.1,U6.5 | Independent Rd and protection channel. |
+| EF_SLEW | U3.1,C10.1 | eFuse ramp timing. |
+| EF_ILM | U3.7,R3.1 | Fault limit, not450mA operating proof. |
+| EF_FAULT_N | U3.6,R4.2,U1.21 | Open-drain fault indication. |
+| 5V_PROT | U3.5,U2.2,C2.1,R5.1 | Protected buck supply and enable-delay source. |
+| BUCK_EN | R5.2,C11.1,U2.3 | Delayed enable does not slow buck output soft-start. |
+| BUCK_SW | U2.7,L1.1 | Switch node explicitly classified signal to avoid a rail power symbol. |
+| 3V3 | L1.2,U2.6,C3.1,R4.1,U1.3,U5.8,R6.1,R7.1,R8.1,R9.1,R12.1,C4.1,C5.1,C8.1,U4.3,C7.1,R10.1,R11.1,J3.2,R13.1,C9.1 | Post-inductor rail explicitly classified power; VOS senses regulated output. |
+| MCU_EN | U2.8,U1.8,R6.2,C6.1,SW1.1 | Manual reset and PG support; off-state holdoff unqualified. |
+| BOOT_IO2 | U1.5,R7.2 | Strap high. |
+| BOOT_IO8 | U1.22,R8.2 | Strap high for joint download. |
+| BOOT_IO9 | U1.23,R9.2,SW2.1 | SPI high/manual download low. |
+| I2C_SDA | U1.18,U4.1,R10.2,J3.4 | Shared sensor/display data. |
+| I2C_SCL | U1.19,U4.2,R11.2,J3.3 | Shared sensor/display clock. |
+| OLED_RST | U1.20,R13.2,J3.5 | Explicit display reset. |
+| U_RX | U5.6,U1.30 | Corrected buffer1 output to MCU RX. |
+| U_T | U1.31,U5.5 | MCU TX to buffer2 input. |
+| U_IN | R14.2,U5.2,R12.2 | Adapter input damping and idle pullup. |
+| U_A | J2.3,R14.1 | Adapter TX cable endpoint. |
+| U_OUT | U5.3,R15.1 | Corrected buffer2 output. |
+| U_ARX | R15.2,J2.2 | Adapter RX cable endpoint. |
+
+## Intentional no-connects and omissions
+
+U1 noConnect:4,6,7,9,10,12,13,15,16,17,24,25,26,27,28,29,32,33,34,35. These cover all manufacturer NC endpoints and unused GPIO0/1/3/10/18/19. U6 noConnect:1,2, as its manufacturer permits floating NCs. Rationale: declare every unused package endpoint explicitly; no USB data or extra peripheral loading is intended.
+
+No power LED, UART power contact, onboard OLED footprint, USB data/PD circuit, TPS2553 or external fixed-buck feedback divider is added. Rationale: preserve power margin, source restrictions, buffered programming and external display architecture; TPS259533 intentionally replaces TPS2553, and TI recommends fixed-output FB grounded.
+
+## Capture verification
+Final generated sheet: ERC clean;19 symbol definitions match installed libraries or exact engine templates; legibility0 errors/2 long-wire advisories; drift clean. Engine score75.11/100 and wiring style87.19/100 on A2. Two residual label-overlap notes remain deliberately acknowledged after U_ shortening cleared the error-severity collision. Schematic SVG exported to .copperhead/renders/. Rationale: record actual gate results and presentation limits without claiming perfect geometry or hardware acceptance.
+
+## Qualification boundaries
+
+ASSUMED Stage4 connectivity preserves all39 selected parts/Values/footprints and every SPEC budget. U5 manufacturer DCU outputs are corrected to6/3; U6 DRL functions confirmed3/4/5. Generic connector/switch symbols and Device:D_Zener implement the unchanged physical selections. Startup/recycle<=450mA, PG-off reset behavior,82% conversion target, U5 dynamic/input-level current within1mA, U6 combined leakage<=2uA, all remaining per-part leakage, source qualification, module/cable compatibility and RF/mechanical requirements remain unqualified. No sleep budget exists. Rationale: capture/ERC verification does not establish measured hardware acceptance.

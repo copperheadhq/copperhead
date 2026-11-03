@@ -1,0 +1,537 @@
+{
+  "audit_type": "new read-only extraction from the original design Git and original transcripts",
+  "head": "f3cee1a1ea6a10245633b6c355de16e3bd4b097e",
+  "worktree_clean": true,
+  "stage_commits": [
+    {
+      "stage": "spec-seed",
+      "commit": "ca57cd59f88d033dd65c47d556eaa427c69868df",
+      "tree": "db2b57a2a26cf0bb268cec87ec60dbee04b5cedc",
+      "parents": [
+        "83eaca80ce32d216b3460929a5e593d99ee1f0fb"
+      ],
+      "commit_time": "2026-10-09T04:52:18+09:00",
+      "terminal_exit_path": "done",
+      "transcript_source_sha256": "3b561eef61e025f59978966da3172b9581df3ea40fab27416776fd35df0f93b2",
+      "original_transcript": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T19-34-57-581Z/transcript.jsonl"
+    },
+    {
+      "stage": "architecture",
+      "commit": "18296f033848ffd3e9fe52e0782902b1413070d4",
+      "tree": "4d2ce174953e47b850ea36176371bebec2c09625",
+      "parents": [
+        "419c5542818eaa9d2b10e6342015f8875c86c9a2"
+      ],
+      "commit_time": "2026-10-09T05:27:55+09:00",
+      "terminal_exit_path": "done",
+      "transcript_source_sha256": "2c8fceedbea385474c4c0dc4cd1aa0a2e92db8e2ad88cbbff15e2a62eb8dbe3c",
+      "original_transcript": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T20-16-53-044Z/transcript.jsonl"
+    },
+    {
+      "stage": "part-selection",
+      "commit": "c960cbf94f4347b1c36ed2f12fe96d8a235a3762",
+      "tree": "ea9df4ce0d60ab74f313d7df571158d5178ba263",
+      "parents": [
+        "f1020fe8e1910161cb37943c666e17d05ec1fdd6"
+      ],
+      "commit_time": "2026-10-09T06:36:25+09:00",
+      "terminal_exit_path": "done",
+      "transcript_source_sha256": "15cc0b1333577a107e9ba6a00ecdf7b1d6f3c40601991caf798ec7c1b022cae3",
+      "original_transcript": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T21-16-42-319Z/transcript.jsonl"
+    },
+    {
+      "stage": "schematic",
+      "commit": "e0ae534f6afa48b8c29ec5dc35ef6296951d2ba2",
+      "tree": "31961201f4522065fcf03ca9703599a7d779230e",
+      "parents": [
+        "171a77fb816f2ee2e36ab77166e9de8799632c05"
+      ],
+      "commit_time": "2026-10-09T07:13:25+09:00",
+      "terminal_exit_path": "done",
+      "transcript_source_sha256": "3cf0aab3e698b31f4d3ea73063769352a3ac3fdd8c8a87d9b55bd069410e8ffe",
+      "original_transcript": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-04-18-436Z/transcript.jsonl"
+    },
+    {
+      "stage": "layout-draft",
+      "commit": "7852a36b5c6b666ac9a16701663464e3a2c7a243",
+      "tree": "ae736d3abf0325c49cd390c754eb39df8a20a1fc",
+      "parents": [
+        "e0ae534f6afa48b8c29ec5dc35ef6296951d2ba2"
+      ],
+      "commit_time": "2026-10-09T07:56:30+09:00",
+      "terminal_exit_path": "done",
+      "transcript_source_sha256": "a6204abb0097652cbf745c7854d2a787342c46dca4981e56f211439c1ef5f029",
+      "original_transcript": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T22-45-04-814Z/transcript.jsonl"
+    },
+    {
+      "stage": "outputs",
+      "commit": "84cddb82a522a5033b1a1606d132a85b04296f53",
+      "tree": "a0b7ab760abd0706e6dd46c46b07250140a12be9",
+      "parents": [
+        "7852a36b5c6b666ac9a16701663464e3a2c7a243"
+      ],
+      "commit_time": "2026-10-09T08:50:08+09:00",
+      "terminal_exit_path": "done",
+      "transcript_source_sha256": "6b9209865f83bcdfccf3a475b69704befef4ab41ea2da4b0d42ccf724fd1adde",
+      "original_transcript": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-42-05-337Z/transcript.jsonl"
+    },
+    {
+      "stage": "firmware",
+      "commit": "0c2fb31c8fb6088baff27e9915484bb45e737d04",
+      "tree": "f2dfb127c17563bb2be920aabdb77fcda3b2f63e",
+      "parents": [
+        "972d4d136681a98aa734dc5fc560c6cedd1c1049"
+      ],
+      "commit_time": "2026-10-09T08:57:38+09:00",
+      "terminal_exit_path": "done",
+      "transcript_source_sha256": "d66439f4f4cd3c4bd5130777154185ad2b4bfd707eebef066f91535a3d132477",
+      "original_transcript": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-08T23-50-46-598Z/transcript.jsonl"
+    },
+    {
+      "stage": "devplan",
+      "commit": "f3cee1a1ea6a10245633b6c355de16e3bd4b097e",
+      "tree": "d560bfe79eba617fa18617a41b14b1d7154862ef",
+      "parents": [
+        "0c2fb31c8fb6088baff27e9915484bb45e737d04"
+      ],
+      "commit_time": "2026-10-09T09:11:57+09:00",
+      "terminal_exit_path": "done",
+      "transcript_source_sha256": "b68e4933ba814dfca29043df170caaa651d1d2130f441bff046a2a18b296a380",
+      "original_transcript": "designs/native-500ma-spec-v7-20261008/.copperhead/runs/2026-10-09T00-00-15-353Z/transcript.jsonl"
+    }
+  ],
+  "head_tracked_files": [
+    {
+      "path": ".copperhead/config.json",
+      "bytes": 480,
+      "sha256": "efa01e116db349b05f3f095390d88139c4ded4bae5b0c86af99293f23c27c65e",
+      "git_blob": "d45d61c83f7c533a65d8bd70cbca438fc02f199a"
+    },
+    {
+      "path": ".copperhead/constraints.json",
+      "bytes": 39834,
+      "sha256": "8ed1f03f8f78769cb4dd688fde0408f6d1f751bdfcae993b215cf1d01d2bc084",
+      "git_blob": "50888cb33f7edbf5176dbf3a9ffe7248bc46f7bc"
+    },
+    {
+      "path": ".copperhead/renders/board.svg",
+      "bytes": 120923,
+      "sha256": "454b54a9aa5f69c11c4a8cc68b7ca0f3362ac4c0e4afb31d154c1213231b5a92",
+      "git_blob": "e423544ece28c173b176bf6cc0625ac804e46743"
+    },
+    {
+      "path": ".copperhead/renders/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.svg",
+      "bytes": 373807,
+      "sha256": "ec630519c0c8eb70fc12e2882466dbc1d3b1610140aff21596881b6d5b23c713",
+      "git_blob": "fc3c61d96154b6a35be2ee5e574d05c7f22914ac"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 56,
+      "sha256": "2e63339cd7b7f64198b77103e1ad527beaf688ccb61d73a0a0b5d16d8f9005d7",
+      "git_blob": "908ba8a68e7c5654376bf479611d0513a5649bae"
+    },
+    {
+      "path": "docs/BOM.md",
+      "bytes": 23902,
+      "sha256": "3d067125c38fb7b1699185b4b6376f0597326e72306b8ffb7d16de689155f49f",
+      "git_blob": "f43cc10345c0aec7bc4f89b6ce671773dcb062b3"
+    },
+    {
+      "path": "docs/BRIEF.sha256",
+      "bytes": 117,
+      "sha256": "c91cfabfe0afa93ff9ec6c477147240ffad70b7d14e0bba8f93d7cbeb5def4c5",
+      "git_blob": "7cd4645f6e68efe9b5dbe6611b570b8770a9eeea"
+    },
+    {
+      "path": "docs/CHANGELOG.md",
+      "bytes": 2894,
+      "sha256": "63c0a047a803ebc7b6eead51240a83f548b2431494a83b0f44d9aab0ec99e3d6",
+      "git_blob": "116809d7507b3b1cfd28d43e866758e6fdaed2b0"
+    },
+    {
+      "path": "docs/DECISIONS.md",
+      "bytes": 18823,
+      "sha256": "ce0286ab299e7cee49b1f90582b2cc668981dcf4b836fb0f04c7dfbd3c368598",
+      "git_blob": "8915b6c1b6fc1d5ae439878d43a9e4105d43f896"
+    },
+    {
+      "path": "docs/DEVPLAN.md",
+      "bytes": 41865,
+      "sha256": "8470e4f7e142899d021bf29fe767f277e45e48d3fc5486c0555c70a7a9e52a47",
+      "git_blob": "57223a0c7515e27b5f78f57e4ac2e8a30f599873"
+    },
+    {
+      "path": "docs/FIRMWARE.md",
+      "bytes": 6906,
+      "sha256": "0bbf3f4ed65ce522e1045a301133eed6ed9768a6ef05f09fecd1ba848260d17c",
+      "git_blob": "8c8c845537a81471414f57e4ab6c333bfd6dee5e"
+    },
+    {
+      "path": "docs/LAYOUT.md",
+      "bytes": 11615,
+      "sha256": "87ca998a7406ca4881a976fd17a320f94456a08353bc4ffc85bbdfa5687bd974",
+      "git_blob": "15f66fa4322c559303e3a0328f1d6e4de8040c6d"
+    },
+    {
+      "path": "docs/OUTPUTS.md",
+      "bytes": 7636,
+      "sha256": "10269810166680569137f88c85a4d7bc102a38ea9b3149fa59bc359a3e993716",
+      "git_blob": "f52bad2c9892f24f8bbb05380f73e5b85af4e05a"
+    },
+    {
+      "path": "docs/PINOUT.md",
+      "bytes": 4378,
+      "sha256": "7dea2f9187b57cc8d7c944a80e9026df4b11ff282fe0f5f19908289955295769",
+      "git_blob": "13e0cc2c43495c94654f4d2e9e1faa7d693b4dbd"
+    },
+    {
+      "path": "docs/SPEC.md",
+      "bytes": 33313,
+      "sha256": "fe87f077ac060f451a1a4394dcf97d505761e2d358e9aa988f376c37f16de166",
+      "git_blob": "99a358a383b5d6d199bd16c07f6fc1b55275e91a"
+    },
+    {
+      "path": "docs/SUBSYSTEMS.md",
+      "bytes": 12467,
+      "sha256": "0af424f6807e7dc299ff39f1a7052934f258e3e8edf42bc7693d230cf65abd05",
+      "git_blob": "4caa19c2b04506002bf200ac49fdac586bf93806"
+    },
+    {
+      "path": "firmware/README.md",
+      "bytes": 272,
+      "sha256": "c82bfb88bca5a30dbd4101fd8501286abb71af99df11ed6e2d0bf1324f9be640",
+      "git_blob": "6e427dee07efd5aceb01edddcdf7d9622f8cd142"
+    },
+    {
+      "path": "openspec/changes/capture-protected-500ma-schematic-v14/proposal.md",
+      "bytes": 1150,
+      "sha256": "d0da98c899d1050f750dcb37fdfba74520cbc3eff92ddcf1476104a04a13df7b",
+      "git_blob": "0a61f5cc88afd3ab92183a92a5339c46d22d7350"
+    },
+    {
+      "path": "openspec/changes/capture-protected-500ma-schematic-v14/tasks.md",
+      "bytes": 580,
+      "sha256": "8f0326bdf194420f4346479f7bbf909af16c8e93896f3adbe94a9760c478c65d",
+      "git_blob": "9a0d9de6bd7f889132fb7ed73f61754910fcf890"
+    },
+    {
+      "path": "openspec/changes/define-independent-500ma-architecture/proposal.md",
+      "bytes": 1877,
+      "sha256": "c2307af8b72e27f816a7e14e70a11eee5a7e2aab5979b5f66a2e20326c64d28d",
+      "git_blob": "69836e5f5decb47c71cbe4c0b9d8442384281444"
+    },
+    {
+      "path": "openspec/changes/define-independent-500ma-architecture/tasks.md",
+      "bytes": 1561,
+      "sha256": "5ad3d3f4425272f7cd1b75717567c7d47fecad92905e40bc367cc6ea9100ac8c",
+      "git_blob": "dac76083c735384499cf8ea1bf8918b5f52ed7a2"
+    },
+    {
+      "path": "openspec/changes/document-analog-firmware-not-applicable-v19/proposal.md",
+      "bytes": 973,
+      "sha256": "0fe68ee3c92712b1b0190b5a9d3b64356695c609890fe47b8b5719284edd5362",
+      "git_blob": "9f1a2a099b8f894080905d6c90cdab84baac9c39"
+    },
+    {
+      "path": "openspec/changes/document-analog-firmware-not-applicable-v19/tasks.md",
+      "bytes": 1149,
+      "sha256": "32c34bc6ab94c1af30c52eab27f4348c02205765f69eb53fe3406573fe3b7a41",
+      "git_blob": "80c169a910cdc5b68a8e5256b4edd0bae2cc129a"
+    },
+    {
+      "path": "openspec/changes/document-independent-500ma-architecture/proposal.md",
+      "bytes": 1440,
+      "sha256": "82f25d2a231b383c1b5bb25d784785616ad1f4655113146cf05f297f6bc1f506",
+      "git_blob": "b8d5491c0f49f5f2e72e716b01a2ee38c717f95d"
+    },
+    {
+      "path": "openspec/changes/document-independent-500ma-architecture/tasks.md",
+      "bytes": 2019,
+      "sha256": "f4e0d3f1ceb4ee76ca29a22512a1599cfb76e699c5e2b3232fc708404939442a",
+      "git_blob": "410e35fad03e47f120488c209fa6fd0f003dc6b4"
+    },
+    {
+      "path": "openspec/changes/draft-protected-500ma-layout-v16/proposal.md",
+      "bytes": 801,
+      "sha256": "85a285186dd039c26fb171604c61f39a75c738f761b2bdaac9eb2651be33375c",
+      "git_blob": "e248977693db8ab500e6163cf8781f496cfd91cc"
+    },
+    {
+      "path": "openspec/changes/draft-protected-500ma-layout-v16/tasks.md",
+      "bytes": 391,
+      "sha256": "b2e9adbc65fe2c07082809515ceebf83393d9c2f86c51946a4212089dc8314db",
+      "git_blob": "fb250ba19bb3871038e78ddb3ab87477177824bc"
+    },
+    {
+      "path": "openspec/changes/export-protected-500ma-jlc-package-v18/proposal.md",
+      "bytes": 993,
+      "sha256": "0d99e4cf206e3064094542d0890e11a178d0e49cbd0e48cc85f509f4ad4ad447",
+      "git_blob": "d379d634e3c5775b69b4dcef69de49bd8147cff6"
+    },
+    {
+      "path": "openspec/changes/export-protected-500ma-jlc-package-v18/tasks.md",
+      "bytes": 1212,
+      "sha256": "ce9d74053ea38c372a5c5b665b8379c4cee021a113ac028e4c7443ef29557e0d",
+      "git_blob": "c482daf11d564902ec1314d86839c64faa5a7f76"
+    },
+    {
+      "path": "openspec/changes/plan-protected-500ma-bringup-v21/proposal.md",
+      "bytes": 1212,
+      "sha256": "5f7d83369ea421543a30789956942c38692b6da922d5c901c5c9730a378f0f15",
+      "git_blob": "9de98f4ce2211c162a5159cf694ebd0329b098c6"
+    },
+    {
+      "path": "openspec/changes/plan-protected-500ma-bringup-v21/tasks.md",
+      "bytes": 1178,
+      "sha256": "ed4f8d9da02de495d311804990cecd6cd5c195669b65c900ed83a21c68af462d",
+      "git_blob": "2e1c32951260433a671ee0116c47fc28f10a9cf6"
+    },
+    {
+      "path": "openspec/changes/seed-independent-500ma-spec/proposal.md",
+      "bytes": 1995,
+      "sha256": "2814c27f7ecfb1d8388465b6ad3e0367ee3bdd6d1442c812815ee36b16aade7e",
+      "git_blob": "7cfd4414cdeb89db7018405f34a32aea309bdac3"
+    },
+    {
+      "path": "openspec/changes/seed-independent-500ma-spec/tasks.md",
+      "bytes": 1892,
+      "sha256": "3e2479b8d41f23cb725efa6429413d96dab6640c3435c7c6367f95ae6ea6798c",
+      "git_blob": "5e23a648e2d786f3d91f75fbccf32204ab41994c"
+    },
+    {
+      "path": "openspec/changes/select-prototype-tps2065c-parts/proposal.md",
+      "bytes": 2397,
+      "sha256": "53293b1ec38ac63dd09f84bb2cd7d01e1b25de94a2d5384d5ba31e0e1c553b08",
+      "git_blob": "60b7f67b2d7e7f11e5318e97739bf96932140373"
+    },
+    {
+      "path": "openspec/changes/select-prototype-tps2065c-parts/tasks.md",
+      "bytes": 1307,
+      "sha256": "6dc21664672c06b1e4ef203c95fe098e535bb312362e3bfcff4c363472276b92",
+      "git_blob": "9f87f4cdbeb3d8a0e42af12dd0f671002f7c2bcd"
+    },
+    {
+      "path": "openspec/specs/evidence-and-firmware/spec.md",
+      "bytes": 2639,
+      "sha256": "e65df937db6617f81e31a8044437007fa49bddbe994dc735cbeee64eaa99bb84",
+      "git_blob": "305c6061b75aff592f5c82abf45e6e832d1ef685"
+    },
+    {
+      "path": "openspec/specs/manufacturing/spec.md",
+      "bytes": 2850,
+      "sha256": "e5835752b14d6eb73f15661f61703aa4ef8d00d320fa2f92a466b934d073fa13",
+      "git_blob": "c6f30f0fcf2137d95d2b1da27719a30d19aae190"
+    },
+    {
+      "path": "openspec/specs/power-indication/spec.md",
+      "bytes": 2618,
+      "sha256": "a222e279eb1bc34b7a20e22c2b8846489c58ba3835cd8452ed063098c189593b",
+      "git_blob": "dc4109fbbf84cb67df70242555f9b92c717b6c21"
+    },
+    {
+      "path": "openspec/specs/power-input/spec.md",
+      "bytes": 1819,
+      "sha256": "76778585b3c12b3798d00e369079f80e170a1e22b9c926bd8b9687d09f6a9b86",
+      "git_blob": "3d1f8a330086e139ecbad082c777e806f5c94509"
+    },
+    {
+      "path": "openspec/specs/protected-outputs/spec.md",
+      "bytes": 3085,
+      "sha256": "87854c40172cd20cfe242463cb360c1ae10e5f7b0bff11548e86b2dd72a7b491",
+      "git_blob": "a53845b943e170150ec35571b05b7304ad350956"
+    },
+    {
+      "path": "outputs/BOM.csv",
+      "bytes": 218,
+      "sha256": "d92c50e116ec706edb30310584b8c2805465dd845ce9a809fd79891a3de7b321",
+      "git_blob": "27d8e08af2111a52448dabc7b89b198d95472937"
+    },
+    {
+      "path": "outputs/README.md",
+      "bytes": 3160,
+      "sha256": "b913d79ed2d22b1ae272e32d07585f0b21e82f6fece03c6979788f9d8da6e832",
+      "git_blob": "5cb9329a0780246e7666ccc5653d2fa99a66f755"
+    },
+    {
+      "path": "outputs/board.step",
+      "bytes": 46352,
+      "sha256": "d452d37224d748a05674664ad693855717629e1bbc7958f1639c86308ec0bad4",
+      "git_blob": "9e61d8b68b1c1c133cc7792d48efd27a38d402b5"
+    },
+    {
+      "path": "outputs/board.svg",
+      "bytes": 120923,
+      "sha256": "836885a1544b74d9bfd5a75cad54484c9c5b29ae63233e7b4d2cdf9b20e157b3",
+      "git_blob": "78030b08089edb2769d106ff1202fd2c5ba74972"
+    },
+    {
+      "path": "outputs/export-manifest.json",
+      "bytes": 5050,
+      "sha256": "20830b98f767d7226227e26cdf709bbe89cb82a1f3dc97b0598551e3cd4c86c1",
+      "git_blob": "28350280366edc1d94046fbe930a97fbf19cb527"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-B_Cu.gbl",
+      "bytes": 4072,
+      "sha256": "957e44150e65c51cbd60468686e4a03f36bdd388a667188a9d22f8ae20f1fe24",
+      "git_blob": "c11db492a48af21a1e67a19172cf89db1d585085"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-B_Mask.gbs",
+      "bytes": 1857,
+      "sha256": "ac5e83b8abc16ecdf26281645ffdf932d489d7c6079f46fa68296664261798b6",
+      "git_blob": "5bae16077b2a1b12c19e5598b8bcb18b3b707ec3"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-B_Paste.gbp",
+      "bytes": 527,
+      "sha256": "59bae9676e4f00bc59d36282f44c0f5a5cab5fb839bceeb24fc3ec68fb31f6cc",
+      "git_blob": "531a42b6a72b824981ac61320bdcaa4d8b537167"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-B_Silkscreen.gbo",
+      "bytes": 528,
+      "sha256": "c3854a278a95419674166bbcf782e7535eb3ad67e8a1cf85747423e708d7f79e",
+      "git_blob": "6320e8bdac080145cccf69fc88372555cfe3a679"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-Edge_Cuts.gm1",
+      "bytes": 687,
+      "sha256": "085427f6280b65586142544f5111f7265486ffc9a9b06035f101d5cbaf9ba294",
+      "git_blob": "7c22341ef0798110e59f709b2fa7f8f0d7aece8e"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-F_Cu.gtl",
+      "bytes": 7629,
+      "sha256": "e9af01de312734c8aef22c95bc2605aa84cfa22585c869d3cf65fceeaa41a7dc",
+      "git_blob": "90f4f6ad515720124db069e6c378c9eafeff3ae4"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-F_Mask.gts",
+      "bytes": 3550,
+      "sha256": "b785d4ab5737a31279d412dc3d4a66c1349b0ac26c41fd7c77bfaee552b5e020",
+      "git_blob": "437b0aaa08f1137ed3e15b97c50add6f5d4c8a8c"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-F_Paste.gtp",
+      "bytes": 2962,
+      "sha256": "e7e10fbdbbadd0b1ce3ebfbfb1a3dd2a0987eaf5ce6bd017138f92139c13f821",
+      "git_blob": "206d1226fd25ec1bc1f933d08b11413061232a81"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-F_Silkscreen.gto",
+      "bytes": 27739,
+      "sha256": "2c11b38144640c1c97980d57b966205479077be5fa3734a1d4e85582bfb6befd",
+      "git_blob": "07cdba044499b5cbe44756d8524982cde435e8e1"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-NPTH.drl",
+      "bytes": 379,
+      "sha256": "c1df2b2a3ae6c5497d2bb2c47c0d7bd780f5ee7a8529c9d6de2a6b3848b92ead",
+      "git_blob": "6fada580de3a1568ff468a93f7b70bf752595143"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-PTH.drl",
+      "bytes": 1007,
+      "sha256": "1d544db0a170249a5ee18b80de753253617619744b168d348d7ac8deb2b63933",
+      "git_blob": "b9f44d8befaad244fb34954bbfc18b49fdfeb456"
+    },
+    {
+      "path": "outputs/gerbers/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-job.gbrjob",
+      "bytes": 3256,
+      "sha256": "fb3cc3e20233a61e118dd07d26125521b16b8a0cfe9dfc60215596a4c422b058",
+      "git_blob": "20bfdd9c0d50cf94ba08b6e787515276387d4634"
+    },
+    {
+      "path": "outputs/jlcpcb-bom.csv",
+      "bytes": 41,
+      "sha256": "bf54c8808cef558f29d0551c0995815930da09442a515988e950272b83984adb",
+      "git_blob": "86f46db6d44600eb3cd5c04888b04a552b3ff84a"
+    },
+    {
+      "path": "outputs/jlcpcb.zip",
+      "bytes": 53593,
+      "sha256": "a6ce0b3c7e6d661dde3518dc094a8b85ad02aee736cbcadeba713b17c5e96873",
+      "git_blob": "495a81357ff1ef8e5822456d9123db4b45ff25c5"
+    },
+    {
+      "path": "outputs/outline.dxf/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief-Edge_Cuts.dxf",
+      "bytes": 5820,
+      "sha256": "e4caa3424b666d5b0865d3a41ac4c3050087a8cee2c7a5e8102d26332cc27a9a",
+      "git_blob": "823cabb67ccbc36b8630cb0c89c06134bc2843e5"
+    },
+    {
+      "path": "outputs/renders/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.svg",
+      "bytes": 373807,
+      "sha256": "d52820b27b4c5df8cda477f58f11e16147f27c89892cb3ba811e2ce147ae06f6",
+      "git_blob": "18a275375932e0a4d99e84143ae945f83a232055"
+    },
+    {
+      "path": "protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.kicad_dru",
+      "bytes": 100,
+      "sha256": "8af4ab1d0852653e7c593e0a0c563b8e92c3a955ea72a91e6333fa1f364fc480",
+      "git_blob": "0c4e3284ffe06b49d2f46ecf94678165c3754385"
+    },
+    {
+      "path": "protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.kicad_pcb",
+      "bytes": 49135,
+      "sha256": "b07e3bfa0236ad11b54fbd4554b2cabb377a1cdee0bb4e1606a0f03e1e854470",
+      "git_blob": "6f2edd0ea6466c796c79f8541a77b841a72c2d13"
+    },
+    {
+      "path": "protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.kicad_pro",
+      "bytes": 1384,
+      "sha256": "245e11d7de8d31acc0928ce82b9eb6c282a6e25337780b7fdb844e2a9292cbfc",
+      "git_blob": "e273e80037af2a36480691c4d3474e8ea4200f61"
+    },
+    {
+      "path": "protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.kicad_sch",
+      "bytes": 66154,
+      "sha256": "73583b1e518a445e988d26c6bcf51150fc9e05aefde8086d3ee0cab8d150f0fd",
+      "git_blob": "de26ce95c970eb8de0e90a4d06ce4548e968d5d9"
+    },
+    {
+      "path": "schematic.intent.json",
+      "bytes": 3082,
+      "sha256": "3e03967ed652236b4ecd349e5f5d058029867558e8f92e9e45f54ed1245e87ec",
+      "git_blob": "07eefee157e954eecc0f6db182303261ecfd7341"
+    },
+    {
+      "path": "sym-lib-cache/Connector.kicad_sym",
+      "bytes": 12748,
+      "sha256": "03efd6837d12251572c431f5cf4c907f411a98a4728332ea333b6b13426f2abb",
+      "git_blob": "e408158037ebd839c311648e1fb2e3bf60792e2e"
+    },
+    {
+      "path": "sym-lib-cache/Connector_Generic.kicad_sym",
+      "bytes": 3030,
+      "sha256": "de7fb3e512ccd1cab76043cd135cc939451767744d5768b528d2a8904c5a41d9",
+      "git_blob": "02a8dd908637186db6201a579edc2213dfae44b1"
+    },
+    {
+      "path": "sym-lib-cache/Device.kicad_sym",
+      "bytes": 6203,
+      "sha256": "043417acc34381a7774bd4644d9a3823db72f14fe30b2d589c39dad7cd9a4123",
+      "git_blob": "b0bb1c098c4f51ed5eae5e4b6c824647b5e9b0ad"
+    },
+    {
+      "path": "sym-lib-cache/Power_Management.kicad_sym",
+      "bytes": 5343,
+      "sha256": "1b12bcfeb705951a8d7a5b5f4d4a63b7a19a553e2a3ef503da55d2dde45a1090",
+      "git_blob": "3b828847878cd8049527ad6a7450bfab18de0dff"
+    },
+    {
+      "path": "sym-lib-cache/copperhead_power.kicad_sym",
+      "bytes": 2868,
+      "sha256": "05a09273e92eaa36d0917077ce22b2243b9ab85a8756344edee8b57159e86303",
+      "git_blob": "ea1a108ef2e00704887dc81125cf73e5ffef6b32"
+    },
+    {
+      "path": "sym-lib-table",
+      "bytes": 738,
+      "sha256": "1aba5a6fd64c757d5538a95d81e559cf5d47fa53da2833bc8ba6c7c595f87a33",
+      "git_blob": "ad01fdf3373c8442cb1d1ed88a745657e83c33ef"
+    }
+  ]
+}

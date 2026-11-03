@@ -1,0 +1,91 @@
+stage spec-seed: already complete (resuming past it)
+stage architecture: already complete (resuming past it)
+stage part-selection: already complete (resuming past it)
+stage schematic: already complete (resuming past it)
+stage layout-draft: placed 10 footprint(s) from the schematic on protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.kicad_pcb (13 nets, unrouted; outline grown to 30 x 23 mm to fit)
+stage layout-draft: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage layout-draft (5/8) · model experimental-native:native-500ma-layout-v16-20261008 (experimental-native, via flag) · turns ≤5 · master@e0ae534 dirty(1)
+[turn 1/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  [validate_change] validation passed; edit tools are now unlocked
+  [run_drc] DRC: clean (26 connection(s) unrouted, left as ratsnest)
+  [run_erc] ERC: clean
+  [check_drift] drift: clean
+[turn 2/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  [run_drc] DRC: clean
+  [run_erc] ERC: clean
+  [check_drift] drift: clean
+[turn 3/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  [check_drift] drift: clean
+[turn 4/5 · 0 in / 0 out]
+  … still working — 15s elapsed (no output yet)
+  … still working — 30s elapsed (no output yet)
+  … still working — 45s elapsed (no output yet)
+  … still working — 1m00s elapsed (no output yet)
+  … still working — 1m15s elapsed (no output yet)
+  … still working — 1m30s elapsed (no output yet)
+  … still working — 1m45s elapsed (no output yet)
+  … still working — 2m00s elapsed (no output yet)
+  … still working — 2m15s elapsed (no output yet)
+  … still working — 2m30s elapsed (no output yet)
+  … still working — 2m45s elapsed (no output yet)
+  … still working — 3m00s elapsed (no output yet)
+  … still working — 3m15s elapsed (no output yet)
+  … still working — 3m30s elapsed (no output yet)
+  … still working — 3m45s elapsed (no output yet)
+  … still working — 4m00s elapsed (no output yet)
+  … still working — 4m15s elapsed (no output yet)
+  [run_drc] DRC: clean
+  [run_erc] ERC: clean
+  [check_drift] drift: clean
+  [finish] all gates satisfied; run will commit
+committed 7852a36b5c (8 file(s))
+done · ERC clean · DRC clean · committed 7852a36b5c · 11m25s · 0 in / 0 out
+stage layout-draft: rendered 2 SVG artifact(s) into .copperhead/runs/2026-10-08T22-45-04-814Z/artifacts/
+pipeline so far: 5/8 stages · 11m28s · 0 out tokens · 0% cache hits
+stage outputs: running
+experimental-native: physical token usage is unknown/unreported; numeric counters are interface placeholders, not measured usage.
+copperhead v0.11.0 · kicad-cli 9.0.2 · node v24.19.0
+create · stage outputs (6/8) · model experimental-native:native-500ma-layout-v16-20261008 (experimental-native, via flag) · turns ≤5 · master@7852a36 clean
+[turn 1/5 · 0 in / 0 out]
+stage outputs: the run ended as "failure" (provider-error): provider error: EXPERIMENTAL_STAGE_BOUNDARY: outputs is outside this trial's bound stage; no request queued; exhausted 0 auto-retry(ies). Stopping for a human.
+Per-stage cost summary
+  Stage             Wall  Turns  Out tok  Cache
+  --------------  ------  -----  -------  -----
+  spec-seed            —      —        —      —
+  architecture         —      —        —      —
+  part-selection       —      —        —      —
+  schematic            —      —        —      —
+  layout-draft    11m28s      4        0     0%
+  outputs             0s      0        0      —
+  --------------  ------  -----  -------  -----
+  TOTAL           11m28s      4        0     0%
+wrote run report: .copperhead/runs/REPORT.md (+ report.json)

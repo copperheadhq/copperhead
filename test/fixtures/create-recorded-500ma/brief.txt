@@ -1,0 +1,33 @@
+# Protected USB-C 500 mA power breakout: independent prototype test brief
+
+This is a NEW software end-to-end test input, not a revision of the previous 3 A / USD 3 breakout. Produce a reviewable prototype design through all eight Copperhead stages, preserving its normal proposal, verification, artifact and commit gates. No prototype has been manufactured or physically tested; state that explicitly and leave physical validation in the bring-up plan.
+
+## Functional requirements
+- A USB-C sink-side power input, nominal 5 V, operating from 4.75 to 5.25 V. No USB data, USB-PD negotiation or voltage conversion.
+- Separate 5.1 kohm Rd resistors from CC1 and CC2 to GND. Do not join CC1 and CC2. Rd permits attachment; it does NOT negotiate a current entitlement or enforce the source's advertised limit. Full-load use requires a suitable known-capable source and cable; document this operating condition.
+- Deliver a maximum normal continuous load of 500 mA TOTAL across two parallel protected outputs: one 2-pin 3.5 mm screw terminal and one 2x2 2.54 mm header. Either output may carry the full normal load when used alone. Clearly document pin assignments and polarity.
+- A common active high-side short-circuit protection block precedes both outputs and the power LED. Fault-control behaviour and recovery must be explained using actual device evidence; do not silently substitute a passive fuse or claim tested fault safety.
+- A visible power LED on the protected rail. Target total unloaded VBUS input current strictly below 2 mA, including the LED, protection/control circuitry, leakage and all other VBUS-fed loads. Show a complete worst-case current budget, with explicit source conditions and uncertainties.
+- The board has NO programmable device and NO onboard firmware. Onboard firmware is not applicable; record that conclusion and its evidence accurately. Do not add an MCU, meaningless source file, or unrelated software merely to satisfy a pipeline file-existence check. Preserve and report the firmware stage's real outcome rather than silently deleting the stage.
+
+## Mechanical and manufacturing requirements
+- Two copper layers, 1 oz copper, nominal 1.6 mm FR-4; target board envelope no larger than 40 x 30 mm. No enclosure or mandatory mounting-hole pattern.
+- Parts and connectors must be suitable for manual assembly. Use accessible SOIC or leaded packages and passive sizes at least 0603; no BGA or IC with an inaccessible underside thermal/ground pad. The USB connector's fine-pitch exposed row still needs an honest assembly-risk note.
+- Use exact locally installed KiCad symbols, real pin numbers, and exact installed footprints. Library presence does not independently establish electrical suitability, footprint-to-part correspondence, or mechanical fit.
+- Target component BOM below USD 8 per board at quantity 100, including all fitted connectors, protection, LED and supporting components; exclude PCB fabrication, assembly, shipping and tax. Use dated evidence or label uncertain estimates. Do not invent availability or prices.
+
+## Preferred protection candidate and supplied research
+MIC2544-2YM is a candidate, not a pre-verified design. The local library has Power_Management:MIC2544-2YM with Package_SO:SOIC-8_3.9x4.9mm_P1.27mm. Confirm its actual pins using project tools before wiring.
+
+Additional public research supplied with this test input, collected 2026-10-08 (the model has not itself browsed these sources):
+- Official Microchip datasheet: https://ww1.microchip.com/downloads/en/DeviceDoc/20005725B.pdf and current-family document https://ww1.microchip.com/downloads/aemDocuments/documents/APID/ProductDocuments/DataSheets/MIC2544-48-Programmable-Current-Limit-High-Side-Switch-DS20005725.pdf . Rated operating VIN 2.7-5.5 V; 7 V absolute maximum is a stress limit, not permission for guaranteed operation at 6 V. This new brief does NOT require operation or sustained-short guarantees at 6 V.
+- SOIC pin research: 1 EN active-low; 2 FLG open-drain; 3 GND; 4 ILIM; 5 NC; 6 and 8 OUT (both connect); 7 IN. Confirm against the actual library and exact variant.
+- A 301 ohm 1% RSET is a design starting point: using the wider 161-299 V current-limit-factor bounds gives approximately 0.530-1.003 A, typical 0.764 A. Retain tolerances and check datasheet conditions; do not use a nominal 500 mA setting that can limit below the required continuous load.
+- Datasheet research reports enabled supply current up to 160 microampere and on-resistance up to 120 milliohm at the stated 5 V / 500 mA test point. I^2R then estimates 30 mW conduction loss; this is a calculation, not a measured thermal result or a guarantee at every condition.
+- Input decoupling guidance is 0.1-1 microfarad near the chip. A 1 microfarad output capacitor and output-side LED with 10 kohm 1% series resistance are starting candidates, not substitutes for inrush, tolerance and whole-board budget checks. Account for programming, pull-up and other currents without double counting datasheet-defined supply current.
+- The device uses current limiting/foldback and thermal cycling rather than latching. Document the fault behaviour and plan actual thermal/short tests; do not assert those tests passed.
+- Dated distributor observation: MIC2544-2YM quantity 100 USD 0.83 each, https://www.digikey.com/en/products/detail/microchip-technology/MIC2544-2YM/1028564 . This is a price snapshot, not a delivered-price guarantee.
+- Candidate USB connector GCT USB4105-GF-A: official https://gct.co/files/specs/usb4105-spec.pdf and https://gct.co/files/drawings/usb4105.pdf . Supplied research reports 5 A combined across VBUS contacts and 48 V DC rated voltage, not 5 A per contact. Dated quantity-100 distributor snapshot USD 0.5745 each: https://www.digikey.com/en/products/detail/gct/USB4105-GF-A/11198441 . The installed footprint candidate is Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal. Verify local mapping and fit; manufacturer documentation does not certify hand soldering or board-level performance.
+
+## Evidence and deliverables
+Produce the specification, architecture, itemized BOM, non-empty schematic, initial PCB, fabrication/render exports and bring-up/development plan using the actual pipeline. Run the original ERC, DRC, drift, pin/footprint and legibility checks where applicable. Label draft layout and remaining unrouted connections honestly. Distinguish original requirements, chosen design decisions and ASSUMED defaults. Record the no-firmware applicability conclusion with evidence; do not fabricate a firmware build or physical measurements. A finished draft is not a manufacture/bench qualification certificate.

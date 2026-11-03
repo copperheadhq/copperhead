@@ -1,0 +1,157 @@
+{
+  "audit_type": "new read-only structural audit of preserved originals, not a new model run",
+  "provider_attestation": false,
+  "runs": [
+    {
+      "experiment_id": "native-500ma-architecture-v8-20261008",
+      "issued": 2,
+      "states": {
+        "accepted": 1,
+        "cancelled": 1
+      },
+      "issues": [],
+      "manifest_original_sha256": "d9e45d35049d3dd035b53dbd8f1c366e6fb3ac3c462ece49991096dd9d31b74d",
+      "ledger_original_sha256": "74fbb0327a3ff3a87ccc8bc5159e305fbb933aedb5402dad21a68f21e4f6cf00"
+    },
+    {
+      "experiment_id": "native-500ma-architecture-v9-20261008",
+      "issued": 3,
+      "states": {
+        "accepted": 3
+      },
+      "issues": [],
+      "manifest_original_sha256": "b3b911b5cdd7d21a9d47c1e3bd876c51ab87b671db4e37ad7c35e03e6b6ed391",
+      "ledger_original_sha256": "470971eff489d9dc103be94b264a1162ba8eaa6d5450aedfb9a2a54066978676"
+    },
+    {
+      "experiment_id": "native-500ma-devplan-v20-20261008",
+      "issued": 0,
+      "states": {},
+      "issues": [],
+      "manifest_original_sha256": "acf24c08bacb583acbfc6a9629bfe52ee934050c44f0a1fcdfe3a0b695cc8585",
+      "ledger_original_sha256": "d7b107d6d451d0a80be4ea5ac7c3594f648c83f7bf8eb9e19a69543c722d0ec5"
+    },
+    {
+      "experiment_id": "native-500ma-devplan-v21-20261009",
+      "issued": 3,
+      "states": {
+        "accepted": 3
+      },
+      "issues": [],
+      "manifest_original_sha256": "de0335aee499e508037b9ae4cc3bce6920e57405aeb45cb90d2aaf3e3446e086",
+      "ledger_original_sha256": "41435b7aa908f7a428d4ae333dc796f389da3f975dec7fc783b7a43a2d279ef7"
+    },
+    {
+      "experiment_id": "native-500ma-firmware-v19-20261008",
+      "issued": 4,
+      "states": {
+        "accepted": 4
+      },
+      "issues": [],
+      "manifest_original_sha256": "8cdd662b9e8ab9a78eef1c9e6634f2aecdb678efddbe60e4bf8abdd875c81b53",
+      "ledger_original_sha256": "729ce2972cd5f6089966c10f72294b7c0dec45c8a575697643d83895dfceaaa9"
+    },
+    {
+      "experiment_id": "native-500ma-layout-v15-20261008",
+      "issued": 5,
+      "states": {
+        "accepted": 4,
+        "cancelled": 1
+      },
+      "issues": [],
+      "manifest_original_sha256": "286cdc3c4af95f3f2ec0cbafe735ab1f1e7798c918d86d2adba8c0c2f240f476",
+      "ledger_original_sha256": "8ff8f5c05bd8167824cd34538a8e53eaa2fed7ae838d0e92ed5b842976947cff"
+    },
+    {
+      "experiment_id": "native-500ma-layout-v16-20261008",
+      "issued": 4,
+      "states": {
+        "accepted": 4
+      },
+      "issues": [],
+      "manifest_original_sha256": "5f1cf578cc0341ef3204ff6beb2e8197b6cd607a244677942827309ebdd9609c",
+      "ledger_original_sha256": "7f5d8f8d6239e5e7dab4e38a08ae05a166fc83849ba251947522f406ae44f9ba"
+    },
+    {
+      "experiment_id": "native-500ma-outputs-v17-20261008",
+      "issued": 5,
+      "states": {
+        "accepted": 5
+      },
+      "issues": [],
+      "manifest_original_sha256": "01917e5cf553c641ce5a7e4f04be53dc5d336e3f1565594f316aec5e8cdf57c4",
+      "ledger_original_sha256": "da289673d0640f9e08e6e075f988ebb8f5883be5a7b6f2acfea03e2ce2b651f9"
+    },
+    {
+      "experiment_id": "native-500ma-outputs-v18-20261008",
+      "issued": 4,
+      "states": {
+        "accepted": 4
+      },
+      "issues": [],
+      "manifest_original_sha256": "d8468973367b31e411a978192cedf1f2a7ab753d9fe43bec37ba9ab27de644bb",
+      "ledger_original_sha256": "a6011b7e21b5e6f610215173fe55772cb74b434701a72a3ede3371fdfcb39e86"
+    },
+    {
+      "experiment_id": "native-500ma-parts-v10-20261008",
+      "issued": 3,
+      "states": {
+        "accepted": 3
+      },
+      "issues": [],
+      "manifest_original_sha256": "5238529c7b2a8008883f071785a5c0ee8aa3815b2543108134ffff3fb2d1fbc8",
+      "ledger_original_sha256": "de6baa6dfb1fa79d9d7257f75e0ec412352838e55ab91e7568ffc2d2c58206b9"
+    },
+    {
+      "experiment_id": "native-500ma-parts-v11-20261008",
+      "issued": 3,
+      "states": {
+        "accepted": 2,
+        "cancelled": 1
+      },
+      "issues": [],
+      "manifest_original_sha256": "08ce95aa14bf6a2e83d807d7c5a70d16d477789d44ae7a734934081987993d00",
+      "ledger_original_sha256": "07fc9646149f48b7459f8f1a1248c9183f52970691c2489caf077649263e50be"
+    },
+    {
+      "experiment_id": "native-500ma-parts-v12-20261008",
+      "issued": 3,
+      "states": {
+        "accepted": 3
+      },
+      "issues": [],
+      "manifest_original_sha256": "60af44a532918e5b518dafe23cbd6f1592ed990cde2ba7b73f1657464f04345b",
+      "ledger_original_sha256": "15fe18959f29cd3d2ffac9d7c2e6d90961791e881781f974663798b70434a5f9"
+    },
+    {
+      "experiment_id": "native-500ma-schematic-v13-20261008",
+      "issued": 5,
+      "states": {
+        "accepted": 5
+      },
+      "issues": [],
+      "manifest_original_sha256": "003b3221ab2cb865b2b2fe46dfea1832d43262f44b6c25a273974c28f8eba978",
+      "ledger_original_sha256": "0fd564fdfa3901f6479a2a382c68e794e936c7f53d3e2c86632b91e6c43e78d1"
+    },
+    {
+      "experiment_id": "native-500ma-schematic-v14-20261008",
+      "issued": 4,
+      "states": {
+        "accepted": 4
+      },
+      "issues": [],
+      "manifest_original_sha256": "19d0b5618a42ae70f16c27ac673c40534877f902fc29529dd0571cbe1531faa5",
+      "ledger_original_sha256": "ad9bf6445022a0f25b381d693be549e9324d5678cf72b2ab7d7f4370577bfd81"
+    },
+    {
+      "experiment_id": "native-500ma-spec-v7-20261008",
+      "issued": 4,
+      "states": {
+        "accepted": 4
+      },
+      "issues": [],
+      "manifest_original_sha256": "4543d584d3f4bbaae5ad7bd872931683814ee61bed9d17e203b1756f1c9d191b",
+      "ledger_original_sha256": "3cd12ffbdc1a31e250b45abb2f1fdc66ccf3014c321c3d99e3fdf93da565eaca"
+    }
+  ]
+}

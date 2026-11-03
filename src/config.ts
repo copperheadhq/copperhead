@@ -26,6 +26,8 @@ export interface LegibilityUserConfig {
 export interface CopperheadConfig {
   schematic: string | null;
   board: string | null;
+  /** Default exports remain generic; the bounded KiCad 9 JLC profile is opt-in. */
+  outputProfile?: 'generic' | 'jlcpcb-kicad9-2026-09-24';
   /** Schematic legibility checker thresholds and severity overrides. */
   legibility?: LegibilityUserConfig;
   docs: string;
@@ -119,6 +121,10 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     return { schematic: null, board: null, ...DEFAULTS };
   }
   const raw = JSON.parse(await readFile(p, 'utf8')) as Partial<CopperheadConfig>;
+  if (raw.outputProfile !== undefined && raw.outputProfile !== 'generic' &&
+      raw.outputProfile !== 'jlcpcb-kicad9-2026-09-24') {
+    throw new Error('unsupported outputProfile; choose generic or jlcpcb-kicad9-2026-09-24');
+  }
   // A zero/negative/non-integer stage budget would exhaust the stage on turn 0;
   // drop such entries rather than let a config typo stall the pipeline.
   const stageMaxTurns = Object.fromEntries(
@@ -128,6 +134,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     schematic: raw.schematic ?? null,
     board: raw.board ?? null,
     docs: raw.docs ?? DEFAULTS.docs,
+    ...(raw.outputProfile !== undefined ? { outputProfile: raw.outputProfile } : {}),
     model: raw.model ?? null,
     maxTurns: raw.maxTurns ?? DEFAULTS.maxTurns,
     ...(Object.keys(stageMaxTurns).length ? { stageMaxTurns } : {}),

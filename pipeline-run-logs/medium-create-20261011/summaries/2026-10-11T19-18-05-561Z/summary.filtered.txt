@@ -1,0 +1,68 @@
+# Run summary
+
+- **Request:** create pipeline stage: part-selection
+- **Outcome:** success
+- **OpenSpec change:** select-capturable-parts
+- **Tokens:** 4612455 in / 71420 out
+
+## Environment
+
+- **Run:** 2026-10-11T19-18-05-561Z · create · started 2026-10-11T19:18:05.573Z · autonomous
+- **Stage:** part-selection (3/8)
+- **Brief:** external:BRIEF.md (sha256 13aa827a7b68…)
+- **Model:** codex:gpt-6.1-sol (codex, via flag)
+- **copperhead:** v0.11.0-local-compat-bom-fix at <HOME>/Documents/Codex/2026-10-09/<TASK>/copperhead-j1-drc
+- **Tooling:** kicad-cli 9.0.9 · node v24.21.0 · linux-x64
+- **Config:** schematic null · board null · docs docs/ · maxTurns 22 · maxRepairCycles 5 · budgets {}
+- **Repo:** master@492758ffefd2b4a91fce3eb44558f79d52656043 · clean · pre-commit hook absent
+- **Memory:** 36 open constraint(s) · 2 prior run(s)
+
+## Run stats
+
+- **Exit path:** done
+- **Turns:** 10 / 22
+- **Repair cycles:** 0 / 5
+- **Tokens:** 4612.5k in / 71.4k out
+- **Duration:** 12m27s
+- **Per turn:** 1: 26943/655 · 2: 172329/2721 · 3: 161695/2201 · 4: 520482/5535 · 5: 373194/3809 · 6: 462004/5329 · 7: 559203/6606 · 8: 664257/6716 · 9: 773302/18182 · 10: 899046/19666
+
+## Plan
+
+I’ll select individually referenced parts for docs/BOM.md, verify installed symbols and their pins, and check every footprint. I’ll document selection rationale, UNVERIFIED MPN status, and current accounting in the design docs. Main risks are the narrow peak-current margin, protection/inrush behavior, UART back-power, I2C loading, and exact package compatibility.
+
+## Files touched
+
+- docs/BOM.md
+- docs/SPEC.md
+- docs/SUBSYSTEMS.md
+- openspec/specs/protected-input/spec.md
+- docs/CHANGELOG.md
+- docs/DECISIONS.md
+- openspec/changes/select-capturable-parts/tasks.md
+
+## Verification
+
+- ERC: not run
+- DRC: not run
+- legibility: not run
+- score: not run
+
+## Decisions
+
+- Select UNVERIFIED TPS259533DSGR with adjustable slew instead of initial TPS2553DBVR candidate, using the confirmed installed package symbol and exact footprint. | why: Explicit dVdt control and greater transient headroom support startup and proposed VBUS TVS coordination; the pin maps differ, so this is a documented circuit replacement preserving all budgets.
+- Retain simultaneous222/472mA allocations and require ASSUMED82% actual conversion target at loaded corners, with explicit per-part leakage and2.1mA upstream ceiling. | why: 75% alone at upper3.6V rail violates450mA; stronger efficiency and full startup verification avoid silently reducing loads or claiming nominal arithmetic proves acceptance.
+- ASSUMED explicit boot pullups, nonstrap GPIO4/5/6/7 interfaces, target-powered UART Ioff buffers and a labeled five-pin external OLED cable; preserve board I2C pullups with constrained module loading. | why: The inspected strap table, real installed pin endpoints and defined power-off/bus conditions make later capture reviewable; anonymous symbol functions and actual module revision remain qualification prerequisites.
+- Intentionally omit TPS2553, USB data/PD circuitry, power LEDs, UART power pin and an onboard OLED footprint; use fixed-buck FB grounded without an external feedback divider. | why: The selected eFuse replaces TPS2553, the brief prohibits USB data/PD, unnecessary loads consume margin, the UART must not supply target power, the OLED is external, and TI recommends fixed-output FB to AGND.
+- [affects] parts.stage3_capture_contract affects docs/BOM.md: changed: created exact individual-refdes BOM and confirmed library contracts with qualification caveats.
+- [affects] parts.stage3_capture_contract affects docs/SPEC.md: changed: added Stage3 selection status.
+- [affects] parts.stage3_capture_contract affects docs/SUBSYSTEMS.md: changed: added Stage3 implementation selections preserving Stage2 history.
+- [affects] power.stage3_selection_accounting affects docs/BOM.md: changed: added per-part accounting, upper-rail corner and stronger target.
+- [affects] power.stage3_selection_accounting affects docs/SPEC.md: changed: documented stronger selection target without weakening original budgets.
+- [affects] power.stage3_selection_accounting affects docs/SUBSYSTEMS.md: changed: carried accounting and qualification boundary forward.
+- [affects] interface.stage3_assumptions affects docs/BOM.md: changed: documented straps, GPIOs, UART, OLED and shared-bus conditions.
+- [affects] interface.stage3_assumptions affects docs/SPEC.md: changed: documented selected interface assumptions.
+- [affects] interface.stage3_assumptions affects docs/SUBSYSTEMS.md: changed: synchronized interface choices.
+- [affects] usb.protection affects docs/SPEC.md: changed: replaced initial candidate status with qualified-boundary Stage3 selection.
+- [affects] usb.protection affects docs/BOM.md: changed: selected U3 and support with exact footprints and current rationale.
+- [affects] usb.protection affects docs/SUBSYSTEMS.md: changed: documented replacement and preserved functional requirements.
+- [affects] usb.protection affects openspec/specs/protected-input/spec.md: changed: synchronized selected eFuse, active-low enable and protection qualification scenario.

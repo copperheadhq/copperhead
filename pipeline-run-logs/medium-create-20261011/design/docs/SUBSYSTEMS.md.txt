@@ -1,0 +1,124 @@
+# Subsystem architecture
+
+## Architecture scope and prose block diagram
+Stage 2 of the fresh experimental create pipeline defines functional blocks and interfaces. docs/SPEC.md and its registered constraints remain authoritative in full; this document neither relaxes requirements nor claims verified component selection, electrical compliance, manufacturing readiness, or measured performance.
+
+A documented adequate USB-C 5V source feeds the receptacle, ESD/short-circuit protection and controlled startup, then an efficient buck produces nominal 3.3V. That rail supplies the ESP32-C3 MCU, heater-disabled SHT40 sensor, external OLED, and remaining support loads. The MCU measures temperature/humidity over a shared 100kHz I2C bus and renders results or explicit errors on the OLED. Manual reset and boot controls plus an external 3.3V UART provide programming and logs. The MCU module's PCB antenna supports radio operation subject to power and RF checks. Ground is the common power/interface return; the four USB shell stakes connect directly to ground under the existing assumption. This describes functional connections only, not selected net names or refdes.
+
+Rationale: expose subsystem dependencies before selecting packages, assigning pins, or drawing hardware.
+
+## Power: protected USB-C input
+Only USB-C 5V input is allowed, over 4.75–5.25V. There is no USB data, USB-PD, battery, mains, external voltage input, or intentional operation above 5V. Deployment requires explicit USB-C 1.5A/3A source advertisement or a separately verified adequate 5V source. Existing ASSUMED policy is documented source qualification pending a verified detection architecture; passive Rd does not detect the source-current advertisement or grant universal 500mA default-current entitlement.
+
+Candidate USB4125-GF-A uses standard 1.00mm stakes: A5 CC1 and B5 CC2 each have their own 5.1k Rd to ground; they are never shorted. A9/B9 carry VBUS, A12/B12 are ground, and all four S1 plated shell stakes are grounded. Direct shell-to-ground is the existing ASSUMED implementation pending protection/EMC review. Later capture must verify the stock 6P symbol and exact standard footprint; pads/drills cannot be reduced. The 0190 variant has 1.90mm stakes and is not silently interchangeable.
+
+Stage3 docs/BOM.md selects UNVERIFIED TPS259533DSGR for the adjustable current-limited protection block instead of the Stage2 TPS2553DBVR candidate; reason: explicit adjustable dVdt startup and greater transient-voltage headroom. R3=4.42k1%, C10=100nF, active-low EN grounded, proposed SMAJ6.0A VBUS TVS and TPD2E2U06 CC protection are selected for capture, subject to the BOM's full qualification conditions. Short-circuit protection, ESD, fault behavior and controlled startup are required. A nominal 500mA setting is neither a guaranteed hard cap nor permission to exceed the 450mA operating peak. Verify limit resistor/tolerance, switch drop/loss, capacitance, inrush, startup sequencing, protection leakage/quiescent current and fault behavior. No ESD test level is selected here.
+
+Rationale: protect the input while keeping source entitlement and operating budgets distinct from a protection threshold.
+
+## Power: 3.3V regulation and accounting
+Use a buck rated at least 600mA. TPS62162DSGR is the existing fixed-3.3V, manufacturer-listed 1A candidate, not an accepted design. The rail must remain within 3.0–3.6V during startup, radio bursts and display loads. The existing ASSUMED efficiency acceptance floor is 75%, requiring verification across relevant input/load/thermal conditions. Verify exact package/pins, support components, stability, current limits, startup, ripple, transient droop and thermal behavior.
+
+| Budget | Required value / interpretation |
+|---|---|
+| Input continuous | <=250mA, including display and protection overhead |
+| Input peak | <=450mA, including startup/radio/display/protection overhead |
+| MCU at 3.3V | <=150mA continuous; <=400mA transient |
+| OLED at 3.3V | <=50mA allocation, not a vendor guarantee |
+| Sensor at 3.3V | <=2mA allocation, heater disabled |
+| Other 3.3V loads | <=20mA total |
+| Simultaneous rail continuous | Derived 222mA = 150+50+2+20 |
+| Simultaneous rail peak | Derived 472mA = 400+50+2+20 |
+
+At 4.75V and 75% efficiency, the preliminary continuous conversion estimate is 3.3V*0.222A/(4.75V*0.75)=205.6mA, leaving approximately 44.4mA before upstream overhead. The peak estimate is 3.3V*0.472A/(4.75V*0.75)=437.2mA, leaving approximately 12.8mA before upstream overhead. These are arithmetic estimates, not evidence that the input targets are met. Protection drop changes the buck input conditions; reconcile losses, tolerances, startup/inrush and load timing without treating the margins as separate allocations or reducing any requirement. Peak duration remains unresolved.
+
+Include every selected part's quiescent/leakage and all support loads in the appropriate rail or input budget; avoid double-counting currents already included in verified efficiency or load figures. Continuous operation is the existing ASSUMED usage model; no sleep-current allowance was supplied. No LDO heat claim is made. A later conflict must be reported, not hidden by lowering allocations or assuming non-simultaneous peaks.
+
+Rationale: preserve the simultaneous load envelope and expose the narrow peak margin before committing a power circuit.
+
+## MCU and programming
+ESP32-C3-MINI-1-N4X remains the recommended PCB-antenna 4MB candidate; the older N4 is NRND in the supplied v2.2 datasheet context. Verify exact module pins/package, support circuitry, operating modes and actual peaks against the MCU and rail budgets. Provide manual RESET/EN and BOOT and a labeled external 3.3V-level UART TX/RX/GND interface. Connector choice, orientation details, support network and target back-power mitigation remain unselected. There is no automatic USB programming.
+
+No GPIO is assigned in Stage 2. Before any later assignment, inspect GPIO2/8/9 strapping levels and boot loading, including external devices and pullups. Verify RTC capability if a later function needs it; this architecture adds no RTC-dependent function.
+
+Rationale: retain a practical programming path while preventing an architectural pin choice from creating a boot or back-power defect.
+
+## Connectivity and shared I2C
+The MCU, sensor and external OLED share a 100kHz I2C bus at 3.3V-compatible logic levels. SDA/SCL are functional descriptions, not assigned net names. Verify the exact SHT40 suffix/address and OLED 0x3C/0x3D configuration for no collision. Check module-installed pullups, effective parallel resistance, sink current, bus/cable capacitance and rise time before selecting additional pullups. No pullup value or intentional pullup omission is selected here.
+
+The UART connects only to an external 3.3V-level programming/logging interface with labeled orientation and verified avoidance of target back-power. Radio behavior and firmware modes must stay inside the MCU current allocations. No wireless protocol or additional connector is selected.
+
+Rationale: a shared slow bus serves both peripherals while keeping address, loading and cable effects explicit.
+
+## Digital sensing
+SHT40-AD1B-R2 is the existing candidate. Read temperature and humidity at 1Hz with the heater always off and sensor current within the 2mA allocation. Verify ordering suffix, supply compatibility, address, maximum operating/quiescent current, support circuit, conversion timing and CRC against manufacturer evidence. Place the sensor at least 10mm from MCU/regulator heat sources where practicable; report a placement conflict rather than silently waiving it.
+
+A CRC or bus error invalidates the reading, produces an explicit display error, is logged through UART and is retried on the next scheduled sample under the existing ASSUMED error policy. Accuracy, humidity range and recovery-latency thresholds remain unspecified; none is invented here.
+
+Rationale: heater-disabled periodic sensing preserves the current allocation and makes integrity failures visible.
+
+## UI and external display
+The external Adafruit product 326 is the existing 0.96in 128x64 I2C OLED candidate; 326 is a catalog ID, not a guessed bare-panel MPN. Refresh at 2Hz and render temperature/humidity using the existing ASSUMED Celsius/percent-RH units. Errors must be visibly explicit rather than displaying stale readings as fresh. The 2Hz rendering cadence is separate from 1Hz acquisition.
+
+Verify module interface, actual 0x3C/0x3D address, 3.3V compatibility, onboard pullups, connector/cable fit and actual load. The contextual roughly 20mA usage-dependent current is not a guarantee; the allocation remains <=50mA and includes brightness/content effects requiring verification. Connector and reset interface details remain deferred.
+
+Rationale: the external module provides the required UI while its electrical and mechanical loading remains an acceptance dependency.
+
+## RF and mechanics
+The board envelope is <=45x40mm with exactly two copper layers. Nominal thickness is 1.00mm to match the GCT standard-stake illustrated recommendation; thickness tolerance and physical fit remain unresolved. Hole-to-copper clearance is >=0.25mm with exact manufacturer/library pad and drill geometry retained. Shell/module/cable/enclosure fit must be checked; mounting and final outline are not selected. Ambient is 0–40C, non-condensing indoor sensing. Thermal verification must consider both component limits and sensor heating.
+
+Put the module PCB antenna at a board edge, preferably extending beyond the base board. Enforce the manufacturer's keepout with no copper, traces or components on either layer. The additional 15mm in-plane clearance is the existing ASSUMED target pending Espressif hardware guidelines and actual board-shape reconciliation. Resolve conflicts among antenna clearance, heat separation, connector fit and the envelope explicitly. Layout remains draft quality.
+
+Rationale: RF clearance and sensor thermal isolation constrain the architecture before placement, not after routing.
+
+## Stage 3 implementation selections
+The corrected Stage3 BOM uses one row per refdes, component-only Values, exact installed footprint ids and selected part numbers alone in MPN cells; each Rationale explicitly flags its MPN UNVERIFIED with a datasheet-verifiable justification. Rationale: preserve clean capture fields and visible qualification status. This metadata correction changes no subsystem, part, value, pin or budget.
+
+Stage2 statements describe the architecture at that stage; docs/BOM.md now supplies individual board refdes, component-only Values, UNVERIFIED MPNs, installed symbol/pin contracts and exact installed footprints. The six functional blocks remain unchanged. ASSUMED support network, passive values, target-powered Ioff UART buffers,3-pin UART header and5-pin external OLED cable are documented with rationale and qualification checks. No library or KiCad source was changed.
+
+After inspecting the supplied Espressif strapping evidence, ASSUMED SDA/SCL use GPIO4/5, OLED_RESET GPIO6 and FAULT GPIO7; GPIO2/8/9 have explicit10k pullups and manual BOOT retains download levels and >=3ms strap hold. No RTC function is introduced. Board4.7k I2C pullups require <=200pF total bus capacitance and actual module pullups >=4.7k to3.3V or explicitly removed. Display reset/header/address revision and U6 anonymous signal-pin functions require manufacturer confirmation before wiring acceptance.
+
+Original simultaneous222/472mA rail allocations remain intact. BOM.md reserves ASSUMED2.1mA aggregate upstream overhead, approximately6.2mA support within20mA, and strengthens design-specific efficiency target to >=82% at simultaneous loads/input/rail/ambient corners:75% alone at3.6V would violate450mA. Nominal3.3V/75% and upper3.6V/82% estimates include53mOhm protection drop; they are not measured or guaranteed acceptance. Full startup, rapid recycle, TVS/ESD and leakage/thermal qualification remain mandatory.
+
+Rationale: select capturable parts while exposing unresolved datasheet/application qualification instead of claiming library presence proves compliance.
+
+### Stage3 recovery qualification limits
+Fresh search_symbols and symbol_pins reconfirm the installed capture endpoints, including53 U1 pins and3 U5 units. U5 anonymous signal/OE functions and U6 DRL channel/GND functions require TI package diagrams before Stage4 wiring acceptance; assumed leakage ceilings and full load allocations are not demonstrated manufacturer limits. Parts, Values, refdes, exact footprints and budgets remain unchanged. Rationale: preserve the capture contract without implying electrical acceptance.
+
+Re-read TI SLVSAM2E confirms PG is high impedance during buck shutdown, UVLO and thermal shutdown; MCU reset holdoff in those states is unqualified. Typical25mV/us output startup with nominal42.3uF board output capacitance would demand approximately1.06A capacitor-only output charging current if maintained, not a measured input current. R5/C11 delays enable but does not slow buck output soft-start. Startup/recycle must satisfy the unchanged450mA input peak through analysis or measurement before hardware acceptance; the approximately0.49A fault limit does not prove compliance. Rationale: expose the startup/reset dependency rather than treating delay as qualification.
+
+## Stage4 schematic implementation
+The existing subsystem headings caption five captured electrical groups: protected USB-C input (J1,U3,U6,D1,R1–R4,C1,C10); regulation (U2,L1,R5,C2,C3,C11); MCU/programming (U1,U5,J2,SW1/SW2,R6–R9,R12,R14/R15,C4–C6,C8); digital sensing including shared bus pullups (U4,R10/R11,C7); external display (J3,R13,C9). RF/mechanics has no extra electrical part and remains a layout requirement. Rationale: every physical part belongs to its existing functional subsystem without inventing a radio or display footprint.
+
+ASSUMED Stage4 nets and exact numbered endpoints are in schematic.intent.json and docs/PINOUT.md. 3V3 is explicitly a rail after L1; BUCK_SW is explicitly a signal. U5 DCU manufacturer pin functions correct the earlier swapped outputs: buffer1 pin2 to6 receives adapterTX and drives MCU RX; buffer2 pin5 to3 receives MCU TX and drives adapterRX. Both OEs1/7 are grounded. U6 DRL channels3/5 and GND4 are confirmed, NC1/2 intentionally floating. Installed generic symbols capture the unchanged connectors/switches; Device:D_Zener preserves D1 K1/A2. Rationale: package function evidence governs wiring, while all39 BOM Values and footprints remain intact.
+
+Inspected TI SCES204Q and SLLSEG9C local texts resolve the previous U5/U6 anonymous-function prerequisites. U5 published static leakage/Ioff limits do not prove its1mA dynamic/input-level allowance; U6 IO0–5.5V is compatible, but its standoff IIO<10uA condition does not prove2uA combined leakage. All power/startup/reset/source/module/passive/package/RF/mechanical qualifications remain open. Stage2/Stage3 deferred-selection statements are historical and superseded only by this recorded capture. Rationale: schematic verification is distinct from application qualification.
+
+## Stage5 physical draft
+All39 existing footprints now have reviewable subsystem placement and partial power/critical routing on a45x40mm,two-layer,nominal1.00mm board; detailed coordinates and rationale are in docs/LAYOUT.md. USB/protection are clustered at the bottom, headers right, MCU antenna at the top with its unchanged keepout, and sensor upper-right with >20mm geometric separation from MCU/regulator bodies. Final DRC/ERC/drift are clean, with93 connections still unrouted from132 baseline. Rationale: establish a partial physical artifact without changing schematic connectivity or allocations.
+
+Long explicit ground returns require specialist plane/loop redesign; remaining supply/bypass/support/interface wiring is incomplete. Nearby support violates the unreconciled assumed15mm antenna-clearance target, which remains open and is not waived. All previously documented startup/current/leakage/efficiency/reset/source/module and mechanical qualification remains mandatory. Draft quality is not functional or manufacturing acceptance. Rationale: preserve each subsystem's engineering obligations after placement.
+
+## Stage6 draft output package
+All requested outputs were generated through export_outputs using selected generic profile and KiCad9.0.9; docs/OUTPUTS.md lists exact artifact paths, manifest and39-refdes ordering BOM evidence. Hardware sources and subsystem budgets are unchanged. Every export must succeed and current source/file hashes must match before completion; missing manifests or changes require rerunning export_outputs without fabricated evidence or profile switching to bypass failure. Generic profile settings/zone fills and manufacturer acceptance are unverified; the explicit jlcpcb-kicad9-2026-09-24 profile alone enables KiCad9 JLC checks/jlcpcb.zip with no fallback for zones/unsupported versions. Draft outputs never constitute fabrication release. ERC/DRC/drift clean,93 unrouted and legibility0 errors/2 advisories; all existing qualification/build work remains open. Rationale: provide review artifacts while retaining subsystem acceptance obligations.
+
+## Stage7 firmware implementation
+
+U1 is programmable, so firmware/ implements an ESP-IDF5.5.3/GCC14.2.0 project with fixed PROJECT_VER0.1.0 and supported CONFIG_APP_REPRODUCIBLE_BUILD. pins.h is derived from docs/PINOUT.md by configure-time generation with committed snapshot validation; missing/duplicate/reserved assignments fail. Functional HAL and drivers provide real SHT40 command0xFD/both CRC checks/heater off,1Hz sensing,2Hz OLED rendering,invalid/error/log/next-sample retry and GPIO7 fault reporting. One task owns the shared100kHz bus; no radio is started and GPIO2/8/9 straps remain untouched. Rationale: implement the selected pin/interface contract without substituting hardware.
+
+ASSUMED SHT40 address0x44/10ms conversion wait,SSD1306-compatible128x64 OLED at0x3C with charge pump/contrast0x20,SDK default UART0 at115200 and100ms I2C transfer bounds. Actual sensor/module/cable/pullup/timing/current compatibility remains unqualified. docs/DEVPLAN.md records implementation and real build results; two independent identical ELF/bin builds from current firmware/PINOUT are mandatory and have passed through build_firmware. Actual logs and source/binary hashes are in .copperhead/firmware-build/receipt.json. Source/PINOUT changes require rebuilding. Historical pending-build statements are superseded by this evidence only. No flash, measured operation or current compliance follows from a build. All93 unrouted connections and prior electrical/RF/mechanical/source/package qualification remain open. Rationale: retain subsystem acceptance obligations after firmware implementation.
+
+## Stage8 development-plan review
+
+review-stage8-development-plan adds ordered power/reset/UART/sensing/display bring-up,existing numbered measurement contacts,prioritized risks and prototype-order gates to docs/DEVPLAN.md using actual source and generated evidence. No subsystem or engineering artifact changes.93 unrouted connections,ground-loop redesign,startup/reset/current/leakage,RF15mm,source/module/cable/package/mechanical qualifications remain open. Firmware review additionally identifies partial/stale panel content on failed sequential writes,brief-fault polling gaps and untested error-load timing/HAL initialization recovery. Compile and generic-export success do not close these risks. The present board is blocked from a functional prototype order;later fabrication requires a completed reviewed revision and current source-bound exports. Rationale: turn subsystem obligations into actionable tests without weakening their acceptance requirements.
+
+## Firmware, acceptance and stage boundaries
+The existing ASSUMED initial framework is supplied official ESP-IDF5.5.3 with ESP32-C3 GCC14.2.0. Supplied caches are workspace/tool-cache/esp-idf-v5.5.3 and workspace/tool-cache/espressif-tools-v5.5.3. Later firmware must implement real SHT40 measurement/CRC/error handling, heater-off 1Hz sensing and 2Hz OLED rendering, logs, supported reproducible configuration and a fixed explicit project version, whose value is deferred. Legacy driver/i2c.h requires REQUIRES driver; declare applicable GPIO and esp_timer dependencies. An actual successful build is required; compiler availability is not build proof. Supervisor may build generated sources unchanged. No hardware N/A, physical flash or measured-performance claim is allowed.
+
+Stage 2 does not commit a BOM, support values, GPIOs, refdes, net names, or installed symbol/footprint claims. Their absence is intentional: evidence and electrical/interface checks belong to subsequent selection/capture work. Every later selected unstated default must be labeled ASSUMED with rationale and recorded as a constraint. Candidate replacement requires an explicit compatibility rationale without weakening requirements; no invented stock, prices, supplier SKUs or orderability claims. Manufacturer pointers remain in SPEC.md; no fresh source verification is claimed.
+
+All eight create stages remain active through firmware/devplan. Later work requires real KiCad9.0.9, generic outputs, existing-login Codex sol/medium, exact symbol/pin/footprint checks, ERC and error-free legibility after schematic edits, DRC after board edits without suppression, drift/doc synchronization, exports/devplan and real firmware build. This documentation-only stage changes no KiCad source and establishes no hardware gate result.
+
+The supplied run window ends 2026-10-12T00:00Z, with real idle timeout600s and turn hard cap900s; these limits are not independently clock-verified here. Preserve fresh-run provenance: no precompleted board, generated-artifact hand edits, synthetic replies, PR publication, credentials, new provider or paid API; normal repair/recovery is allowed and logged.
+
+Rationale: make the architecture reviewable now while retaining every later engineering and acceptance obligation.

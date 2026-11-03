@@ -1,0 +1,44 @@
+{
+  "time": "2026-10-08T22:49:42.735163+00:00",
+  "command": [
+    "/usr/bin/kicad-cli",
+    "pcb",
+    "drc",
+    "--format",
+    "json",
+    "--exit-code-violations",
+    "--output",
+    "<cloud-workspace>/copperhead-native-trial-20261008/diagnostics/layout-v16-raw/drc.json",
+    "<cloud-workspace>/copperhead-native-trial-20261008/designs/native-500ma-spec-v7-20261008/protected-usb-c-500-ma-power-breakout-independent-prototype-test-brief.kicad_pcb"
+  ],
+  "exitCode": 5,
+  "boardUnchangedSha256": "b07e3bfa0236ad11b54fbd4554b2cabb377a1cdee0bb4e1606a0f03e1e854470",
+  "unconnected_items_present": true,
+  "unconnected_items_is_array": true,
+  "unconnected_items_count": 0,
+  "violations": [
+    {
+      "type": "hole_clearance",
+      "severity": "error",
+      "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)"
+    },
+    {
+      "type": "hole_clearance",
+      "severity": "error",
+      "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)"
+    },
+    {
+      "type": "hole_clearance",
+      "severity": "error",
+      "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)"
+    },
+    {
+      "type": "hole_clearance",
+      "severity": "error",
+      "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.1944 mm)"
+    }
+  ],
+  "schematicParityExplicitlyRequested": false,
+  "rawReportSha256": "5a7523243f8b1345cb8be58443312f9ae983d1d7c4a80e95eef6c26ba1ea298f",
+  "interpretation": "Independent verification. Raw KiCad four footprint-internal errors retained; no board changes, no manufacture/bench qualification."
+}

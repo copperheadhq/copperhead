@@ -1,0 +1,21 @@
+{
+  "classification": "experimental bridge defect, not an upstream bounty defect",
+  "cause": "adapter accepted dev-plan while canonical create stage is devplan",
+  "productionGatesChanged": false,
+  "realDesignChanged": false,
+  "patch": "native-devplan-id-fix.experimental-only.patch",
+  "sha256": "54d8ac98d7dcc3b446611a95e0730ffa342397c23cb676266c4e872f139a697d",
+  "beforeCanonicalStageTests": {
+    "passed": 7,
+    "failed": 1,
+    "failedStage": "devplan"
+  },
+  "afterProtocolTests": {
+    "passed": 64,
+    "failed": 0
+  },
+  "typecheck": "passed",
+  "build": "passed",
+  "realModelCallsMadeByFix": 0,
+  "publicPatchCombinationUnchanged": true
+}

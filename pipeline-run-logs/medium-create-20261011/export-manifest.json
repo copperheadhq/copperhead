@@ -1,0 +1,185 @@
+{
+  "schema": 1,
+  "state": "complete",
+  "profile": "generic",
+  "kicadVersion": "9.0.9",
+  "profileVerification": "not-requested",
+  "zoneFill": "not-verified",
+  "manufacturerAcceptance": "not-verified",
+  "sources": {
+    "docs/BOM.md": "79d7e181447eb5e9194683554090e51d6f53861d4f7c637a452cff81fe9b2251",
+    "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb": "e2e2dc560ef3ec97ba531bd226ef4cd65260ff30f594c3d5383c6034ce2f3912",
+    "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pro": "4543afaae8fd9625b155db8930f8ae629a3156a9690a64ae026b31ec3331607c",
+    "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch": "8f669f04057bcd5e4a884075e0cb8e66af91fe35c769bbeaf18aca04e15205d9"
+  },
+  "files": [
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-B_Adhesive.gba",
+      "bytes": 548,
+      "sha256": "6366f8cb8d9692191601ba12a2f930a5ae0294513ecabbbc7def6ad9500b5c8f"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-B_Courtyard.gbr",
+      "bytes": 522,
+      "sha256": "8d3c0693d42c42941d873c1c3084ae1d9a56a5bcfaa76867462bcb19d7b45348"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-B_Cu.gbl",
+      "bytes": 4840,
+      "sha256": "a4fd0b2d37458bdd348eec697490df096979248e0e2b8452d3a3f0fb32604656"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-B_Fab.gbr",
+      "bytes": 531,
+      "sha256": "58bf7fe6f91fae34973c0e60bdbb5c11a2fa379c4c0a008bfee716166c6d2c9f"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-B_Mask.gbs",
+      "bytes": 1017,
+      "sha256": "99f32ac79f739a07535f250706499ebf296c50b628ceeec58ac9ad574939c3e8"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-B_Paste.gbp",
+      "bytes": 549,
+      "sha256": "82469dd465d0dcf2a4b223198ec66430a5b681eaefedf051ab33552d45b48054"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-B_Silkscreen.gbo",
+      "bytes": 550,
+      "sha256": "98b5fcc55f79ba96a5f0e556c35574b4cd178394749fe39afad6962d7442507b"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-Edge_Cuts.gm1",
+      "bytes": 709,
+      "sha256": "ff5d59f42424afcddd8bd6560087c87189b5adf86eeb86ca29caaaafaa1317f0"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-F_Adhesive.gta",
+      "bytes": 548,
+      "sha256": "9a64d0f2477b423ad2fb9afe7517a169d581d9bddcf00624a147fb883dcea360"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-F_Courtyard.gbr",
+      "bytes": 6451,
+      "sha256": "8e7bc4e34e02d7a470d0b6cc9a8e076604c7a8edd8bdc4fae248c3e165093a1f"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-F_Cu.gtl",
+      "bytes": 18235,
+      "sha256": "59d094eb0e0e0e27040e1db8cc2a28dcd71c42d8d131ff9460e46183349ecd20"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-F_Fab.gbr",
+      "bytes": 165680,
+      "sha256": "3170461dcdd67693e3906a5bafc99bfb82ccd289cbc12f10241e686d43ce7c9c"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-F_Mask.gts",
+      "bytes": 8711,
+      "sha256": "f753dbe158dd6064d72ce79d7ccdb95cdec2738ee4dfac32b64ea90fbb749a91"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-F_Paste.gtp",
+      "bytes": 8372,
+      "sha256": "c183dd69dc2db2482c8c951286700cbe8c7fe9776f2ce16edd8f1ab07c8fd9f4"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-F_Silkscreen.gto",
+      "bytes": 60980,
+      "sha256": "e4e97e549274bb35ce5e822fea8a50ac90e4e40f07cd71ac7ff3d6545f17e6bc"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-Margin.gbr",
+      "bytes": 522,
+      "sha256": "8d3c0693d42c42941d873c1c3084ae1d9a56a5bcfaa76867462bcb19d7b45348"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-User_Comments.gbr",
+      "bytes": 525,
+      "sha256": "6c6342a117960d9d4eb0573372523a1ce58662dd99e729d06c728e3bffa251f5"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-User_Drawings.gbr",
+      "bytes": 5201,
+      "sha256": "5624d0c7765d9caa072ccc53bcbd02601ced802574b0ee8813580ee89c5a3614"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-User_Eco1.gbr",
+      "bytes": 522,
+      "sha256": "50b69d73e93830e0cf2f37e0c327d5dcced5d75e1b2f1bb628e7891a15b5cd8f"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-User_Eco2.gbr",
+      "bytes": 522,
+      "sha256": "9a4aa35cb073277952fc88e756e91041c03eca0a25c5b7a098c1b33794d75995"
+    },
+    {
+      "artifact": "gerbers",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-job.gbrjob",
+      "bytes": 4685,
+      "sha256": "a2613b6d480b04ca36c06fe7491764bbcfc726a0a2c205709fbc3016f2238f6e"
+    },
+    {
+      "artifact": "drill",
+      "path": "gerbers/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.drl",
+      "bytes": 1197,
+      "sha256": "b2a486cf67bb6694480a5b7c80851b87ceb36795d34bc9df757e6d4c01a315d3"
+    },
+    {
+      "artifact": "outline.dxf",
+      "path": "outline.dxf/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board-Edge_Cuts.dxf",
+      "bytes": 5762,
+      "sha256": "c128fa847b5243550155b20404faba486a71c4b9a60767c883f0702852ca7ce3"
+    },
+    {
+      "artifact": "board.step",
+      "path": "board.step",
+      "bytes": 42758,
+      "sha256": "3ecfa4dd8f925465a195a0ad6c3f4940bed550c03e856d8796971b74eb99b3db"
+    },
+    {
+      "artifact": "board.svg",
+      "path": "board.svg",
+      "bytes": 164495,
+      "sha256": "4163071183fe208c6c734efea7e3125ddf3c0160ec0e1e84974a7fa22755a46f"
+    },
+    {
+      "artifact": "schematic.svg",
+      "path": "renders/new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.svg",
+      "bytes": 1141148,
+      "sha256": "a0c2ae11f45324baa0cb7469590d4073a120c7ea21886908061431996739c8e0"
+    },
+    {
+      "artifact": "fabrication.zip",
+      "path": "fabrication.zip",
+      "bytes": 107494,
+      "sha256": "6cbaa7718384693e496d000a0555a0d1b4233f0eb47cb2425d52d9fa52a7ca90"
+    },
+    {
+      "artifact": "BOM.csv",
+      "path": "BOM.csv",
+      "bytes": 864,
+      "sha256": "26b5361d0a6f8af6dd7a816d389249961a982ce19f51f66ae28ecede5eed1c7a"
+    }
+  ]
+}

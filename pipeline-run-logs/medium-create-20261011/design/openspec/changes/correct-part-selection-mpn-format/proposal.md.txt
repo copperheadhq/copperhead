@@ -1,0 +1,14 @@
+# Proposal: correct-part-selection-mpn-format
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+The existing BOM puts UNVERIFIED prefixes in MPN cells, contrary to the requested capture format. Preserve the selected capture contract while moving qualification status into rationales and renewing verification evidence.
+
+## What Changes
+
+- Correct all 39 MPN cells to selected part numbers alone; explicitly mark each Rationale UNVERIFIED with its justification.
+- Preserve individual refdes, component-only Values, exact footprints and all electrical/mechanical constraints.
+- Renew symbol searches, real package-pin checks, footprint resolution and current/leakage evidence review.
+- Synchronize affected BOM-format statements in design docs and record decisions, constraints and verification limits.

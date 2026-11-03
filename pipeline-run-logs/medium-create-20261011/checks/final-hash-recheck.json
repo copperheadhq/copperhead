@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-11T21:53:34.439451+00:00",
+  "sourceHashesCompared": 4,
+  "exportArtifactHashesCompared": 28,
+  "firmwareSourceHashesCompared": 12,
+  "firmwareOutputHashesCompared": 8,
+  "manifestSHA256": "c9506bee0f105bcde0c3d4e7b07bf3da64fa2b0ed10a47f813997cdb75798d16",
+  "receiptSHA256": "a8cc29166625c651d0780653db2714b31838b7b311ea99a5d1bf45dc1b34ca5d",
+  "mismatches": [],
+  "reproducible": true,
+  "attemptExitCodes": [
+    0,
+    0
+  ]
+}

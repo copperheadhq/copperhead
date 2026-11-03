@@ -1,0 +1,51 @@
+# Run summary
+
+- **Request:** create pipeline stage: architecture
+- **Outcome:** success
+- **OpenSpec change:** document-subsystem-architecture
+- **Tokens:** 290818 in / 15382 out
+
+## Environment
+
+- **Run:** 2026-10-11T19-14-28-508Z · create · started 2026-10-11T19:14:28.520Z · autonomous
+- **Stage:** architecture (2/8)
+- **Brief:** external:BRIEF.md (sha256 13aa827a7b68…)
+- **Model:** codex:gpt-6.1-sol (codex, via flag)
+- **copperhead:** v0.11.0-local-compat-bom-fix at <HOME>/Documents/Codex/2026-10-09/<TASK>/copperhead-j1-drc
+- **Tooling:** kicad-cli 9.0.9 · node v24.21.0 · linux-x64
+- **Config:** schematic null · board null · docs docs/ · maxTurns 12 · maxRepairCycles 5 · budgets {}
+- **Repo:** master@9b3f12e9ed51016cad30d717019a9d4b2f5e8f4a · dirty (1 uncommitted) · pre-commit hook absent
+- **Memory:** 35 open constraint(s) · 1 prior run(s)
+
+## Run stats
+
+- **Exit path:** done
+- **Turns:** 4 / 12
+- **Repair cycles:** 0 / 5
+- **Tokens:** 290.8k in / 15.4k out
+- **Duration:** 3m37s
+- **Per turn:** 1: 23309/1009 · 2: 51500/4527 · 3: 87777/4841 · 4: 128232/5005
+
+## Plan
+
+I’ll create docs/SUBSYSTEMS.md with a prose block diagram and sections for protected USB-C power, regulation, MCU/programming, sensing, display/UI, connectivity, RF/mechanics, and firmware. I’ll preserve every SPEC.md budget, distinguish candidates from verified selections, and document unresolved power margin, source qualification, strapping, I2C loading, and antenna constraints. Related decisions and changelog entries will be updated; this stage assigns no GPIOs or schematic parts.
+
+## Files touched
+
+- docs/SUBSYSTEMS.md
+- docs/CHANGELOG.md
+- docs/DECISIONS.md
+- openspec/changes/document-subsystem-architecture/tasks.md
+
+## Verification
+
+- ERC: not run
+- DRC: not run
+- legibility: not run
+- score: not run
+
+## Decisions
+
+- Stage 2 uses a protected qualified-source USB-C input, 3.3V buck, ESP32-C3 MCU, shared100kHz SHT40/OLED I2C, manual boot/reset and external3.3V UART as the functional architecture; all supplied parts remain candidates and GPIOs/support values/refdes/net assignments remain deferred. | why: Expose interfaces and simultaneous power/RF/mechanical obligations before committing parts or pins; unverified implementation choices must not appear accepted.
+- Carry forward all power allocations unchanged and show205.6mA continuous/437.2mA peak preliminary input conversion estimates, with44.4mA/12.8mA remaining before upstream overhead; neither estimate proves compliance. | why: Protection losses, quiescent/leakage, tolerances and startup/inrush must fit the existing250mA/450mA input targets without reducing simultaneous loads.
+- [affects] architecture.stage2_scope affects docs/SUBSYSTEMS.md: changed: created the prose architecture with full SPEC inheritance, intentionally deferred implementation choices and explicit later acceptance gates.

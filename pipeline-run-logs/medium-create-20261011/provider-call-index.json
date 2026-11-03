@@ -1,0 +1,1707 @@
+{
+  "actualCallCount": 85,
+  "method": "Installed official Codex CLI via Codex SDK and existing login; real inference, not replay. Retained command/response records identify gpt-6.1-sol and medium.",
+  "records": [
+    {
+      "attempt": "initial",
+      "call": "1791745660344213860",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "5cb2a17824d31515c6d45e1df4a0929a759970665ec7d9a40145ef381ef4c3a9",
+      "stdoutSHA256": "d139b5f199d9e60c1097790692d8fe75530fdd38b401be5977c66eae85b4527f",
+      "stdoutBytes": 6004,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "e1e6c06f109f2319635448ae8132a8d83956ba40720002106935fd58859934f3"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791745714512561726",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "44b1c440ec2af8926edae57fa3e98bfae76a645b95b2a66561105b6e4ee934a8",
+      "stdoutSHA256": "df5d3976f7fb011a767daee4609c00736ae775d6e17e8588db517f1c5dc039c7",
+      "stdoutBytes": 977,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "e1e6c06f109f2319635448ae8132a8d83956ba40720002106935fd58859934f3"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791745735577471335",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "2fcff21b3cb4ff060399df53929692eec1f4dcf17bce7f6a5cc0073c1c81749b",
+      "stdoutSHA256": "eb2dc1f7f3108913213daf07282660e4c3dd879d8cb670b8b0efa5c9b98493e7",
+      "stdoutBytes": 38027,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "e1e6c06f109f2319635448ae8132a8d83956ba40720002106935fd58859934f3"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791745951028286120",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "4cefa7bd9cc9590f26d34c046bfd70c8f231e6a5adbc3ee913aaec5dbfe49119",
+      "stdoutSHA256": "667580fd545ed87e004a23c98707781def9595d651346eea16d26c619ac40d78",
+      "stdoutBytes": 1094,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "e1e6c06f109f2319635448ae8132a8d83956ba40720002106935fd58859934f3"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791745975064741624",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "fa35d74e475e3e5ea35a36ebb9a9bb217e6535da0fd4c0b751120e1626d24b73",
+      "stdoutSHA256": "01702a50b5e86673548f8d4f59bd713ac3c5554b3554e2abb5173c1d918c026c",
+      "stdoutBytes": 10847,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "e1e6c06f109f2319635448ae8132a8d83956ba40720002106935fd58859934f3"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746045106049193",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "1efd83d90bc248b4fcf7b378022dfc8b6fea2e3e79bf76cae649e4d670e92910",
+      "stdoutSHA256": "05c1cdca9b1d707ce027e82985887b77dfe2d044c7c857aaeb2297b80f182802",
+      "stdoutBytes": 1105,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "e1e6c06f109f2319635448ae8132a8d83956ba40720002106935fd58859934f3"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746068553508499",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "265271f2845a494d424700d4884effb187f6bb18f3aa22d5b9dca4e10761f8ad",
+      "stdoutSHA256": "78113515674cb66205f8d553b9df22343a788fd8abbaea25bccfe5cf485c9561",
+      "stdoutBytes": 4752,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "8ec02a2f168775ee0cca1fb9c573e7c5aa51d859afd741f4b538f3274ebec432"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746113708135329",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "9a0d986f5b371d1b80a4d5e8be6e8218ac299a9a6a5459eac3e0aab1356b4839",
+      "stdoutSHA256": "7fe0ca15c25ca252168750bd014dc96671bf32d8f68f6328c68f87ed3a7c158f",
+      "stdoutBytes": 16496,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "8ec02a2f168775ee0cca1fb9c573e7c5aa51d859afd741f4b538f3274ebec432"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746220522603176",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "8bb59113dea60ae5ed34b5d1929c032e1eb1f0fe7c1472452c43ad7b56c24113",
+      "stdoutSHA256": "37d5ff376e9f8028fdb2f90801e09d70b219392e4a39e4d3c8e81599aee3e7a0",
+      "stdoutBytes": 1723,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "8ec02a2f168775ee0cca1fb9c573e7c5aa51d859afd741f4b538f3274ebec432"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746261259186519",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "2eb9fc28dacfbf6a662f1ccd77ec049fef20ff5b84e2a445511f97b0c01e6a91",
+      "stdoutSHA256": "28ecc1851ffd1221e545e8379cdf23f21da97c9f3771e9f885ec39ab46931495",
+      "stdoutBytes": 1177,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "8ec02a2f168775ee0cca1fb9c573e7c5aa51d859afd741f4b538f3274ebec432"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746285613226584",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "098a55e16c2aee0282ddd5631de569dfe83ed1531fe8c85128213171f6553728",
+      "stdoutSHA256": "67a8b87da406f45cc97b77fc97752b040f034e18cee2566419d2f4423f3cf9cf",
+      "stdoutBytes": 3092,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746324234555465",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "b27e7d1bfd9df61348bbefb9663d87312849c9d42ca89e06c53fb42813813bb8",
+      "stdoutSHA256": "a5c537cb32383c1d405ed1e1a0935b009ad78c10f9c5d8e46345509395b39073",
+      "stdoutBytes": 2297,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746352065940981",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "b9f0fde4b981c02e24d632e38d2632b1c16c9493a1885dc5fbeae85421704c1b",
+      "stdoutSHA256": "e848fd9da1d65b6d26592523c9744dbf52bc8e7f7b229d119493685e565ed6ec",
+      "stdoutBytes": 1983,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746378194644107",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "68a835391e814a53a7d8d4a9046de87f76811982071d394fac5e2172a4faedb7",
+      "stdoutSHA256": "e9568af81c8699dd9600709d9f513f199743336ed0807e2dafd50f718704a1ab",
+      "stdoutBytes": 2471,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746410515153585",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "28004134160b5ff2e2a636f40f7032ec2b137a5c41a6289d1b7b441d751ce1f9",
+      "stdoutSHA256": "c7f0e1754f6b6b8daae3716b03665ae4d26f3ab85ac3ef5ccd4cba851a61c8d1",
+      "stdoutBytes": 1779,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746442450913619",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "f28513d8ff5d049f3e3df3ecdbbb0ea0629c91e7d668e72f26c52a9737cd93e4",
+      "stdoutSHA256": "e33f55d32cc01a215e2106f8935c0e45bdc8f4527340711877c306488668a4c0",
+      "stdoutBytes": 1636,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746468196480279",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "9e40a0f86043ef513eb34313f255ad1499cf2c02b728edc398abfb8a2e040296",
+      "stdoutSHA256": "5585f863170f4b70d1ebd39347afd177060e50083239168235a52951f89964ba",
+      "stdoutBytes": 2252,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746511266817154",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "1eae4219f67895d9b44cfe8321e4366f1deff50f3f667eab13187650bbe9f5a2",
+      "stdoutSHA256": "b90134448a226a26274a73427cb4afe75f5bc33cd35f9b4c442fdf1bce660fa0",
+      "stdoutBytes": 2377,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746587000226812",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "96d144ee8cf7b742a60a99c5d6ac49cf0aa7703298a0d43e5eb3699874d0c64c",
+      "stdoutSHA256": "00f8bc26861e2ed0cca24d3fb48c3ec6c67a4b36ffac5b796af3dce7483931d1",
+      "stdoutBytes": 1463,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746641465527266",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "1a151438c446cda9212fba2160427f7c4fcf065cac6caec2a2e39d4591b02fa8",
+      "stdoutSHA256": "6a7cfde6489611684cc1c558a1b7e8a3d17b2699b78742ba63252d0fe791e30a",
+      "stdoutBytes": 688,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746662579136027",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "d6b5aa8a00ee6dac04eab00ce09e6432ac25aa73eba3dfd08d8ce7add2a3a93a",
+      "stdoutSHA256": "112ea67c29522cca27a96e4ecafca2657a87f6f9bba02d463abf0b607424438d",
+      "stdoutBytes": 40047,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791746972679163346",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "8351dcf3aee1a5b120a1fbf9dead7f8f57fd85822db9b78f6e20019e6e824ea4",
+      "stdoutSHA256": "de7cf9dfb55d9420e0aeb53f97194b8ce695e969c1b6961413a419ff85cea955",
+      "stdoutBytes": 5325,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "184d920ad61a7136152ec8d4dc9f793f096fbf6dc79aaafe9cdb92d97a21bfcd"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791747032118026905",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "656fed324431b90020a2f612db8978861568667fb711477bf52aae8cb6da0478",
+      "stdoutSHA256": "c4b8f27a410aff1c7933a7a6225c947110acec1cc86a119c21b0daccd295cabd",
+      "stdoutBytes": 1207,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "d195c76aa739d26fff47dc159e76e316220b55c7f725d07e37519ce4fbea4198"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791747060590164884",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "c83aee09bea3b3f32c9a2e9302d3dd0bc3680e3336d6b1ac0c5ab22a7e06d581",
+      "stdoutSHA256": "5fff5eb706b0d716b9d8cfa85a7a688d901544240b4a24537ca233c191709ef2",
+      "stdoutBytes": 3812,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "34c4d67b2088b9cc92cd5f3d67bd26b464929b47d4dc69a8f0290b9996060fb4"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791747102655328688",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "95d8a0e1231876c1e24e2f6553f16b7119b0de9f576130c3e8da8ef9d370fcf2",
+      "stdoutSHA256": "56c90d911f312bc2e3e880bb2b1ab1a0e06be1fec814e7b0256c76aaa3da4246",
+      "stdoutBytes": 2728,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "34c4d67b2088b9cc92cd5f3d67bd26b464929b47d4dc69a8f0290b9996060fb4"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791747136895573248",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "bd35017d4e4c3c57c1d875ceac926ac840d4691df1494abc08ee7863eb84ee16",
+      "stdoutSHA256": "d50591fbf102ea2cf7e7a1dfa2dd9528f8dfe32127ad0095970ea0d745474735",
+      "stdoutBytes": 12485,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "34c4d67b2088b9cc92cd5f3d67bd26b464929b47d4dc69a8f0290b9996060fb4"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791747233105591030",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "88e5bc221a358a50b46b37c75692f4a2975b732e4dc70099cd15918a24a5735b",
+      "stdoutSHA256": "7612a80400616b7cbc1e74e0e3e151145bf872b534c56e7866c395b10651dd13",
+      "stdoutBytes": 3859,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "34c4d67b2088b9cc92cd5f3d67bd26b464929b47d4dc69a8f0290b9996060fb4"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "initial",
+      "call": "1791747286314678880",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "5332b5fa1c5ab929d3a40eeb47c29378d6db05b1bf73b22fb0d7a6d4b4240a59",
+      "stdoutSHA256": "b2d9e7c40df67bc36500a1ad5473bd155d60d08a6b8f0855e7af4cb89edb3aca",
+      "stdoutBytes": 1419,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "34c4d67b2088b9cc92cd5f3d67bd26b464929b47d4dc69a8f0290b9996060fb4"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-1",
+      "call": "1791747430412342161",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "5ff238899d3c5d11bd99fbb9d423e38a615d951b3b7f6688d62b067c8515f3a7",
+      "stdoutSHA256": "53122a330b269399df67df5f832c77413b57a4986bb625153243830656a670c1",
+      "stdoutBytes": 3671,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ab0324bd1ed0a55a5f9f490d1b9b89e93046c81ff3a34c3e7ae31973483890f9"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-1",
+      "call": "1791747469335482193",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "1064bdff3cf88e2b8ca710ba3156c2d6c15e4b799ee4311b476303b7819e80cf",
+      "stdoutSHA256": "d61b631eba3dba7a28031d540495375aaa15d42be428d3c4bb94680d4c9b55c7",
+      "stdoutBytes": 8136,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ab0324bd1ed0a55a5f9f490d1b9b89e93046c81ff3a34c3e7ae31973483890f9"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-1",
+      "call": "1791747527985574618",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "328f2db6445172b9004023d73c49e303ea682282efa9178c8f28352aeb1884af",
+      "stdoutSHA256": "2831e3d35b296ac5f83bf01ef1b49b58367dde53667e69c16f5acedf8a52f1d8",
+      "stdoutBytes": 9722,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ab0324bd1ed0a55a5f9f490d1b9b89e93046c81ff3a34c3e7ae31973483890f9"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-1",
+      "call": "1791747645440582993",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "f4b48d9fd41283b611810880d9b03ef374c280d48d493a5c78fdfe18841c8637",
+      "stdoutSHA256": "757b8dc1077807c152fcdb6d7004f6723c1f26591388461a290e63cdedef0e5f",
+      "stdoutBytes": 2486,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ab0324bd1ed0a55a5f9f490d1b9b89e93046c81ff3a34c3e7ae31973483890f9"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-1",
+      "call": "1791747683339048007",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "1ea32d50e027ed316b0b5f483b9c69049951d4ee1cfb6970030f7e4c45a99fdd",
+      "stdoutSHA256": "2c925b358cc047b3dc7e4999d7b39c93c325bd461bf7a4e7e4e684560bc48775",
+      "stdoutBytes": 3164,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "b10e9c971a57b5b8aac8c464170bc1045de2156ea8bf71eb472f5f4ad369bb58"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-1",
+      "call": "1791747723910388516",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "bd5dc45ea730191a5dfdf0f7279aa644c8fa4c3d34809feba260fc6498e3acaf",
+      "stdoutSHA256": "d087cb0feac290ce1873a5cf4b6534d43b4bc1affbea5e46052016619cfb37fd",
+      "stdoutBytes": 1423,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "b10e9c971a57b5b8aac8c464170bc1045de2156ea8bf71eb472f5f4ad369bb58"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-1",
+      "call": "1791747754217097219",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "87aa776aefca22f34f45075232fad996d7596fd0d6b52c6f7703cccaac081165",
+      "stdoutSHA256": "3f9e178bea26ed520227bbe373c173d66955928be7416b7a397e76e3a332c148",
+      "stdoutBytes": 1933,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "b10e9c971a57b5b8aac8c464170bc1045de2156ea8bf71eb472f5f4ad369bb58"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-1",
+      "call": "1791747783984299780",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "d8ff52d4f3a6e2ac9d289a037478372cbabeb01821d286bec88d1fbb05781447",
+      "stdoutSHA256": "61ce15a99b8c879b1c93c5cdf69b571d88e38092d6a93834a11a3823fb9c3c6f",
+      "stdoutBytes": 659,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "02032b95532780269b88f53b76fd29a97c7456a2a548bdc1c5a785ae630fffe1"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748069131335498",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "9bd1b3d1c0987a8844d01ce44baf4da14b59a96ebd468060edd5c6631536d7ec",
+      "stdoutSHA256": "268e4aa5b34b77474391dfb79de276b1df88356aa8dbc9775229dadf56af8939",
+      "stdoutBytes": 3298,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748104677031528",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "914c7fd0bc0d623e957ead49f57dc20192372cec1a8857a4fd8268158912e2c4",
+      "stdoutSHA256": "b3dbbcd91262d9aef9d84c7ae3fb364230790ead87d0924960a24c068a6cc86a",
+      "stdoutBytes": 2033,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748140008115894",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "848d2f507537a374243fcd41c81ec972895ff147eded10d1ddbdb1335522d725",
+      "stdoutSHA256": "17aeb88bb69447d8ae82cce08bae707afcf183f625f74a69b8db4e385581c5a9",
+      "stdoutBytes": 1613,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748164343435654",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "296155b7d36d8c9796f3e999c6351477749e8c59181e77779ec7c8301034000c",
+      "stdoutSHA256": "8349a6d17987c937529e4eb3999bfa0357056474b6fe5636ff556fa43b64dc45",
+      "stdoutBytes": 2751,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748199944491085",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "e251b594229a8f88b40c3e2953acb4e351125ce35c0996460d507f001445e9c5",
+      "stdoutSHA256": "334ecd3b1c0eb7a46abd25579696962424087a5146de8fe9bc15f1cc4d4936cd",
+      "stdoutBytes": 20231,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748338157850480",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "8faab1c826afb76b79d25431ac2deb3d298946804c919dc93bec0cc10f5fd6fb",
+      "stdoutSHA256": "c0a8ff36272ca618815e3f1b379b0ef0a89bb2e70ee88337c3166e72e2062387",
+      "stdoutBytes": 1123,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748383460956180",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "8d84e68450a73e88fe0b10bee3433ef72c5b628b4ca265d1cfc021bd015bb840",
+      "stdoutSHA256": "6920421ea4c5ed753174a41a94005154cde1be74ac5aaabaea6109763eefddbf",
+      "stdoutBytes": 14306,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748521677195866",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "9a3022e4352b5613bbfdb3098f44cf804d2b89e67cdcd2e29108e4e6ca8c032e",
+      "stdoutSHA256": "ced816aca7c55e1968070816d864dc5a63f94a1cf596922260b0b515b1b34782",
+      "stdoutBytes": 2302,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748569080717859",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "083245cda17b6e7a536341facc9254d0a37eaf69f623ba1f20e7d83a56cd3ace",
+      "stdoutSHA256": "9a8bda0117328ce6db5bcb18a0446b94590ece0415e9c4c49fc8a8e537a54fe4",
+      "stdoutBytes": 3222,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748611477781679",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "1afd1c113c76a45895c3561fdd4cd94a296c4edb389460e0c585ef166e9ae003",
+      "stdoutSHA256": "f7f61a76c3c12e2e7f321a462535e8fe8d1142204a033fc24b325c6579f8b7ef",
+      "stdoutBytes": 4584,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "aa8686aa8bb2f9d0c48e041dbdb3f0059fb90ee7d6e0811f0e27a7ea0fee6c7f"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748663798158403",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "9b131a7ea90e7d1e742305bc88d243dbaa8e368ffe3c8c8c53fcfc55ac404294",
+      "stdoutSHA256": "40b8ea1f1c0328e1e97d1fe726812b1839cf88ab5fb5ee83d332830e4135a472",
+      "stdoutBytes": 3055,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748700054305268",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "24bcddc4410b51091c20d4fbb1c89c53c8731b4129276145f32c73a95c4d9ec4",
+      "stdoutSHA256": "523c4320fa22532690f86fc046dd455d2eeb6cbf1d9dd195d30541933357adc4",
+      "stdoutBytes": 1416,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748730903198377",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "e45900d03658ee0b08a0e7809d45b29748aa569e7ef22186193436dd605c80c6",
+      "stdoutSHA256": "dead10c52855fe28c8b16cdcbc2079d8266869134fa8d2873b814af10c8a8b0e",
+      "stdoutBytes": 7535,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748832748871675",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "d18e24c1faad8213085fdbbf3fff66cabe6fe0d06653d9102df4454c05e1b21b",
+      "stdoutSHA256": "ff0cbe87398056cdc4f3f2e83d2b8addffeaa0fc0c89865d7c146bc64e9dda91",
+      "stdoutBytes": 4186,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791748915871233266",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "090f3a04c0dcfc1290bf94c0d245aa31029c679eac13ea190a287dea91ccd3cf",
+      "stdoutSHA256": "a35fbee5824a8286b35821ee356da1d737ddb1b64db5e24a924435c44bc59537",
+      "stdoutBytes": 5631,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749032243538123",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "d2a0b05b7b20c56265ab17ddc94f3150d390ee40afbe405d3dc7d5fd3378645c",
+      "stdoutSHA256": "178eca26795ff7b10d3624e28de708ec2374a5042188d1057a3d99a813c041e8",
+      "stdoutBytes": 11394,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749199864282163",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "8fef68b56aa1db8dc4d7a86aebb42103400a7ed278b132bdc3305fae006572a0",
+      "stdoutSHA256": "086a5f5b0c8023b2cd032acc95532f9569e66a385eac0f3f3b908b89a4466b46",
+      "stdoutBytes": 11004,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749371015563724",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "71d74e93da2143b3c16e9b1cdae6a08fb730d5b9e0b105787a877ed103afc737",
+      "stdoutSHA256": "be4bec931b5aae080e47269d7472180a528e3609fced5fef7f219b6d303b7cf2",
+      "stdoutBytes": 2457,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749415468888644",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "561a3390f0b17b0ab568023f1148e479f8f94db613ab1da9cca96bc59ad22056",
+      "stdoutSHA256": "42b940b0b83fd9964324c44c43408b6e543eff6447882d0a6bf227ca88da157d",
+      "stdoutBytes": 16602,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749545590464958",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "2118709793e7989c95b015d64d01de6ac0984ee6c6212651efdf75ed79c28ff9",
+      "stdoutSHA256": "14ad5b63a45267caab0968313a85d5b3ece497418e5cf0038d77f28dd2121dbc",
+      "stdoutBytes": 1400,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "16ea30414cc54539900943b8d13e74a7435fcc6c0f5e98ccb21f5fc7d0f51dbe"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749572593041468",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "fec3c019260894fde57a471f601dad4a50dd33a6595473d4db797bc5a469ed56",
+      "stdoutSHA256": "ae6a6ede67d758c9e0d6bcd479a0b818ce997976c136f27e647605695685df4e",
+      "stdoutBytes": 2552,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ff5c20f2f86878220c36ab938fa8258804112319e18a98e4f9ca2667dbe748d0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749620525636340",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "792d2295e94e58817a75256ee504d1524d15842f939ac9d57e057b9c8941c7f1",
+      "stdoutSHA256": "2ff8979b3260c67942b4425a5f59e26d0244d5919ff7cee61d8942e1e8815382",
+      "stdoutBytes": 1071,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ff5c20f2f86878220c36ab938fa8258804112319e18a98e4f9ca2667dbe748d0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749647206934511",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "18338541804d29d351e2d75b9a18db131f097900105a6d6d8de43234c3505ed5",
+      "stdoutSHA256": "a8be7ceb4eeba909a08fd9ed257369aa89a689584187e0ed16f2f15bc7134968",
+      "stdoutBytes": 650,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ff5c20f2f86878220c36ab938fa8258804112319e18a98e4f9ca2667dbe748d0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749684450860565",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "d43e0195a340595fac19050ddb8fd97e58f1b649a6a00b1706f7f5490c0b5b1a",
+      "stdoutSHA256": "c1303bd5196d5e8b9d099acf7cc798624d0ab2838d8453430d02042b5bf8310c",
+      "stdoutBytes": 968,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ff5c20f2f86878220c36ab938fa8258804112319e18a98e4f9ca2667dbe748d0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749708786248727",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "ca1f74ee3db270c799a74acd445ae5b4942f09a806eead42458aae0517998036",
+      "stdoutSHA256": "7ba9a7dc99234d66347d71a8b16208a874c1279353b4500d6ab917f49a927ddb",
+      "stdoutBytes": 9417,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ff5c20f2f86878220c36ab938fa8258804112319e18a98e4f9ca2667dbe748d0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749773482945073",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "5e495d22ce9a0c9d95e79f3680cb3cba56524b205acbe2e4fc0c9852e0e909f4",
+      "stdoutSHA256": "2132ff6248ac579402c9b840c85a7d773c84d290221d7061ffe36457ae47dd5e",
+      "stdoutBytes": 4184,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "ff5c20f2f86878220c36ab938fa8258804112319e18a98e4f9ca2667dbe748d0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749809156514485",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "39c08afd96a403c77662acbf6eb591917926d6c6da62aa883f11e5512530f670",
+      "stdoutSHA256": "79677234606e35fce87ee2d2bb8fd5cc5b08f8db48fc6ce92bf4c6b7c46a735e",
+      "stdoutBytes": 2730,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "1e0947655ef8683893b3e9bdbffcafc2076242501a2718fc9778d9b19911d5f7"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749840609607947",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "e6aae833d6ea57b5c94f872e8af8bf629817eb052b6f9510d120c27ea65e9e1c",
+      "stdoutSHA256": "9f2ae1fe81afbbd81ff0650663c97d0be730c7081da4c8f66292a2670485266c",
+      "stdoutBytes": 1355,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "1e0947655ef8683893b3e9bdbffcafc2076242501a2718fc9778d9b19911d5f7"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749865035271669",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "1423052213a1bdb797ab4ed49cd05bee708c94f34f6c7e460489c48877578cb7",
+      "stdoutSHA256": "0be03091e7287e856fd348de8c18b7c219df288721dec724fb34502e6fe3d0b2",
+      "stdoutBytes": 10614,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "1e0947655ef8683893b3e9bdbffcafc2076242501a2718fc9778d9b19911d5f7"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791749948746338351",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "f5175faba273b425987bdd07df839ba29a0fcfada5ed544dca0d90be4af8c01f",
+      "stdoutSHA256": "cf273f4a78aa95f567d1bbf49b93895efa732177a923c37d9622a17ab8517931",
+      "stdoutBytes": 16616,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "1e0947655ef8683893b3e9bdbffcafc2076242501a2718fc9778d9b19911d5f7"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791750062196957781",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "d41a99bb9517d06b512809d03923d28e1c7f3fd73f1c4fd6b0711d34ba5665ca",
+      "stdoutSHA256": "db902619c5cab818541718da2bf2daf2b3b1ec1ac3ffc111886386a8208ebc04",
+      "stdoutBytes": 10221,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "1e0947655ef8683893b3e9bdbffcafc2076242501a2718fc9778d9b19911d5f7"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791750132938159315",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "a3e908dffd999e5504d73227e2f1ed3c9d0f730f81a8b9bd1531cb2f3a492730",
+      "stdoutSHA256": "6af4636b7d799033193316a40eff7e6d9ad72a9d474d2194af03b34bd8627c75",
+      "stdoutBytes": 5420,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "1e0947655ef8683893b3e9bdbffcafc2076242501a2718fc9778d9b19911d5f7"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791750180657731681",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "aa0b0a3b6b5a7134d3d26feb3138f14d9b5a798a355a46197952adf101f0363c",
+      "stdoutSHA256": "53c54b047fa94426d262356fdc4c4bcb913f2e3477d7659c24534c9c807351b7",
+      "stdoutBytes": 781,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "1e0947655ef8683893b3e9bdbffcafc2076242501a2718fc9778d9b19911d5f7"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791750206427696668",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "7055ffc191e1061626ea4804d49bb93272c7c062850409eb9351f6f963b9ab73",
+      "stdoutSHA256": "5d82596df55efe226aab66edb1762c5651c87e9c8dcd3a7f6579ef8a78c4b8e9",
+      "stdoutBytes": 1253,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "1e0947655ef8683893b3e9bdbffcafc2076242501a2718fc9778d9b19911d5f7"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-3",
+      "call": "1791750229951688022",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "81423e740d80fe8ffe6595ddb724f3a7437bc04a9699b4bbb3fdedf9dddd82f5",
+      "stdoutSHA256": "9442b58df091c53fb08d75541664b888c333f514027796a36542b6a49d139870",
+      "stdoutBytes": 659,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "9defc447d55d6333f2c920c169dc77cf58182c0adbce19eb10e092a0bf099a4a"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-4",
+      "call": "1791752420795914763",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "98bcbf2c2ede939bbaa4faf55edba3cc26001d6894aaee162e34db920c35e183",
+      "stdoutSHA256": "a8915fe9567f84944d83d9baf94a0f3e282c11d6729487e0fc8a28a97e825a82",
+      "stdoutBytes": 3473,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "62da199c393e7537b30cd24d6cbf42455fe8033eb869da45e1bc6c681d9922b0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-4",
+      "call": "1791752487953260122",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "9caf7ecbcbd56790f7d05279d9f092c6501ee7e40028dfb9e8729b64f211bd11",
+      "stdoutSHA256": "98f24fdab8167faad8ad5472f670a99334f58a09c5c36ed1220542e0f7a5408a",
+      "stdoutBytes": 25820,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "62da199c393e7537b30cd24d6cbf42455fe8033eb869da45e1bc6c681d9922b0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-4",
+      "call": "1791752688057208101",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "b23c82dbb287aa0da2206bce03f3271431cc184f656b26972c64d08c2441e4ab",
+      "stdoutSHA256": "3669327332878251094dc51ce2e6a41076e489cf3094f79ab28b40e46ceb5e8f",
+      "stdoutBytes": 5512,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "62da199c393e7537b30cd24d6cbf42455fe8033eb869da45e1bc6c681d9922b0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-4",
+      "call": "1791752772075939664",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "9a80570fa5f330b8db07e02d6f3fd4f3947ecf692d43c82c2e3181bafe93277d",
+      "stdoutSHA256": "95da79b75b5df5d21e7104ad8a6a6d223f0de2f3a6c5ee9a61846565237132f2",
+      "stdoutBytes": 7106,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "62da199c393e7537b30cd24d6cbf42455fe8033eb869da45e1bc6c681d9922b0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-4",
+      "call": "1791752842171277361",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "bbb5bbffc998164c2a8dbcf4f740c9d16d61a5ddfafebac9e4cfb9073a6113eb",
+      "stdoutSHA256": "1c8478b539bea48fe09eeebf9cc78ff265b297e9e279f3cf414eaafc4f432cf7",
+      "stdoutBytes": 1776,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "62da199c393e7537b30cd24d6cbf42455fe8033eb869da45e1bc6c681d9922b0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-4",
+      "call": "1791752879740292699",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "0c5d0e446bb93fd0bfbe5ec10d9e4fc3d61761126f08b7dcaff16395441e511a",
+      "stdoutSHA256": "64dca44d84a64667e871345d15f840be494e6001307c1592af0c89ec2ad517aa",
+      "stdoutBytes": 1426,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "62da199c393e7537b30cd24d6cbf42455fe8033eb869da45e1bc6c681d9922b0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-4",
+      "call": "1791752912418565198",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "2708efb32f3cdbc9fd152691687836b38a5c12dac2717667382365a5d7da9aba",
+      "stdoutSHA256": "657ab25377da30b2f900c9cbd2aadbde0783e9edfb6c3f8ae16be749508be42d",
+      "stdoutBytes": 2594,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "62da199c393e7537b30cd24d6cbf42455fe8033eb869da45e1bc6c681d9922b0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-4",
+      "call": "1791752945916116611",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "7b708e87fa219d23e36181c53acc0d1b7d7c489276ba453e3f00b0ba6e9661ff",
+      "stdoutSHA256": "d70472260a171be4e3750de8005972546d2f258dc1b02df3173dbf0dbed30485",
+      "stdoutBytes": 1439,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "62da199c393e7537b30cd24d6cbf42455fe8033eb869da45e1bc6c681d9922b0"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-6-devplan-review",
+      "call": "1791755104938769689",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "bdc1b23ff219f1d0b545066350aa36d04df9edecbc5786c07fb1e59c65734d32",
+      "stdoutSHA256": "bdde09532b391ff7328c2d1bcac1c921d3f963c443b25896f190a147e50fc90b",
+      "stdoutBytes": 3369,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "a265a9329f936b37356e35d3a88ca259c8216a1b164d7755f9f74cedd4fba838"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-6-devplan-review",
+      "call": "1791755141380969481",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "8a90c0ac0149e702796e7e588f266c101697cd84e906699207670fd013a30bc7",
+      "stdoutSHA256": "172cf125bc412bd405788c0d71a61ee6de981e5c578eda947684074a4d3934ef",
+      "stdoutBytes": 2012,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "a265a9329f936b37356e35d3a88ca259c8216a1b164d7755f9f74cedd4fba838"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-6-devplan-review",
+      "call": "1791755170246459215",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "67c5e5abfb99cdc33de240fc16f3cbf4799de52f39c3edf6f6f3127a59accbeb",
+      "stdoutSHA256": "0ceac9f4885f54e484157d4116c09d8dc5a3bbca4e04908d02e0a015066ced27",
+      "stdoutBytes": 1670,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "a265a9329f936b37356e35d3a88ca259c8216a1b164d7755f9f74cedd4fba838"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-6-devplan-review",
+      "call": "1791755196092668469",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "ed2b4a58327150212d0e6e8554a60804b7003a21c9d806de4a8f1cb1358ec631",
+      "stdoutSHA256": "57e70be65ad0ef68f5620b3706105cb6b16b6b7b65eac071812d53c40215ccc0",
+      "stdoutBytes": 29324,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "a265a9329f936b37356e35d3a88ca259c8216a1b164d7755f9f74cedd4fba838"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-6-devplan-review",
+      "call": "1791755368706560414",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "5de9dd81a675e9dff7dfdc6106228aee783b6d7abd01589d0f487a3071956d9c",
+      "stdoutSHA256": "c9f00e007e3f7bb0b47a0e390744e4b87d9a50da57b98bf04f6e2dddd2ce7af9",
+      "stdoutBytes": 3700,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "a265a9329f936b37356e35d3a88ca259c8216a1b164d7755f9f74cedd4fba838"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    },
+    {
+      "attempt": "resume-cli-6-devplan-review",
+      "call": "1791755424389259065",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "commandSHA256": "b2b9a55df9206c7ee5914cc09c686a42bcc0e66cfb680233fa2d138167618a62",
+      "stdoutSHA256": "8fe3303f88ca24896ad12fef528fe1c03098dea3614b6b748ef5ceb05e89106b",
+      "stdoutBytes": 1495,
+      "eventTypes": [
+        "item.completed",
+        "thread.started",
+        "turn.completed",
+        "turn.started"
+      ],
+      "threadIdSHA256": [
+        "a265a9329f936b37356e35d3a88ca259c8216a1b164d7755f9f74cedd4fba838"
+      ],
+      "exitCode": 0,
+      "firstProviderError": null
+    }
+  ],
+  "withheld": "Full provider prompts, stderr, thread identifiers and account/session internals. This is a derivative index, not independent service attestation."
+}

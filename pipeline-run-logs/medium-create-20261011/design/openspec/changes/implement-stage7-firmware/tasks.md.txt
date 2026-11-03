@@ -1,0 +1,11 @@
+# Tasks
+
+- [x] Inspect existing firmware/devplan files and available manufacturer evidence before implementation.
+- [x] Validate this proposal before any edits.
+- [x] Implement reproducible ESP-IDF project, PINOUT-derived pins and functional sensor/display happy path with error handling.
+- [x] Declare required driver/GPIO/esp_timer dependencies and document selected defaults with rationale and constraints.
+- [x] Use build_firmware with supplied SDK/tools caches; resolve actual build failures.
+- [x] Obtain two independent builds with identical ELF/bin hashes from current firmware and PINOUT; rebuild after any source/PINOUT change.
+- [x] Run ERC, drift and other required completion gates; reconcile reported findings.
+- [x] Synchronize documentation and record real build results without physical hardware or power-compliance claims.
+- [x] Finish only after all stage obligations pass.

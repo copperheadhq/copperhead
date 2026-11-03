@@ -1,0 +1,14 @@
+# Proposal: seed-device-requirements
+
+> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)
+
+## Why
+
+Establish the requirements for this fresh experimental USB-C ESP32-C3 temperature/humidity display board before part selection or hardware capture, preserving the original constraints and all eight stage gates.
+
+## What Changes
+
+- Create docs/SPEC.md describing the device, six subsystems, scope, real budgets, acceptance criteria, candidate parts, supplied manufacturer sources, assumptions and unresolved verification work.
+- If an openspec workspace exists, seed per-capability requirements under openspec/specs/ with Given/When/Then scenarios for protected input, regulation, MCU/programming, sensing, display, RF/mechanics and firmware.
+- Record every budget and other stated or assumed constraint through record_constraint once available; record non-trivial decisions and update decision/changelog documentation.
+- Limit this stage to requirements; candidate existence is not part selection, availability, qualification or manufacturing release.

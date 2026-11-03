@@ -1,0 +1,67 @@
+{
+  "stages": [
+    {
+      "stage": "spec-seed",
+      "commit": "9b3f12e9ed51016cad30d717019a9d4b2f5e8f4a",
+      "subject": "copperhead: create pipeline stage: spec-seed",
+      "predicateComplete": true,
+      "summary": "summaries/2026-10-11T19-07-40-308Z/summary.filtered.txt"
+    },
+    {
+      "stage": "architecture",
+      "commit": "492758ffefd2b4a91fce3eb44558f79d52656043",
+      "subject": "copperhead: create pipeline stage: architecture",
+      "predicateComplete": true,
+      "summary": "summaries/2026-10-11T19-14-28-508Z/summary.filtered.txt"
+    },
+    {
+      "stage": "part-selection",
+      "commit": "b2fde2983f43733b80bcf598368bf092ddcb4b62",
+      "subject": "copperhead: create pipeline stage: part-selection",
+      "predicateComplete": true,
+      "summary": "summaries/2026-10-11T19-37-10-374Z/summary.filtered.txt"
+    },
+    {
+      "stage": "schematic",
+      "commit": "b4696417453f43f3a25e229fac19ea8ab1725418",
+      "subject": "copperhead: create pipeline stage: schematic",
+      "predicateComplete": true,
+      "summary": "summaries/2026-10-11T19-47-49-091Z/summary.filtered.txt"
+    },
+    {
+      "stage": "layout-draft",
+      "commit": "b6da4bfc49917a6b57ddb2e03357e715b5b0a81a",
+      "subject": "copperhead: create pipeline stage: layout-draft",
+      "predicateComplete": true,
+      "summary": "summaries/2026-10-11T19-57-43-743Z/summary.filtered.txt"
+    },
+    {
+      "stage": "outputs",
+      "commit": "97f02f90b098d8c765305a4434e7c26397d7b328",
+      "subject": "copperhead: create pipeline stage: outputs",
+      "predicateComplete": true,
+      "summary": "summaries/2026-10-11T20-12-52-543Z/summary.filtered.txt"
+    },
+    {
+      "stage": "firmware",
+      "commit": "91ec2b14bee2bfeb6a3967e3b1780b1ed744ecea",
+      "subject": "copperhead: create pipeline stage: firmware",
+      "predicateComplete": true,
+      "summary": "summaries/2026-10-11T21-00-20-749Z/summary.filtered.txt"
+    },
+    {
+      "stage": "devplan",
+      "commit": "3eb8ae8eb2a6ef690754973463190f511c5b6b7f",
+      "subject": "copperhead: create pipeline stage: devplan",
+      "predicateComplete": true,
+      "independentStageCommit": "3eb8ae8eb2a6ef690754973463190f511c5b6b7f",
+      "providerStage8Run": true,
+      "earlierCandidateCommit": "91ec2b14bee2bfeb6a3967e3b1780b1ed744ecea",
+      "summary": "summaries/2026-10-11T21-45-04-873Z/summary.filtered.txt"
+    }
+  ],
+  "finalDesignHead": "3eb8ae8eb2a6ef690754973463190f511c5b6b7f",
+  "finalCLIExitCode": 0,
+  "GitObjectsPublished": false,
+  "commitIdScope": "Retained local design repository IDs, not commits in the public Copperhead source branch. This index and snapshot do not allow independent reconstruction of the complete historical Git chain."
+}

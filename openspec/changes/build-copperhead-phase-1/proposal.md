@@ -40,3 +40,5 @@ None — no per-capability specs exist yet (`openspec/specs/` holds only the sou
 - Runtime dependencies: commander, OpenAI SDK, Anthropic SDK, execa (subprocess), ripgrep-style search; dev: TypeScript, a test runner (vitest), tsx.
 - External requirements: `kicad-cli` ≥ 8 on PATH; `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` via env only; `openspec` CLI available in target repos.
 - Acceptance is defined by SPEC.md §9 (AC-1 … AC-4, AC-6, AC-7); priority order AC-3.4 > AC-3.2 > AC-3.1 > AC-2.1 > AC-1.2.
+
+Related create completion/export follow-up: [fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md).

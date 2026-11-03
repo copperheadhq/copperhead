@@ -42,6 +42,34 @@ describe('BOM parsing (supplier-bom-export)', () => {
     });
   });
 
+  it('keeps separate parts tables, maps each header, and ignores supporting tables and fenced examples', () => {
+    const rows = parseBom(`| Refdes | MPN | Value |
+|---|---|---|
+| U_MCU | ESP32-C3-MINI-1-N4X | MCU |
+| Refdes | MPN | Value |
+| R_GO_T5 | RC0603FR-0710KL | 10k |
+
+| Category | Current | Notes |
+|---|---|---|
+| Support | 10mA | estimate |
+
+Manufacturer Part Number | Reference | Package
+---|---|---
+C0603C104K5RAC | C_GUARD_OUT | C_0603
+
+~~~markdown
+| Refdes | MPN |
+|---|---|
+| EXAMPLE | NOT-A-PART |
+~~~`);
+    expect(rows.map(r => [r.refdes, r.mpn, r.value, r.footprint])).toEqual([
+      ['U_MCU', 'ESP32-C3-MINI-1-N4X', 'MCU', ''],
+      ['R_GO_T5', 'RC0603FR-0710KL', '10k', ''],
+      ['C_GUARD_OUT', 'C0603C104K5RAC', '', 'C_0603'],
+    ]);
+    expect(rows.every(r => r.hasMpn)).toBe(true);
+  });
+
   it('treats the UNVERIFIED MPN placeholder as missing, and the token anywhere as a flag', () => {
     const rows = parseBom(FIXTURE_BOM);
     // R2: MPN column is the placeholder → no orderable MPN, and flagged.

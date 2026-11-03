@@ -1,0 +1,33 @@
+{
+  "baseCommit": "e26be947ed31a35fbbb52623174bb25017d6cd44",
+  "branch": "trial/experimental-native-20261008",
+  "provider": "experimental-native",
+  "usage": "unknown",
+  "createImplementationUnmodified": true,
+  "toolDispatcherUnmodified": true,
+  "cachingProviderUnmodified": true,
+  "limits": {
+    "nativeRequestResponseTasks": 5,
+    "allowedStage": "spec-seed",
+    "wallMinutes": 20,
+    "requestTtlSeconds": 300
+  },
+  "artifacts": {
+    "public_test_fixes": {
+      "path": "<cloud-workspace>/copperhead-trial-20261008-round2/all-test-fixture-fixes.patch",
+      "sha256": "c6fec68518cbbafe51d670e05076135c34034344c7c495d42799d5c288eab369"
+    },
+    "experimental_provider_patch": {
+      "path": "<cloud-workspace>/copperhead-native-trial-20261008/experimental-native.patch",
+      "sha256": "52433fd1d1122c70838d8b7ac0d7eff52dd7301c5d5aff371c308a406b740daa"
+    },
+    "supervisor": {
+      "path": "<cloud-workspace>/copperhead-native-trial-20261008/run-native-trial.py",
+      "sha256": "1f9748262bc5822fc5f47ee731dab67bb17b3a70ee227955fbff93a0cae0f863"
+    },
+    "package_lock": {
+      "path": "<cloud-workspace>/copperhead-native-trial-20261008/repo/package-lock.json",
+      "sha256": "5c315fb8fce845d53f2160bfa41d5b098b0e4a7f98e9ad158314219bc574947d"
+    }
+  }
+}

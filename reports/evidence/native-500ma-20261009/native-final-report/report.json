@@ -1,0 +1,104 @@
+{
+  "generatedAtMs": 1791504718166,
+  "stageCount": 8,
+  "ran": 1,
+  "resumed": 7,
+  "stages": [
+    {
+      "name": "spec-seed",
+      "resumed": true,
+      "wallMs": 0,
+      "turns": 0,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cacheHits": 0,
+      "cacheHitPct": null
+    },
+    {
+      "name": "architecture",
+      "resumed": true,
+      "wallMs": 0,
+      "turns": 0,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cacheHits": 0,
+      "cacheHitPct": null
+    },
+    {
+      "name": "part-selection",
+      "resumed": true,
+      "wallMs": 0,
+      "turns": 0,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cacheHits": 0,
+      "cacheHitPct": null
+    },
+    {
+      "name": "schematic",
+      "resumed": true,
+      "wallMs": 0,
+      "turns": 0,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cacheHits": 0,
+      "cacheHitPct": null
+    },
+    {
+      "name": "layout-draft",
+      "resumed": true,
+      "wallMs": 0,
+      "turns": 0,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cacheHits": 0,
+      "cacheHitPct": null
+    },
+    {
+      "name": "outputs",
+      "resumed": true,
+      "wallMs": 0,
+      "turns": 0,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cacheHits": 0,
+      "cacheHitPct": null
+    },
+    {
+      "name": "firmware",
+      "resumed": true,
+      "wallMs": 0,
+      "turns": 0,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cacheHits": 0,
+      "cacheHitPct": null
+    },
+    {
+      "name": "devplan",
+      "resumed": false,
+      "wallMs": 701778,
+      "turns": 3,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "cacheHits": 0,
+      "cacheHitPct": 0
+    }
+  ],
+  "total": {
+    "wallMs": 701778,
+    "turns": 3,
+    "tokensIn": 0,
+    "tokensOut": 0,
+    "cacheHits": 0,
+    "cacheHitPct": 0
+  },
+  "slowestStage": {
+    "name": "devplan",
+    "wallMs": 701778
+  },
+  "mostExpensiveStage": {
+    "name": "devplan",
+    "tokensOut": 0
+  }
+}

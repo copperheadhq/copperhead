@@ -1,0 +1,26 @@
+{
+  "schematic": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_sch",
+  "board": "new-experimental-usb-c-esp32-c3-temperature-humidity-display-board.kicad_pcb",
+  "docs": "docs/",
+  "outputProfile": "generic",
+  "model": "codex:gpt-6.1-sol",
+  "maxTurns": 20,
+  "stageMaxTurns": {
+    "spec-seed": 16,
+    "architecture": 12,
+    "part-selection": 22,
+    "schematic": 22,
+    "layout-draft": 20,
+    "outputs": 10,
+    "firmware": 16,
+    "devplan": 10
+  },
+  "maxRepairCycles": 5,
+  "budgets": {},
+  "turnTimeoutMs": 600000,
+  "turnMaxMs": 900000,
+  "heartbeatMs": 20000,
+  "maxStageRetries": 1,
+  "llmCache": false,
+  "origin": "create"
+}

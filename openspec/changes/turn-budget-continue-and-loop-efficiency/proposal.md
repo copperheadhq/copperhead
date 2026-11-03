@@ -39,3 +39,5 @@ Two consecutive `copperhead create` spec-seed runs exhausted the 40-turn budget 
 - `src/config.ts`, `src/commands/create.ts`: `stageMaxTurns`.
 - `src/cli.ts`: TTY continue-prompt wiring for `do` and `create`.
 - Tests: unit tests for all of the above in `test/`; no live-LLM tests required.
+
+Related create completion/export follow-up: [fix-create-stage-evidence](../fix-create-stage-evidence/proposal.md).

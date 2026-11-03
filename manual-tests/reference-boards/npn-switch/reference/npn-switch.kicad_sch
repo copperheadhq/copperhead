@@ -18,8 +18,6 @@
 				(exclude_from_sim no)
 				(in_bom yes)
 				(on_board yes)
-				(in_pos_files yes)
-				(duplicate_pin_numbers_are_jumpers no)
 				(property "Reference" "J"
 					(at 0 2.54 0)
 					(show_name no)
@@ -234,8 +232,6 @@
 				(exclude_from_sim no)
 				(in_bom yes)
 				(on_board yes)
-				(in_pos_files yes)
-				(duplicate_pin_numbers_are_jumpers no)
 				(property "Reference" "C"
 					(at 0.635 2.54 0)
 					(show_name no)
@@ -389,8 +385,6 @@
 				(exclude_from_sim no)
 				(in_bom yes)
 				(on_board yes)
-				(in_pos_files yes)
-				(duplicate_pin_numbers_are_jumpers no)
 				(property "Reference" "C"
 					(at 0.635 2.54 0)
 					(show_name no)
@@ -567,8 +561,6 @@
 				(exclude_from_sim no)
 				(in_bom yes)
 				(on_board yes)
-				(in_pos_files yes)
-				(duplicate_pin_numbers_are_jumpers no)
 				(property "Reference" "D"
 					(at 0 2.54 0)
 					(show_name no)
@@ -755,8 +747,6 @@
 				(exclude_from_sim no)
 				(in_bom yes)
 				(on_board yes)
-				(in_pos_files yes)
-				(duplicate_pin_numbers_are_jumpers no)
 				(property "Reference" "Q"
 					(at 5.08 1.27 0)
 					(show_name no)
@@ -964,8 +954,6 @@
 				(exclude_from_sim no)
 				(in_bom yes)
 				(on_board yes)
-				(in_pos_files yes)
-				(duplicate_pin_numbers_are_jumpers no)
 				(property "Reference" "R"
 					(at 2.032 0 90)
 					(show_name no)
@@ -1098,8 +1086,6 @@
 				(exclude_from_sim no)
 				(in_bom yes)
 				(on_board yes)
-				(in_pos_files yes)
-				(duplicate_pin_numbers_are_jumpers no)
 				(property "Reference" "U"
 					(at -12.7 13.97 0)
 					(show_name no)

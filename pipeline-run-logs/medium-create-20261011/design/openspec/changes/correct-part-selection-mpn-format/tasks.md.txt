@@ -1,0 +1,8 @@
+# Tasks
+
+- [x] Read actual BOM and available manufacturer evidence.
+- [x] Search installed symbols for every selected active part, module, connector and switch; confirm real pins.
+- [x] Review every part's current/leakage accounting without claiming assumed ceilings are verified limits.
+- [x] Surgically correct BOM MPN/rationale cells and affected documentation after validation.
+- [x] Check every footprint cell and run check_drift.
+- [x] Read back the saved BOM and finish with accurate stage-only verification status.
