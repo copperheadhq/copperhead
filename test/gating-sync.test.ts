@@ -307,8 +307,43 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
       await runInit({ repoRoot: repo });
       const ctx = await makeCtx(repo);
       ctx.config = { ...ctx.config, schematic: null, board: null };
+      ctx.ledger.onKicadEdit('hardware/open-key.kicad_pcb');
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'erc')).toBe(false);
       expect(await dispatchTool(ctx, 'run_erc', {})).toContain('does not apply yet');
       expect(await dispatchTool(ctx, 'run_drc', {})).toContain('does not apply yet');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a board-only project finishes on DRC alone (#457)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      ctx.editsUnlocked = true;
+      ctx.config = { ...ctx.config, schematic: null, board: 'hardware/open-key.kicad_pcb' };
+
+      // Touch the board
+      ctx.filesTouched.add('hardware/open-key.kicad_pcb');
+      ctx.ledger.onKicadEdit('hardware/open-key.kicad_pcb');
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'erc')).toBe(false);
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'drc')).toBe(true);
+
+      // Verify that finish is blocked by DRC, but NOT by ERC
+      const blockedByDrc = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'test board edit' });
+      expect(blockedByDrc).toContain('cannot finish yet');
+      expect(blockedByDrc).toContain('DRC has not passed');
+      expect(blockedByDrc).not.toContain('ERC has not passed');
+
+      // Satisfy DRC and clear drift
+      await dispatchTool(ctx, 'run_drc', {});
+      ctx.ledger.clear('drift');
+
+      // Finish succeeds without any schematic or ERC run
+      const done = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'board edit finished' });
+      expect(done).toContain('all gates satisfied');
+      expect(ctx.finishRequest).toEqual({ outcome: 'done', summary: 'board edit finished' });
     } finally {
       await cleanup();
     }
