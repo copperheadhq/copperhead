@@ -56,6 +56,13 @@ function assistantToolUse(name: string, input: Record<string, unknown>): QueryMe
 function result(input = 0, output = 0): QueryMessage {
   return { type: 'result', subtype: 'success', usage: { input_tokens: input, output_tokens: output } };
 }
+function cachedResult(input: number, cacheRead: number, cacheCreation: number, output = 0): QueryMessage {
+  return {
+    type: 'result',
+    subtype: 'success',
+    usage: { input_tokens: input, output_tokens: output, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheCreation },
+  };
+}
 
 /** A partial-message event, as the SDK emits with includePartialMessages. */
 function streamEvent(type: string, delta?: { type: string; text?: string }): QueryMessage {
@@ -557,5 +564,19 @@ describe('ClaudeCodeProvider — missing optional dependency', () => {
     const provider = new ClaudeCodeProvider(undefined, undefined, () => Promise.resolve({}));
     const caught = await provider.chat(messages, tools).catch((e: Error) => e);
     expect(caught.message).toContain('did not export `query`');
+  });
+});
+
+describe('ClaudeCodeProvider — cached input tokens (AC-18.4, AC-18.5)', () => {
+  it('counts cache reads and cache creation as input, like the Anthropic provider', async () => {
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('ok'), cachedResult(2, 41000, 1500, 7)]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.usage).toEqual({ inputTokens: 42502, outputTokens: 7 });
+  });
+
+  it('a result with no cache fields counts its uncached input alone', async () => {
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('ok'), result(900, 3)]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.usage).toEqual({ inputTokens: 900, outputTokens: 3 });
   });
 });

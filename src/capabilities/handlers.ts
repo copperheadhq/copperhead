@@ -12,12 +12,12 @@ import { FootprintResolver } from '../kicad/footprints.js';
 import { moveFootprint } from '../kicad/populate.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
-import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
+import { saveConstraint, classifyAffectsTarget, affectsTargetExists, loadConstraints } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
-import type { RunContext } from '../agent/context.js';
+import type { RefusalBlocker, RunContext } from '../agent/context.js';
 import { corruptionError, markTouched, str } from './helpers.js';
 
 /**
@@ -105,6 +105,28 @@ export interface HandlerDef {
   schema: ToolSchema;
   requiresUnlock: boolean;
   handler: (ctx: RunContext, args: Record<string, unknown>) => Promise<string | HandlerOutcome>;
+}
+
+/** The `blockers` argument of `finish`, or what is wrong with it. */
+const MAX_BLOCKERS = 20;
+
+function parseBlockers(raw: unknown): RefusalBlocker[] | string {
+  if (!Array.isArray(raw)) return 'blockers must be an array of {kind, constraint, required, found}';
+  if (raw.length > MAX_BLOCKERS) return `blockers lists ${raw.length} entries; name the ${MAX_BLOCKERS} that matter most`;
+  const out: RefusalBlocker[] = [];
+  // Each field is one line: the summary, the decision block and the transcript
+  // event render them as list items.
+  const line = (v: string): string => v.replace(/\s+/g, ' ').trim();
+  for (const [i, b] of raw.entries()) {
+    if (!b || typeof b !== 'object') return `blockers[${i}] must be an object`;
+    const o = b as Record<string, unknown>;
+    if (o.kind !== 'constraint-conflict') return `blockers[${i}].kind must be "constraint-conflict"`;
+    for (const field of ['constraint', 'required', 'found'] as const) {
+      if (typeof o[field] !== 'string' || !line(o[field] as string)) return `blockers[${i}].${field} must be a non-empty string`;
+    }
+    out.push({ kind: 'constraint-conflict', constraint: line(o.constraint as string), required: line(o.required as string), found: line(o.found as string) });
+  }
+  return out;
 }
 
 export const HANDLERS: HandlerDef[] = [
@@ -894,12 +916,26 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'finish',
       description:
-        'End the run. outcome "done" requires all verification gates and sync obligations to be satisfied; outcome "refuse" ends without edits, citing the violated budget/constraint in summary.',
+        'End the run. outcome "done" requires all verification gates and sync obligations to be satisfied; outcome "refuse" ends without edits, citing the violated budget/constraint in summary. With "refuse", list each constraint you cannot satisfy in blockers (kind "constraint-conflict", the registered constraint key, the value it requires, the candidate that fails it); a blocker naming a key the constraint registry holds stops the pipeline for a human decision, one naming an unregistered key is kept as prose only.',
       parameters: {
         type: 'object',
         properties: {
           outcome: { type: 'string', enum: ['done', 'refuse'] },
           summary: { type: 'string' },
+          blockers: {
+            type: 'array',
+            description: 'With outcome "refuse" only: the constraints the design cannot satisfy.',
+            items: {
+              type: 'object',
+              properties: {
+                kind: { type: 'string', enum: ['constraint-conflict'] },
+                constraint: { type: 'string', description: 'a key in the constraint registry' },
+                required: { type: 'string', description: 'what the constraint demands, e.g. "≥ 16 A"' },
+                found: { type: 'string', description: 'the candidate that fails it, e.g. "G5Q-1A4 relay, 6 A"' },
+              },
+              required: ['kind', 'constraint', 'required', 'found'],
+            },
+          },
         },
         required: ['outcome', 'summary'],
       },
@@ -908,9 +944,32 @@ export const HANDLERS: HandlerDef[] = [
     handler: async (ctx, args) => {
       const outcome = str(args, 'outcome') as 'done' | 'refuse';
       const summary = str(args, 'summary');
+      let blockers: RefusalBlocker[] = [];
+      if (args.blockers !== undefined) {
+        if (outcome !== 'refuse') {
+          return 'rejected: blockers accompany outcome "refuse" only; a done run has nothing it could not satisfy. Drop them, or refuse with them.';
+        }
+        const parsed = parseBlockers(args.blockers);
+        if (typeof parsed === 'string') return `rejected: ${parsed}`;
+        blockers = parsed;
+      }
       if (outcome === 'refuse') {
-        ctx.finishRequest = { outcome, summary };
-        return 'refusal recorded; run will end';
+        // A blocker counts only when the registry holds its key (design D1): the
+        // narration never decides, the registry does. Unregistered keys stay in the
+        // summary as prose so the claim is not lost, and never stop the pipeline.
+        const registry = blockers.length ? await loadConstraints(ctx.repoRoot) : {};
+        // Own properties only: "constructor" or "toString" is not a registered key.
+        const verified = blockers.filter((b) => Object.hasOwn(registry, b.constraint));
+        const unverified = blockers.filter((b) => !Object.hasOwn(registry, b.constraint));
+        const text = unverified.length
+          ? `${summary}\n${unverified
+              .map((b) => `(unverified claim) constraint "${b.constraint}" is not in the registry: required ${b.required}, found ${b.found}`)
+              .join('\n')}`
+          : summary;
+        ctx.finishRequest = { outcome, summary: text, blockers: verified, unverifiedBlockers: unverified };
+        return verified.length
+          ? `refusal recorded with ${verified.length} verified blocker(s); run will end`
+          : 'refusal recorded; run will end';
       }
       const problems: string[] = [];
       const touchedKicad = [...ctx.filesTouched].some((f) => isKicadFile(f));
