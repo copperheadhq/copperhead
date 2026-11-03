@@ -20,7 +20,10 @@ import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
-import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit } from '../util/git.js';
+import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit, applyFailedRun } from '../util/git.js';
+import { loadConstraints } from '../memory/constraints.js';
+import { classifyAttempt, nextBudget, isDocsOnlyStage, renderDecisionStop, appendSummaryNote, type AttemptCause } from './stage-recovery.js';
+import type { RefusalBlocker } from '../agent/context.js';
 import type { CompatSettings, CopperheadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
 import { runAgentLoop, makeProvider, type BudgetExhaustedStats } from '../agent/loop.js';
@@ -262,7 +265,7 @@ export const STAGES: Stage[] = [
       // (that stops the run before the schematic stage, #314)
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing.',
+      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing. If a recorded constraint (a budget in the system prompt or a key in the constraint registry) cannot be met by any installable part, do not narrate it and do not finish "done": call finish with outcome "refuse" and one blockers entry per constraint ({"kind": "constraint-conflict", "constraint": <the registry key>, "required": <what it demands>, "found": <the best candidate and why it fails>}), so the pipeline stops for a human decision instead of retrying the same wall.',
   },
   {
     name: 'schematic',
@@ -849,7 +852,9 @@ function logResumePoint(opts: CreateOptions, stage: Stage, index: number): void 
 function printCostTable(opts: CreateOptions, costs: StageCost[]): void {
   if (!costs.length) return;
   const pct = (hits: number, turns: number): string => (turns ? `${Math.round((hits / turns) * 100)}%` : '—');
-  const header = { stage: 'Stage', wall: 'Wall', turns: 'Turns', out: 'Out tok', cache: 'Cache' };
+  // "Replayed": turns served from copperhead's own response cache (a retried
+  // stage replaying answers it already paid for), never provider cache hits.
+  const header = { stage: 'Stage', wall: 'Wall', turns: 'Turns', out: 'Out tok', cache: 'Replayed' };
   const rows = costs.map((c) => ({
     stage: c.name,
     wall: c.resumed ? '—' : fmtDuration(c.wallMs),
@@ -931,7 +936,7 @@ function logCumulative(opts: CreateOptions, stageCosts: StageCost[]): void {
   opts.log(
     dim(
       `pipeline so far: ${stageCosts.length}/${STAGES.length} stages · ${fmtDuration(t.wallMs)} · ` +
-        `${fmtTokens(t.tokensOut)} out tokens · ${cachePct(t.cacheHits, t.turns)}% cache hits`,
+        `${fmtTokens(t.tokensOut)} out tokens · ${cachePct(t.cacheHits, t.turns)}% turns replayed`,
     ),
   );
 }
@@ -980,7 +985,7 @@ async function writeRunReport(opts: CreateOptions, stageCosts: StageCost[]): Pro
     'Per-stage cost of the create pipeline, regenerated at the end of every run.',
     'Resumed stages were already complete on entry and cost nothing this run.',
     '',
-    row(['Stage', 'Wall', 'Turns', 'In', 'Out', 'Cache', 'Status']),
+    row(['Stage', 'Wall', 'Turns', 'In', 'Out', 'Replayed', 'Status']),
     row(['---', '---:', '---:', '---:', '---:', '---:', '---']),
     ...stageCosts.map((c) =>
       c.resumed
@@ -1024,7 +1029,14 @@ async function writeRunReport(opts: CreateOptions, stageCosts: StageCost[]): Pro
   }
 }
 
-export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; completed: string[] }> {
+export interface CreateResult {
+  ok: boolean;
+  completed: string[];
+  /** Set when a stage stopped for a human on a classified cause (AC-18.7). */
+  stop?: { stage: string; cause: AttemptCause; blockers: RefusalBlocker[] };
+}
+
+export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
   const brief = await readFile(path.resolve(opts.briefPath), 'utf8');
   // Hashed from the content already in hand: a brief edited mid-pipeline shows
   // up as a different sha256 in the next stage's metadata (AC-8.1).
@@ -1114,6 +1126,13 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // stops and reports for a human — the loop keeps going by itself for the
     // recoverable cases without silently spinning on the dead-end ones.
     const stageTurns = config.stageMaxTurns?.[stage.name];
+    // The attempt's turn budget: the stage's own entry on attempt 1 (undefined
+    // leaves the loop on its default, AC-15.18), escalated only after a budget
+    // exhaustion (design D3) and kept for every other cause (AC-18.10).
+    const startBudget = stageTurns ?? config.maxTurns;
+    let budget: number | undefined = stageTurns;
+    let lastRunId: string | null = null;
+    let stop: CreateResult['stop'] | undefined;
     const basePrompt = stage.prompt(brief, config.docs);
     let guidance = '';
     let stageDone = false;
@@ -1175,10 +1194,25 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
             break;
           }
         }
+        // A docs-only stage retries from the draft the previous attempt preserved
+        // (design D5, AC-18.11): the rollback left it in a stash entry, so put it
+        // back before the loop takes this attempt's own snapshot. A conflict keeps
+        // the entry and starts from the pre-stage tree, and the guidance says so.
+        if (attempt > 1 && lastRunId && isDocsOnlyStage(stage.name)) {
+          const applied = await applyFailedRun(opts.repoRoot, lastRunId);
+          if (!applied.ok) {
+            opts.log(stageLine(stage.name, `could not restore the previous attempt's draft: ${applied.error}; starting from the pre-stage tree`, 'warn'));
+            guidance += `\nThe previous attempt's draft could not be restored automatically; it is in git stash entry "copperhead failed run ${lastRunId}". Start from the current tree.`;
+          } else if (applied.files.length) {
+            opts.log(stageLine(stage.name, `restored the previous attempt's draft: ${applied.files.join(', ')}`));
+            guidance += `\nRestored from the previous attempt: ${applied.files.join(', ')}. Continue from these drafts instead of re-deriving them.`;
+          }
+        }
+        const escalated = budget !== undefined && budget !== stageTurns ? `, ${budget} turns` : '';
         opts.log(
           stageLine(
             stage.name,
-            `running${attempt > 1 ? ` (attempt ${attempt}/${config.maxStageRetries + 1})` : ''}`,
+            `running${attempt > 1 ? ` (attempt ${attempt}/${config.maxStageRetries + 1}${escalated})` : ''}`,
           ),
         );
         // The BOM freezes before this stage, so every part's real pins are
@@ -1230,7 +1264,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
                 },
               }
             : {}),
-          ...(stageTurns !== undefined ? { maxTurns: stageTurns } : {}),
+          ...(budget !== undefined ? { maxTurns: budget } : {}),
           ...(opts.onBudgetExhausted ? { onBudgetExhausted: opts.onBudgetExhausted } : {}),
           log: opts.log,
           ...(opts.renderer ? { renderer: opts.renderer } : {}),
@@ -1249,6 +1283,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         cost.tokensOut += res.stats?.tokensOut ?? 0;
         cost.cacheHits += res.cacheHits ?? 0;
         stageTranscriptDir = res.transcriptDir; // last attempt's run dir (for SVG artifacts / report)
+        lastRunId = res.transcriptDir ? path.basename(res.transcriptDir) : null;
 
         // A successful run is not the same as a completed stage: an agent can
         // finish "done" with all gates green having only planned the work (seen
@@ -1269,6 +1304,24 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           break;
         }
 
+        // The attempt's ending is classified before anything decides what to do
+        // next (design D2), and every attempt logs its cause and action (AC-18.6).
+        const cause = classifyAttempt(res);
+        opts.log(stageLine(stage.name, `attempt ${attempt} ended: ${cause}`, 'warn'));
+
+        if (cause === 'constraint-conflict') {
+          // A verified conflict is the user's decision, not the supervisor's and
+          // not a retry's (AC-18.7): no turn is spent, the block says what to do.
+          const blockers = res.blockers ?? [];
+          const registry = await loadConstraints(opts.repoRoot).catch(() => ({}));
+          const block = renderDecisionStop({ stage: stage.name, attempt, blockers, registry });
+          opts.log(stageLine(stage.name, 'stop: verified constraint conflict; a decision is needed', 'err'));
+          for (const line of block.terminal.split('\n')) opts.log(line);
+          await appendSummaryNote(res.transcriptDir, [`cause: ${cause}`, 'action: stopped for a decision'], block.markdown);
+          stop = { stage: stage.name, cause, blockers };
+          break;
+        }
+
         if (attempt > config.maxStageRetries) {
           opts.log(
             stageLine(
@@ -1277,6 +1330,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
               'err',
             ),
           );
+          await appendSummaryNote(res.transcriptDir, [`cause: ${cause}`, `action: stopped (exhausted ${config.maxStageRetries} auto-retries)`]);
           break;
         }
 
@@ -1306,8 +1360,19 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         );
         if (diagnosis.verdict === 'abort') {
           opts.log(stageLine(stage.name, 'recovery supervisor recommends stopping for a human.', 'err'));
+          await appendSummaryNote(res.transcriptDir, [`cause: ${cause}`, `action: stopped (supervisor: ${diagnosis.reason})`]);
           break;
         }
+        let action = `retry (supervisor: ${diagnosis.reason})`;
+        if (cause === 'turn-budget-exhausted') {
+          // The budget was the problem, so the retry gets more of it (AC-18.9);
+          // the supervisor's verdict cannot raise or lower the number.
+          const prev = budget ?? res.stats?.maxTurns ?? config.maxTurns;
+          budget = nextBudget(prev, startBudget);
+          action = `retry with ${budget} turns (escalated from ${prev}; supervisor: ${diagnosis.reason})`;
+        }
+        opts.log(stageLine(stage.name, action, 'warn'));
+        await appendSummaryNote(res.transcriptDir, [`cause: ${cause}`, `action: ${action}`]);
         guidance = diagnosis.guidance ?? `The previous attempt failed: ${failure}. ${diagnosis.reason}`;
       }
     } finally {
@@ -1321,7 +1386,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       logResumePoint(opts, stage, i);
       printCostTable(opts, stageCosts);
       await writeRunReport(opts, stageCosts);
-      return { ok: false, completed };
+      return { ok: false, completed, ...(stop ? { stop } : {}) };
     }
     completed.push(stage.name);
     if (stage.name === 'spec-seed') {

@@ -3,6 +3,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { Msg, Provider, Turn } from './types.js';
 import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
+import type { RefusalBlocker } from './context.js';
+export type { RefusalBlocker } from './context.js';
 import { flatten } from './envelope.js';
 import { CachingProvider } from './response-cache.js';
 import { withWatchdog, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js';
@@ -95,6 +97,8 @@ export interface RunResult {
   stats: RunStats;
   /** Number of turns served from the on-disk response cache (5.2). */
   cacheHits: number;
+  /** A refusal's verified constraint-conflict blockers (AC-18.1); empty or absent otherwise. */
+  blockers?: RefusalBlocker[];
 }
 
 export async function makeProvider(
@@ -691,14 +695,26 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     }
 
     if (ctx.finishRequest) {
-      const { outcome, summary } = ctx.finishRequest;
+      const { outcome, summary, blockers = [], unverifiedBlockers = [] } = ctx.finishRequest;
       const files = [...ctx.filesTouched];
       if (outcome === 'refuse') {
+        const listed = [
+          ...blockers.map((b) => ({ ...b, verified: true })),
+          ...unverifiedBlockers.map((b) => ({ ...b, verified: false })),
+        ];
+        await transcript.event('run-refused', { summary, blockers: listed });
+        // A refusal that already drafted something (a BOM, a spec) keeps that work
+        // exactly as a failed run does (AC-18.3), so a retry can continue the draft
+        // instead of re-deriving it; a run that touched nothing leaves no entry.
+        const preserved = await preserveFailedRun(repoRoot, ctx.runId);
+        if (preserved) await transcript.event('work-preserved', { stash: preserved });
         await restore(repoRoot, snap);
-        await transcript.event('run-refused', { summary });
         const runStats = stats('refused');
         await transcript.event('run-end', runStats);
-        await transcript.writeSummary({
+        const blockerLines = listed.map(
+          (b) => `- [${b.verified ? 'verified' : 'unverified claim'}] ${b.kind} \`${b.constraint}\`: required ${b.required}; found ${b.found}`,
+        );
+        const summaryPath = await transcript.writeSummary({
           request: opts.request,
           changeId: ctx.changeId,
           plan,
@@ -710,11 +726,18 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           tokensOut,
           outcome: 'aborted',
           openObligations: null,
-          detail: `REFUSED: ${summary}`,
+          detail: blockerLines.length ? `REFUSED: ${summary}\n\nBlockers:\n${blockerLines.join('\n')}` : `REFUSED: ${summary}`,
           env: meta,
           stats: runStats,
         });
         log(`refused: ${summary}`);
+        if (preserved) {
+          log(
+            `refused work preserved: git stash entry "copperhead failed run ${ctx.runId}" (${preserved.slice(0, 10)}); recover with \`git stash apply\`, discard with \`git stash drop\``,
+          );
+        }
+        log(`transcript: ${transcript.jsonlPath}`);
+        log(`summary: ${summaryPath}`);
         r.finish(outcomeLine(runStats));
         return {
           outcome: 'refused',
@@ -725,6 +748,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           commit: null,
           stats: runStats,
           cacheHits: cacheHits(),
+          blockers,
         };
       }
 

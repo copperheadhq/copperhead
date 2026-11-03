@@ -336,6 +336,62 @@ export async function preserveFailedRun(repo: string, runId: string): Promise<st
   }
 }
 
+export type AppliedRun = { ok: true; files: string[] } | { ok: false; files: string[]; error: string };
+
+/**
+ * Put a preserved run's work back on the tree (design D5): find the stash entry
+ * `preserveFailedRun` left for `runId`, apply it, and drop it on success so the
+ * list does not grow with every retry. `files` names what the entry touched. An
+ * entry that does not apply cleanly is kept, the tree is put back as it was, and
+ * the conflict is reported, so a retry never starts from a half-applied draft.
+ * No entry for the run is not an error: nothing to restore, no files.
+ */
+export async function applyFailedRun(repo: string, runId: string): Promise<AppliedRun> {
+  const marker = `copperhead failed run ${runId}`;
+  let ref: string | undefined;
+  try {
+    const list = await git(repo, ['stash', 'list']);
+    const line = list.split('\n').find((l) => l.endsWith(marker));
+    if (!line) return { ok: true, files: [] };
+    ref = line.slice(0, line.indexOf(':'));
+  } catch (err) {
+    return { ok: false, files: [], error: (err as Error).message };
+  }
+  const snap = await snapshot(repo);
+  let files: string[] = [];
+  try {
+    // The entry was made from a staged tree (`preserveFailedRun`), so it holds as
+    // new files whatever was untracked at the time: earlier stages' uncommitted
+    // docs among them. Those still sit untracked on the tree, and git refuses to
+    // merge a stash over an untracked path even when the bytes are identical.
+    // Staging them first turns that refusal into an ordinary merge, which is
+    // clean for identical content and a real conflict otherwise; the index is
+    // emptied again below. The audit trail stays out of it, as in preservation.
+    await ensureIgnored(repo, GIT_ADD_EXCLUDES);
+    await git(repo, ['add', '-A']);
+    await git(repo, ['reset', '-q', '--', '.copperhead/runs']);
+    // What the apply will change: the stash's tree against the tree as staged
+    // now, so files earlier stages left uncommitted, identical in both, are not
+    // reported as restored.
+    files = (await git(repo, ['diff', '--name-only', ref])).split('\n').filter(Boolean);
+    await git(repo, ['stash', 'apply', ref]);
+    await git(repo, ['reset', '-q']);
+  } catch (err) {
+    try {
+      await restore(repo, snap);
+    } catch {
+      // the conflict is reported either way; the entry is kept
+    }
+    return { ok: false, files, error: `stash entry "${marker}" did not apply cleanly: ${(err as Error).message.split('\n')[0]}` };
+  }
+  try {
+    await git(repo, ['stash', 'drop', ref]);
+  } catch {
+    // a stale entry is harmless; the work is on the tree
+  }
+  return { ok: true, files };
+}
+
 /** Current branch name, or "HEAD" when detached. Read-only metadata probe. */
 export async function branchName(repo: string): Promise<string> {
   return git(repo, ['rev-parse', '--abbrev-ref', 'HEAD']);

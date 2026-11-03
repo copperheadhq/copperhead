@@ -596,7 +596,9 @@ program
 
 program
   .command('create')
-  .description('Mode A: full pipeline from a product brief to the output package')
+  .description(
+    'Mode A: full pipeline from a product brief to the output package. Stops for a decision on a verified constraint conflict or a footprint that is not installed; re-run to resume at that stage',
+  )
   .requiredOption('--brief <file>', 'product brief (markdown)')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
   .option('--interactive', 're-enable the human gates (spec approval, pre-export)')
