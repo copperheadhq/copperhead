@@ -207,3 +207,32 @@ describe('untested paths from the #460 review', () => {
     expect(parsed.nudge).not.toMatch(/exactly one/i);
   });
 });
+
+describe('repeated call ids keep chronological result labels (#460 review)', () => {
+  // CachingProvider replays stored cc-N ids and a restarted provider hands the same
+  // ids out live, so one run's history can hold cc-1 twice.
+  const history = [
+    { role: 'user' as const, content: 'go' },
+    { role: 'assistant' as const, content: null, toolCalls: [{ id: 'cc-1', name: 'read_file', args: { path: 'a' } }] },
+    { role: 'tool' as const, toolCallId: 'cc-1', content: 'FILE CONTENTS' },
+    { role: 'assistant' as const, content: null, toolCalls: [{ id: 'cc-1', name: 'run_erc', args: {} }, { id: 'cc-2', name: 'run_drc', args: {} }] },
+    { role: 'tool' as const, toolCallId: 'cc-1', content: 'ERC: clean' },
+    { role: 'tool' as const, toolCallId: 'cc-2', content: 'DRC: clean' },
+  ];
+
+  it('renderConversation labels each result by the call that preceded it', async () => {
+    const { renderConversation } = await import('../src/agent/providers/tool-protocol.js');
+    const text = renderConversation(history);
+    expect(text).toContain('[result of read_file]\nFILE CONTENTS');
+    expect(text).toContain('[result of run_erc, call 1 of 2]\nERC: clean');
+    expect(text).toContain('[result of run_drc, call 2 of 2]\nDRC: clean');
+    expect(text).not.toContain('[result of run_erc, call 1 of 2]\nFILE CONTENTS');
+  });
+
+  it('renderDelta does the same, with the replies before the delta feeding the index', async () => {
+    const { renderDelta } = await import('../src/agent/providers/tool-protocol.js');
+    expect(renderDelta(history, 2)).toBe(
+      ['[result of read_file]\nFILE CONTENTS', '[result of run_erc, call 1 of 2]\nERC: clean', '[result of run_drc, call 2 of 2]\nDRC: clean'].join('\n\n'),
+    );
+  });
+});

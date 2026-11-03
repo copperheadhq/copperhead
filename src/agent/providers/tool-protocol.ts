@@ -42,18 +42,21 @@ function ordinal(k: number, n: number): string {
   return n > 1 ? `${k} of ${n}` : '';
 }
 
-/** Per tool-call id: the tool name and the call's place in its reply. */
-function indexCalls(messages: Msg[]): Map<string, { name: string; ordinal: string }> {
-  const index = new Map<string, { name: string; ordinal: string }>();
-  for (const m of messages) {
-    if (m.role !== 'assistant') continue;
-    const calls = m.toolCalls ?? [];
-    calls.forEach((call, i) => index.set(call.id, { name: call.name, ordinal: ordinal(i + 1, calls.length) }));
-  }
-  return index;
+type CallIndex = Map<string, { name: string; ordinal: string }>;
+
+/**
+ * Record one reply's calls by id: the tool name and the call's place in the reply.
+ * The index is filled as the history is walked, never from the whole history at
+ * once: ids repeat across a run when cached turns are replayed under their stored
+ * `cc-N` ids and a restarted provider then hands the same ids out live, and a
+ * later call must not relabel the results that came before it.
+ */
+function indexCalls(index: CallIndex, m: Extract<Msg, { role: 'assistant' }>): void {
+  const calls = m.toolCalls ?? [];
+  calls.forEach((call, i) => index.set(call.id, { name: call.name, ordinal: ordinal(i + 1, calls.length) }));
 }
 
-function resultLabel(index: Map<string, { name: string; ordinal: string }>, id: string): string {
+function resultLabel(index: CallIndex, id: string): string {
   const call = index.get(id);
   if (!call) return `[result of ${id}]`;
   return call.ordinal ? `[result of ${call.name}, call ${call.ordinal}]` : `[result of ${call.name}]`;
@@ -61,20 +64,28 @@ function resultLabel(index: Map<string, { name: string; ordinal: string }>, id: 
 
 /** Delta prompt for a resumed CLI session: new user lines and tool results only. */
 export function renderDelta(messages: Msg[], from: number): string {
-  const index = indexCalls(messages);
+  const index: CallIndex = new Map();
   const parts: string[] = [];
-  for (const m of messages.slice(Math.max(0, from))) {
+  const start = Math.max(0, from);
+  messages.forEach((m, i) => {
+    // Every reply feeds the index, sent or not, so a result after `from` is
+    // labelled by the call that preceded it, not by a later one with the same id.
+    if (m.role === 'assistant') {
+      indexCalls(index, m);
+      return;
+    }
+    if (i < start) return;
     if (m.role === 'user') {
       parts.push(`[user]\n${m.content}`);
     } else if (m.role === 'tool') {
       parts.push(`${resultLabel(index, m.toolCallId)}\n${m.content}`);
     }
-  }
+  });
   return parts.join('\n\n');
 }
 
 export function renderConversation(messages: Msg[]): string {
-  const index = indexCalls(messages);
+  const index: CallIndex = new Map();
   const parts: string[] = [];
   for (const m of messages) {
     if (m.role === 'system') continue;
@@ -82,6 +93,7 @@ export function renderConversation(messages: Msg[]): string {
       parts.push(`[user]\n${m.content}`);
     } else if (m.role === 'assistant') {
       if (m.content) parts.push(`[assistant]\n${m.content}`);
+      indexCalls(index, m);
       const calls = m.toolCalls ?? [];
       calls.forEach((call, i) => {
         const o = ordinal(i + 1, calls.length);
