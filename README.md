@@ -120,6 +120,7 @@ copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
 copperhead check --spice             # plus ## Simulation assertions via local ngspice; --strict fails a skip
+copperhead explain U1                # look up a refdes, net, or pin from the schematic and docs; no LLM
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
 copperhead create --brief brief.md   # brief → full output package
