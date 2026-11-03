@@ -9,6 +9,8 @@ import { withWatchdog, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js
 import { buildSystemPrompt } from './prompts.js';
 import { loadConstraints, reopenDeferredAffects } from '../memory/constraints.js';
 import { isCreateProducedRepo, isEngineAuthoredSchematic } from '../kicad/fab.js';
+import { runErc, runDrc } from '../kicad/cli.js';
+import type { CheckReport } from '../kicad/report.js';
 import {
   loadConfig,
   CONFIG_DIR,
@@ -226,6 +228,31 @@ export function repairBudgetExhausted(used: number, max: number): boolean {
   return used >= Math.max(max, 1);
 }
 
+/**
+ * ERC and DRC on the design as a run finds it, before its first edit. Eager:
+ * ERC reads a whole sheet hierarchy, so it cannot be rerun on the starting
+ * text once an edit has landed. A check that cannot run (no such file, a
+ * design KiCad cannot load) gives null, which keeps that check's zero gate.
+ */
+export async function designBaseline(repoRoot: string, config: CopperheadConfig): Promise<{ erc: CheckReport | null; drc: CheckReport | null }> {
+  const at = async (rel: string | null | undefined, run: (p: string) => Promise<CheckReport>): Promise<CheckReport | null> => {
+    if (!rel || !existsSync(path.join(repoRoot, rel))) return null;
+    try {
+      return await run(path.join(repoRoot, rel));
+    } catch {
+      return null;
+    }
+  };
+  const [erc, drc] = await Promise.all([at(config.schematic, runErc), at(config.board, runDrc)]);
+  return { erc, drc };
+}
+
+/** A check's result as the summary and commit message put it. */
+function checkLine(r: CheckReport, failing: string): string {
+  const kept = r.preexisting?.length ? ` (${r.preexisting.length} pre-existing left as found)` : '';
+  return `${r.ok ? 'clean' : failing}${kept}`;
+}
+
 export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
   const providers = new Set<Provider>();
   try {
@@ -300,6 +327,15 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     }
   }
   for (const f of opts.preTouched ?? []) markTouched(ctx, f);
+  // A design copperhead did not create arrives with findings of its own; the
+  // run answers for what it adds, so its checks are held to the design as found.
+  if (!isCreateProducedRepo(config)) {
+    ctx.checkBaseline = await designBaseline(repoRoot, config);
+    await transcript.event('check-baseline', {
+      erc: ctx.checkBaseline.erc ? ctx.checkBaseline.erc.violations.length : null,
+      drc: ctx.checkBaseline.drc ? ctx.checkBaseline.drc.violations.length : null,
+    });
+  }
 
   // Session resume for claude-code / cursor is only correct when the response
   // cache is off: the cache replays turns a resumed session never saw. So enable
@@ -401,8 +437,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   const outcomeLine = (s: RunStats, extra?: string | null): string =>
     [
       s.exitPath,
-      ctx.lastErc ? `ERC ${ctx.lastErc.ok ? 'clean' : 'failing'}` : 'ERC not run',
-      ...(ctx.lastDrc ? [`DRC ${ctx.lastDrc.ok ? 'clean' : 'failing'}`] : []),
+      ctx.lastErc ? `ERC ${checkLine(ctx.lastErc, 'failing')}` : 'ERC not run',
+      ...(ctx.lastDrc ? [`DRC ${checkLine(ctx.lastDrc, 'failing')}`] : []),
       ...(extra ? [extra] : []),
       fmtDuration(s.durationMs),
       `${fmtTokens(s.tokensIn)} in / ${fmtTokens(s.tokensOut)} out`,
@@ -431,8 +467,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       changeId: ctx.changeId,
       plan,
       filesTouched: [...ctx.filesTouched],
-      ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : `${ctx.lastErc.violations.length} violations`) : null,
-      drcResult: ctx.lastDrc ? (ctx.lastDrc.ok ? 'clean' : `${ctx.lastDrc.violations.length} violations`) : null,
+      ercResult: ctx.lastErc ? checkLine(ctx.lastErc, `${ctx.lastErc.violations.length} violations`) : null,
+      drcResult: ctx.lastDrc ? checkLine(ctx.lastDrc, `${ctx.lastDrc.violations.length} violations`) : null,
       legibilityResult: ctx.lastLegibility ? `${ctx.lastLegibility.error} error, ${ctx.lastLegibility.advisory} advisory` : null,
       scoreResult: ctx.lastScore !== null ? `${ctx.lastScore}/100` : null,
       decisions: ctx.decisions,
@@ -729,8 +765,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       }
 
       const verification = [
-        ctx.lastErc ? `ERC ${ctx.lastErc.ok ? 'clean' : 'FAILING'}` : 'ERC not required',
-        ctx.lastDrc ? `DRC ${ctx.lastDrc.ok ? 'clean' : 'FAILING'}` : null,
+        ctx.lastErc ? `ERC ${checkLine(ctx.lastErc, 'FAILING')}` : 'ERC not required',
+        ctx.lastDrc ? `DRC ${checkLine(ctx.lastDrc, 'FAILING')}` : null,
       ]
         .filter(Boolean)
         .join(', ');
@@ -830,8 +866,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         changeId: ctx.changeId,
         plan,
         filesTouched: files,
-        ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : 'FAILING') : 'not run',
-        drcResult: ctx.lastDrc ? (ctx.lastDrc.ok ? 'clean' : 'FAILING') : 'not run',
+        ercResult: ctx.lastErc ? checkLine(ctx.lastErc, 'FAILING') : 'not run',
+        drcResult: ctx.lastDrc ? checkLine(ctx.lastDrc, 'FAILING') : 'not run',
         legibilityResult: ctx.lastLegibility ? `${ctx.lastLegibility.error} error, ${ctx.lastLegibility.advisory} advisory` : null,
         scoreResult: ctx.lastScore !== null ? `${ctx.lastScore}/100` : null,
         decisions: ctx.decisions,

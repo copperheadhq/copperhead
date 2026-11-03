@@ -31,6 +31,50 @@ export interface CheckReport {
    * KiCad reports as modified or unresolvable stays a violation.
    */
   intrinsic?: Violation[];
+  /**
+   * Agent runs on a design copperhead did not create: findings the design
+   * already had when the run started, matched one to one against the run's
+   * baseline (`applyBaseline`). Reported beside the result, never a failure;
+   * only what the run added fails.
+   */
+  preexisting?: Violation[];
+}
+
+/**
+ * A violation's identity across two reports of one design: severity, type,
+ * sheet, its description and its items' descriptions, positions left out so
+ * an item that moved but did not change is the same finding. The description
+ * carries a clearance's measured value, so a tighter clearance is new.
+ */
+export function violationKey(v: Violation): string {
+  return JSON.stringify([v.severity, v.type, v.sheet ?? '', v.description, v.items.map((i) => i.description)]);
+}
+
+/**
+ * Hold a report to "no new violations" against the run's starting report:
+ * each baseline finding excuses at most one finding of `report` with the same
+ * key, so a second copy, a raised severity or any other change is new. The
+ * excused findings move to `preexisting` and `ok` is recomputed from what is
+ * left. A null baseline (none was computed) excuses nothing.
+ */
+export function applyBaseline(report: CheckReport, baseline: CheckReport | null | undefined): CheckReport {
+  if (!baseline) return report;
+  const left = new Map<string, number>();
+  for (const v of baseline.violations) {
+    const k = violationKey(v);
+    left.set(k, (left.get(k) ?? 0) + 1);
+  }
+  const fresh: Violation[] = [];
+  const preexisting: Violation[] = [];
+  for (const v of report.violations) {
+    const k = violationKey(v);
+    const n = left.get(k) ?? 0;
+    if (n > 0) {
+      left.set(k, n - 1);
+      preexisting.push(v);
+    } else fresh.push(v);
+  }
+  return { ...report, ok: fresh.length === 0, violations: fresh, preexisting };
 }
 
 interface RawItem {
@@ -164,8 +208,12 @@ export function formatViolations(report: CheckReport): string {
     ? `\n  ${report.intrinsic.length} finding(s) inside a single library footprint, not a placement problem: ` +
       report.intrinsic.map((v) => `${footprintOwner(v)} ${v.type}`).join(', ')
     : '';
-  if (report.ok) return `${report.source.toUpperCase()}: clean${unrouted}${intrinsic}`;
-  const lines = [`${report.source.toUpperCase()}: ${report.violations.length} violation(s)${unrouted}${intrinsic}`];
+  const preexisting = report.preexisting?.length
+    ? `\n  ${report.preexisting.length} finding(s) the design already had when this run started, left as found: only new findings fail`
+    : '';
+  if (report.ok) return `${report.source.toUpperCase()}: clean${unrouted}${intrinsic}${preexisting}`;
+  const counted = report.preexisting ? 'new violation(s)' : 'violation(s)';
+  const lines = [`${report.source.toUpperCase()}: ${report.violations.length} ${counted}${unrouted}${intrinsic}${preexisting}`];
   for (const v of report.violations) {
     const where = v.sheet ? ` [sheet ${v.sheet}]` : '';
     lines.push(`  ${v.severity} ${v.type}${where}: ${v.description}`);
