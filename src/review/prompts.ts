@@ -128,6 +128,6 @@ export function domainTask(domain: string, maxTurns: number): string {
     `Your domain is ${domain}: ${d.title}.`,
     `Scope: ${d.scope}`,
     '',
-    `Review this domain of the design above. Find what would stop the board working, breach the brief, or cost bring-up time, and ground each finding with proposals. You have ${maxTurns} turns, one tool call per turn; call submit before they run out.`,
+    `Review this domain of the design above. Find what would stop the board working, breach the brief, or cost bring-up time, and ground each finding with proposals. You have ${maxTurns} turns; a reply may carry one or more tool calls, which all run in that turn. Call submit before the turns run out.`,
   ].join('\n');
 }

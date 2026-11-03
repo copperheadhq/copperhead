@@ -188,3 +188,22 @@ describe('renderConversation / renderDelta — batched call labels (#192)', () =
     expect(parsed.text).toBe('Checking.');
   });
 });
+
+describe('untested paths from the #460 review', () => {
+  it('a tool message whose id is not in the history keeps the bare id as its label', async () => {
+    const { renderConversation } = await import('../src/agent/providers/tool-protocol.js');
+    const text = renderConversation([
+      { role: 'assistant', content: null, toolCalls: [{ id: 'a', name: 'read_file', args: {} }, { id: 'b', name: 'run_drc', args: {} }] },
+      { role: 'tool', toolCallId: 'ghost', content: 'orphan' },
+    ]);
+    expect(text).toContain('[result of ghost]\norphan');
+  });
+
+  it('an <invoke> block gets the per-call JSON steer and dispatches nothing', () => {
+    const parsed = parseToolCalls('<invoke name="run_drc">\n<parameter name="x">1</parameter>\n</invoke>', ids(), catalog);
+    expect(parsed.toolCalls).toEqual([]);
+    expect(parsed.nudge).toMatch(/written as an <invoke> block/);
+    expect(parsed.nudge).toMatch(/Write each call as its own JSON object/);
+    expect(parsed.nudge).not.toMatch(/exactly one/i);
+  });
+});
