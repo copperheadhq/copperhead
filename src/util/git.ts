@@ -336,6 +336,16 @@ export async function preserveFailedRun(repo: string, runId: string): Promise<st
   }
 }
 
+/** Whether `preserveFailedRun` left an entry for `runId`. */
+export async function hasFailedRun(repo: string, runId: string): Promise<boolean> {
+  try {
+    const marker = `copperhead failed run ${runId}`;
+    return (await git(repo, ['stash', 'list'])).split('\n').some((l) => l.endsWith(marker));
+  } catch {
+    return false;
+  }
+}
+
 export type AppliedRun = { ok: true; files: string[] } | { ok: false; files: string[]; error: string };
 
 /**
@@ -357,32 +367,54 @@ export async function applyFailedRun(repo: string, runId: string): Promise<Appli
   } catch (err) {
     return { ok: false, files: [], error: (err as Error).message };
   }
+  // The entry was taken against a commit; on any other HEAD its files could
+  // overwrite work that was committed since, so it is kept and reported.
+  let base: string;
+  let head: string;
+  try {
+    base = await git(repo, ['rev-parse', `${ref}^`]);
+    head = await git(repo, ['rev-parse', 'HEAD']);
+  } catch (err) {
+    return { ok: false, files: [], error: (err as Error).message };
+  }
+  if (base !== head) {
+    return {
+      ok: false,
+      files: [],
+      error: `stash entry "${marker}" was taken on ${base.slice(0, 10)} and HEAD is now ${head.slice(0, 10)}; not applied`,
+    };
+  }
   const snap = await snapshot(repo);
   let files: string[] = [];
   try {
-    // The entry was made from a staged tree (`preserveFailedRun`), so it holds as
-    // new files whatever was untracked at the time: earlier stages' uncommitted
-    // docs among them. Those still sit untracked on the tree, and git refuses to
-    // merge a stash over an untracked path even when the bytes are identical.
-    // Staging them first turns that refusal into an ordinary merge, which is
-    // clean for identical content and a real conflict otherwise; the index is
-    // emptied again below. The audit trail stays out of it, as in preservation.
+    // The entry's tree is the whole draft as it stood, newer than anything on the
+    // tree from an earlier attempt (the rollback puts the previous draft back as
+    // an untracked file). A three-way `stash apply` would see that earlier draft
+    // as "ours" and stop on an add/add conflict, so the entry's files are checked
+    // out of its tree directly: each path takes the entry's bytes, a path the
+    // entry dropped is removed. Staging first lets `git diff` name exactly the
+    // paths that change, so untouched files earlier stages left uncommitted are
+    // not reported as restored; the index is emptied again at the end, and the
+    // audit trail stays out of it, as in preservation.
     await ensureIgnored(repo, GIT_ADD_EXCLUDES);
     await git(repo, ['add', '-A']);
     await git(repo, ['reset', '-q', '--', '.copperhead/runs']);
-    // What the apply will change: the stash's tree against the tree as staged
-    // now, so files earlier stages left uncommitted, identical in both, are not
-    // reported as restored.
     files = (await git(repo, ['diff', '--name-only', ref])).split('\n').filter(Boolean);
-    await git(repo, ['stash', 'apply', ref]);
+    if (files.length) {
+      const inEntry = new Set((await git(repo, ['ls-tree', '-r', '--name-only', ref])).split('\n').filter(Boolean));
+      const take = files.filter((f) => inEntry.has(f));
+      const drop = files.filter((f) => !inEntry.has(f));
+      if (take.length) await git(repo, ['checkout', ref, '--', ...take]);
+      for (const f of drop) await rm(path.join(repo, f), { force: true });
+    }
     await git(repo, ['reset', '-q']);
   } catch (err) {
     try {
       await restore(repo, snap);
     } catch {
-      // the conflict is reported either way; the entry is kept
+      // the failure is reported either way; the entry is kept
     }
-    return { ok: false, files, error: `stash entry "${marker}" did not apply cleanly: ${(err as Error).message.split('\n')[0]}` };
+    return { ok: false, files, error: `stash entry "${marker}" could not be applied: ${(err as Error).message.split('\n')[0]}` };
   }
   try {
     await git(repo, ['stash', 'drop', ref]);

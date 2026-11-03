@@ -13,7 +13,7 @@ After every stage attempt that does not complete the stage, `create` SHALL class
 
 ### Requirement: Verified constraint conflict stops the stage
 
-When an attempt's cause is `constraint-conflict`, `create` SHALL NOT call the recovery supervisor and SHALL NOT retry. It SHALL print a decision block that names, for each verified blocker, the constraint key, its required value, the failing candidate and the attempt that found it; states the two ways forward (revise the constraint and the document it comes from, or name a compliant part in the brief or `docs/SUBSYSTEMS.md`); and says that re-running `create` resumes at this stage. The block SHALL be appended to the attempt's `summary.md`. The pipeline SHALL exit non-zero with the completed stages still committed.
+When an attempt's cause is `constraint-conflict`, `create` SHALL NOT call the recovery supervisor and SHALL NOT retry. It SHALL print a decision block that names, for each verified blocker, the constraint key, its required value, the failing candidate, the attempt that found it and the document the constraint was recorded from; states the two ways forward (revise the constraint and the document it comes from, or name a compliant part in the brief or `docs/SUBSYSTEMS.md`); and says that re-running `create` resumes at this stage. The block SHALL be appended to the attempt's `summary.md`. The pipeline SHALL exit non-zero with the completed stages still committed.
 
 #### Scenario: Conflict stops without retry (AC-18.7)
 
@@ -41,12 +41,22 @@ When an attempt's cause is `turn-budget-exhausted` and retries remain, `create` 
 
 ### Requirement: Docs-only stages resume from the preserved draft
 
-For the spec-seed, architecture and part-selection stages, before each retry `create` SHALL apply the previous attempt's `copperhead failed run <run-id>` stash entry (when one exists) to the working tree, so the retry starts from the draft the previous attempt wrote, and SHALL say so in the recovery guidance by naming the restored files. A stash that does not apply cleanly SHALL be left in place, reported, and the retry SHALL start from the pre-stage tree. Stages that touch KiCad files SHALL keep the existing rollback behaviour.
+For the spec-seed, architecture and part-selection stages, before each retry `create` SHALL apply the previous attempt's `copperhead failed run <run-id>` stash entry (when one exists) to the working tree, so the retry starts from the draft the previous attempt wrote, and SHALL say so in the recovery guidance by naming the restored files, and SHALL count the restored files as touched by the retry so its sync and verification obligations cover them. When a docs-only stage stops after a retry restored a draft, and no attempt committed, `create` SHALL put the tree back to its pre-stage state and leave the draft in the last attempt's stash entry. A stash that does not apply cleanly SHALL be left in place, reported, and the retry SHALL start from the pre-stage tree. Stages that touch KiCad files SHALL keep the existing rollback behaviour.
 
 #### Scenario: Retry continues the draft (AC-18.11)
 
 - **WHEN** part selection's first attempt writes `docs/BOM.md` and ends on the turn budget, and the supervisor says retry
 - **THEN** the second attempt's first `read_file docs/BOM.md` returns the first attempt's draft, and the recovery guidance names `docs/BOM.md` as restored from the previous attempt
+
+#### Scenario: Restored files are the retry's own edits (AC-18.14)
+
+- **WHEN** a part-selection retry restored `docs/BOM.md` from the previous attempt
+- **THEN** the retry runs with that file counted as touched, and `finish` with outcome `done` is refused until `check_drift` has run clean on it
+
+#### Scenario: A stop after a restored draft leaves the pre-stage tree (AC-18.15)
+
+- **WHEN** part selection's second attempt, started from the first attempt's restored `docs/BOM.md`, ends without completing the stage and the stage stops
+- **THEN** the tree is back at its pre-stage state, the draft is in the last attempt's `copperhead failed run <run-id>` stash entry, and a re-run of `create` runs part selection again instead of committing the draft as already complete
 
 #### Scenario: KiCad stages are unchanged (AC-18.12)
 

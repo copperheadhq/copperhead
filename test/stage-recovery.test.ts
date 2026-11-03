@@ -5,7 +5,9 @@ import { existsSync } from 'node:fs';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
 import type { RefusalBlocker } from '../src/agent/context.js';
-import { classifyAttempt, nextBudget, renderDecisionStop, isDocsOnlyStage } from '../src/commands/stage-recovery.js';
+import { classifyAttempt, nextBudget, renderDecisionStop, isDocsOnlyStage, appendSummaryNote } from '../src/commands/stage-recovery.js';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { applyFailedRun, preserveFailedRun, snapshot, restore } from '../src/util/git.js';
 import { saveConstraint } from '../src/memory/constraints.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -115,6 +117,43 @@ describe('attempt classification and escalation (design D2, D3)', () => {
     }
     expect(seen).toEqual([40, 60, 90, 120, 120]);
     expect(nextBudget(7, 7)).toBe(11); // rounded up
+  });
+
+  it('escalates from the budget the attempt really had when an attended extension raised it', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo, { stageMaxTurns: { 'spec-seed': 40 } });
+      let specAttempts = 0;
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('spec-seed') && ++specAttempts === 1) {
+          return exhausted({ stats: { ...ok().stats, exitPath: 'turn-budget-exhausted', maxTurns: 40, budget: 60 } });
+        }
+        await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      mockDiagnose.mockResolvedValueOnce({ verdict: 'retry', reason: 'more' });
+      const lines: string[] = [];
+      await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+      const spec = mockRunAgentLoop.mock.calls.map(([o]) => o).filter((o) => o.request.includes('spec-seed'));
+      expect(spec[1]!.maxTurns).toBe(90);
+      expect(lines.join('\n')).toContain('retry with 90 turns (escalated from 60');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('the pipeline note in summary.md is written through the secret redactor', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-note-'));
+    try {
+      await writeFile(path.join(dir, 'summary.md'), '# Run summary\n', 'utf8');
+      await appendSummaryNote(dir, ['action: stopped (supervisor: key was sk-abc123DEF_456)'], '## Decision needed\n\nfound token sk-zzz999');
+      const text = await readFile(path.join(dir, 'summary.md'), 'utf8');
+      expect(text).toContain('[REDACTED]');
+      expect(text).not.toContain('sk-abc123');
+      expect(text).not.toContain('sk-zzz999');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('knows which stages are docs-only', () => {
@@ -335,11 +374,41 @@ describe('applyFailedRun (task 4.1)', () => {
 
       const applied = await applyFailedRun(repo, 'r2');
       expect(applied.ok).toBe(false);
-      if (!applied.ok) expect(applied.error).toContain('did not apply cleanly');
+      if (!applied.ok) expect(applied.error).toMatch(/was taken on .* and HEAD is now/);
       expect(await readFile(sch, 'utf8')).toContain('KEY_OTHER');
       expect(await readFile(sch, 'utf8')).not.toContain('<<<<<<<');
       const { stdout } = await execa('git', ['stash', 'list'], { cwd: repo });
       expect(stdout).toContain('copperhead failed run r2');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a later entry supersedes the earlier draft the rollback put back (third attempt)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const bom = path.join(repo, 'docs', 'BOM.md');
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      // Attempt 1: draft 1, preserved and rolled back; attempt 2 starts from it.
+      const snap1 = await snapshot(repo);
+      await writeFile(bom, 'draft 1\n', 'utf8');
+      await preserveFailedRun(repo, 'r1');
+      await restore(repo, snap1);
+      expect((await applyFailedRun(repo, 'r1')).ok).toBe(true);
+      // Attempt 2: its snapshot holds draft 1 untracked; it writes draft 2, is preserved, rolled back to draft 1.
+      const snap2 = await snapshot(repo);
+      await writeFile(bom, 'draft 2\n', 'utf8');
+      await preserveFailedRun(repo, 'r2');
+      await restore(repo, snap2);
+      expect(await readFile(bom, 'utf8')).toBe('draft 1\n');
+      // Attempt 3 must get draft 2, not an add/add conflict.
+      const applied = await applyFailedRun(repo, 'r2');
+      expect(applied).toEqual({ ok: true, files: ['docs/BOM.md'] });
+      expect(await readFile(bom, 'utf8')).toBe('draft 2\n');
+      const { stdout } = await execa('git', ['stash', 'list'], { cwd: repo });
+      expect(stdout).not.toContain('r2');
+      const { stdout: staged } = await execa('git', ['diff', '--cached', '--name-only'], { cwd: repo });
+      expect(staged).toBe(''); // the index is left as it was
     } finally {
       await cleanup();
     }
@@ -381,6 +450,7 @@ describe('docs-only stages resume from the preserved draft (AC-18.11, AC-18.12)'
             return exhausted({ transcriptDir: dir });
           }
           draftSeenOnRetry = await readFile(path.join(repo, 'docs', 'BOM.md'), 'utf8').catch(() => null);
+          expect(opts.preTouched).toContain('docs/BOM.md'); // AC-18.14: the restored draft is the retry's own edit
           expect(opts.stagePrompt).toMatch(/Restored from the previous attempt: [^\n]*docs\/BOM\.md/);
           expect(opts.stagePrompt).not.toContain('docs/SPEC.md,'); // untouched earlier-stage docs are not "restored"
         }
@@ -396,6 +466,95 @@ describe('docs-only stages resume from the preserved draft (AC-18.11, AC-18.12)'
       expect(lines.join('\n')).toMatch(/restored the previous attempt's draft: [^\n]*docs\/BOM\.md/);
       const { stdout } = await execa('git', ['stash', 'list'], { cwd: repo });
       expect(stdout).not.toContain('ps-a1'); // applied and dropped
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a third attempt starts from the second attempt\'s draft, not the first', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo);
+      await runDir(repo, 'ps-t1');
+      await runDir(repo, 'ps-t2');
+      let partAttempts = 0;
+      const seen: string[] = [];
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('part-selection')) {
+          partAttempts++;
+          const bom = path.join(repo, 'docs', 'BOM.md');
+          if (partAttempts <= 2) {
+            const snap = await snapshot(repo);
+            await mkdir(path.join(repo, 'docs'), { recursive: true });
+            await writeFile(bom, `# draft from attempt ${partAttempts}\n`, 'utf8');
+            const dir = await failLikeTheLoop(repo, `ps-t${partAttempts}`, snap);
+            return exhausted({ transcriptDir: dir });
+          }
+          seen.push(await readFile(bom, 'utf8'));
+        }
+        await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      mockDiagnose.mockResolvedValue({ verdict: 'retry', reason: 'more turns', guidance: 'continue' });
+      const lines: string[] = [];
+      const res = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+      expect(partAttempts).toBe(3);
+      expect(seen).toEqual(['# draft from attempt 2\n']);
+      expect(res.completed).toContain('part-selection');
+      const out = lines.join('\n');
+      expect(out).not.toContain('could not restore');
+      expect(out.match(/restored the previous attempt's draft/g)).toHaveLength(2);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a stop after a restored draft puts the tree back, keeps the draft stashed, and a re-run runs the stage again (AC-18.15)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo);
+      await runDir(repo, 'ps-s1');
+      await runDir(repo, 'ps-s2');
+      const bom = path.join(repo, 'docs', 'BOM.md');
+      let partAttempts = 0;
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('part-selection')) {
+          partAttempts++;
+          if (partAttempts === 1) {
+            const snap = await snapshot(repo);
+            await mkdir(path.join(repo, 'docs'), { recursive: true });
+            // A draft that would pass isComplete on its own: a real MPN and an installed footprint.
+            await writeStageDoc(opts.repoRoot, opts.request);
+            return exhausted({ transcriptDir: await failLikeTheLoop(repo, 'ps-s1', snap) });
+          }
+          if (partAttempts === 2) {
+            const snap = await snapshot(repo); // holds the restored draft
+            return providerError().transcriptDir === '' ? { ...providerError(), transcriptDir: await failLikeTheLoop(repo, 'ps-s2', snap) } : providerError();
+          }
+        }
+        await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      mockDiagnose.mockResolvedValueOnce({ verdict: 'retry', reason: 'more turns', guidance: 'continue' });
+      mockDiagnose.mockResolvedValueOnce({ verdict: 'abort', reason: 'stop here' });
+      const lines: string[] = [];
+      const first = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+      expect(first.ok).toBe(false);
+      expect(partAttempts).toBe(2);
+      expect(existsSync(bom)).toBe(false); // back to the pre-stage tree
+      expect(existsSync(path.join(repo, 'docs', 'SUBSYSTEMS.md'))).toBe(true); // earlier stages' work untouched
+      const { stdout } = await execa('git', ['stash', 'list'], { cwd: repo });
+      expect(stdout).toContain('copperhead failed run ps-s2');
+      expect(lines.join('\n')).toContain('tree put back to its pre-stage state');
+
+      // The re-run runs part selection again instead of committing the draft as already complete.
+      const before = mockRunAgentLoop.mock.calls.length;
+      const again: string[] = [];
+      const second = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => again.push(s) });
+      const partRuns = mockRunAgentLoop.mock.calls.slice(before).filter(([o]) => o.request.includes('part-selection'));
+      expect(partRuns).toHaveLength(1);
+      expect(again.join('\n')).not.toMatch(/part-selection.*already complete/);
+      expect(second.completed).toContain('part-selection');
     } finally {
       await cleanup();
     }

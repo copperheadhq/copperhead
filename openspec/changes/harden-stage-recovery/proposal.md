@@ -30,7 +30,7 @@ Out of scope, tracked separately: the CLI tool protocol's "exactly one JSON obje
 ## Impact
 
 - `src/agent/tools.ts` (`finish` schema and handler), `src/agent/loop.ts` (refusal path preserves work; result carries blockers), `src/agent/context.ts` (finish request shape).
-- `src/commands/create.ts` (cause classification, escalation, decision stop, stash apply for docs-only stages, attempt logging, cost table label), `src/agent/recovery.ts` (supervisor receives the cause; no call on constraint conflict).
+- `src/commands/create.ts` (cause classification, escalation, decision stop, stash apply for docs-only stages, attempt logging, cost table label).
 - `src/agent/providers/claude-code.ts` (usage accounting).
 - `src/util/git.ts` (apply a preserved stash entry by name).
 - SPEC.md §4.5 and §2.5 ("The one stop" becomes "The two stops"), new AC-18 section; `openspec/specs/SPEC.md` acceptance criteria.

@@ -389,10 +389,12 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   let turnTimeouts = 0;
   const maxTurnTimeouts = MAX_TURN_TIMEOUTS;
 
+  let budget = maxTurns;
   const stats = (exitPath: ExitPath): RunStats => ({
     exitPath,
     turnsUsed,
     maxTurns,
+    budget,
     repairCyclesUsed: ctx.repairCycles,
     maxRepairCycles: config.maxRepairCycles,
     tokensIn,
@@ -474,7 +476,6 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     };
   };
 
-  let budget = maxTurns;
   for (let turn = 0; ; turn++) {
     if (turn >= budget) {
       // Budget exhausted. In an attended run this is a user decision made with
@@ -706,7 +707,9 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         // A refusal that already drafted something (a BOM, a spec) keeps that work
         // exactly as a failed run does (AC-18.3), so a retry can continue the draft
         // instead of re-deriving it; a run that touched nothing leaves no entry.
-        const preserved = await preserveFailedRun(repoRoot, ctx.runId);
+        // Keyed on what this run touched, not on a dirty tree: a clean refusal on a
+        // tree that was already dirty must not stash the user's own changes.
+        const preserved = ctx.filesTouched.size ? await preserveFailedRun(repoRoot, ctx.runId) : null;
         if (preserved) await transcript.event('work-preserved', { stash: preserved });
         await restore(repoRoot, snap);
         const runStats = stats('refused');

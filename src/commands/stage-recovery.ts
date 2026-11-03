@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { appendFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { redactSecrets } from '../util/redact.js';
 import type { RunResult } from '../agent/loop.js';
 import type { RefusalBlocker } from '../agent/context.js';
 import type { ConstraintRegistry } from '../memory/constraints.js';
@@ -51,14 +52,17 @@ export function renderDecisionStop(input: {
   blockers: RefusalBlocker[];
   registry: ConstraintRegistry;
 }): { terminal: string; markdown: string } {
+  // Own properties only: a key such as "constructor" is not a registered constraint.
+  const sourceOf = (key: string): string | undefined =>
+    Object.hasOwn(input.registry, key) ? input.registry[key]?.source : undefined;
   const items = input.blockers.map((b) => {
-    const source = input.registry[b.constraint]?.source;
+    const source = sourceOf(b.constraint);
     return {
       head: `${b.constraint}: required ${b.required}; found ${b.found}`,
       tail: `attempt ${input.attempt}${source ? `; recorded from ${source}` : ''}`,
     };
   });
-  const sources = [...new Set(input.blockers.map((b) => input.registry[b.constraint]?.source).filter(Boolean))];
+  const sources = [...new Set(input.blockers.map((b) => sourceOf(b.constraint)).filter(Boolean))];
   const where = sources.length ? ` (${sources.join(', ')})` : '';
   const routes = [
     `Revise the constraint where it is recorded${where} and in .copperhead/constraints.json, if the requirement is wrong.`,
@@ -100,7 +104,9 @@ export async function appendSummaryNote(transcriptDir: string, lines: string[], 
   if (!existsSync(file)) return;
   const body = ['', '## Pipeline', '', ...lines.map((l) => `- ${l}`), ...(extraMarkdown ? ['', extraMarkdown] : []), ''].join('\n');
   try {
-    await appendFile(file, body, 'utf8');
+    // Blocker fields and the supervisor's reason are free text from a model, so
+    // this write redacts like every other summary and transcript write (AC-4.1).
+    await appendFile(file, redactSecrets(body), 'utf8');
   } catch {
     // telemetry must never break a run
   }

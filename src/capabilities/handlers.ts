@@ -108,17 +108,23 @@ export interface HandlerDef {
 }
 
 /** The `blockers` argument of `finish`, or what is wrong with it. */
+const MAX_BLOCKERS = 20;
+
 function parseBlockers(raw: unknown): RefusalBlocker[] | string {
   if (!Array.isArray(raw)) return 'blockers must be an array of {kind, constraint, required, found}';
+  if (raw.length > MAX_BLOCKERS) return `blockers lists ${raw.length} entries; name the ${MAX_BLOCKERS} that matter most`;
   const out: RefusalBlocker[] = [];
+  // Each field is one line: the summary, the decision block and the transcript
+  // event render them as list items.
+  const line = (v: string): string => v.replace(/\s+/g, ' ').trim();
   for (const [i, b] of raw.entries()) {
     if (!b || typeof b !== 'object') return `blockers[${i}] must be an object`;
     const o = b as Record<string, unknown>;
     if (o.kind !== 'constraint-conflict') return `blockers[${i}].kind must be "constraint-conflict"`;
     for (const field of ['constraint', 'required', 'found'] as const) {
-      if (typeof o[field] !== 'string' || !o[field].trim()) return `blockers[${i}].${field} must be a non-empty string`;
+      if (typeof o[field] !== 'string' || !line(o[field] as string)) return `blockers[${i}].${field} must be a non-empty string`;
     }
-    out.push({ kind: 'constraint-conflict', constraint: (o.constraint as string).trim(), required: o.required as string, found: o.found as string });
+    out.push({ kind: 'constraint-conflict', constraint: line(o.constraint as string), required: line(o.required as string), found: line(o.found as string) });
   }
   return out;
 }
@@ -952,8 +958,9 @@ export const HANDLERS: HandlerDef[] = [
         // narration never decides, the registry does. Unregistered keys stay in the
         // summary as prose so the claim is not lost, and never stop the pipeline.
         const registry = blockers.length ? await loadConstraints(ctx.repoRoot) : {};
-        const verified = blockers.filter((b) => b.constraint in registry);
-        const unverified = blockers.filter((b) => !(b.constraint in registry));
+        // Own properties only: "constructor" or "toString" is not a registered key.
+        const verified = blockers.filter((b) => Object.hasOwn(registry, b.constraint));
+        const unverified = blockers.filter((b) => !Object.hasOwn(registry, b.constraint));
         const text = unverified.length
           ? `${summary}\n${unverified
               .map((b) => `(unverified claim) constraint "${b.constraint}" is not in the registry: required ${b.required}, found ${b.found}`)

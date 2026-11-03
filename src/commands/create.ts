@@ -20,7 +20,7 @@ import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
-import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit, applyFailedRun } from '../util/git.js';
+import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit, applyFailedRun, snapshot, restore, preserveFailedRun, hasFailedRun } from '../util/git.js';
 import { loadConstraints } from '../memory/constraints.js';
 import { classifyAttempt, nextBudget, isDocsOnlyStage, renderDecisionStop, appendSummaryNote, type AttemptCause } from './stage-recovery.js';
 import type { RefusalBlocker } from '../agent/context.js';
@@ -1133,6 +1133,14 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
     let budget: number | undefined = stageTurns;
     let lastRunId: string | null = null;
     let stop: CreateResult['stop'] | undefined;
+    // A docs-only stage keeps its own pre-stage snapshot (design D5): when it stops
+    // after a retry restored a draft, that draft must not stay on the tree for the
+    // next run's resume to commit unseen. It goes back to the last attempt's stash
+    // entry and the tree goes back to this snapshot.
+    // Best-effort: a repo the loop's own preflight will refuse (no commits yet)
+    // has nothing to snapshot, and that refusal must keep its message.
+    const stageSnap = isDocsOnlyStage(stage.name) ? await snapshot(opts.repoRoot).catch(() => null) : null;
+    let draftApplied = false;
     const basePrompt = stage.prompt(brief, config.docs);
     let guidance = '';
     let stageDone = false;
@@ -1198,12 +1206,15 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
         // (design D5, AC-18.11): the rollback left it in a stash entry, so put it
         // back before the loop takes this attempt's own snapshot. A conflict keeps
         // the entry and starts from the pre-stage tree, and the guidance says so.
+        let restoredFiles: string[] = [];
         if (attempt > 1 && lastRunId && isDocsOnlyStage(stage.name)) {
           const applied = await applyFailedRun(opts.repoRoot, lastRunId);
           if (!applied.ok) {
             opts.log(stageLine(stage.name, `could not restore the previous attempt's draft: ${applied.error}; starting from the pre-stage tree`, 'warn'));
             guidance += `\nThe previous attempt's draft could not be restored automatically; it is in git stash entry "copperhead failed run ${lastRunId}". Start from the current tree.`;
           } else if (applied.files.length) {
+            restoredFiles = applied.files;
+            draftApplied = true;
             opts.log(stageLine(stage.name, `restored the previous attempt's draft: ${applied.files.join(', ')}`));
             guidance += `\nRestored from the previous attempt: ${applied.files.join(', ')}. Continue from these drafts instead of re-deriving them.`;
           }
@@ -1251,7 +1262,9 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
           allowDirty: true, // stages build on each other's uncommitted state within the pipeline
           // the populated board is this stage's mutation too: finish needs a
           // passing DRC on it even when the agent never edits the board
-          ...(layoutBoard ? { preTouched: [layoutBoard] } : {}),
+          // A restored draft counts as this attempt's own edits: its drift (and ERC,
+          // should a KiCad file ride along) obligations must clear before finish.
+          ...(layoutBoard ? { preTouched: [layoutBoard] } : restoredFiles.length ? { preTouched: restoredFiles } : {}),
           // #310: in layout-draft, finish checks the stage's own contract, so the agent
           // hears what is missing while its board still exists, not after the rollback.
           // Other stages keep ending at the post-run check: their gaps have no specific
@@ -1367,7 +1380,9 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
         if (cause === 'turn-budget-exhausted') {
           // The budget was the problem, so the retry gets more of it (AC-18.9);
           // the supervisor's verdict cannot raise or lower the number.
-          const prev = budget ?? res.stats?.maxTurns ?? config.maxTurns;
+          // An attended extension (AC-15.1) raised the run's budget past the one it
+          // was given, so escalate from what it really had.
+          const prev = Math.max(budget ?? 0, res.stats?.budget ?? res.stats?.maxTurns ?? config.maxTurns);
           budget = nextBudget(prev, startBudget);
           action = `retry with ${budget} turns (escalated from ${prev}; supervisor: ${diagnosis.reason})`;
         }
@@ -1377,6 +1392,22 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
       }
     } finally {
       if (!stageDone) await restoreVerifiedBoard();
+      if (!stageDone && draftApplied && stageSnap) {
+        // Only while no attempt committed: a moved HEAD is a stage commit that the
+        // pre-stage snapshot must not undo.
+        const head = await headCommit(opts.repoRoot).catch(() => null);
+        if (head === stageSnap.head) {
+          if (lastRunId && !(await hasFailedRun(opts.repoRoot, lastRunId))) await preserveFailedRun(opts.repoRoot, lastRunId);
+          await restore(opts.repoRoot, stageSnap);
+          opts.log(
+            stageLine(
+              stage.name,
+              `tree put back to its pre-stage state; the restored draft stays in git stash entry "copperhead failed run ${lastRunId}" (git stash apply recovers it)`,
+              'warn',
+            ),
+          );
+        }
+      }
     }
 
     cost.wallMs = Date.now() - stageStart;

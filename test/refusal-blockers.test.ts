@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execa } from 'execa';
 import { runAgentLoop } from '../src/agent/loop.js';
@@ -87,6 +87,41 @@ describe('structured refusal blockers (AC-18.1, AC-18.2)', () => {
     }
   });
 
+  it('a prototype property name is not a registered constraint', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const provider = scriptedProvider([
+        { toolCalls: [{ name: 'finish', args: { outcome: 'refuse', summary: 'x', blockers: [{ ...blocker, constraint: 'constructor' }, { ...blocker, constraint: '__proto__' }] } }] },
+      ]);
+      const res = await runAgentLoop({ repoRoot: repo, request: 'pick the relay', model: 'gpt-5', provider, maxTurns: 3, log: () => {} });
+      expect(res.outcome).toBe('refused');
+      expect(res.blockers).toEqual([]);
+      expect(res.summary).toContain('(unverified claim) constraint "constructor"');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('blocker fields are collapsed to one line and the list is bounded', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await saveConstraint(repo, 'protection.precharge_bypass', { min: 16, source: 'docs/SPEC.md', affects: [] });
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-qm', 'register'], { cwd: repo });
+      const many = Array.from({ length: 21 }, () => blocker);
+      const provider = scriptedProvider([
+        { toolCalls: [{ name: 'finish', args: { outcome: 'refuse', summary: 'x', blockers: many } }] },
+        { toolCalls: [{ name: 'finish', args: { outcome: 'refuse', summary: 'y', blockers: [{ ...blocker, required: '≥ 16 A\n  (see datasheet)' }] } }] },
+      ]);
+      const res = await runAgentLoop({ repoRoot: repo, request: 'pick the relay', model: 'gpt-5', provider, maxTurns: 3, log: () => {} });
+      const tools = await events(res.transcriptDir, 'tool');
+      expect(String(tools.find((t) => t.name === 'finish')?.result)).toContain('blockers lists 21 entries');
+      expect(res.blockers).toEqual([{ ...blocker, required: '≥ 16 A (see datasheet)' }]);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('blockers with outcome done are rejected with a clear message, and the run goes on', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -162,6 +197,25 @@ describe('a refusal preserves touched work (AC-18.3, AC-15.17)', () => {
       await cleanup();
     }
   }, 60_000);
+
+  it('a clean refusal on an already-dirty tree stashes nothing of the user\'s', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await writeFile(path.join(repo, 'scratch.md'), 'my own notes\n', 'utf8');
+      const provider = scriptedProvider([
+        { toolCalls: [{ name: 'finish', args: { outcome: 'refuse', summary: 'nothing to do' } }] },
+      ]);
+      const lines: string[] = [];
+      const res = await runAgentLoop({ repoRoot: repo, request: 'pick the relay', model: 'gpt-5', provider, maxTurns: 3, allowDirty: true, log: (l) => lines.push(l) });
+      expect(res.outcome).toBe('refused');
+      const { stdout: stashes } = await execa('git', ['stash', 'list'], { cwd: repo });
+      expect(stashes).toBe('');
+      expect(await readFile(path.join(repo, 'scratch.md'), 'utf8')).toBe('my own notes\n');
+      expect(lines.some((l) => l.includes('preserved'))).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
 
   it('a clean refusal leaves no stash entry', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
