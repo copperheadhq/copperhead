@@ -1141,6 +1141,10 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
     // has nothing to snapshot, and that refusal must keep its message.
     const stageSnap = isDocsOnlyStage(stage.name) ? await snapshot(opts.repoRoot).catch(() => null) : null;
     let draftApplied = false;
+    // Every file a retry inherited from an earlier attempt, for the whole stage: a
+    // later rollback leaves them on the tree unchanged, so a later apply reports
+    // nothing, yet they are still unverified work the retry must own (AC-18.14).
+    const inherited = new Set<string>();
     const basePrompt = stage.prompt(brief, config.docs);
     let guidance = '';
     let stageDone = false;
@@ -1206,19 +1210,19 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
         // (design D5, AC-18.11): the rollback left it in a stash entry, so put it
         // back before the loop takes this attempt's own snapshot. A conflict keeps
         // the entry and starts from the pre-stage tree, and the guidance says so.
-        let restoredFiles: string[] = [];
         if (attempt > 1 && lastRunId && isDocsOnlyStage(stage.name)) {
           const applied = await applyFailedRun(opts.repoRoot, lastRunId);
           if (!applied.ok) {
             opts.log(stageLine(stage.name, `could not restore the previous attempt's draft: ${applied.error}; starting from the pre-stage tree`, 'warn'));
             guidance += `\nThe previous attempt's draft could not be restored automatically; it is in git stash entry "copperhead failed run ${lastRunId}". Start from the current tree.`;
           } else if (applied.files.length) {
-            restoredFiles = applied.files;
+            for (const f of applied.files) inherited.add(f);
             draftApplied = true;
             opts.log(stageLine(stage.name, `restored the previous attempt's draft: ${applied.files.join(', ')}`));
             guidance += `\nRestored from the previous attempt: ${applied.files.join(', ')}. Continue from these drafts instead of re-deriving them.`;
           }
         }
+        const carried = [...inherited].filter((f) => existsSync(path.join(opts.repoRoot, f)));
         const escalated = budget !== undefined && budget !== stageTurns ? `, ${budget} turns` : '';
         opts.log(
           stageLine(
@@ -1262,9 +1266,9 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
           allowDirty: true, // stages build on each other's uncommitted state within the pipeline
           // the populated board is this stage's mutation too: finish needs a
           // passing DRC on it even when the agent never edits the board
-          // A restored draft counts as this attempt's own edits: its drift (and ERC,
+          // An inherited draft counts as this attempt's own edits: its drift (and ERC,
           // should a KiCad file ride along) obligations must clear before finish.
-          ...(layoutBoard ? { preTouched: [layoutBoard] } : restoredFiles.length ? { preTouched: restoredFiles } : {}),
+          ...(layoutBoard ? { preTouched: [layoutBoard] } : carried.length ? { preTouched: carried } : {}),
           // #310: in layout-draft, finish checks the stage's own contract, so the agent
           // hears what is missing while its board still exists, not after the rollback.
           // Other stages keep ending at the post-run check: their gaps have no specific

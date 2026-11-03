@@ -721,7 +721,7 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-18.11** A part-selection retry after an exhausted first attempt starts with the first attempt's `docs/BOM.md` on the tree, and the recovery guidance names it as restored.
 - **AC-18.12** A schematic-stage retry starts from the pre-stage tree, with the failed work only in the stash entry.
 - **AC-18.13** The cost table's column header is `Replayed` and a run that made every model call live ends with `0% turns replayed`.
-- **AC-18.14** A part-selection retry that restored `docs/BOM.md` runs with that file counted as touched, so `finish` with outcome `done` is refused until `check_drift` has run clean on it.
+- **AC-18.14** A part-selection retry runs with every file inherited from earlier attempts counted as touched, whether this apply changed its bytes or a previous one did, so `finish` with outcome `done` is refused until `check_drift` has run clean on it; a restored constraint registry reopens the revisit obligations of each constraint it holds beyond HEAD.
 - **AC-18.15** A part-selection stage that stops after a retry restored the first attempt's draft leaves the tree at its pre-stage state with the draft in the last attempt's stash entry, and a re-run of `create` runs the stage again instead of committing the draft as already complete.
 
 ### AC-5 · Viewer (Phase 2 — only if built)

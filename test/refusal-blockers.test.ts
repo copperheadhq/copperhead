@@ -157,6 +157,32 @@ describe('structured refusal blockers (AC-18.1, AC-18.2)', () => {
   });
 });
 
+describe('inherited constraints reopen their revisit obligations (AC-18.14)', () => {
+  it('finish done is refused until the inherited constraint\'s affects are resolved', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      // The registry on disk holds a constraint HEAD does not: an earlier attempt's work, restored.
+      await saveConstraint(repo, 'power.sleep_current_uA', { max: 25, source: 'docs/SPEC.md', affects: ['U1'] });
+      const provider = scriptedProvider([
+        { toolCalls: [{ name: 'finish', args: { outcome: 'done', summary: 'looks done' } }] },
+        { toolCalls: [{ name: 'finish', args: { outcome: 'refuse', summary: 'stop' } }] },
+      ]);
+      const res = await runAgentLoop({
+        repoRoot: repo, request: 'resume', model: 'gpt-5', provider, maxTurns: 3, allowDirty: true,
+        preTouched: ['.copperhead/constraints.json'], log: () => {},
+      });
+      const tools = await events(res.transcriptDir, 'tool');
+      const first = String(tools.find((t) => t.name === 'finish')?.result);
+      expect(first).toContain('cannot finish yet');
+      expect(first).toContain('power.sleep_current_uA affects U1');
+      const [inherited] = await events(res.transcriptDir, 'inherited-constraints');
+      expect(inherited?.keys).toEqual(['power.sleep_current_uA']);
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
 describe('a refusal preserves touched work (AC-18.3, AC-15.17)', () => {
   it('touched files are stashed under the run id, the tree is restored, and the stash ref is printed', async () => {
     const { repo, cleanup } = await tempFixtureRepo();

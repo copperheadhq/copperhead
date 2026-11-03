@@ -509,6 +509,42 @@ describe('docs-only stages resume from the preserved draft (AC-18.11, AC-18.12)'
     }
   });
 
+  it('a draft the second attempt left unchanged still counts as touched for the third (AC-18.14)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo);
+      await runDir(repo, 'ps-u1');
+      await runDir(repo, 'ps-u2');
+      let partAttempts = 0;
+      const touchedOnThird: string[] = [];
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('part-selection')) {
+          partAttempts++;
+          if (partAttempts === 1) {
+            const snap = await snapshot(repo);
+            await mkdir(path.join(repo, 'docs'), { recursive: true });
+            await writeFile(path.join(repo, 'docs', 'BOM.md'), '# draft from attempt 1\n', 'utf8');
+            return exhausted({ transcriptDir: await failLikeTheLoop(repo, 'ps-u1', snap) });
+          }
+          if (partAttempts === 2) {
+            // Touches nothing: the inherited BOM is byte-identical in its stash entry.
+            const snap = await snapshot(repo);
+            return exhausted({ transcriptDir: await failLikeTheLoop(repo, 'ps-u2', snap) });
+          }
+          touchedOnThird.push(...(opts.preTouched ?? []));
+        }
+        await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      mockDiagnose.mockResolvedValue({ verdict: 'retry', reason: 'more turns', guidance: 'continue' });
+      await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });
+      expect(partAttempts).toBe(3);
+      expect(touchedOnThird).toContain('docs/BOM.md');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('a stop after a restored draft puts the tree back, keeps the draft stashed, and a re-run runs the stage again (AC-18.15)', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

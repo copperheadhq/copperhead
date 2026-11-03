@@ -9,7 +9,29 @@ import { flatten } from './envelope.js';
 import { CachingProvider } from './response-cache.js';
 import { withWatchdog, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js';
 import { buildSystemPrompt } from './prompts.js';
-import { loadConstraints, reopenDeferredAffects } from '../memory/constraints.js';
+import { loadConstraints, reopenDeferredAffects, type ConstraintRegistry } from '../memory/constraints.js';
+
+const constraintsRel = '.copperhead/constraints.json';
+
+/** Constraints the registry on disk holds beyond HEAD's, with the affects items that are not deferred. */
+async function inheritedConstraints(repoRoot: string): Promise<Array<{ key: string; openNow: string[] }>> {
+  const headText = await fileAtCommit(repoRoot, 'HEAD', constraintsRel).catch(() => null);
+  let base: ConstraintRegistry = {};
+  try {
+    base = headText ? (JSON.parse(headText) as ConstraintRegistry) : {};
+  } catch {
+    base = {};
+  }
+  const now = await loadConstraints(repoRoot);
+  const out: Array<{ key: string; openNow: string[] }> = [];
+  for (const [key, c] of Object.entries(now)) {
+    const same = Object.hasOwn(base, key) && JSON.stringify(base[key]) === JSON.stringify(c);
+    if (same) continue;
+    const deferred = new Set(c.deferred ?? []);
+    out.push({ key, openNow: (c.affects ?? []).filter((a) => !deferred.has(a)) });
+  }
+  return out;
+}
 import { isCreateProducedRepo, isEngineAuthoredSchematic } from '../kicad/fab.js';
 import {
   loadConfig,
@@ -26,7 +48,7 @@ import { plainRenderer, fmtDuration, fmtTokens, type ProgressRenderer } from './
 import { styleHeaderLines } from './theme.js';
 import { ObligationsLedger } from './ledger.js';
 import { markTouched } from '../capabilities/helpers.js';
-import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun } from '../util/git.js';
+import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun, fileAtCommit } from '../util/git.js';
 import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
@@ -304,6 +326,21 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     }
   }
   for (const f of opts.preTouched ?? []) markTouched(ctx, f);
+  // A restored constraint registry (a create retry resuming a draft, AC-18.14)
+  // holds constraints an earlier attempt recorded, whose revisit obligations died
+  // with that attempt's ledger. Reopen them from the registry's diff against HEAD,
+  // as record_constraint would have, so finish cannot pass over them unchecked.
+  if ((opts.preTouched ?? []).includes(constraintsRel)) {
+    const inherited = await inheritedConstraints(repoRoot);
+    for (const { key, openNow } of inherited) {
+      ctx.ledger.onConstraintChange(key, openNow);
+      ctx.ledger.clear('constraint-dual-write', key);
+    }
+    if (inherited.length) {
+      await transcript.event('inherited-constraints', { keys: inherited.map((c) => c.key) });
+      log(`re-opened revisit obligations for ${inherited.length} inherited constraint(s): ${inherited.map((c) => c.key).join(', ')}`);
+    }
+  }
 
   // Session resume for claude-code / cursor is only correct when the response
   // cache is off: the cache replays turns a resumed session never saw. So enable

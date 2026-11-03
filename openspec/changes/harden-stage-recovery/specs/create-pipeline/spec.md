@@ -50,8 +50,8 @@ For the spec-seed, architecture and part-selection stages, before each retry `cr
 
 #### Scenario: Restored files are the retry's own edits (AC-18.14)
 
-- **WHEN** a part-selection retry restored `docs/BOM.md` from the previous attempt
-- **THEN** the retry runs with that file counted as touched, and `finish` with outcome `done` is refused until `check_drift` has run clean on it
+- **WHEN** a part-selection retry runs after an earlier attempt's `docs/BOM.md` and `.copperhead/constraints.json` were restored, whether this retry's apply changed their bytes or an earlier one did
+- **THEN** the retry runs with those files counted as touched, the revisit obligations of each constraint the registry holds beyond HEAD are reopened, and `finish` with outcome `done` is refused until they are resolved and `check_drift` has run clean
 
 #### Scenario: A stop after a restored draft leaves the pre-stage tree (AC-18.15)
 
