@@ -301,6 +301,16 @@ function parseSimulationBlock(
   if (assertions.length === 0) {
     throw new SimulationParseError(headingLine, 'Simulation block needs at least one assertion');
   }
+  for (const assertion of assertions) {
+    if (assertion.measurable.kind === 'corner' && analysis !== 'ac') {
+      throw new SimulationParseError(assertion.line, 'corner() requires an ac analysis');
+    }
+  }
+  if (analysis === 'ac' && sources.length === 0) {
+    // The first source carries the AC 1 stimulus; without one every AC node
+    // voltage is 0 and no corner can ever be measured.
+    throw new SimulationParseError(headingLine, 'ac analysis needs a source: line for the AC stimulus');
+  }
 
   return { line: headingLine, scope, analysis, sources, assertions };
 }
@@ -350,11 +360,16 @@ export function compileSpiceAssertion(
   assertion: SimulationAssertion,
   analysis: SpiceAnalysis,
   name = `assertion_${assertion.line}`,
+  /** op/dc: the sweep value the operating point is read at (the first source's value). */
+  sweepAt = 0,
 ): CompiledSpiceAssertion {
   if (!SAFE_MEASURE_NAME.test(name)) {
     throw new SimulationParseError(assertion.line, `invalid measure name "${name}"`);
   }
 
+  // ngspice's .meas accepts only tran, ac, dc and sp, so op is measured on a
+  // narrow DC sweep around the declared operating point (see spiceAnalysisCard).
+  const measAnalysis = spiceMeasureAnalysis(analysis);
   let valueLine: string;
   if (assertion.measurable.kind === 'corner') {
     if (analysis !== 'ac') {
@@ -365,9 +380,10 @@ export function compileSpiceAssertion(
     const expression =
       assertion.measurable.kind === 'voltage'
         ? `v(${assertion.measurable.target})`
-        : `i(${assertion.measurable.target})`;
-    const operation = analysis === 'op' ? 'FIND' : 'AVG';
-    valueLine = `.meas ${analysis} ${name}_value ${operation} ${expression}`;
+        : spiceCurrentVector(assertion.measurable.target);
+    const operation =
+      measAnalysis === 'dc' ? `FIND ${expression} AT=${spiceLiteral(sweepAt)}` : `AVG ${expression}`;
+    valueLine = `.meas ${measAnalysis} ${name}_value ${operation}`;
   }
 
   const valueName = `${name}_value`;
@@ -386,7 +402,7 @@ export function compileSpiceAssertion(
     pass: assertion.comparator.kind === 'between' ? ('nonnegative' as const) : ('positive' as const),
   }));
   const checkLines = marginExpressions.map(
-    ([checkName, expression]) => `.meas ${analysis} ${checkName} PARAM='${expression}'`,
+    ([checkName, expression]) => `.meas ${measAnalysis} ${checkName} PARAM='${expression}'`,
   );
   const compiledLines = [valueLine, ...checkLines];
 
@@ -418,35 +434,109 @@ export function stripSpiceEnd(netlist: string): string {
   return netlist.replace(/^\s*\.end\b.*$/gim, '').trimEnd();
 }
 
+/** The `.meas` analysis type for a block analysis: ngspice cannot measure `op`. */
+export function spiceMeasureAnalysis(analysis: SpiceAnalysis): 'dc' | 'ac' | 'tran' {
+  return analysis === 'op' ? 'dc' : analysis;
+}
+
+/**
+ * ngspice vector for `I(<refdes>)`. Only voltage sources have a branch
+ * current `i(...)`; any other device exposes its current as `@ref[i]`, which
+ * ngspice records only when it is named in a `.save` card.
+ */
+export function spiceCurrentVector(target: string): string {
+  return /^v/i.test(target) ? `i(${target})` : `@${target}[i]`;
+}
+
 function sourceElementName(port: string): string {
   const token = port.replace(/[^A-Za-z0-9_]/g, '_');
   return `Vsrc_${token}`;
 }
 
-export function spiceSourceCard(source: SimulationSource): string {
-  return `${sourceElementName(source.port)} ${source.port} 0 DC ${source.value.raw}`;
+/** Swept by op/dc blocks that drive no port, so `.meas dc` has a sweep to read. */
+export const SPICE_SWEEP_SOURCE = 'Vcopperhead_sweep copperhead_sweep 0 DC 0';
+
+/** `ac` puts the AC 1 stimulus on the block's first source. */
+export function spiceSourceCard(source: SimulationSource, ac = false): string {
+  return `${sourceElementName(source.port)} ${source.port} 0 DC ${source.value.raw}${ac ? ' AC 1' : ''}`;
 }
 
 function spiceLiteral(n: number): string {
   return String(parseFloat(n.toPrecision(10)));
 }
 
+/** The op/dc sweep point: the first driven source's value, or 0 on the stand-in source. */
+export function spiceSweepPoint(sources: SimulationSource[]): number {
+  return sources[0]?.value.value ?? 0;
+}
+
 export function spiceAnalysisCard(analysis: SpiceAnalysis, sources: SimulationSource[]): string {
   switch (analysis) {
     case 'op':
-      return '.op';
     case 'dc': {
+      // A three-point sweep centred on the declared value: the middle point is
+      // solved exactly at that value, and FIND ... AT= needs it strictly inside
+      // the swept interval (a one-point sweep reports "out of interval").
       const source = sources[0];
-      if (!source) return '.op';
-      const stop = source.value.value === 0 ? 1 : source.value.value * 2;
-      const step = stop / 10 || 0.1;
-      return `.dc ${sourceElementName(source.port)} 0 ${spiceLiteral(stop)} ${spiceLiteral(step)}`;
+      const element = source ? sourceElementName(source.port) : 'Vcopperhead_sweep';
+      const at = spiceSweepPoint(sources);
+      const delta = Math.abs(at) * 1e-3 || 1e-3;
+      return `.dc ${element} ${spiceLiteral(at - delta)} ${spiceLiteral(at + delta)} ${spiceLiteral(delta)}`;
     }
     case 'ac':
       return '.ac dec 10 1 1meg';
     case 'tran':
       return '.tran 1u 1m';
   }
+}
+
+export interface SpiceNetlistProblem {
+  line: number;
+  message: string;
+}
+
+const NETLIST_FORBIDDEN = /^\s*\.(control|endc|meas|measure)\b/i;
+const NETLIST_INCLUDE = /^\s*\.(include|inc|lib)\s+("[^"]*"|'[^']*'|\S+)/i;
+
+/**
+ * Netlist (or included file) content the gate refuses before ngspice runs.
+ * `.control` blocks execute interpreter commands (including `shell`) in batch
+ * mode, and a netlist `.meas` could forge one of the gate's measure names.
+ */
+export function spiceNetlistProblems(netlist: string): SpiceNetlistProblem[] {
+  const problems: SpiceNetlistProblem[] = [];
+  netlist.split(/\r?\n/).forEach((text, index) => {
+    const forbidden = NETLIST_FORBIDDEN.exec(text);
+    if (forbidden) {
+      problems.push({
+        line: index + 1,
+        message: `netlist line ${index + 1}: ".${forbidden[1]!.toLowerCase()}" is not allowed in a SPICE gate deck`,
+      });
+      return;
+    }
+    const include = NETLIST_INCLUDE.exec(text);
+    if (include && /^[a-z][a-z0-9+.-]*:\/\//i.test(unquote(include[2]!))) {
+      problems.push({
+        line: index + 1,
+        message: `netlist line ${index + 1}: .${include[1]!.toLowerCase()} of a URL is not allowed`,
+      });
+    }
+  });
+  return problems;
+}
+
+/** Paths named by `.include` / `.inc` / `.lib` cards, unquoted, in order. */
+export function spiceIncludePaths(netlist: string): string[] {
+  const out: string[] = [];
+  for (const text of netlist.split(/\r?\n/)) {
+    const include = NETLIST_INCLUDE.exec(text);
+    if (include) out.push(unquote(include[2]!));
+  }
+  return out;
+}
+
+function unquote(token: string): string {
+  return token.replace(/^(["'])(.*)\1$/, '$2');
 }
 
 export interface AssembledSpiceDeck {
@@ -456,15 +546,29 @@ export interface AssembledSpiceDeck {
 
 /** Netlist + driven ports + analysis + `.meas` cards. Pure: no subprocess. */
 export function assembleSpiceDeck(netlist: string, block: SimulationBlock): AssembledSpiceDeck {
+  const sweepAt = spiceSweepPoint(block.sources);
   const compiled = block.assertions.map((assertion, index) =>
-    compileSpiceAssertion(assertion, block.analysis, spiceMeasureName(block.line, index)),
+    compileSpiceAssertion(assertion, block.analysis, spiceMeasureName(block.line, index), sweepAt),
   );
+  const deviceCurrents = [
+    ...new Set(
+      block.assertions
+        .filter((a) => a.measurable.kind === 'current')
+        .map((a) => spiceCurrentVector(a.measurable.target))
+        .filter((v) => v.startsWith('@')),
+    ),
+  ];
+  const sweeps = block.analysis === 'op' || block.analysis === 'dc';
   const text = [
     '* copperhead spice verification gate',
     '.options TEMP=27',
     stripSpiceEnd(netlist),
     '* driven ports',
-    ...block.sources.map(spiceSourceCard),
+    ...block.sources.map((source, index) => spiceSourceCard(source, block.analysis === 'ac' && index === 0)),
+    ...(sweeps && block.sources.length === 0 ? [SPICE_SWEEP_SOURCE] : []),
+    // Without `.save all` ngspice -b keeps no AC vectors for .meas to read;
+    // device currents (`@r1[i]`) are recorded only when named here.
+    ['.save all', ...deviceCurrents].join(' '),
     spiceAnalysisCard(block.analysis, block.sources),
     ...compiled.flatMap((c) => c.lines),
     '.end',
@@ -486,6 +590,36 @@ export function parseNgspiceMeasures(stdout: string): Record<string, number> {
     if (Number.isFinite(value)) out[match[1]!.toLowerCase()] = value;
   }
   return out;
+}
+
+export interface GateMeasures {
+  values: Record<string, number>;
+  /** Gate measure names printed more than once: the output cannot be trusted. */
+  duplicates: string[];
+}
+
+/**
+ * Read only the measures this deck compiled from ngspice stdout. Any other
+ * `name = value` line (a banner, a stray echo) is ignored, and a gate name
+ * that appears twice is reported instead of trusted.
+ */
+export function collectGateMeasures(stdout: string, compiled: CompiledSpiceAssertion[]): GateMeasures {
+  const wanted = new Set(
+    compiled.flatMap((c) => [c.valueName, ...c.checks.map((check) => check.name)]).map((n) => n.toLowerCase()),
+  );
+  const seen = new Map<string, number>();
+  const values: Record<string, number> = {};
+  for (const line of stdout.split(/\r?\n/)) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
+    if (!match) continue;
+    const name = match[1]!.toLowerCase();
+    if (!wanted.has(name)) continue;
+    seen.set(name, (seen.get(name) ?? 0) + 1);
+    const parsed = parseNgspiceMeasures(line)[name];
+    if (parsed !== undefined) values[name] = parsed;
+  }
+  const duplicates = [...seen].filter(([, count]) => count > 1).map(([name]) => name);
+  return { values, duplicates };
 }
 
 export type SpiceAssertionStatus = 'pass' | 'fail' | 'unrunnable';

@@ -1,10 +1,28 @@
-Note: Compatibility modes selected: ps lt a
 
-Circuit: * copperhead spice verification gate
+Note: No compatibility mode selected!
+
+
+Circuit: KiCad schematic
 
 Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
 
-No. of Data Rows : 1
-a3_0_value = 1.650000e+00
-a3_0_lower_margin = 5.000000e-02
-a3_0_upper_margin = 5.000000e-02
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 3
+
+  Measurements for DC Analysis
+
+a3_0_value          =  1.65000e+00
+a3_0_lower_margin   =  5.00000e-02
+a3_0_upper_margin   =  5.00000e-02
+
+
+Total analysis time (seconds) = 0.002304
+
+Total elapsed time (seconds) = 0.070 
+
+Total DRAM available = 65536.000 MB.
+DRAM currently available = 14668.469 MB.
+Maximum ngspice program size =   10.297 MB.
+Current ngspice program size =   10.297 MB.
+

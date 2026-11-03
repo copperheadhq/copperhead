@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { loadConfig } from '../config.js';
+import { loadConfig, type CopperheadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
@@ -9,7 +9,12 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
-import { formatSpiceGate, runSpiceGate, type SpiceGateReport } from '../kicad/spice-run.js';
+import {
+  formatSpiceGate,
+  runSpiceGate,
+  type RunSpiceGateOptions,
+  type SpiceGateReport,
+} from '../kicad/spice-run.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -51,6 +56,14 @@ export function spiceGateFailsCheck(spice: SpiceGateReport | undefined, strict: 
 export interface CheckOptions {
   spice?: boolean;
   strict?: boolean;
+}
+
+/** The `spice` config plumbing the gate receives. `loadConfig` already dropped mistyped values. */
+export function spiceGateConfig(config: CopperheadConfig): Pick<RunSpiceGateOptions, 'timeoutMs' | 'ngspicePath'> {
+  return {
+    ...(config.spice?.timeoutMs !== undefined ? { timeoutMs: config.spice.timeoutMs } : {}),
+    ...(config.spice?.ngspice !== undefined ? { ngspicePath: config.spice.ngspice } : {}),
+  };
 }
 
 export async function runCheck(
@@ -149,21 +162,18 @@ export async function runCheck(
         status: 'fail',
         blocks: 0,
         assertions: [],
+        violations: [],
         errors: ['SPICE gate needs a configured schematic'],
       };
-      for (const line of formatSpiceGate(spice)) log(line);
     } else {
       spice = await runSpiceGate({
         repoRoot,
         schematic: config.schematic,
         docsDir: config.docs,
-        ...(typeof config.spice?.timeoutMs === 'number' && config.spice.timeoutMs > 0
-          ? { timeoutMs: config.spice.timeoutMs }
-          : {}),
-        ...(config.spice?.ngspice?.trim() ? { ngspicePath: config.spice.ngspice.trim() } : {}),
+        ...spiceGateConfig(config),
       });
-      for (const line of formatSpiceGate(spice)) log(line);
     }
+    for (const line of formatSpiceGate(spice)) log(line);
   }
 
   const ok =

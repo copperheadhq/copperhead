@@ -1,4 +1,5 @@
-* copperhead spice fixture: 10k/10k divider
+.title KiCad schematic
+* copperhead spice fixture: 10k/10k divider, ground named GND as KiCad exports it
 R1 VIN VOUT 10k
-R2 VOUT 0 10k
+R2 VOUT GND 10k
 .end

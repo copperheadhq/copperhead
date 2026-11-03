@@ -1,7 +1,7 @@
-Error on line 4 :
-  xu1 vin vout unk_reg
-Unable to find definition of model unk_reg
-Simulation interrupted due to error!
+Error: unknown subckt: xu1 vin vout unk_reg
+    in line no. 5 from file gate.cir
+    Simulation interrupted due to error!
 
-Note: can't find the initialization file spinit.
-ERROR: fatal error in ngspice, exit(1)
+Error: incomplete or empty netlist
+       or no ".plot", ".print", or ".fourier" lines in batch mode;
+no simulations run!
