@@ -130,7 +130,7 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `0` | Everything agrees. A `--spice` skip without `--strict` is still 0. |
 | `1` | At least one check failed, `kicad-cli` is missing, or `--spice --strict` skipped because ngspice is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code. `--spice` adds a `spice` key: `{ status, blocks, assertions, skipped?, unverified?, errors }`. Each assertion is `{ assertion, status, measured?, bound?, detail, line }`. `status` is `pass`, `fail`, `skip` (ngspice missing), or `idle` (no Simulation blocks).
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code. `--spice` adds a `spice` key: `{ status, blocks, assertions, violations, skipped?, unverified?, ngspice?, errors }`. Each assertion is `{ assertion, status, measured?, bound?, detail, line }`. Each violation uses the ERC/DRC violation shape, `{ severity, type, description, sheet?, items, measured?, bound?, line }`, with `type` `spice_assertion` (a bound was missed) or `spice_simulation_failed` (ngspice could not run the deck or timed out). `ngspice` is the probed version banner. `status` is `pass`, `fail`, `skip` (ngspice missing), or `idle` (no Simulation blocks).
 
 ## `copperhead explain`
 

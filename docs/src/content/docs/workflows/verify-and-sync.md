@@ -19,7 +19,7 @@ copperhead check --spice --strict # fail when ngspice is missing and assertions 
 
 It exits 0 when everything agrees and 1 when it does not. Drift is reported in the form "this doc claims X but the actual value is Y".
 
-`--spice` is opt-in so a repo with no Simulation blocks, and CI that has not installed ngspice, keep the same `check` contract. A missing ngspice binary is a loud skip naming the unverified assertion count, never a silent pass. A `## Simulation` scope that names a sheet or net absent from the schematic fails the check.
+`--spice` is opt-in so a repo with no Simulation blocks, and CI that has not installed ngspice, keep the same `check` contract. A missing ngspice binary is a loud skip naming the unverified assertion count, never a silent pass. A `## Simulation` scope that names a sheet or net absent from the schematic fails the check. A `.control` block in the exported netlist (or in a model file it includes) also fails the check, before ngspice runs, and a run that hits `spice.timeoutMs` is reported as timed out.
 
 A subsystem opts in with a block in `docs/SUBSYSTEMS.md`:
 

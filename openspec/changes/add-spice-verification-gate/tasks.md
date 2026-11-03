@@ -10,9 +10,9 @@ Check-command slice (this change's first landing): wrapper, grammar, deck assemb
 
 ## 2. Netlist scoping and execution
 
-- [x] 2.1 Implement SPICE netlist export via `kicad-cli sch export netlist --format spice`; unresolvable sheet/net scopes fail `check` (KiCad's exporter emits the whole schematic; the gate refuses dangling scopes and drives named ports)
-- [x] 2.2 Implement deck assembly (netlist + sources + analysis + measures + tuned `.options`) and batch execution
-- [x] 2.3 Implement result parsing and per-assertion `{assertion, status, measured?, bound?, detail, line}`; distinct simulation-failed reporting with stderr excerpt
+- [x] 2.1 Implement SPICE netlist export via `kicad-cli sch export netlist --format spice`; unresolvable sheet/net scopes fail `check` (KiCad's exporter emits the whole schematic; the gate refuses dangling scopes and drives named ports); refuse netlist and included-file `.control` / `.meas` cards and URL includes before ngspice runs
+- [x] 2.2 Implement deck assembly (netlist + sources + analysis + measures + tuned `.options`) and batch execution (`ngspice -n -b` in a temp dir; op/dc read `AT=` the source value; ac drives `AC 1` with `.save all`)
+- [x] 2.3 Implement result parsing (gate-compiled names only, duplicates refused) and per-assertion `{assertion, status, measured?, bound?, detail, line}` plus ERC/DRC-shaped `violations` (`spice_assertion`, `spice_simulation_failed`); distinct simulation-failed and timed-out reporting with stderr excerpt
 
 ## 3. Gate wiring
 
@@ -24,7 +24,7 @@ Check-command slice (this change's first landing): wrapper, grammar, deck assemb
 
 ## 4. Fixtures and tests
 
-- [x] 4.1 Add captured divider netlist and ngspice stdout fixtures plus a passing `## Simulation` block
+- [x] 4.1 Add a GND-grounded divider netlist, ngspice-47 stdout captured from the gate's own deck, and a passing `## Simulation` block; live tests run when ngspice is on PATH
 - [x] 4.2 Add a failing variant (assertion out of bounds) and an unrunnable variant (missing model / ngspice stderr)
 - [x] 4.3 Tests: pass, fail-with-measured-value, unrunnable-is-failure, loud skip, `--strict` skip failure, scope drift (ledger obligation waits on 3.4)
 - [x] 4.4 Network guard: module-graph test over the spice-run import tree (no provider / SDK)

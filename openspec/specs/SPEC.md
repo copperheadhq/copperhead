@@ -510,7 +510,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
-- **AC-2.6** `check --spice` evaluates `## Simulation` assertions via local ngspice. Default `check` (no `--spice`) keeps the AC-2.4 JSON keys unchanged. Missing ngspice is a loud skip; `--strict` fails the skip. Unresolvable scopes and unrunnable simulations fail the gate. No LLM, no network.
+- **AC-2.6** `check --spice` evaluates `## Simulation` assertions via local ngspice. Default `check` (no `--spice`) keeps the AC-2.4 JSON keys unchanged. Missing ngspice is a loud skip; `--strict` fails the skip. Unresolvable scopes, unrunnable or timed-out simulations, and netlist `.control` blocks fail the gate (the last before ngspice runs). No LLM, no network.
 
 ### AC-17 · `copperhead explain`
 
