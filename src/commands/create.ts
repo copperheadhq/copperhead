@@ -16,6 +16,9 @@ import {
 } from '../kicad/populate.js';
 import { formatViolations } from '../kicad/report.js';
 import { bomFootprintRows } from '../memory/bom-table.js';
+import { validatePartsManifest, formatValidationFindings } from '../kicad/parts/validator.js';
+import { renderBomMarkdown } from '../kicad/parts/bom-renderer.js';
+import { headingsOf } from '../kicad/draft/ir.js';
 import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
@@ -52,6 +55,8 @@ interface Stage {
   name: string;
   /** true when repo state shows the stage is already done (resume support). */
   isComplete: (repoRoot: string, docs: string) => Promise<boolean> | boolean;
+  /** Optional finish-time gate evaluated while stage artifacts still exist. */
+  stageGate?: (repoRoot: string, docs: string) => Promise<string | null>;
   /** `docs` is the configured docs dir, so a prompt names the exact path its gate reads (#310). */
   prompt: (brief: string, docs: string) => string;
 }
@@ -244,28 +249,92 @@ export const STAGES: Stage[] = [
   {
     name: 'part-selection',
     isComplete: async (root, docs) => {
-      // init scaffolds BOM.md with a table pre-filled with UNVERIFIED MPNs
-      // extracted from the schematic. Require at least one row whose MPN
-      // column is NOT the UNVERIFIED placeholder — i.e. a real part was chosen.
-      const p = path.join(root, docs, 'BOM.md');
-      if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      // Find table rows (lines starting with |) that are not the header or separator
+      const manifestPath = path.join(root, docs, 'parts.intent.json');
+      const bomPath = path.join(root, docs, 'BOM.md');
+      if (existsSync(manifestPath)) {
+        if (!existsSync(bomPath)) return false;
+        try {
+          const raw = await readFile(manifestPath, 'utf8');
+          const subsystemsPath = path.join(root, docs, 'SUBSYSTEMS.md');
+          const subHeadings = existsSync(subsystemsPath) ? await headingsOf(subsystemsPath) : null;
+          const config = await loadConfig(root);
+          const anchor = config.board ?? config.schematic;
+          const footprints = await FootprintResolver.create({
+            projectDir: anchor ? path.dirname(path.join(root, anchor)) : root,
+          });
+          const valRes = await validatePartsManifest(raw, {
+            subsystemsHeadings: subHeadings,
+            footprints,
+          });
+          if (!valRes.ok) return false;
+          const rendered = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
+          const bomText = await readFile(bomPath, 'utf8');
+          return bomText.replace(/\r\n/g, '\n').trim() === rendered.trim();
+        } catch {
+          return false;
+        }
+      }
+
+      // Legacy fallback
+      if (!existsSync(bomPath)) return false;
+      const text = await readFile(bomPath, 'utf8');
       const rows = text.split('\n').filter(
         (l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
       );
       if (!rows.length) return false;
-      // At least one row must have a non-UNVERIFIED MPN (4th column)
       return rows.some((row) => {
         const cols = row.split('|').map((c) => c.trim());
         const mpn = cols[4] ?? ''; // 0=empty, 1=Refdes, 2=Value, 3=Footprint, 4=MPN
         return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
       }) && !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
-      // ^ every footprint resolves, except a library the user must install
-      // (that stops the run before the schematic stage, #314)
+    },
+    stageGate: async (root, docs) => {
+      const manifestPath = path.join(root, docs, 'parts.intent.json');
+      if (existsSync(manifestPath)) {
+        const raw = await readFile(manifestPath, 'utf8');
+        const subsystemsPath = path.join(root, docs, 'SUBSYSTEMS.md');
+        const subHeadings = existsSync(subsystemsPath) ? await headingsOf(subsystemsPath) : null;
+        const config = await loadConfig(root);
+        const anchor = config.board ?? config.schematic;
+        const footprints = await FootprintResolver.create({
+          projectDir: anchor ? path.dirname(path.join(root, anchor)) : root,
+        });
+        const valRes = await validatePartsManifest(raw, {
+          subsystemsHeadings: subHeadings,
+          footprints,
+        });
+        if (!valRes.ok) {
+          return formatValidationFindings(valRes.findings);
+        }
+        const bomPath = path.join(root, docs, 'BOM.md');
+        if (!existsSync(bomPath)) return 'docs/BOM.md does not exist; call draft_bom to generate it';
+        const bomText = await readFile(bomPath, 'utf8');
+        const rendered = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
+        if (bomText.replace(/\r\n/g, '\n').trim() !== rendered.trim()) {
+          return 'docs/BOM.md does not match parts.intent.json; call draft_bom to regenerate it';
+        }
+        return null;
+      }
+      const r = await bomFootprintMisses(root, docs);
+      const fixable = r?.missing.filter(modelFixable) ?? [];
+      if (fixable.length) {
+        return (
+          `the part-selection contract is not met: ${fixable.length} BOM.md footprint(s) do not resolve to an installed footprint — ` +
+          fixable.map((m) => `${m.ref} ${m.footprint || '(none)'}${m.near.length ? ` (installed: ${m.near.slice(0, 3).join(', ')})` : ''}`).join('; ') +
+          '; call check_footprints on every Footprint cell and use exact installed ids'
+        );
+      }
+      return null;
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing. If a recorded constraint (a budget in the system prompt or a key in the constraint registry) cannot be met by any installable part, do not narrate it and do not finish "done": call finish with outcome "refuse" and one blockers entry per constraint ({"kind": "constraint-conflict", "constraint": <the registry key>, "required": <what it demands>, "found": <the best candidate and why it fails>}), so the pipeline stops for a human decision instead of retrying the same wall.',
+      'Stage 3: part selection. Author docs/parts.intent.json and call draft_bom to generate docs/BOM.md deterministically. ' +
+      'The manifest schema is: {"version": 1, "parts": [{"ref", "value", "package"?, "libId"?, "footprint"?, "mpn"?, "group", "rationale"?, "offBoard"?}], "substitutions"?: [{"ref", "wanted", "chosen", "reason"}]}. ' +
+      'For standard passives (R, C, CP, L, D, LED), specify "package" ("0402", "0603", "0805", "1206", "SOD-123", etc.) for automatic expansion to standard Device symbols and SMD footprints. ' +
+      'For active components, specify explicit canonical KiCad "libId" (e.g. "MCU_ST_STM32F1:STM32F103C8Tx") and installed "footprint" (e.g. "Package_QFP:LQFP-48_7x7mm_P0.5mm"). ' +
+      'Every part must name a SUBSYSTEMS.md heading as its "group". ' +
+      'For off-board parts (batteries, cables, enclosures), set "offBoard": true with an explanatory "rationale"; do not specify a PCB package or footprint. ' +
+      'Every newly introduced MPN is UNVERIFIED; do not assert "verified": true. ' +
+      'Call draft_bom to validate and render BOM.md. If validation reports findings, fix parts.intent.json and call draft_bom again.',
   },
   {
     name: 'schematic',
@@ -589,6 +658,36 @@ async function layoutDraftGap(root: string, docs: string, opts: { drcFailed?: bo
 export async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
   if (stageName === 'part-selection') {
+    const manifestPath = path.join(root, config.docs, 'parts.intent.json');
+    if (existsSync(manifestPath)) {
+      try {
+        const raw = await readFile(manifestPath, 'utf8');
+        const subsystemsPath = path.join(root, config.docs, 'SUBSYSTEMS.md');
+        const subHeadings = existsSync(subsystemsPath) ? await headingsOf(subsystemsPath) : null;
+        const anchor = config.board ?? config.schematic;
+        const footprints = await FootprintResolver.create({
+          projectDir: anchor ? path.dirname(path.join(root, anchor)) : root,
+        });
+        const valRes = await validatePartsManifest(raw, {
+          subsystemsHeadings: subHeadings,
+          footprints,
+        });
+        if (!valRes.ok) {
+          return `the part-selection contract is not met: ${formatValidationFindings(valRes.findings)}`;
+        }
+        const bomPath = path.join(root, config.docs, 'BOM.md');
+        if (!existsSync(bomPath)) {
+          return 'the part-selection contract is not met: docs/BOM.md does not exist; call draft_bom to generate it';
+        }
+        const bomText = await readFile(bomPath, 'utf8');
+        const rendered = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
+        if (bomText.replace(/\r\n/g, '\n').trim() !== rendered.trim()) {
+          return 'the part-selection contract is not met: docs/BOM.md does not match parts.intent.json; call draft_bom to regenerate it';
+        }
+      } catch (e) {
+        return `the part-selection contract is not met: ${(e as Error).message}`;
+      }
+    }
     const r = await bomFootprintMisses(root, config.docs);
     const fixable = r?.missing.filter(modelFixable) ?? [];
     if (fixable.length) {
@@ -1269,11 +1368,16 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
           // An inherited draft counts as this attempt's own edits: its drift (and ERC,
           // should a KiCad file ride along) obligations must clear before finish.
           ...(layoutBoard ? { preTouched: [layoutBoard] } : carried.length ? { preTouched: carried } : {}),
-          // #310: in layout-draft, finish checks the stage's own contract, so the agent
-          // hears what is missing while its board still exists, not after the rollback.
-          // Other stages keep ending at the post-run check: their gaps have no specific
-          // message yet, and a generic one would only spend turns.
-          ...(stage.name === 'layout-draft'
+          // #310, #459: finish checks the stage's own contract when configured, so the agent
+          // hears what is missing while its artifacts still exist, not after the rollback.
+          ...(stage.stageGate
+            ? {
+                stageGate: async () => {
+                  const gap = await stage.stageGate!(opts.repoRoot, config.docs);
+                  return gap && `the ${stage.name} contract is not met: ${gap}`;
+                },
+              }
+            : stage.name === 'layout-draft'
             ? {
                 stageGate: async () => {
                   const gap = await layoutDraftGap(opts.repoRoot, config.docs);

@@ -16,11 +16,28 @@ export interface TableRow {
    * doc may legitimately be written either way.
    */
   function splitRow(line: string): string[] {
-    return line
-      .replace(/^\|/, '')
-      .replace(/\|$/, '')
-      .split('|')
-      .map((c) => c.trim());
+    const trimmed = line.trim();
+    const inner = trimmed.replace(/^\|/, '').replace(/\|$/, '');
+    const cells: string[] = [];
+    let current = '';
+    let escaped = false;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (escaped) {
+        current += ch;
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+        current += ch;
+      } else if (ch === '|') {
+        cells.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    cells.push(current.trim());
+    return cells;
   }
 
   /** `|---|:--:|` and friends: the row separating a header from its data. */
@@ -269,16 +286,24 @@ export interface TableRow {
    * Footprint column (#314). Unlike `parseBomTable` there is no positional
    * fallback: a supporting table (pin assignments, a current budget, costs)
    * has no footprint, and its third cell is not one. First row per refdes wins.
+   * Off-board rows are excluded.
    */
   export function bomFootprintRows(md: string): { refdes: string; footprint: string }[] {
     const out = new Map<string, string>();
     for (const { header, rows } of parseCanonicalTables(md)) {
       const refI = header.cells.findIndex((c) => /^refdes$/i.test(c));
       const fpI = header.cells.findIndex((c) => /^footprint$/i.test(c));
+      const symI = header.cells.findIndex((c) => /^symbol$/i.test(c));
       if (refI < 0 || fpI < 0) continue;
       for (const row of rows) {
         const refdes = row.cells[refI]?.replace(/[`*]/g, '').trim();
         if (!refdes || out.has(refdes)) continue;
+        const fpRaw = row.cells[fpI]?.trim();
+        const symRaw = symI >= 0 ? row.cells[symI]?.trim() : undefined;
+        const isOffBoard =
+          (fpRaw !== undefined && /^\(?off-board\)?$/i.test(fpRaw)) ||
+          (symRaw !== undefined && /^\(?off-board\)?$/i.test(symRaw));
+        if (isOffBoard) continue;
         out.set(refdes, bomFootprintId(row.cells[fpI]));
       }
     }
@@ -318,49 +343,74 @@ export interface TableRow {
   export interface BomRow {
     refdes: string;
     value?: string;
+    symbol?: string;
     footprint?: string;
     mpn?: string;
     flags: string[];
+    offBoard?: boolean;
   }
   
   /**
    * Parses BOM.md's data rows into typed rows. Columns are resolved by header
-   * *name* (Refdes/Value/Footprint/MPN), falling back to the canonical position
-   * when a header is absent — the same header-name discipline `parsePinoutRows`
-   * uses (#I12), so a doc that reorders or drops an optional column is still read
-   * correctly instead of silently shifting every cell. Rows without a refdes are
-   * dropped rather than thrown on: a hand-edited doc with a ragged or partial
-   * table shouldn't crash `check` or `export bom`, it should just be skipped
-   * (drift/export callers report the gaps that matter against the schematic).
+   * *name* (Refdes/Value/Footprint/MPN/Symbol).
+   *
+   * A canonical component BOM table must:
+   * 1. Have both Refdes and Value headers.
+   * 2. Have at least one of Footprint, Symbol, or MPN headers.
+   * 3. Not be a pin-assignment table (which has both Pin and Net headers).
+   *
+   * Supporting tables (quiescent current, substitutions, notes) that do not
+   * satisfy this structural contract are ignored.
    */
   export function parseBomTable(md: string): BomRow[] {
     const out: BomRow[] = [];
     for (const { header, rows } of parseCanonicalTables(md)) {
-      // Resolve by header name; -1 means "not found", so fall back to the
-      // canonical index for that column (Refdes 0, Value 1, Footprint 2, MPN 3).
-      const col = (re: RegExp, fallback: number): number => {
-        const i = header.cells.findIndex((c) => re.test(c));
-        return i >= 0 ? i : fallback;
-      };
-      const refI = col(/^refdes$/i, 0);
-      const valI = col(/^value$/i, 1);
-      const fpI = col(/^footprint$/i, 2);
-      const mpnI = col(/^mpn$/i, 3);
+      const col = (re: RegExp): number => header.cells.findIndex((c) => re.test(c));
+      const refI = col(/^refdes$/i);
+      const valI = col(/^value$/i);
+      const symI = col(/^symbol$/i);
+      const fpI = col(/^footprint$/i);
+      const mpnI = col(/^mpn$/i);
+      const pinI = col(/^pin$/i);
+      const netI = col(/^net$/i);
+
+      // Canonical component table check
+      if (refI < 0 || valI < 0) continue;
+      if (fpI < 0 && symI < 0 && mpnI < 0) continue;
+      if (pinI >= 0 && netI >= 0) continue;
+
       for (const row of rows) {
-        const refdes = row.cells[refI];
+        const refdes = row.cells[refI]?.replace(/[`*]/g, '').trim();
         if (!refdes) continue;
-        const value = row.cells[valI];
-        const footprint = row.cells[fpI];
-        const mpn = row.cells[mpnI];
+        const value = row.cells[valI]?.replace(/`/g, '').trim();
+        const symbol = symI >= 0 ? row.cells[symI]?.replace(/`/g, '').trim() : undefined;
+        const footprint = fpI >= 0 ? row.cells[fpI]?.replace(/`/g, '').trim() : undefined;
+        let mpn = mpnI >= 0 ? row.cells[mpnI]?.replace(/[`*]/g, '').trim() : undefined;
+
         const flags: string[] = [];
-        if (mpn === 'UNVERIFIED') flags.push('UNVERIFIED');
-        else if (!mpn) flags.push('MISSING_MPN');
+        if (mpn?.toUpperCase().startsWith('UNVERIFIED')) {
+          flags.push('UNVERIFIED');
+        } else if (!mpn || mpn === '-') {
+          flags.push('MISSING_MPN');
+          mpn = undefined;
+        }
+
+        const isOffBoard =
+          (footprint !== undefined && /^\(?off-board\)?$/i.test(footprint)) ||
+          (symbol !== undefined && /^\(?off-board\)?$/i.test(symbol));
+
+        if (isOffBoard) {
+          flags.push('off-board');
+        }
+
         out.push({
           refdes,
           value: value || undefined,
+          ...(symbol ? { symbol } : {}),
           footprint: footprint || undefined,
           mpn: mpn || undefined,
           flags,
+          ...(isOffBoard ? { offBoard: true } : {}),
         });
       }
     }

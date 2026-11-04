@@ -93,17 +93,20 @@ export async function bomSymbolDossier(
     // block is the exact failure mode this file exists to prevent (I15).
     if (!(await listInstalledLibraries(dirs)).size) return '';
     // Group refdes by primary query so a part used five times renders once.
-    // The MPN is the stronger name when present; the stage-3 scaffold's
-    // UNVERIFIED flag word is not part of it. The Value is kept as a fallback
-    // query, searched only when the MPN finds nothing — a bogus MPN over a
-    // resolvable Value must not read as NO INSTALLED SYMBOL.
-    const byQuery = new Map<string, { refs: string[]; fallback?: string }>();
+    // When an exact Symbol libId is recorded in the BOM, it is used directly
+    // without fuzzy search. The MPN is the stronger fallback name when present;
+    // the stage-3 scaffold's UNVERIFIED flag word is not part of it. The Value
+    // is kept as a secondary fallback query, searched only when the MPN finds
+    // nothing. Off-board parts are excluded.
+    const byQuery = new Map<string, { refs: string[]; fallback?: string; exactSymbol?: string }>();
     const unsearchable: string[] = [];
     for (const row of parseBomTable(bomMd)) {
       if (PASSIVE_REFDES.test(row.refdes)) continue;
+      if (row.offBoard || row.symbol === '(off-board)') continue;
       const mpn = (row.mpn ?? '').replace(/^UNVERIFIED[:\s]*/i, '').trim();
       const value = (row.value ?? '').trim();
-      const query = mpn || value;
+      const exactSymbol = row.symbol && row.symbol !== '(off-board)' ? row.symbol.trim() : undefined;
+      const query = exactSymbol || mpn || value;
       if (query.length < 3) {
         // Disclosed, not dropped: a crystal named "8M" was never searched, and
         // silence here would read as "checked" under a machine-verified label.
@@ -112,6 +115,7 @@ export async function bomSymbolDossier(
       }
       const entry = byQuery.get(query) ?? { refs: [] };
       entry.refs.push(row.refdes);
+      if (exactSymbol) entry.exactSymbol = exactSymbol;
       if (mpn && value.length >= 3 && value !== mpn) entry.fallback = value;
       byQuery.set(query, entry);
     }
@@ -130,7 +134,7 @@ export async function bomSymbolDossier(
     // floor of ~60 chars, so a later part fitting where this one did not is
     // rare enough not to pay a full scan hoping for it.)
     let bodyFull = false;
-    for (const [query, { refs, fallback }] of byQuery) {
+    for (const [query, { refs, fallback, exactSymbol }] of byQuery) {
       const who = `${refs.join(', ')} (${query})`;
       if (bodyFull) {
         overflow.push(who);
@@ -138,11 +142,16 @@ export async function bomSymbolDossier(
       }
       let line: string;
       try {
-        let hits = await searchInstalledSymbols(query, dirs, searchCap);
+        let hits: string[] = [];
         let matchedBy = '';
-        if (!hits.length && fallback) {
-          hits = await searchInstalledSymbols(fallback, dirs, searchCap);
-          if (hits.length) matchedBy = ` (matched by Value "${fallback}")`;
+        if (exactSymbol) {
+          hits = [exactSymbol];
+        } else {
+          hits = await searchInstalledSymbols(query, dirs, searchCap);
+          if (!hits.length && fallback) {
+            hits = await searchInstalledSymbols(fallback, dirs, searchCap);
+            if (hits.length) matchedBy = ` (matched by Value "${fallback}")`;
+          }
         }
         const top = hits[0];
         if (!top) {

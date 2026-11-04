@@ -8,6 +8,9 @@ import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
 import { scoreSchematic, formatScore } from '../kicad/score.js';
 import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
+import { headingsOf } from '../kicad/draft/ir.js';
+import { validatePartsManifest, formatValidationFindings } from '../kicad/parts/validator.js';
+import { renderBomMarkdown } from '../kicad/parts/bom-renderer.js';
 import { FootprintResolver } from '../kicad/footprints.js';
 import { moveFootprint } from '../kicad/populate.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
@@ -622,6 +625,81 @@ export const HANDLERS: HandlerDef[] = [
       });
       ctx.lastScore = score.composite;
       return [formatSchematicDraftReport(res.report), formatLegibility(leg), formatScore(score)].join('\n');
+    },
+  },
+  {
+    schema: {
+      name: 'draft_bom',
+      description:
+        'Validate the parts manifest (docs/parts.intent.json) and regenerate docs/BOM.md deterministically. Pass manifest_json to write a new manifest first, or omit it to re-validate and re-render the existing file. The engine validates manifest structure, passive expansions, KiCad symbol and footprint existence, pin-to-pad coverage, and subsystem coverage. A failed validation leaves docs/BOM.md untouched and returns structured findings to reconcile.',
+      parameters: {
+        type: 'object',
+        properties: {
+          manifest_json: {
+            type: 'string',
+            description:
+              'full parts manifest document as JSON text (optional: omit to re-validate and re-render the current manifest)',
+          },
+        },
+        required: [],
+      },
+    },
+    requiresUnlock: true,
+    handler: async (ctx, args) => {
+      const docsDir = ctx.config.docs || 'docs';
+      const manifestRel = path.join(docsDir, 'parts.intent.json');
+      const manifestAbs = resolveInRepo(ctx.repoRoot, manifestRel);
+
+      let rawManifest: string;
+      if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
+        const corrupt = corruptionError({ manifest_json: args.manifest_json });
+        if (corrupt) return corrupt;
+        rawManifest = args.manifest_json;
+      } else {
+        if (!existsSync(manifestAbs)) {
+          return `no ${manifestRel} found; pass manifest_json to draft_bom or author ${manifestRel} first`;
+        }
+        rawManifest = await readFile(manifestAbs, 'utf8');
+      }
+
+      const subsystemsPath = path.join(ctx.repoRoot, docsDir, 'SUBSYSTEMS.md');
+      const subHeadings = existsSync(subsystemsPath) ? await headingsOf(subsystemsPath) : null;
+      const anchor = ctx.config.board ?? ctx.config.schematic;
+      const footprints = await FootprintResolver.create({
+        projectDir: anchor ? path.dirname(path.join(ctx.repoRoot, anchor)) : ctx.repoRoot,
+      });
+
+      const valRes = await validatePartsManifest(rawManifest, {
+        subsystemsHeadings: subHeadings,
+        footprints,
+      });
+
+      if (!valRes.ok) {
+        return {
+          ok: false,
+          text: formatValidationFindings(valRes.findings),
+        };
+      }
+
+      if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
+        await writeFile(manifestAbs, args.manifest_json, 'utf8');
+        ctx.filesTouched.add(manifestRel);
+      }
+
+      const bomRel = path.join(docsDir, 'BOM.md');
+      const bomAbs = resolveInRepo(ctx.repoRoot, bomRel);
+      const rendered = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
+      await writeFile(bomAbs, rendered, 'utf8');
+      markTouched(ctx, bomRel);
+
+      const warningText =
+        valRes.warnings.length > 0
+          ? `\nWarnings (verify before fabrication):\n${valRes.warnings.map((w) => `  - ${w}`).join('\n')}`
+          : '';
+      return {
+        ok: true,
+        text: `draft_bom: successfully validated ${valRes.expandedParts.length} parts and rendered ${bomRel} deterministically.${warningText}`,
+      };
     },
   },
   {

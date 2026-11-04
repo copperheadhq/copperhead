@@ -64,8 +64,9 @@ export async function checkDrift(repoRoot: string, docsDir: string, schematic: s
     // the drift reader and `export bom` never disagree on a reordered table.
     const rows = parseBomTable(await readFile(bomPath, 'utf8'));
     const seen = new Set<string>();
-    for (const { refdes: ref, value, footprint } of rows) {
+    for (const { refdes: ref, value, footprint, offBoard } of rows) {
       if (!ref) continue;
+      if (offBoard) continue; // Off-board parts do not exist on the schematic
       seen.add(ref);
       const sym = byRef.get(ref);
       if (!sym) {
