@@ -1,7 +1,9 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol } from '../kicad/sexp.js';
+import { resolveInRepo, SandboxError } from '../util/paths.js';
 import {
   parseCanonicalRows,
   parseBomTable,
@@ -136,4 +138,190 @@ export async function checkDrift(repoRoot: string, docsDir: string, schematic: s
   }
 
   return mismatches;
+}
+
+export interface BriefProvenanceStatus {
+  ok: boolean;
+  path: string;
+  recorded: string;
+  origin: string;
+  current: string;
+  previous?: string;
+}
+
+function candidateBriefHashes(buf: Buffer): { rawHex: string; variants: Set<string> } {
+  const rawHex = createHash('sha256').update(buf).digest('hex');
+  const variants = new Set<string>([rawHex]);
+  const text = buf.toString('utf8');
+  const lf = text.replace(/\r\n/g, '\n');
+  variants.add(createHash('sha256').update(lf, 'utf8').digest('hex'));
+  const crlf = lf.replace(/\n/g, '\r\n');
+  variants.add(createHash('sha256').update(crlf, 'utf8').digest('hex'));
+  return { rawHex, variants };
+}
+
+function snapshotRelPath(docsDir: string): string {
+  return path.posix.join(docsDir.replace(/\\/g, '/').replace(/\/+$/, ''), 'BRIEF.md');
+}
+
+function resolveBriefFile(
+  repoRoot: string,
+  docsDir: string,
+  recordedPath: string,
+): { path: string | null; outsideRepo: boolean } {
+  if (recordedPath.startsWith('external:')) {
+    const snap = resolveInRepo(repoRoot, path.join(docsDir, 'BRIEF.md'));
+    return { path: existsSync(snap) ? snap : null, outsideRepo: false };
+  }
+
+  let candidate: string;
+  try {
+    candidate = resolveInRepo(repoRoot, recordedPath);
+  } catch (err) {
+    if (err instanceof SandboxError) {
+      return { path: null, outsideRepo: true };
+    }
+    throw err;
+  }
+  return { path: existsSync(candidate) ? candidate : null, outsideRepo: false };
+}
+
+export async function checkBriefProvenance(
+  repoRoot: string,
+  docsDir: string,
+): Promise<BriefProvenanceStatus | null> {
+  const shaFile = resolveInRepo(repoRoot, path.join(docsDir, 'BRIEF.sha256'));
+  if (!existsSync(shaFile)) return null;
+
+  const raw = await readFile(shaFile, 'utf8');
+  const briefMatch = raw.match(/^brief:\s*(.+)$/m);
+  const shaMatch = raw.match(/^sha256:\s*([0-9a-fA-F]+)$/m);
+  const originMatch = raw.match(/^origin_sha256:\s*([0-9a-fA-F]+)$/m);
+
+  const defaultPath = snapshotRelPath(docsDir);
+  const recordedPath = briefMatch?.[1]?.trim() || defaultPath;
+
+  if (!shaMatch) {
+    return {
+      ok: false,
+      path: recordedPath,
+      recorded: 'invalid',
+      origin: 'invalid',
+      current: 'invalid',
+    };
+  }
+
+  const origin = (originMatch?.[1] ?? shaMatch[1]!).trim().toLowerCase();
+  const recorded = shaMatch[1]!.trim().toLowerCase();
+
+  const resolved = resolveBriefFile(repoRoot, docsDir, recordedPath);
+  if (resolved.outsideRepo) {
+    return {
+      ok: false,
+      path: recordedPath,
+      recorded,
+      origin,
+      current: 'outside-repo',
+    };
+  }
+  if (!resolved.path) {
+    return {
+      ok: false,
+      path: recordedPath,
+      recorded,
+      origin,
+      current: 'missing',
+    };
+  }
+
+  const { rawHex, variants } = candidateBriefHashes(await readFile(resolved.path));
+  const ok = variants.has(recorded);
+
+  return {
+    ok,
+    path: recordedPath,
+    recorded,
+    origin,
+    current: ok ? recorded : rawHex,
+  };
+}
+
+export async function reconcileBriefHash(
+  repoRoot: string,
+  docsDir: string,
+): Promise<BriefProvenanceStatus> {
+  const shaFile = resolveInRepo(repoRoot, path.join(docsDir, 'BRIEF.sha256'));
+  await mkdir(path.dirname(shaFile), { recursive: true });
+
+  const defaultPath = snapshotRelPath(docsDir);
+  let existingPath = defaultPath;
+  let originSha: string | null = null;
+  let previousSha: string | null = null;
+
+  if (existsSync(shaFile)) {
+    const raw = await readFile(shaFile, 'utf8');
+    const briefMatch = raw.match(/^brief:\s*(.+)$/m);
+    const shaMatch = raw.match(/^sha256:\s*([0-9a-fA-F]+)$/m);
+    const originMatch = raw.match(/^origin_sha256:\s*([0-9a-fA-F]+)$/m);
+    if (briefMatch?.[1]) existingPath = briefMatch[1].trim();
+    previousSha = shaMatch?.[1]?.trim().toLowerCase() || null;
+    originSha = (originMatch?.[1] ?? shaMatch?.[1] ?? '').trim().toLowerCase() || null;
+  }
+
+  const resolved = resolveBriefFile(repoRoot, docsDir, existingPath);
+  if (resolved.outsideRepo) {
+    throw new SandboxError(`cannot acknowledge brief provenance: path escapes repository (${existingPath})`);
+  }
+  if (!resolved.path) {
+    if (existingPath.startsWith('external:')) {
+      throw new Error(
+        `cannot acknowledge brief provenance: ${existingPath} has no in-repo copy; copy it to ${defaultPath} and run copperhead sync --brief`,
+      );
+    }
+    throw new Error(`cannot acknowledge brief provenance: brief file not found (${existingPath})`);
+  }
+
+  // Adopt the in-repo snapshot path when reconciling a legacy `external:` record.
+  if (existingPath.startsWith('external:')) {
+    existingPath = defaultPath;
+  }
+
+  const lfText = (await readFile(resolved.path, 'utf8')).replace(/\r\n/g, '\n');
+  const currentSha = createHash('sha256').update(lfText, 'utf8').digest('hex');
+
+  const finalOrigin = originSha ?? currentSha;
+  const lines = [`brief: ${existingPath}`, `sha256: ${currentSha}`];
+  if (finalOrigin !== currentSha) {
+    lines.push(`origin_sha256: ${finalOrigin}`);
+  }
+  await writeFile(shaFile, lines.join('\n') + '\n', 'utf8');
+
+  if (previousSha && previousSha !== currentSha) {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const decisionsPath = resolveInRepo(repoRoot, path.join(docsDir, 'DECISIONS.md'));
+    if (existsSync(decisionsPath)) {
+      const decText = await readFile(decisionsPath, 'utf8');
+      const decEntry = `\n## ${dateStr} - sync-brief\n- **Decision**: Acknowledged brief provenance change for \`${existingPath}\` (\`${previousSha.slice(0, 8)}\` -> \`${currentSha.slice(0, 8)}\`).\n- **Why**: brief change acknowledged by the user via copperhead sync --brief; the design was not re-verified against it.\n- **Affects**: ${existingPath}, BRIEF.sha256\n`;
+      if (!decText.includes(currentSha.slice(0, 8))) {
+        await writeFile(decisionsPath, decText.trimEnd() + '\n' + decEntry, 'utf8');
+      }
+    }
+    const changelogPath = resolveInRepo(repoRoot, path.join(docsDir, 'CHANGELOG.md'));
+    if (existsSync(changelogPath)) {
+      const chgText = await readFile(changelogPath, 'utf8');
+      const chgEntry = `\n## ${dateStr} - sync --brief\n- **Request**: Acknowledge brief provenance update (${existingPath})\n- **Files**: ${existingPath}, BRIEF.sha256\n- **Note**: sha256 ${previousSha.slice(0, 8)} -> ${currentSha.slice(0, 8)} (origin ${finalOrigin.slice(0, 8)}; design not re-evaluated)\n`;
+      if (!chgText.includes(currentSha.slice(0, 8))) {
+        await writeFile(changelogPath, chgText.trimEnd() + '\n' + chgEntry, 'utf8');
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    path: existingPath,
+    recorded: currentSha,
+    origin: finalOrigin,
+    current: currentSha,
+    ...(previousSha ? { previous: previousSha } : {}),
+  };
 }
