@@ -7,15 +7,9 @@
  */
 
 import { compareRefdes, type ExpandedPart, type SubstitutionEntry } from './manifest.js';
+import { escapeCell } from '../../memory/bom-table.js';
 
-export function escapeCell(text: string | undefined): string {
-  if (!text) return '-';
-  return text
-    .replace(/\r?\n/g, ' ')
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|')
-    .trim() || '-';
-}
+export { escapeCell, unescapeCell } from '../../memory/bom-table.js';
 
 export function renderBomMarkdown(
   parts: ExpandedPart[],

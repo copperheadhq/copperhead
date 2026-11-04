@@ -8,6 +8,9 @@ import {
   normalizeValue,
   normalizeFootprint,
   pinoutColumnReport,
+  splitRow,
+  escapeCell,
+  unescapeCell,
 } from '../src/memory/bom-table.js';
 
 describe('parseMarkdownTables', () => {
@@ -480,5 +483,122 @@ describe('optional outer pipes (GitHub-flavored markdown)', () => {
       b3,
     ].join('\n');
     expect(parsePinoutRows(md).map((r) => r.ref)).toEqual(['U1']);
+  });
+});
+
+describe('Markdown escape contract & splitRow round-trip (Finding 2)', () => {
+  it('escaped pipe: preserves semantic pipe and does not split column', () => {
+    const row = '| R1 | 10k \\| 1% | Resistor |';
+    const cells = splitRow(row);
+    expect(cells).toEqual(['R1', '10k | 1%', 'Resistor']);
+  });
+
+  it('literal backslash: preserves non-escape user backslashes', () => {
+    const row = '| U1 | C:\\path\\to\\firmware | MCU |';
+    const cells = splitRow(row);
+    expect(cells).toEqual(['U1', 'C:\\path\\to\\firmware', 'MCU']);
+  });
+
+  it('two consecutive backslashes: unescapes to a single literal backslash', () => {
+    const row = '| U1 | foo\\\\bar | Package |';
+    const cells = splitRow(row);
+    expect(cells).toEqual(['U1', 'foo\\bar', 'Package']);
+  });
+
+  it('backslash immediately before a delimiter: distinguishes escaped pipe vs escaped backslash before delimiter', () => {
+    // Single backslash before pipe: escaped pipe inside cell, not delimiter
+    const escapedPipeRow = '| R1 | 10k\\|1% |';
+    expect(splitRow(escapedPipeRow)).toEqual(['R1', '10k|1%']);
+
+    // Two backslashes before delimiter: escaped backslash inside cell, followed by real delimiter
+    const bsBeforeDelimRow = '| R1 | 10k\\\\ | 1% |';
+    expect(splitRow(bsBeforeDelimRow)).toEqual(['R1', '10k\\', '1%']);
+
+    // Three backslashes before pipe: escaped backslash + escaped pipe inside cell
+    const threeBsRow = '| R1 | 10k\\\\\\|1% |';
+    expect(splitRow(threeBsRow)).toEqual(['R1', '10k\\|1%']);
+
+    // Four backslashes before delimiter: two escaped backslashes, followed by real delimiter
+    const fourBsRow = '| R1 | 10k\\\\\\\\ | 1% |';
+    expect(splitRow(fourBsRow)).toEqual(['R1', '10k\\\\', '1%']);
+  });
+
+  it('backtick content: pipes inside inline code spans do not split columns', () => {
+    const row = '| R1 | `10k | 1%` | Device:R |';
+    expect(splitRow(row)).toEqual(['R1', '`10k | 1%`', 'Device:R']);
+
+    // Multi-backtick code span
+    const multiRow = '| R1 | ``10k | ` | 1%`` | Device:R |';
+    expect(splitRow(multiRow)).toEqual(['R1', '``10k | ` | 1%``', 'Device:R']);
+  });
+
+  it('empty cell: handles empty cells correctly across positions', () => {
+    expect(splitRow('| | |')).toEqual(['', '']);
+    expect(splitRow('| R1 | | Device:R |')).toEqual(['R1', '', 'Device:R']);
+    expect(splitRow('| |')).toEqual(['']);
+    expect(splitRow('||')).toEqual(['']);
+    expect(splitRow('')).toEqual([]);
+  });
+
+  it('unicode text: passes unicode, symbols, and math intact', () => {
+    const row = '| R1 | 10kΩ ±1% | µF ⚡ | 日本語 |';
+    expect(splitRow(row)).toEqual(['R1', '10kΩ ±1%', 'µF ⚡', '日本語']);
+  });
+
+  it('CRLF input: handles windows line endings without carriage return artifacts', () => {
+    const row = '| R1 | 10k | Device:R |\r\n';
+    expect(splitRow(row)).toEqual(['R1', '10k', 'Device:R']);
+
+    const rowCrOnly = '| R1 | 10k | Device:R |\r';
+    expect(splitRow(rowCrOnly)).toEqual(['R1', '10k', 'Device:R']);
+  });
+
+  it('leading and trailing pipes: supports rows with or without boundary pipes', () => {
+    expect(splitRow('| A | B |')).toEqual(['A', 'B']);
+    expect(splitRow('A | B')).toEqual(['A', 'B']);
+    expect(splitRow('| A | B')).toEqual(['A', 'B']);
+    expect(splitRow('A | B |')).toEqual(['A', 'B']);
+
+    // Trailing escaped pipe is cell content, not a boundary pipe
+    expect(splitRow('| A | B\\|')).toEqual(['A', 'B|']);
+  });
+
+  it('render -> parse -> render idempotency: round-trips all tricky characters without loss', () => {
+    const testValues = [
+      '10k | 1%',
+      'C:\\tools\\bin',
+      'foo\\\\bar',
+      'path\\',
+      '10k | 1% \\ 0603',
+      'normal',
+      '',
+      '10kΩ ±1%',
+      '`code | span`',
+      'multi \\\\ and \\| mixed',
+    ];
+
+    for (const val of testValues) {
+      const rendered = escapeCell(val);
+      // Construct a valid markdown table row with the rendered cell
+      const row = `| ${rendered} |`;
+      const parsedCells = splitRow(row);
+      expect(parsedCells).toHaveLength(1);
+      const parsedVal = parsedCells[0];
+
+      // Semantic value matches original
+      expect(parsedVal).toBe(val);
+
+      // Re-rendered markdown matches first render
+      const reRendered = escapeCell(parsedVal);
+      expect(reRendered).toBe(rendered);
+    }
+  });
+
+  it('unescapeCell standalone function inverts escapeCell for semantic cell content', () => {
+    expect(unescapeCell(escapeCell('10k | 1%'))).toBe('10k | 1%');
+    expect(unescapeCell(escapeCell('foo\\bar'))).toBe('foo\\bar');
+    expect(unescapeCell(escapeCell('foo\\\\bar'))).toBe('foo\\\\bar');
+    expect(unescapeCell('plain text')).toBe('plain text');
+    expect(unescapeCell('C:\\path')).toBe('C:\\path');
   });
 });

@@ -8,27 +8,153 @@
 export interface TableRow {
     cells: string[];
   }
-  
+
+  /**
+   * Escape a cell value for inclusion in a GFM pipe table.
+   * - Replaces newlines with spaces.
+   * - Preserves matched backtick code spans verbatim (where pipes are naturally protected).
+   * - Escapes backslashes (\\ -> \\\\) outside code spans.
+   * - Escapes pipe characters (| -> \\|) outside code spans.
+   * - Trims whitespace.
+   */
+  export function escapeCell(text: string | undefined | null): string {
+    if (text === undefined || text === null) return '';
+    const normalized = text.replace(/\r?\n/g, ' ').trim();
+    if (!normalized) return '';
+
+    let result = '';
+    for (let i = 0; i < normalized.length; i++) {
+      const ch = normalized[i];
+
+      // Check if this starts a matched backtick code span
+      if (ch === '`') {
+        let k = i;
+        while (k < normalized.length && normalized[k] === '`') k++;
+        const runLen = k - i;
+        const delimiter = normalized.slice(i, k);
+        const closeIdx = normalized.indexOf(delimiter, k);
+        if (closeIdx !== -1) {
+          const spanEnd = closeIdx + runLen;
+          result += normalized.slice(i, spanEnd);
+          i = spanEnd - 1;
+          continue;
+        }
+      }
+
+      if (ch === '\\') {
+        result += '\\\\';
+      } else if (ch === '|') {
+        result += '\\|';
+      } else {
+        result += ch;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Unescape a cell value from a GFM pipe table.
+   * Reverses the backslash escaping performed for table formatting:
+   * - `\|` becomes `|`
+   * - `\\` becomes `\`
+   * - Any other backslash is preserved as a literal character (e.g. user backslashes).
+   */
+  export function unescapeCell(cell: string): string {
+    let result = '';
+    for (let i = 0; i < cell.length; i++) {
+      const ch = cell[i];
+      if (ch === '\\' && i + 1 < cell.length) {
+        const next = cell[i + 1];
+        if (next === '|' || next === '\\') {
+          result += next;
+          i++;
+          continue;
+        }
+      }
+      result += ch;
+    }
+    return result;
+  }
+
   /**
    * Split one row into trimmed cells. The outer pipes are optional, because they
    * are optional in GitHub-flavored markdown: `Refdes | Pin | Net` renders as a
    * table exactly like `| Refdes | Pin | Net |` does, and a hand- or LLM-authored
    * doc may legitimately be written either way.
+   *
+   * Honors escaped pipes (`\|`), escaped backslashes (`\\`), inline backtick code
+   * spans (where pipes do not delimit columns), and unescapes cells while preserving
+   * literal user backslashes.
    */
-  function splitRow(line: string): string[] {
-    const trimmed = line.trim();
-    const inner = trimmed.replace(/^\|/, '').replace(/\|$/, '');
+  export function splitRow(line: string): string[] {
+    const trimmed = line.replace(/\r$/, '').trim();
+    if (!trimmed) return [];
+
+    let start = 0;
+    let end = trimmed.length;
+
+    // Optional leading border pipe (not escaped)
+    if (trimmed.startsWith('|')) {
+      start = 1;
+    }
+
+    // Optional trailing border pipe (only if not escaped)
+    if (end > start && trimmed.endsWith('|')) {
+      let bsCount = 0;
+      for (let j = end - 2; j >= start; j--) {
+        if (trimmed[j] === '\\') bsCount++;
+        else break;
+      }
+      if (bsCount % 2 === 0) {
+        end = end - 1;
+      }
+    }
+
+    const inner = trimmed.slice(start, end);
     const cells: string[] = [];
     let current = '';
-    let escaped = false;
+    let inCode = 0;
+
     for (let i = 0; i < inner.length; i++) {
       const ch = inner[i];
-      if (escaped) {
-        current += ch;
-        escaped = false;
+
+      // Inside inline code span: backslashes and pipes are literal
+      if (inCode > 0) {
+        if (ch === '`') {
+          let k = i;
+          while (k < inner.length && inner[k] === '`') k++;
+          const count = k - i;
+          if (count === inCode) {
+            inCode = 0;
+          }
+          current += inner.slice(i, k);
+          i = k - 1;
+        } else {
+          current += ch;
+        }
+        continue;
+      }
+
+      // Outside inline code span
+      if (ch === '`') {
+        let k = i;
+        while (k < inner.length && inner[k] === '`') k++;
+        inCode = k - i;
+        current += inner.slice(i, k);
+        i = k - 1;
       } else if (ch === '\\') {
-        escaped = true;
-        current += ch;
+        if (i + 1 < inner.length) {
+          const next = inner[i + 1];
+          if (next === '|' || next === '\\') {
+            current += next;
+            i++;
+          } else {
+            current += ch;
+          }
+        } else {
+          current += ch;
+        }
       } else if (ch === '|') {
         cells.push(current.trim());
         current = '';
@@ -36,6 +162,7 @@ export interface TableRow {
         current += ch;
       }
     }
+
     cells.push(current.trim());
     return cells;
   }

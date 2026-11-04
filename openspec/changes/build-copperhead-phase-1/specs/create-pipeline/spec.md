@@ -52,3 +52,28 @@ The firmware scaffold SHALL compile clean against the vendor toolchain when one 
 #### Scenario: Unknown part never waives firmware
 - **WHEN** `firmware/README.md` begins `# No firmware` but the schematic has a part from any other library (a stock MCU library or a project library such as `fixture:ESP32-S3-MINI`), or no readable schematic with parts
 - **THEN** the firmware stage stays incomplete until source exists under `firmware/`, and the stage's failure detail names the parts that need it
+
+### Requirement: Parts manifest and draft_bom engine
+Stage 3 part selection SHALL validate `docs/parts.intent.json` and render `docs/BOM.md` via the deterministic `draft_bom` capability. The manifest SHALL follow schema version 1, expand passive packages deterministically, enforce bidirectional subsystem coverage with SUBSYSTEMS.md, and resolve all symbols and footprints against local libraries before rendering.
+
+#### Scenario: Manifest validated and BOM rendered
+- **WHEN** `draft_bom` runs with a valid parts manifest
+- **THEN** `docs/parts.intent.json` and canonical `docs/BOM.md` are written atomically, and the stage is marked complete
+
+#### Scenario: Missing library symbol or footprint rejected
+- **WHEN** a manifest references an uninstalled symbol or footprint
+- **THEN** `draft_bom` refuses with structured validation findings and does not overwrite existing BOM files
+
+### Requirement: Exact symbol identity propagation
+Stage 4 schematic drafting SHALL consume the exact `Symbol` (`libId`) recorded in `docs/BOM.md` without fuzzy fallback. Off-board components marked `(off-board)` SHALL be excluded from the schematic sheet.
+
+#### Scenario: Schematic consumes exact BOM libId
+- **WHEN** schematic drafting populates symbols
+- **THEN** the symbols on the sheet match the exact `libId` values from BOM.md, and off-board items are omitted
+
+### Requirement: Manifest check and drift verification
+`copperhead check` SHALL validate `docs/parts.intent.json` against installed KiCad libraries and verify that `docs/BOM.md` matches `renderBomMarkdown` when a manifest is present.
+
+#### Scenario: Desynced BOM detected
+- **WHEN** `docs/parts.intent.json` exists but `docs/BOM.md` does not match its deterministic rendering
+- **THEN** `check` fails reporting manifest drift, while legacy repos without a manifest pass without error

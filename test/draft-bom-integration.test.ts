@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtemp, cp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
+import * as fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dispatchToolResult, type RunContext } from '../src/agent/tools.js';
 import { catalog } from '../src/capabilities/index.js';
@@ -11,6 +12,7 @@ import { bomSymbolDossier } from '../src/kicad/dossier.js';
 import { validateIntent, type SchematicIntent } from '../src/kicad/draft/ir.js';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { checkDrift } from '../src/memory/drift.js';
+import { safeWriteAtomic } from '../src/capabilities/helpers.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DRAFT_FIXTURE = path.join(HERE, 'fixtures', 'draft');
@@ -302,6 +304,171 @@ describe('Phase 5 & 6 — draft_bom Capability & Stage 3/4 Integration', () => {
       const drifts = await checkDrift(repo, 'docs', 'board.kicad_sch');
       expect(drifts.some((d) => d.claim.includes('BT1'))).toBe(false);
       expect(drifts).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('8. Safe writes in draft_bom: filesystem write failure leaves existing BOM.md intact', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const bomPath = path.join(repo, 'docs', 'BOM.md');
+      const originalBom = '# Original Intact BOM\n';
+      await writeFile(bomPath, originalBom, 'utf8');
+
+      // Attempt safeWriteAtomic with injected rename failure (e.g. read-only filesystem / permission error)
+      await expect(
+        safeWriteAtomic(repo, 'docs/BOM.md', '# Corrupted Incomplete BOM\n', {
+          rename: async () => {
+            throw new Error('EACCES: permission denied, rename');
+          },
+        }),
+      ).rejects.toThrow('permission denied');
+
+      // Original BOM is 100% intact
+      const contentAfter = await readFile(bomPath, 'utf8');
+      expect(contentAfter).toBe(originalBom);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('9. Safe writes in draft_bom: partial write failure does not corrupt prior manifest', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const manifestPath = path.join(repo, 'docs', 'parts.intent.json');
+      const originalManifest = JSON.stringify({ version: 1, parts: [{ ref: 'R1', value: '10k', package: '0603', group: 'Power' }] }, null, 2);
+      await writeFile(manifestPath, originalManifest, 'utf8');
+
+      // Simulate mid-write / read-only filesystem crash during write
+      await expect(
+        safeWriteAtomic(repo, 'docs/parts.intent.json', '{ "truncated_json": true ', {
+          writeFile: async () => {
+            throw new Error('EROFS: read-only file system');
+          },
+        }),
+      ).rejects.toThrow('read-only file system');
+
+      // Original manifest is completely intact
+      const contentAfter = await readFile(manifestPath, 'utf8');
+      expect(contentAfter).toBe(originalManifest);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('10. Safe writes in draft_bom: symlinked BOM.md or manifest is strictly rejected', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const bomPath = path.join(repo, 'docs', 'BOM.md');
+      await writeFile(bomPath, '# Real BOM\n', 'utf8');
+
+      // Injected symlink lstat hook: reports BOM.md as a symbolic link
+      await expect(
+        safeWriteAtomic(repo, 'docs/BOM.md', '# Malicious Target\n', {
+          lstat: async () => ({ isSymbolicLink: () => true } as any),
+        }),
+      ).rejects.toThrow(/cannot write to symlink/);
+
+      // Injected symlink escape realpath hook: resolves outside repository root
+      await expect(
+        safeWriteAtomic(repo, 'docs/BOM.md', '# Outside Target\n', {
+          realpath: async (p: any) => (p === repo ? repo : 'C:\\Windows\\System32\\malicious.md'),
+        }),
+      ).rejects.toThrow(/resolves outside repository root/);
+
+      // Lexical path traversal outside repo root
+      await expect(
+        safeWriteAtomic(repo, '../outside.md', '# Escaped\n'),
+      ).rejects.toThrow(/path escapes repo root/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('11. Safe writes in draft_bom: records drift obligation in ledger upon writing BOM.md', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const ctx = makeContext(repo, true);
+      const manifest = {
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', group: 'Power' },
+          { ref: 'C1', value: '100nF', package: '0402', group: 'MCU' },
+        ],
+      };
+
+      const res = await dispatchToolResult(ctx, 'draft_bom', { manifest_json: JSON.stringify(manifest) });
+      expect(res.ok).toBe(true);
+
+      // Verify drift obligation was opened in ledger
+      const openObligations = ctx.ledger.openObligations;
+      expect(openObligations.some((o) => o.kind === 'drift')).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('12. Multi-unit symbol handling: resolves single BOM row with multi-unit symbol and propagates exact libId', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const ctx = makeContext(repo, true);
+
+      // Create a 5-pad fixture footprint matching OpAmp pins 1, 2, 3, 4, 8
+      const opPretty = path.join(repo, 'OpAmp_Fixture.pretty');
+      await mkdir(opPretty, { recursive: true });
+      await writeFile(
+        path.join(opPretty, 'SOIC-8_OpAmp.kicad_mod'),
+        [
+          '(footprint "SOIC-8_OpAmp" (version 20240108) (generator kicad)',
+          '  (pad "1" smd roundrect (at -2 0))',
+          '  (pad "2" smd roundrect (at -1 0))',
+          '  (pad "3" smd roundrect (at 0 0))',
+          '  (pad "4" smd roundrect (at 1 0))',
+          '  (pad "8" smd roundrect (at 2 0))',
+          ')',
+        ].join('\n'),
+        'utf8',
+      );
+      const fpTable = [
+        '(fp_lib_table',
+        '  (version 7)',
+        '  (lib (name "Resistor_SMD")(type "KiCad")(uri "${KIPRJMOD}/Resistor_SMD.pretty")(options "")(descr ""))',
+        '  (lib (name "Capacitor_SMD")(type "KiCad")(uri "${KIPRJMOD}/Capacitor_SMD.pretty")(options "")(descr ""))',
+        '  (lib (name "OpAmp_Fixture")(type "KiCad")(uri "${KIPRJMOD}/OpAmp_Fixture.pretty")(options "")(descr ""))',
+        ')',
+      ].join('\n');
+      await writeFile(path.join(repo, 'fp-lib-table'), fpTable, 'utf8');
+
+      // Manifest declaring multi-unit OpAmp
+      const manifest = {
+        version: 1,
+        parts: [
+          {
+            ref: 'U1',
+            value: 'OpAmp',
+            libId: 'CopperAmp:OpAmp',
+            footprint: 'OpAmp_Fixture:SOIC-8_OpAmp',
+            mpn: 'LM358DR',
+            group: 'Power',
+            rationale: 'Dual op-amp',
+          },
+          { ref: 'R1', value: '10k', package: '0603', group: 'Power' },
+          { ref: 'C1', value: '100nF', package: '0402', group: 'MCU' },
+        ],
+      };
+
+      const res = await dispatchToolResult(ctx, 'draft_bom', { manifest_json: JSON.stringify(manifest) });
+      expect(res.ok).toBe(true);
+
+      // Verify BOM.md contains U1 once with exact symbol
+      const bomContent = await readFile(path.join(repo, 'docs', 'BOM.md'), 'utf8');
+      expect(bomContent).toContain('| U1 | OpAmp | CopperAmp:OpAmp | OpAmp_Fixture:SOIC-8_OpAmp | UNVERIFIED LM358DR | Dual op-amp |');
+
+      // Stage 4 dossier extracts exact multi-unit symbol
+      const dossier = await bomSymbolDossier(bomContent, [SYMLIB]);
+      expect(dossier).toContain('U1');
+      expect(dossier).toContain('CopperAmp:OpAmp');
     } finally {
       await cleanup();
     }

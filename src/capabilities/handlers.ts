@@ -21,7 +21,7 @@ import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RefusalBlocker, RunContext } from '../agent/context.js';
-import { corruptionError, markTouched, str } from './helpers.js';
+import { corruptionError, markTouched, safeWriteAtomic, str } from './helpers.js';
 
 /**
  * Findings that say nothing about whether a repair worked: silkscreen text (cosmetic,
@@ -682,14 +682,13 @@ export const HANDLERS: HandlerDef[] = [
       }
 
       if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
-        await writeFile(manifestAbs, args.manifest_json, 'utf8');
-        ctx.filesTouched.add(manifestRel);
+        await safeWriteAtomic(ctx.repoRoot, manifestRel, args.manifest_json);
+        markTouched(ctx, manifestRel);
       }
 
       const bomRel = path.join(docsDir, 'BOM.md');
-      const bomAbs = resolveInRepo(ctx.repoRoot, bomRel);
       const rendered = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
-      await writeFile(bomAbs, rendered, 'utf8');
+      await safeWriteAtomic(ctx.repoRoot, bomRel, rendered);
       markTouched(ctx, bomRel);
 
       const warningText =

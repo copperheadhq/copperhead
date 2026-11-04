@@ -250,4 +250,60 @@ describe('export command end-to-end (supplier-bom-export)', () => {
     }
     expect(fetched).toBe(false);
   });
+
+  it('excludes Substitutions and supporting tables from component inventory across all suppliers (Finding 1)', () => {
+    const bom = [
+      '# Bill of Materials',
+      '',
+      '| Refdes | Value | Symbol | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|---|',
+      '| U1 | STM32F103C8T6 | MCU_ST_STM32F1:STM32F103C8Tx | Package_QFP:LQFP-48_7x7mm_P0.5mm | STM32F103C8T6 | Main MCU |',
+      '| R1 | 10k | Device:R | Resistor_SMD:R_0603_1608Metric | RC0603FR-0710KL | Pull-up |',
+      '| C1 | 100nF | Device:C | Capacitor_SMD:C_0402_1005Metric | UNVERIFIED GRM155R71C104KA88D | Decoupling |',
+      '',
+      '## Substitutions',
+      '',
+      '| Refdes | Wanted | Chosen | Reason |',
+      '|---|---|---|---|',
+      '| U2 | DRV8701 | IR2104 | IR2104PBF |',
+      '',
+      '## Power Budget',
+      '',
+      '| Rail | Nominal | Max | Voltage | Notes |',
+      '|---|---|---|---|---|',
+      '| 3V3 | 50mA | 150mA | 3.3V | Microcontroller supply |',
+    ].join('\n');
+
+    const rows = parseBom(bom);
+    // Substitutions and Power Budget must NOT enter parsed rows
+    expect(rows.map((r) => r.refdes)).toEqual(['U1', 'R1', 'C1']);
+    expect(rows.some((r) => r.refdes === 'U2')).toBe(false);
+    expect(rows.some((r) => r.refdes === '3V3')).toBe(false);
+
+    // Test supplier export for JLCPCB, DigiKey, and Mouser
+    for (const supplier of ['jlcpcb', 'digikey', 'mouser'] as const) {
+      const res = buildExport(rows, supplier, { boards: 1, spares: 10, includeUnverified: false });
+
+      // Included must only contain verified parts with real MPN (U1 and R1)
+      expect(res.included.map((r) => r.refdes)).toEqual(['U1', 'R1']);
+      // Excluded must contain C1 (UNVERIFIED)
+      expect(res.excluded.some((e) => e.row.refdes === 'C1' && e.reason === 'UNVERIFIED')).toBe(true);
+      // U2 and 3V3 must NEVER appear in included, excluded, or warnings
+      expect(res.included.some((r) => r.refdes === 'U2' || r.refdes === '3V3')).toBe(false);
+      expect(res.excluded.some((e) => e.row.refdes === 'U2' || e.row.refdes === '3V3')).toBe(false);
+      expect(res.warnings.some((w) => w.includes('U2') || w.includes('DRV8701') || w.includes('3V3'))).toBe(false);
+
+      if (supplier === 'digikey') {
+        // Quantity arithmetic: R1 is passive, so min spares is base + 2 = 3; U1 with 10% spares ceils to 2
+        expect(res.csv).toContain('RC0603FR-0710KL,,3,R1');
+        expect(res.csv).toContain('STM32F103C8T6,,2,U1');
+      }
+    }
+
+    // With includeUnverified: true
+    const resUnv = buildExport(rows, 'mouser', { boards: 2, spares: 10, includeUnverified: true });
+    expect(resUnv.included.map((r) => r.refdes)).toEqual(['U1', 'R1', 'C1']);
+    expect(resUnv.warnings.some((w) => w.includes('INCLUDED but UNVERIFIED') && w.includes('C1'))).toBe(true);
+    expect(resUnv.warnings.some((w) => w.includes('U2'))).toBe(false);
+  });
 });
