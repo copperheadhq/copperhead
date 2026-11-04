@@ -22,7 +22,7 @@ import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
 import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit, applyFailedRun, snapshot, restore, preserveFailedRun, hasFailedRun } from '../util/git.js';
 import { loadConstraints } from '../memory/constraints.js';
-import { classifyAttempt, nextBudget, isDocsOnlyStage, renderDecisionStop, appendSummaryNote, type AttemptCause } from './stage-recovery.js';
+import { classifyAttempt, causeNote, nextBudget, isDocsOnlyStage, renderDecisionStop, appendSummaryNote, type AttemptCause } from './stage-recovery.js';
 import type { RefusalBlocker } from '../agent/context.js';
 import type { CompatSettings, CopperheadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
@@ -1324,7 +1324,10 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
         // The attempt's ending is classified before anything decides what to do
         // next (design D2), and every attempt logs its cause and action (AC-18.6).
         const cause = classifyAttempt(res);
-        opts.log(stageLine(stage.name, `attempt ${attempt} ended: ${cause}`, 'warn'));
+        // A refusal counted as exhaustion says so with its numbers (AC-18.16).
+        const note = causeNote(res, cause);
+        const causeText = note ? `${cause} (${note})` : cause;
+        opts.log(stageLine(stage.name, `attempt ${attempt} ended: ${causeText}`, 'warn'));
 
         if (cause === 'constraint-conflict') {
           // A verified conflict is the user's decision, not the supervisor's and
@@ -1334,7 +1337,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
           const block = renderDecisionStop({ stage: stage.name, attempt, blockers, registry });
           opts.log(stageLine(stage.name, 'stop: verified constraint conflict; a decision is needed', 'err'));
           for (const line of block.terminal.split('\n')) opts.log(line);
-          await appendSummaryNote(res.transcriptDir, [`cause: ${cause}`, 'action: stopped for a decision'], block.markdown);
+          await appendSummaryNote(res.transcriptDir, [`cause: ${causeText}`, 'action: stopped for a decision'], block.markdown);
           stop = { stage: stage.name, cause, blockers };
           break;
         }
@@ -1347,7 +1350,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
               'err',
             ),
           );
-          await appendSummaryNote(res.transcriptDir, [`cause: ${cause}`, `action: stopped (exhausted ${config.maxStageRetries} auto-retries)`]);
+          await appendSummaryNote(res.transcriptDir, [`cause: ${causeText}`, `action: stopped (exhausted ${config.maxStageRetries} auto-retries)`]);
           break;
         }
 
@@ -1377,7 +1380,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
         );
         if (diagnosis.verdict === 'abort') {
           opts.log(stageLine(stage.name, 'recovery supervisor recommends stopping for a human.', 'err'));
-          await appendSummaryNote(res.transcriptDir, [`cause: ${cause}`, `action: stopped (supervisor: ${diagnosis.reason})`]);
+          await appendSummaryNote(res.transcriptDir, [`cause: ${causeText}`, `action: stopped (supervisor: ${diagnosis.reason})`]);
           break;
         }
         let action = `retry (supervisor: ${diagnosis.reason})`;
@@ -1391,7 +1394,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
           action = `retry with ${budget} turns (escalated from ${prev}; supervisor: ${diagnosis.reason})`;
         }
         opts.log(stageLine(stage.name, action, 'warn'));
-        await appendSummaryNote(res.transcriptDir, [`cause: ${cause}`, `action: ${action}`]);
+        await appendSummaryNote(res.transcriptDir, [`cause: ${causeText}`, `action: ${action}`]);
         guidance = diagnosis.guidance ?? `The previous attempt failed: ${failure}. ${diagnosis.reason}`;
       }
     } finally {
