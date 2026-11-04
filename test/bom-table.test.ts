@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 import {
   parseMarkdownTables,
   isHeader,
@@ -605,5 +607,132 @@ describe('Markdown escape contract & splitRow round-trip (Finding 2)', () => {
     expect(unescapeCell(escapeCell('foo\\\\bar'))).toBe('foo\\\\bar');
     expect(unescapeCell('plain text')).toBe('plain text');
     expect(unescapeCell('C:\\path')).toBe('C:\\path');
+  });
+});
+
+describe('GFM structural correctness and displayed semantic fidelity (Phase 3)', () => {
+  const MarkdownIt = require('markdown-it');
+  const md = new MarkdownIt();
+
+  function renderTableHtml(cellContent: string): string {
+    const table = `| Col |\n|---|\n| ${cellContent} |`;
+    return md.render(table).replace(/\s+/g, ' ').trim();
+  }
+
+  it('Structural correctness: literal pipes inside and outside code do not split cells', () => {
+    const plainWithPipe = escapeCell('10k | 1%');
+    expect(splitRow(`| ${plainWithPipe} |`)).toHaveLength(1);
+
+    const codeWithPipe = escapeCell('`10k | 1%`');
+    expect(splitRow(`| ${codeWithPipe} |`)).toHaveLength(1);
+
+    const multiCodeWithPipes = escapeCell('`A | B` and `C | D`');
+    expect(splitRow(`| ${multiCodeWithPipes} |`)).toHaveLength(1);
+
+    const fullRow = `| R1 | ${escapeCell('10k | 1%')} | ${escapeCell('`Device:R | Resistor`')} |`;
+    expect(splitRow(fullRow)).toEqual(['R1', '10k | 1%', '`Device:R | Resistor`']);
+  });
+
+  it('Displayed semantic correctness: GFM oracle renders exact intended text', () => {
+    // 1. Plain text with pipe: rendered HTML must contain 10k | 1%
+    expect(renderTableHtml(escapeCell('10k | 1%'))).toContain('<td>10k | 1%</td>');
+
+    // 2. Inline code containing a pipe: rendered HTML must contain <code>10k | 1%</code>
+    expect(renderTableHtml(escapeCell('`10k | 1%`'))).toContain('<td><code>10k | 1%</code></td>');
+
+    // 3. Inline code with backslash: backslash MUST NOT be doubled (GFM treats code span backslashes literally)
+    expect(renderTableHtml(escapeCell('`C:\\tools\\bin`'))).toContain('<td><code>C:\\tools\\bin</code></td>');
+
+    // 4. Windows-style paths outside code spans: rendered HTML must preserve single backslashes
+    expect(renderTableHtml(escapeCell('C:\\tools\\bin'))).toContain('<td>C:\\tools\\bin</td>');
+
+    // 5. Code with literal backslash: single backslash inside code span
+    expect(renderTableHtml(escapeCell('`code with \\ backslash`'))).toContain('<td><code>code with \\ backslash</code></td>');
+
+    // 6. Multi-backtick delimiters with nested backtick and pipe
+    expect(renderTableHtml(escapeCell('``code with ` backtick and | pipe``'))).toContain('<td><code>code with ` backtick and | pipe</code></td>');
+
+    // 7. Unmatched backtick: treated as text outside code span, pipe is still safely escaped
+    expect(renderTableHtml(escapeCell('unmatched ` backtick | test'))).toContain('<td>unmatched ` backtick | test</td>');
+
+    // 8. Markdown emphasis
+    expect(renderTableHtml(escapeCell('*emphasis* and _italic_'))).toContain('<td><em>emphasis</em> and <em>italic</em></td>');
+
+    // 9. Unicode characters, math, symbols
+    expect(renderTableHtml(escapeCell('10kΩ ±1% µF ⚡'))).toContain('<td>10kΩ ±1% µF ⚡</td>');
+
+    // 10. Plain text foo\bar
+    expect(renderTableHtml(escapeCell('foo\\bar'))).toContain('<td>foo\\bar</td>');
+  });
+
+  it('Normalization specification: explicitly specifies whitespace trimming and newline folding', () => {
+    // Leading and trailing whitespace is trimmed
+    expect(escapeCell('   trimmed content   ')).toBe('trimmed content');
+
+    // Embedded newlines are normalized to single space
+    expect(escapeCell('line 1\nline 2')).toBe('line 1 line 2');
+    expect(escapeCell('line 1\r\nline 2')).toBe('line 1 line 2');
+    expect(escapeCell('line 1\n   line 2')).toBe('line 1    line 2');
+
+    // Null or undefined normalizes to empty string
+    expect(escapeCell(null)).toBe('');
+    expect(escapeCell(undefined)).toBe('');
+  });
+
+  it('Canonical BOM identification across 5-column, 6-column, reordered, and supporting tables', () => {
+    // 5-column legacy BOM table
+    const legacyBom = [
+      '# Bill of Materials',
+      '',
+      '| Refdes | Value | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|',
+      '| R1 | 10k | Resistor_SMD:R_0603_1608Metric | UNVERIFIED | pull-up |',
+    ].join('\n');
+    const legacyRows = parseBomTable(legacyBom);
+    expect(legacyRows).toHaveLength(1);
+    expect(legacyRows[0]?.refdes).toBe('R1');
+    expect(legacyRows[0]?.libId).toBeUndefined();
+
+    // 6-column manifest BOM table with exact Symbol column
+    const manifestBom = [
+      '# Bill of Materials',
+      '',
+      '| Refdes | Value | Symbol | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|---|',
+      '| U1 | ATmega328P | MCU_Microchip:ATmega328P-A | Package_QFP:TQFP-32 | UNVERIFIED ATMEGA328P-AU | Main MCU |',
+      '',
+      '## Substitutions',
+      '',
+      '| Refdes | Wanted | Chosen | Reason |',
+      '|---|---|---|---|',
+      '| U1 | ATmega328 | ATmega328P | Stock availability |',
+      '',
+      '## Quiescent Current Roll-Up',
+      '',
+      '| Block | Current |',
+      '|---|---|',
+      '| MCU | 12 mA |',
+    ].join('\n');
+
+    // Canonical reader extracts ONLY U1, never fake rows from Substitutions or Roll-Up
+    const parsedRows = parseBomTable(manifestBom);
+    expect(parsedRows).toHaveLength(1);
+    expect(parsedRows[0]?.refdes).toBe('U1');
+    expect(parsedRows[0]?.value).toBe('ATmega328P');
+    expect(parsedRows[0]?.symbol).toBe('MCU_Microchip:ATmega328P-A');
+    expect(parsedRows[0]?.footprint).toBe('Package_QFP:TQFP-32');
+
+    // Reordered column BOM table
+    const reorderedBom = [
+      '| Footprint | Value | Refdes | MPN | Symbol | Rationale |',
+      '|---|---|---|---|---|---|',
+      '| Resistor_SMD:R_0603 | 10k | R1 | UNVERIFIED | Device:R | Pull-up |',
+    ].join('\n');
+    const reorderedRows = parseBomTable(reorderedBom);
+    expect(reorderedRows).toHaveLength(1);
+    expect(reorderedRows[0]?.refdes).toBe('R1');
+    expect(reorderedRows[0]?.value).toBe('10k');
+    expect(reorderedRows[0]?.symbol).toBe('Device:R');
+    expect(reorderedRows[0]?.footprint).toBe('Resistor_SMD:R_0603');
   });
 });

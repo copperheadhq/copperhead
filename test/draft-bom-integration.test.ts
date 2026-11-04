@@ -517,6 +517,11 @@ describe('Phase 5 & 6 — draft_bom Capability & Stage 3/4 Integration', () => {
       const contentAfterFailA = await readFile(manifestPath, 'utf8');
       expect(contentAfterFailA).toBe(initialManifest);
 
+      // Verify deferred markTouched: successful rollback leaves NO false touched or drift obligations
+      expect(ctx.filesTouched.has(path.join('docs', 'parts.intent.json'))).toBe(false);
+      expect(ctx.filesTouched.has(path.join('docs', 'BOM.md'))).toBe(false);
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'drift')).toBe(false);
+
       // Case B: Newly created manifest must be deleted if BOM replacement fails
       await rm(manifestPath, { force: true });
       expect(existsSync(manifestPath)).toBe(false);
@@ -526,6 +531,140 @@ describe('Phase 5 & 6 — draft_bom Capability & Stage 3/4 Integration', () => {
 
       // Verify newly created manifest was removed upon failure
       expect(existsSync(manifestPath)).toBe(false);
+      expect(ctx.filesTouched.has(path.join('docs', 'parts.intent.json'))).toBe(false);
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'drift')).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('14. Recovery failure: if both BOM write and rollback fail, reports composite error and marks manifest touched', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const ctx = makeContext(repo, true);
+      const manifestPath = path.join(repo, 'docs', 'parts.intent.json');
+      const initialManifest = JSON.stringify({
+        version: 1,
+        parts: [{ ref: 'R1', value: '10k', package: '0603', group: 'Power' }],
+      }, null, 2);
+      await writeFile(manifestPath, initialManifest, 'utf8');
+
+      // Inject deterministic write hooks:
+      // First call writes new manifest (succeeds)
+      // Second call writes BOM.md (fails)
+      // Third call attempts manifest rollback (fails)
+      let manifestWriteCount = 0;
+      ctx.writeHooks = {
+        writeFile: async (filePath, content, options) => {
+          const p = String(filePath);
+          if (p.includes('BOM.md')) {
+            throw new Error('disk full on BOM write');
+          }
+          if (p.includes('parts.intent.json')) {
+            manifestWriteCount++;
+            if (manifestWriteCount > 1) {
+              throw new Error('permission denied on manifest rollback');
+            }
+          }
+          return fsPromises.writeFile(filePath, content, options);
+        },
+      };
+
+      const newManifest = JSON.stringify({
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', group: 'Power' },
+          { ref: 'C1', value: '100nF', package: '0402', group: 'MCU' },
+        ],
+      }, null, 2);
+
+      const res = await dispatchToolResult(ctx, 'draft_bom', { manifest_json: newManifest });
+      expect(res.ok).toBe(false);
+
+      // Must report BOTH original error and critical recovery error
+      const errText = res.summary || res.text || '';
+      expect(errText).toContain('disk full on BOM write');
+      expect(errText).toContain('CRITICAL RECOVERY FAILURE: failed to restore');
+      expect(errText).toContain('permission denied on manifest rollback');
+      expect(errText).toContain('Repository state is potentially inconsistent');
+
+      // Since rollback failed, manifest is in an inconsistent state: markTouched must be called
+      expect(ctx.filesTouched.has(path.join('docs', 'parts.intent.json'))).toBe(true);
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'drift')).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('15. Pre-read failure: if existing manifest cannot be read, draft_bom aborts before modifying disk', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const ctx = makeContext(repo, true);
+      const manifestPath = path.join(repo, 'docs', 'parts.intent.json');
+      const bomPath = path.join(repo, 'docs', 'BOM.md');
+
+      // Create manifest as a directory to cause readFile to throw EISDIR/EPERM
+      await rm(manifestPath, { force: true, recursive: true });
+      await mkdir(manifestPath, { recursive: true });
+
+      const bomBefore = await readFile(bomPath, 'utf8');
+
+      const res = await dispatchToolResult(ctx, 'draft_bom', {});
+      expect(res.ok).toBe(false);
+      expect(res.text || res.summary).toContain('unable to read existing');
+
+      // BOM remains untouched
+      const bomAfter = await readFile(bomPath, 'utf8');
+      expect(bomAfter).toBe(bomBefore);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('16. Newly created manifest removal failure on rollback reports removal error', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const ctx = makeContext(repo, true);
+      const manifestPath = path.join(repo, 'docs', 'parts.intent.json');
+
+      // Ensure manifest does not exist initially
+      await rm(manifestPath, { force: true });
+      expect(existsSync(manifestPath)).toBe(false);
+
+      // Inject failure on BOM write and failure on rm of newly created manifest
+      ctx.writeHooks = {
+        writeFile: async (filePath, content, options) => {
+          const p = String(filePath);
+          if (p.includes('BOM.md')) {
+            throw new Error('injected BOM write failure');
+          }
+          return fsPromises.writeFile(filePath, content, options);
+        },
+        rm: async () => {
+          throw new Error('EACCES: permission denied deleting manifest');
+        },
+      };
+
+      const newManifest = JSON.stringify({
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', group: 'Power' },
+          { ref: 'C1', value: '100nF', package: '0402', group: 'MCU' },
+        ],
+      });
+
+      const res = await dispatchToolResult(ctx, 'draft_bom', { manifest_json: newManifest });
+      expect(res.ok).toBe(false);
+
+      const errText = res.summary || res.text || '';
+      expect(errText).toContain('injected BOM write failure');
+      expect(errText).toContain('CRITICAL RECOVERY FAILURE: failed to remove newly created');
+      expect(errText).toContain('permission denied deleting manifest');
+      expect(errText).toContain('Repository state is potentially inconsistent');
+
+      // Manifest remains on disk and must be marked touched
+      expect(ctx.filesTouched.has(path.join('docs', 'parts.intent.json'))).toBe(true);
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'drift')).toBe(true);
     } finally {
       await cleanup();
     }

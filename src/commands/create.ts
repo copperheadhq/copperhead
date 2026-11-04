@@ -334,7 +334,8 @@ export const STAGES: Stage[] = [
       'Every part must name a SUBSYSTEMS.md heading as its "group". ' +
       'For off-board parts (batteries, cables, enclosures), set "offBoard": true with an explanatory "rationale"; do not specify a PCB package or footprint. ' +
       'Every newly introduced MPN is UNVERIFIED; do not assert "verified": true. ' +
-      'Call draft_bom to validate and render BOM.md. If validation reports findings, fix parts.intent.json and call draft_bom again.',
+      'Call draft_bom to validate and render BOM.md. If validation reports findings, fix parts.intent.json and call draft_bom again; ' +
+      'when a required component is genuinely unresolvable under the constraints (e.g. no installed footprint fits, or a constraint is mutually exclusive), finish with outcome "refuse" and one or more blockers ({"kind": "constraint-conflict", "constraint": <the registry key>, "required": <what it demands>, "found": <the best candidate and why it fails>}), so the pipeline stops for a human decision instead of retrying the same wall.',
   },
   {
     name: 'schematic',

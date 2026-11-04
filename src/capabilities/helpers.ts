@@ -44,6 +44,7 @@ export interface SafeWriteHooks {
   rename?: typeof rename;
   lstat?: typeof lstat;
   realpath?: typeof realpath;
+  rm?: typeof rm;
 }
 
 /**

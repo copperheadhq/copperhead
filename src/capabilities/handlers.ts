@@ -659,7 +659,14 @@ export const HANDLERS: HandlerDef[] = [
         if (!existsSync(manifestAbs)) {
           return `no ${manifestRel} found; pass manifest_json to draft_bom or author ${manifestRel} first`;
         }
-        rawManifest = await readFile(manifestAbs, 'utf8');
+        try {
+          rawManifest = await readFile(manifestAbs, 'utf8');
+        } catch (readErr) {
+          return {
+            ok: false,
+            text: `draft_bom failed: unable to read existing ${manifestRel}: ${(readErr as Error).message}`,
+          };
+        }
       }
 
       const subsystemsPath = path.join(ctx.repoRoot, docsDir, 'SUBSYSTEMS.md');
@@ -684,30 +691,56 @@ export const HANDLERS: HandlerDef[] = [
       let prevManifestContent: string | null = null;
       const manifestExisted = existsSync(manifestAbs);
       if (manifestExisted) {
-        prevManifestContent = await readFile(manifestAbs, 'utf8');
+        try {
+          prevManifestContent = await readFile(manifestAbs, 'utf8');
+        } catch (readErr) {
+          return {
+            ok: false,
+            text: `draft_bom failed: unable to read existing ${manifestRel}: ${(readErr as Error).message}`,
+          };
+        }
       }
 
-      if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
-        await safeWriteAtomic(ctx.repoRoot, manifestRel, args.manifest_json);
-        markTouched(ctx, manifestRel);
+      const isWritingManifest = typeof args.manifest_json === 'string' && args.manifest_json.trim();
+      if (isWritingManifest) {
+        await safeWriteAtomic(ctx.repoRoot, manifestRel, args.manifest_json as string, ctx.writeHooks);
+        // Note: markTouched is deferred until BOM replacement succeeds.
       }
 
       const bomRel = path.join(docsDir, 'BOM.md');
       const rendered = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
       try {
-        await safeWriteAtomic(ctx.repoRoot, bomRel, rendered);
-        markTouched(ctx, bomRel);
+        await safeWriteAtomic(ctx.repoRoot, bomRel, rendered, ctx.writeHooks);
       } catch (bomErr) {
         // Rollback manifest update if BOM replacement fails to avoid inconsistent repository state
-        if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
-          if (manifestExisted && prevManifestContent !== null) {
-            await safeWriteAtomic(ctx.repoRoot, manifestRel, prevManifestContent).catch(() => {});
-          } else {
-            await rm(manifestAbs, { force: true }).catch(() => {});
+        if (isWritingManifest) {
+          try {
+            if (manifestExisted && prevManifestContent !== null) {
+              await safeWriteAtomic(ctx.repoRoot, manifestRel, prevManifestContent, ctx.writeHooks);
+            } else {
+              const doRm = ctx.writeHooks?.rm ?? rm;
+              await doRm(manifestAbs, { force: true });
+            }
+          } catch (rollbackErr) {
+            // BOTH failed: repository state is potentially inconsistent!
+            // Mark manifest touched so ledger and safety gates recognize the repository was modified
+            markTouched(ctx, manifestRel);
+            const action = manifestExisted ? `restore ${manifestRel} to prior content` : `remove newly created ${manifestRel}`;
+            throw new Error(
+              `draft_bom failed: unable to write ${bomRel}: ${(bomErr as Error).message}. ` +
+              `CRITICAL RECOVERY FAILURE: failed to ${action}: ${(rollbackErr as Error).message}. ` +
+              `Repository state is potentially inconsistent.`
+            );
           }
         }
         throw bomErr;
       }
+
+      // Both writes succeeded! Mark both files touched and register obligations in ledger.
+      if (isWritingManifest) {
+        markTouched(ctx, manifestRel);
+      }
+      markTouched(ctx, bomRel);
 
       const warningText =
         valRes.warnings.length > 0

@@ -2,6 +2,7 @@ import type { CopperheadConfig } from '../config.js';
 import type { CheckReport } from '../kicad/report.js';
 import type { ObligationsLedger } from './ledger.js';
 import type { Transcript } from './transcript.js';
+import type { SafeWriteHooks } from '../capabilities/helpers.js';
 
 /**
  * A structured reason a run could not finish (AC-18.1). `constraint` names a key
@@ -63,5 +64,7 @@ export interface RunContext {
    * last edit"), so the repair budget compares against these instead (#331).
    */
   priorChecks?: { erc?: CheckReport; drc?: CheckReport };
+  /** Optional file operation hooks for testing atomic recovery. */
+  writeHooks?: SafeWriteHooks;
   finishRequest: FinishRequest | null;
 }
