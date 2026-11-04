@@ -37,6 +37,7 @@ function generateManifest(count: number) {
         package: '0603',
         group,
         rationale: `Pull-up resistor ${i}`,
+        ...(i === 2 ? { mpn: '10k 1%' } : {}),
       });
     } else {
       parts.push({

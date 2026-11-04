@@ -110,6 +110,9 @@ export async function validatePartsManifest(
       add('"substitutions" must be an array of substitution objects', undefined, 'substitutions');
     } else {
       const partRefs = new Set(expandedParts.map((p) => p.ref));
+      const partsByRef = new Map(expandedParts.map((p) => [p.ref, p]));
+      const seenSubRefs = new Set<string>();
+
       for (let sIdx = 0; sIdx < manifest.substitutions.length; sIdx++) {
         const sub = manifest.substitutions[sIdx] as unknown as Record<string, unknown>;
         if (!sub || typeof sub !== 'object' || Array.isArray(sub)) {
@@ -131,7 +134,35 @@ export async function validatePartsManifest(
         }
         if (!partRefs.has(sRef)) {
           add(`substitution names ref "${sRef}", which is not present in parts list`, sRef, 'substitutions');
+          continue;
         }
+        if (seenSubRefs.has(sRef)) {
+          add(
+            `duplicate substitution for refdes "${sRef}"; each refdes may have at most one substitution record`,
+            sRef,
+            'substitutions',
+          );
+          continue;
+        }
+        seenSubRefs.add(sRef);
+
+        const targetPart = partsByRef.get(sRef);
+        if (targetPart) {
+          if (!targetPart.mpn) {
+            add(
+              `${sRef}: substitution specifies chosen MPN "${chosen}", but canonical part has no "mpn" declared; set canonical part "mpn" to "${chosen}" to represent the selected procurement identity`,
+              sRef,
+              'mpn',
+            );
+          } else if (targetPart.mpn !== chosen) {
+            add(
+              `${sRef}: canonical part mpn "${targetPart.mpn}" conflicts with substitution chosen MPN "${chosen}"`,
+              sRef,
+              'mpn',
+            );
+          }
+        }
+
         substitutions.push({ ref: sRef, wanted, chosen, reason });
       }
     }

@@ -306,4 +306,68 @@ describe('export command end-to-end (supplier-bom-export)', () => {
     expect(resUnv.warnings.some((w) => w.includes('INCLUDED but UNVERIFIED') && w.includes('C1'))).toBe(true);
     expect(resUnv.warnings.some((w) => w.includes('U2'))).toBe(false);
   });
+
+  it('exports canonical row of a valid substitution with clean MPN and explicit unverified handling (Task 1 & 2)', () => {
+    // BOM where R1 has an unverified chosen substitute MPN rendered by draft_bom
+    const bomWithSubstitute = [
+      '# Bill of Materials',
+      '',
+      '| Refdes | Value | Symbol | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|---|',
+      '| R1 | 10k | Device:R | Resistor_SMD:R_0603_1608Metric | UNVERIFIED RC0603FR-0710KL | Substituted |',
+      '',
+      '## Substitutions',
+      '',
+      '| Refdes | Wanted | Chosen | Reason |',
+      '|---|---|---|---|',
+      '| R1 | CRCW060310K0FKEA | RC0603FR-0710KL | Distributor stock availability |',
+      '',
+    ].join('\n');
+
+    const rows = parseBom(bomWithSubstitute);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      refdes: 'R1',
+      mpn: 'RC0603FR-0710KL',
+      unverified: true,
+      hasMpn: true,
+    });
+
+    // Default export (includeUnverified: false) excludes it with UNVERIFIED reason
+    const defaultExport = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(defaultExport.included).toHaveLength(0);
+    expect(defaultExport.excluded).toHaveLength(1);
+    expect(defaultExport.excluded[0].reason).toBe('UNVERIFIED');
+
+    // With --include-unverified: exported with clean usable MPN and warning
+    const unverifiedExport = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: true });
+    expect(unverifiedExport.included).toHaveLength(1);
+    expect(unverifiedExport.csv).toContain('RC0603FR-0710KL');
+    expect(unverifiedExport.csv).not.toContain('UNVERIFIED RC0603FR-0710KL');
+    expect(unverifiedExport.warnings.some((w) => w.includes('INCLUDED but UNVERIFIED'))).toBe(true);
+  });
+
+  it('preserves clean usable MPN for unverified rows across DigiKey and Mouser (Task 2)', () => {
+    const bom = [
+      '| Refdes | Value | Symbol | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|---|',
+      '| U1 | MCU8 | CopperMCU:MCU8 | Package_SO:SOIC-8_3.9x4.9mm_P1.27mm | UNVERIFIED ATTINY85-20SU | host MCU |',
+    ].join('\n');
+
+    const rows = parseBom(bom);
+    expect(rows[0].mpn).toBe('ATTINY85-20SU');
+    expect(rows[0].unverified).toBe(true);
+
+    const dk = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: true });
+    expect(dk.csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+      'ATTINY85-20SU,,2,U1\n'
+    );
+
+    const mouser = buildExport(rows, 'mouser', { boards: 1, spares: 10, includeUnverified: true });
+    expect(mouser.csv).toBe(
+      'Mfr. Part Number,Manufacturer,Quantity,Customer Reference\n' +
+      'ATTINY85-20SU,,2,U1\n'
+    );
+  });
 });

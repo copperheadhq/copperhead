@@ -136,7 +136,7 @@ describe('Phase 5 & 6 — draft_bom Capability & Stage 3/4 Integration', () => {
       const manifest = {
         version: 1,
         parts: [
-          { ref: 'R1', value: '10k', package: '0603', group: 'Power' },
+          { ref: 'R1', value: '10k', package: '0603', group: 'Power', mpn: '10k 1%' },
           { ref: 'C1', value: '100nF', package: '0402', group: 'MCU' },
           { ref: 'BT1', value: '500mAh Li-Po', offBoard: true, rationale: 'Bare leads to header', group: 'Power' },
         ],
@@ -157,7 +157,7 @@ describe('Phase 5 & 6 — draft_bom Capability & Stage 3/4 Integration', () => {
       // Check BOM.md rendered
       const bomFile = await readFile(path.join(repo, 'docs', 'BOM.md'), 'utf8');
       expect(bomFile).toContain('| BT1 | 500mAh Li-Po | (off-board) | (off-board) | - | (off-board) Bare leads to header |');
-      expect(bomFile).toContain('| R1 | 10k | Device:R | Resistor_SMD:R_0603_1608Metric | - | - |');
+      expect(bomFile).toContain('| R1 | 10k | Device:R | Resistor_SMD:R_0603_1608Metric | UNVERIFIED 10k 1% | - |');
       expect(bomFile).toContain('## Substitutions');
       expect(bomFile).toContain('| R1 | 10k 0.1% | 10k 1% | Stock availability |');
     } finally {

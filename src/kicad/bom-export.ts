@@ -104,16 +104,19 @@ export function parseBom(md: string): BomRow[] {
     for (const row of tableRows) {
       const refdes = at(row, "refdes");
       if (!refdes) continue; // blank line / stray row
-      const mpn = at(row, "mpn");
+      const rawMpn = at(row, "mpn");
+      const unverified = row.cells.some((c) => UNVERIFIED_RE.test(c));
+      const cleanMpn = rawMpn.replace(/^UNVERIFIED[:\s]\s*/i, '').trim();
+      const hasMpn = !isMpnPlaceholder(cleanMpn);
       rows.push({
         refdes,
         value: at(row, "value"),
         footprint: at(row, "footprint"),
-        mpn,
+        mpn: cleanMpn,
         manufacturer: at(row, "manufacturer"),
         lcsc: at(row, "lcsc"),
-        unverified: row.cells.some((c) => UNVERIFIED_RE.test(c)),
-        hasMpn: !isMpnPlaceholder(mpn),
+        unverified,
+        hasMpn,
       });
     }
   }

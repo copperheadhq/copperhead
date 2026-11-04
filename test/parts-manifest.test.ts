@@ -235,17 +235,116 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
       version: 1,
       parts: [
         { ref: 'U1', value: 'IR2104', libId: 'Driver_Motor:IR2104', footprint: 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm', mpn: 'IR2104' },
+        { ref: 'U2', value: 'IR2104', libId: 'Driver_Motor:IR2104', footprint: 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm', mpn: 'IR2104' },
       ],
       substitutions: [
         { ref: 'U1', wanted: 'DRV8701', chosen: 'IR2104', reason: 'No installed KiCad symbol for DRV8701' },
         { ref: 'U99', wanted: 'X', chosen: 'Y', reason: 'Part does not exist' }, // non-existent part
-        { ref: 'U1', wanted: 'DRV8701', chosen: 'IR2104', reason: '' }, // empty reason
+        { ref: 'U2', wanted: 'DRV8701', chosen: 'IR2104', reason: '' }, // empty reason
       ],
     };
     const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
     expect(res.ok).toBe(false);
     expect(res.findings.some((f) => f.detail.includes('substitution names ref "U99", which is not present'))).toBe(true);
     expect(res.findings.some((f) => f.detail.includes('requires non-empty "ref", "wanted", "chosen", and "reason"'))).toBe(true);
+  });
+
+  describe('Substitution Contract Enforcement (Task 1)', () => {
+    it('passes for a valid selected substitution where part.mpn matches chosen', async () => {
+      const manifest = {
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', mpn: 'RC0603FR-0710KL' },
+        ],
+        substitutions: [
+          { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'Distributor stock availability' },
+        ],
+      };
+      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      expect(res.ok).toBe(true);
+      expect(res.substitutions).toHaveLength(1);
+      expect(res.substitutions[0].chosen).toBe('RC0603FR-0710KL');
+      expect(res.expandedParts[0].mpn).toBe('RC0603FR-0710KL');
+    });
+
+    it('rejects substitution with chosen MPN when canonical part has no MPN', async () => {
+      const manifest = {
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603' }, // no mpn
+        ],
+        substitutions: [
+          { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'Stock shortage' },
+        ],
+      };
+      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      expect(res.ok).toBe(false);
+      expect(res.findings.some((f) =>
+        f.detail.includes('substitution specifies chosen MPN "RC0603FR-0710KL", but canonical part has no "mpn" declared')
+      )).toBe(true);
+    });
+
+    it('rejects substitution when chosen MPN conflicts with canonical part MPN', async () => {
+      const manifest = {
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', mpn: 'CRCW060310K0FKEA' },
+        ],
+        substitutions: [
+          { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'Cheaper' },
+        ],
+      };
+      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      expect(res.ok).toBe(false);
+      expect(res.findings.some((f) =>
+        f.detail.includes('canonical part mpn "CRCW060310K0FKEA" conflicts with substitution chosen MPN "RC0603FR-0710KL"')
+      )).toBe(true);
+    });
+
+    it('preserves unverified provenance for chosen substitute', async () => {
+      const manifest = {
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', mpn: 'RC0603FR-0710KL' },
+        ],
+        substitutions: [
+          { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'Stock shortage' },
+        ],
+      };
+      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      expect(res.ok).toBe(true);
+      expect(res.expandedParts[0].verified).toBe(false);
+    });
+
+    it('passes cleanly when manifest contains no substitutions (legacy/direct selection)', async () => {
+      const manifest = {
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', mpn: 'RC0603FR-0710KL' },
+        ],
+      };
+      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      expect(res.ok).toBe(true);
+      expect(res.substitutions).toHaveLength(0);
+    });
+
+    it('rejects multiple substitutions for one refdes', async () => {
+      const manifest = {
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', mpn: 'RC0603FR-0710KL' },
+        ],
+        substitutions: [
+          { ref: 'R1', wanted: 'W1', chosen: 'RC0603FR-0710KL', reason: 'First choice' },
+          { ref: 'R1', wanted: 'W2', chosen: 'RC0603FR-0710KL', reason: 'Second choice' },
+        ],
+      };
+      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      expect(res.ok).toBe(false);
+      expect(res.findings.some((f) =>
+        f.detail.includes('duplicate substitution for refdes "R1"; each refdes may have at most one substitution record')
+      )).toBe(true);
+    });
   });
 
   it('natural refdes sorting behaves consistently', () => {
