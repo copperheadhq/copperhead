@@ -375,4 +375,18 @@ describe('config.json baseURL reaches a real do run (offline, no injected provid
       await cleanup();
     }
   });
+
+  it('resolves compat settings when invoking providerForSkillRun (fixes #301)', async () => {
+    const { dir, cleanup } = await repoWithConfig({
+      baseURL: 'https://api.groq.com/openai/v1',
+      apiKeyEnv: 'GROQ_API_KEY',
+    });
+    try {
+      const { providerForSkillRun } = await import('../src/commands/skill.js');
+      const { provider } = await providerForSkillRun(dir, 'compat:llama-3-70b');
+      expect(provider).toBeInstanceOf(OpenAIProvider);
+    } finally {
+      await cleanup();
+    }
+  });
 });
