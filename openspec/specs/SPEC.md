@@ -161,7 +161,7 @@ Firmware scope: scaffold + pin definitions + driver stubs + one working happy-pa
 
 **Run-to-completion guarantee:** once `create` starts, it always finishes with the complete output package. Gates are *quality checks the agent must satisfy*, not stops that wait for a human. By default the pipeline is fully autonomous: unstated decisions get `ASSUMED` flags, imperfect layout gets the `Draft quality` label, and the run ends with gerbers, firmware (or, on a board with nothing programmable, a `firmware/README.md` saying why there is none), renders, and DEVPLAN.md on disk — an end product, reviewable as a whole. `--interactive` turns the two human gates (spec approval, pre-export review) back on for users who want them.
 
-**The one stop:** a footprint that is not installed on the machine stops the run for the user (#314). No model turn can install a library, and a substitute package is surrogate geometry on a board that claims to match its schematic. `create` checks every BOM.md footprint before the schematic stage and again when it populates the board, exits non-zero naming each missing part and how to install it, and resumes where it stopped once the library is added. copperhead never downloads parts.
+**The two stops:** a footprint that is not installed on the machine stops the run for the user (#314): no model turn can install a library, and a substitute package is surrogate geometry on a board that claims to match its schematic. `create` checks every BOM.md footprint before the schematic stage and again when it populates the board, exits non-zero naming each missing part and how to install it, and resumes where it stopped once the library is added. copperhead never downloads parts. A verified constraint conflict stops the run for a decision (AC-18): when a stage refuses with a `blockers` entry naming a key the constraint registry holds, no retry and no supervisor call follow. `create` prints a decision block naming the constraint, its required value, the failing candidate, the attempt and the document the constraint was recorded from, with the two ways forward (revise the constraint and its source, or name a compliant part in the brief or SUBSYSTEMS.md), appends it to the attempt's `summary.md`, exits non-zero with the completed stages still committed, and resumes at that stage on the next run. A claim naming an unregistered key is prose, never a stop.
 
 ```
 brief.md
@@ -251,8 +251,8 @@ copperhead [repl] ["<change request>"] [--model …] [--allow-dirty]
     refusal and the same off-by-default `--allow-dirty` escape hatch),
     then returns to the prompt.
     Slash commands: /help, /demo, /examples, /status, /check, /parts, /nets,
-    /bom, /sync, /drift, /constraints, /openspec, /config, /git, /runs, /last,
-    /model, /version, /clear, /quit. Inspect commands are verify-only (no LLM
+    /explain, /bom, /sync, /drift, /constraints, /openspec, /config, /git, /runs,
+    /last, /model, /version, /clear, /quit. Inspect commands are verify-only (no LLM
     resolve / create). An optional first request runs before the loop. Non-TTY
     without a request refuses and points at `copperhead do`. With no model
     configured anywhere, a TTY session offers an interactive picker (also
@@ -342,8 +342,14 @@ copperhead review [design] --out <dir> [--source …] [--fab …] [--fab-profile
     failed; 1 on an error or a replay that differs; 130 or 143 when cancelled
     by SIGINT or SIGTERM.
 
-copperhead explain <refdes|net|pin>       # stretch
-    Answer "why is R7 here?" from docs + schematic context.
+copperhead explain <refdes|net|pin>
+    Deterministic lookup: a refdes (`U1`) lists value, footprint, pins, and
+    connected nets; a net (`GND`) lists attached pins; a pin (`U1.GPIO14` or
+    `R2.1`) names the net; a dotted net like `VDD1.8` still resolves as a
+    net when no such part exists. Also pulls matching rows from BOM.md / PINOUT.md
+    and mentions in docs/. No LLM, no network. `--json` emits the same
+    structured hit. Unknown queries exit 1 with nearby-name suggestions.
+    The REPL exposes the same lookup as `/explain`.
 
 copperhead watch                          # Phase 2
     Start the live viewer (see §6).
@@ -429,6 +435,9 @@ interface Provider {
 - `maxTurns` default 40; `maxRepairCycles` 5; per-run token budget logged
 - On turn-budget exhaustion in an attended (TTY) run: print run stats (turns, files touched, open obligations, token usage) and ask whether to continue with more turns; declining, or a non-TTY run, fails as below. The extension can repeat; each is a fresh decision with fresh numbers.
 - On any unrecoverable failure: preserve the touched work as a git stash entry named `copperhead failed run <run-id>`, restore the snapshot, print the stash ref and transcript path, exit 1
+- On a refusal with touched files: the same `copperhead failed run <run-id>` stash entry is left before the snapshot is restored, and the stash ref is printed beside the transcript path (AC-18.3); a refusal that touched nothing leaves no entry
+- `create` classifies every stage attempt that does not complete its stage as `constraint-conflict`, `turn-budget-exhausted` or `other`, and logs the cause and the action beside the attempt's start line. A verified conflict stops for a decision (above). A spent budget retries with 1.5× the previous attempt's turns, rounded up, never above 3× the stage's starting budget (its `stageMaxTurns` entry, else `maxTurns`); the supervisor is still consulted for guidance and its `abort` still stops the stage. Other causes keep the budget and go to the supervisor as before. Docs-only stages (spec-seed, architecture, part-selection) retry from the previous attempt's preserved stash entry, applied before the retry's own snapshot; a stash that does not apply cleanly is kept and reported, and the retry starts from the pre-stage tree. KiCad-touching stages keep the plain rollback. Restored files count as touched by the retry, so its drift (and ERC) obligations cover them; a docs-only stage that stops after a retry restored a draft puts the tree back to its pre-stage state, and the draft stays in the last attempt's stash entry
+- The create cost table's `Replayed` column counts turns served from copperhead's own response cache, never provider cache hits (total line: `N% turns replayed`); the `claude-code` provider counts cache-read and cache-creation tokens in reported input, as the Anthropic provider does
 - Rate-limit (429): exponential backoff ×3, then fail over to the other **keyed** provider (`openai` ↔ `anthropic`) if a key exists; saved-login providers (`codex`, `claude-code`, `cursor`) never fail over to a keyed or alternate provider
 - Provider turn watchdog: a turn that goes `turnTimeoutMs` without a response or streamed progress is treated as hung, aborted, and retried up to 3 times before failing as above. A streaming provider's progress restarts that deadline, so a long turn that keeps producing output is not killed; a provider that reports no progress gets `turnTimeoutMs` as a whole-turn deadline. `turnMaxMs` caps a turn that is producing output, however much it streams, and is never shorter than `turnTimeoutMs`: a turn that reaches it is too large rather than hung, so it fails as above without a retry. A turn that has reported no progress is judged by `turnTimeoutMs` alone.
 - Nested skill provider turns use the same bounded timeout (inactivity deadline and hard cap) and 429 backoff policy. A provider error inside a skill becomes a failed tool envelope, so it cannot escape the parent loop and bypass its failure/rollback path.
@@ -507,6 +516,15 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.3** With a BOM.md value edited to disagree with the schematic (e.g. wrong resistor value): drift check fails and names the doc, the claim, and the actual value.
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
+
+### AC-17 · `copperhead explain`
+
+- **AC-17.1** `explain U1` on the open-key fixture prints the part value and the GPIO14 pin on KEY_DAH; exit 0; no LLM and no network.
+- **AC-17.2** `explain KEY_DAH` lists the attached pins (U1.GPIO14 and R2.1 among them).
+- **AC-17.3** `explain U1.GPIO14` and `explain R2.1` both name net KEY_DAH.
+- **AC-17.4** `--json explain GND` is parseable with `ok: true` and `hit.kind === "net"`.
+- **AC-17.5** An unknown query exits 1 and suggests nearby names when they exist.
+- **AC-17.6** A dotted net such as `VDD1.8` resolves as a net when no part `VDD1` exists, and a pin name repeated on one part fails with "use REF.PIN" instead of "nothing named".
 
 ### AC-3 · `copperhead do` — core loop
 
@@ -703,6 +721,24 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-17.3 (soft probe degradation)** Missing, unparseable, erroring, or timed-out (5000 ms deadline) tool probes degrade to `null` for that tool (e.g. `kicadCli: null`); probe failures never fail the command or leak host paths / subprocess diagnostics.
 - **AC-17.4 (offline and repo-independent)** `capabilities --json` requires no git repository, no KiCad project, no model API credentials, and makes zero network calls. It leaves filesystem state completely unmodified.
 - **AC-17.5 (consumer protocol compatibility)** A consumer expecting major 1 accepts `copperhead-run/1` and refuses unknown majors (e.g. `copperhead-run/2`); unknown JSON fields are ignored for forward compatibility.
+
+### AC-18 · Stage recovery (change: harden-stage-recovery)
+
+- **AC-18.1** `finish` with outcome `refuse` and a blocker `{kind: "constraint-conflict", constraint, required, found}` whose key is registered ends the run refused with that blocker verified on the result; the summary's refusal section names the key, the required value and the failing candidate.
+- **AC-18.2** A blocker naming an unregistered key yields no verified blocker; the summary records it as an unverified claim and the caller treats the refusal as one without blockers.
+- **AC-18.3** A run that writes `docs/BOM.md` and then refuses restores the tree byte-identical, leaves a `copperhead failed run <run-id>` stash entry holding the file, and prints the stash ref; a clean refusal leaves no entry (AC-15.17).
+- **AC-18.4** The `claude-code` provider reports `input_tokens: 2`, `cache_read_input_tokens: 41000`, `cache_creation_input_tokens: 1500` as 42502 input tokens.
+- **AC-18.5** A result reporting only `input_tokens: 900` is counted as 900.
+- **AC-18.6** Every stage attempt that does not complete its stage logs a start line (`running (attempt n/m)`), a line naming its cause and a line naming the action taken, in that order, and records cause and action in its `summary.md`.
+- **AC-18.7** A first part-selection attempt refusing with a verified blocker starts no second attempt and makes no diagnosis call; the terminal shows the decision block naming the key, the required value, the failing candidate, attempt 1 and the document the constraint was recorded from; `create` exits non-zero with spec-seed and architecture still committed.
+- **AC-18.8** A refusal citing an unregistered key is cause `other`: the supervisor is consulted and its verdict decides the retry.
+- **AC-18.9** With a starting budget of 40 and `maxStageRetries` 3, successive exhaustions run attempts 2, 3 and 4 at 60, 90 and 120 turns.
+- **AC-18.10** An attempt that ends as `provider-error` and is retried keeps the previous attempt's budget.
+- **AC-18.11** A part-selection retry after an exhausted first attempt starts with the first attempt's `docs/BOM.md` on the tree, and the recovery guidance names it as restored.
+- **AC-18.12** A schematic-stage retry starts from the pre-stage tree, with the failed work only in the stash entry.
+- **AC-18.13** The cost table's column header is `Replayed` and a run that made every model call live ends with `0% turns replayed`.
+- **AC-18.14** A part-selection retry runs with every file inherited from earlier attempts counted as touched, whether this apply changed its bytes or a previous one did, so `finish` with outcome `done` is refused until `check_drift` has run clean on it; a restored constraint registry reopens the revisit obligations of each constraint it holds beyond HEAD.
+- **AC-18.15** A part-selection stage that stops after a retry restored the first attempt's draft leaves the tree at its pre-stage state with the draft in the last attempt's stash entry, and a re-run of `create` runs the stage again instead of committing the draft as already complete.
 
 ### AC-5 · Viewer (Phase 2 — only if built)
 

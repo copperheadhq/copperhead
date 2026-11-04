@@ -6,15 +6,17 @@ export function renderToolProtocol(tools: ToolSchema[]): string {
     '# Tool protocol',
     '',
     'You are the reasoning half of a tool-driven workflow; you cannot run anything yourself.',
-    'To take an action, reply with EXACTLY ONE JSON object and nothing else, wrapped in a',
+    'To take an action, reply with one or more JSON objects, one per tool call, each in its own',
     '```json fenced code block:',
     '',
     '```json',
     '{"tool": "<tool_name>", "args": { ... }}',
     '```',
     '',
-    'Use only the tools listed below, with `args` matching the tool\'s JSON Schema. If you have',
-    'no tool to call and only want to say something, reply with plain prose and no JSON block.',
+    'Every call in one reply runs in that same turn, in the order written, and the results come',
+    'back in that order, each labelled "call k of N" when the reply held more than one. Use only',
+    'the tools listed below, with `args` matching the tool\'s JSON Schema. If you have no tool to',
+    'call and only want to say something, reply with plain prose and no JSON block.',
     '',
     '## Available tools',
   ];
@@ -29,26 +31,61 @@ export function renderToolProtocol(tools: ToolSchema[]): string {
   return lines.join('\n');
 }
 
+/**
+ * "k of N" for a call that shared its reply with others, empty for a lone call. The
+ * text protocol has no tool-call ids the model can see (it never wrote `cc-3`; the harness
+ * assigned it), so a batched reply's results are told apart by their position in the reply
+ * (#192). A lone call keeps the bare label, so the marker shape that predates batching is
+ * unchanged for it.
+ */
+function ordinal(k: number, n: number): string {
+  return n > 1 ? `${k} of ${n}` : '';
+}
+
+type CallIndex = Map<string, { name: string; ordinal: string }>;
+
+/**
+ * Record one reply's calls by id: the tool name and the call's place in the reply.
+ * The index is filled as the history is walked, never from the whole history at
+ * once: ids repeat across a run when cached turns are replayed under their stored
+ * `cc-N` ids and a restarted provider then hands the same ids out live, and a
+ * later call must not relabel the results that came before it.
+ */
+function indexCalls(index: CallIndex, m: Extract<Msg, { role: 'assistant' }>): void {
+  const calls = m.toolCalls ?? [];
+  calls.forEach((call, i) => index.set(call.id, { name: call.name, ordinal: ordinal(i + 1, calls.length) }));
+}
+
+function resultLabel(index: CallIndex, id: string): string {
+  const call = index.get(id);
+  if (!call) return `[result of ${id}]`;
+  return call.ordinal ? `[result of ${call.name}, call ${call.ordinal}]` : `[result of ${call.name}]`;
+}
+
 /** Delta prompt for a resumed CLI session: new user lines and tool results only. */
 export function renderDelta(messages: Msg[], from: number): string {
-  const idToName = new Map<string, string>();
-  for (const m of messages) {
-    if (m.role === 'assistant') for (const call of m.toolCalls ?? []) idToName.set(call.id, call.name);
-  }
+  const index: CallIndex = new Map();
   const parts: string[] = [];
-  for (const m of messages.slice(Math.max(0, from))) {
+  const start = Math.max(0, from);
+  messages.forEach((m, i) => {
+    // Every reply feeds the index, sent or not, so a result after `from` is
+    // labelled by the call that preceded it, not by a later one with the same id.
+    if (m.role === 'assistant') {
+      indexCalls(index, m);
+      return;
+    }
+    if (i < start) return;
     if (m.role === 'user') {
       parts.push(`[user]\n${m.content}`);
     } else if (m.role === 'tool') {
-      const name = idToName.get(m.toolCallId) ?? m.toolCallId;
-      parts.push(`[result of ${name}]\n${m.content}`);
+      parts.push(`${resultLabel(index, m.toolCallId)}\n${m.content}`);
     }
-  }
+  });
   return parts.join('\n\n');
 }
 
 export function renderConversation(messages: Msg[]): string {
-  const idToName = new Map<string, string>();
+  const index: CallIndex = new Map();
   const parts: string[] = [];
   for (const m of messages) {
     if (m.role === 'system') continue;
@@ -56,15 +93,16 @@ export function renderConversation(messages: Msg[]): string {
       parts.push(`[user]\n${m.content}`);
     } else if (m.role === 'assistant') {
       if (m.content) parts.push(`[assistant]\n${m.content}`);
-      for (const call of m.toolCalls ?? []) {
-        idToName.set(call.id, call.name);
+      indexCalls(index, m);
+      const calls = m.toolCalls ?? [];
+      calls.forEach((call, i) => {
+        const o = ordinal(i + 1, calls.length);
         parts.push(
-          `[assistant tool call]\n\`\`\`json\n${JSON.stringify({ tool: call.name, args: call.args })}\n\`\`\``,
+          `[assistant tool call${o ? ` ${o}` : ''}]\n\`\`\`json\n${JSON.stringify({ tool: call.name, args: call.args })}\n\`\`\``,
         );
-      }
+      });
     } else {
-      const name = idToName.get(m.toolCallId) ?? m.toolCallId;
-      parts.push(`[result of ${name}]\n${m.content}`);
+      parts.push(`${resultLabel(index, m.toolCallId)}\n${m.content}`);
     }
   }
   return parts.join('\n\n');
@@ -86,10 +124,10 @@ export interface ParsedToolTurn {
  * own tool call in that form is inventing the result (#320, register I15), so the reply is
  * cut at the first one.
  */
-const HARNESS_MARKER = /^[ \t]*\[(?:result of [A-Za-z0-9_.:-]+|user)\][ \t]*\r?$/m;
+const HARNESS_MARKER = /^[ \t]*\[(?:result of [A-Za-z0-9_.:-]+(?:, call \d+ of \d+)?|user)\][ \t]*\r?$/m;
 const HARNESS_MARKER_ALL = new RegExp(HARNESS_MARKER.source, 'gm');
 /** History markers that are harmless to write but must not be replayed as the model's prose. */
-const ECHOED_MARKER_LINES = /^[ \t]*\[(?:assistant|assistant tool call)\][ \t]*\r?$\n?/gm;
+const ECHOED_MARKER_LINES = /^[ \t]*\[(?:assistant|assistant tool call(?: \d+ of \d+)?)\][ \t]*\r?$\n?/gm;
 
 /**
  * Detect a malformed-but-intended tool call in a turn that dispatched none
@@ -115,7 +153,7 @@ function detectMalformedCall(text: string, catalog: Set<string>): string | undef
       return (
         `A tool call for "${name}" looks malformed — it named the tool but did not parse as ` +
         'valid JSON (likely unbalanced braces or a missing closing brace), so no call ran. ' +
-        'Re-emit it as exactly one complete JSON object: {"tool": "...", "args": { ... }}.'
+        'Re-emit it as one complete JSON object: {"tool": "...", "args": { ... }}.'
       );
     }
     if (!offCatalog.includes(name)) offCatalog.push(name);
@@ -146,7 +184,7 @@ function detectMalformedCall(text: string, catalog: Set<string>): string | undef
   if (invoke && catalog.has(invoke[1]!)) {
     return (
       `No call ran: the call to "${invoke[1]}" was written as an <invoke> block, which this ` +
-      'protocol does not read. Write every call as one JSON object in a ```json block: ' +
+      'protocol does not read. Write each call as its own JSON object in a ```json block: ' +
       `{"tool": "${invoke[1]}", "args": { ... }}.`
     );
   }

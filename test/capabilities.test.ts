@@ -1377,7 +1377,7 @@ describe('real CLI process execution (published build and source entry point)', 
     const expectedSorted = [...observedCommands].sort();
 
     // Verify observed command set is complete and truthful
-    expect(observedCommands.length).toBe(15);
+    expect(observedCommands.length).toBe(16);
     expect(observedCommands).toEqual(
       expect.arrayContaining([
         'capabilities',
@@ -1387,6 +1387,7 @@ describe('real CLI process execution (published build and source entry point)', 
         'do',
         'doctor',
         'draft',
+        'explain',
         'export',
         'init',
         'mcp',
@@ -1407,7 +1408,7 @@ describe('real CLI process execution (published build and source entry point)', 
     expect(capRes.exitCode).toBe(0);
 
     const parsed = JSON.parse(capRes.stdout) as CapabilityReport;
-    expect(parsed.commands.length).toBe(15);
+    expect(parsed.commands.length).toBe(16);
     expect(parsed.commands).toEqual(expectedSorted);
   });
 
