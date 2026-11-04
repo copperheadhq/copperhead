@@ -260,8 +260,20 @@ export interface TableRow {
    * footprint at all, so it is reported as unassigned rather than looked up.
    */
   export function bomFootprintId(cell: string | undefined): string {
+    if (isOffBoardCell(cell)) return '';
     const s = normalizeFootprint((cell ?? '').replace(/`/g, ''));
     return /^(-|—|–|n\/?a|tbd|none)?$/i.test(s) ? '' : s;
+  }
+
+  /**
+   * The Footprint cell the manifest renderer writes for a BOM line with no
+   * place on the board (a battery with leads, a cable): every reader treats
+   * it as "not a footprint" — never a miss, never drift, never a board part.
+   */
+  export const OFF_BOARD_MARKER = '(off-board)';
+
+  export function isOffBoardCell(cell: string | undefined): boolean {
+    return (cell ?? '').replace(/[`*\s]/g, '').toLowerCase() === OFF_BOARD_MARKER.replace(/\s/g, '');
   }
 
   /**
@@ -270,8 +282,8 @@ export interface TableRow {
    * fallback: a supporting table (pin assignments, a current budget, costs)
    * has no footprint, and its third cell is not one. First row per refdes wins.
    */
-  export function bomFootprintRows(md: string): { refdes: string; footprint: string }[] {
-    const out = new Map<string, string>();
+  export function bomFootprintRows(md: string): { refdes: string; footprint: string; offBoard?: true }[] {
+    const out = new Map<string, { footprint: string; offBoard?: true }>();
     for (const { header, rows } of parseCanonicalTables(md)) {
       const refI = header.cells.findIndex((c) => /^refdes$/i.test(c));
       const fpI = header.cells.findIndex((c) => /^footprint$/i.test(c));
@@ -279,10 +291,11 @@ export interface TableRow {
       for (const row of rows) {
         const refdes = row.cells[refI]?.replace(/[`*]/g, '').trim();
         if (!refdes || out.has(refdes)) continue;
-        out.set(refdes, bomFootprintId(row.cells[fpI]));
+        const cell = row.cells[fpI];
+        out.set(refdes, { footprint: bomFootprintId(cell), ...(isOffBoardCell(cell) ? { offBoard: true as const } : {}) });
       }
     }
-    return [...out].map(([refdes, footprint]) => ({ refdes, footprint }));
+    return [...out].map(([refdes, r]) => ({ refdes, ...r }));
   }
 
   /**
@@ -321,6 +334,8 @@ export interface TableRow {
     footprint?: string;
     mpn?: string;
     flags: string[];
+    /** The Footprint cell is the off-board marker: a BOM line with no board part. */
+    offBoard?: true;
   }
   
   /**
@@ -353,7 +368,9 @@ export interface TableRow {
         const footprint = row.cells[fpI];
         const mpn = row.cells[mpnI];
         const flags: string[] = [];
-        if (mpn === 'UNVERIFIED') flags.push('UNVERIFIED');
+        // the flag word anywhere in the cell: the bare placeholder, the
+        // renderer's `MPN (UNVERIFIED)`, or a hand-written `UNVERIFIED MPN`
+        if (mpn && /\bUNVERIFIED\b/i.test(mpn)) flags.push('UNVERIFIED');
         else if (!mpn) flags.push('MISSING_MPN');
         out.push({
           refdes,
@@ -361,6 +378,7 @@ export interface TableRow {
           footprint: footprint || undefined,
           mpn: mpn || undefined,
           flags,
+          ...(isOffBoardCell(footprint) ? { offBoard: true as const } : {}),
         });
       }
     }

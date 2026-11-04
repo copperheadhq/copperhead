@@ -16,6 +16,7 @@ import {
 } from '../kicad/populate.js';
 import { formatViolations } from '../kicad/report.js';
 import { bomFootprintRows } from '../memory/bom-table.js';
+import { checkPartsManifest, partsStageComplete, partsStageGap, partsManifestPath } from '../kicad/parts/stage.js';
 import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
@@ -35,6 +36,8 @@ import { copper, dim, ok, stageLine, warn } from '../agent/theme.js';
 import { openspecInit } from '../openspec/cli.js';
 import { sweepStaleTempDirs, pruneHistoryDir } from '../util/tmp.js';
 import { bomSymbolDossier } from '../kicad/dossier.js';
+import { readManifest } from '../kicad/parts/resolve.js';
+import { libraryCache } from '../kicad/cache.js';
 import { symbolSearchDirs } from '../kicad/symlib.js';
 import { draftQualitySection, isDraftQualityHeading, isFilledDraftQuality } from '../kicad/fab.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
@@ -244,28 +247,24 @@ export const STAGES: Stage[] = [
   {
     name: 'part-selection',
     isComplete: async (root, docs) => {
-      // init scaffolds BOM.md with a table pre-filled with UNVERIFIED MPNs
-      // extracted from the schematic. Require at least one row whose MPN
-      // column is NOT the UNVERIFIED placeholder — i.e. a real part was chosen.
+      // The stage's artifact is the parts manifest (structured-part-selection,
+      // design D2): complete when it validates clean against this machine's
+      // libraries and BOM.md is its render. Without a manifest (a run resumed
+      // from before the manifest existed, a hand-written BOM.md) the footprint
+      // check alone decides, except a library the user must install (that
+      // stops the run before the schematic stage, #314). The old "at least one
+      // MPN not flagged UNVERIFIED" proxy is gone: the prompt itself asked for
+      // the flag, so an honest BOM could never pass it.
+      const config = await loadConfig(root);
+      const check = await checkPartsManifest(root, { docs, schematic: config.schematic, board: config.board });
+      if (check) return partsStageComplete(check);
       const p = path.join(root, docs, 'BOM.md');
       if (!existsSync(p)) return false;
-      const text = await readFile(p, 'utf8');
-      // Find table rows (lines starting with |) that are not the header or separator
-      const rows = text.split('\n').filter(
-        (l) => l.startsWith('|') && !l.includes('---') && !l.toLowerCase().includes('refdes'),
-      );
-      if (!rows.length) return false;
-      // At least one row must have a non-UNVERIFIED MPN (4th column)
-      return rows.some((row) => {
-        const cols = row.split('|').map((c) => c.trim());
-        const mpn = cols[4] ?? ''; // 0=empty, 1=Refdes, 2=Value, 3=Footprint, 4=MPN
-        return mpn && !mpn.toUpperCase().startsWith('UNVERIFIED');
-      }) && !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
-      // ^ every footprint resolves, except a library the user must install
-      // (that stops the run before the schematic stage, #314)
+      if (!bomFootprintRows(await readFile(p, 'utf8')).length) return false;
+      return !(await bomFootprintMisses(root, docs))?.missing.some(modelFixable);
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing. If a recorded constraint (a budget in the system prompt or a key in the constraint registry) cannot be met by any installable part, do not narrate it and do not finish "done": call finish with outcome "refuse" and one blockers entry per constraint ({"kind": "constraint-conflict", "constraint": <the registry key>, "required": <what it demands>, "found": <the best candidate and why it fails>}), so the pipeline stops for a human decision instead of retrying the same wall.',
+      'Stage 3: part selection. Choose every part of the design, one SUBSYSTEMS.md subsystem at a time, within the budgets in SPEC.md and the constraint registry (check leakage and quiescent current against the power budget). Record the choices in docs/parts.intent.json, the parts manifest, and call draft_bom: it validates the manifest against the KiCad libraries installed on THIS machine and renders docs/BOM.md from it. Never write BOM.md yourself; it is that render. The draft_bom tool description carries the manifest schema and every rule it checks, and each finding names the refdes and the fix, so repair the manifest and call draft_bom again until it reports clean. Every MPN you introduce needs a datasheet-verifiable justification in its "rationale"; leave "verified" false unless you have confirmed it (the render flags it UNVERIFIED). Choose parts whose symbol and footprint are installed here: search_symbols and symbol_pins are available when a finding sends you looking, and a part the libraries cannot capture is replaced by one they can, recorded in the manifest\'s "substitutions" with the reason, with SUBSYSTEMS.md updated to match. A BOM line with no place on the board (a battery with leads, a cable) is "offBoard": true. For a large design, write the manifest one subsystem at a time with edit_file and call draft_bom between chunks; it lists the headings with no parts yet. When draft_bom is clean, run check_drift and finish. If a recorded constraint (a budget in the system prompt or a key in the constraint registry) cannot be met by any installable part, do not narrate it and do not finish "done": call finish with outcome "refuse" and one blockers entry per constraint ({"kind": "constraint-conflict", "constraint": <the registry key>, "required": <what it demands>, "found": <the best candidate and why it fails>}), so the pipeline stops for a human decision instead of retrying the same wall.',
   },
   {
     name: 'schematic',
@@ -323,7 +322,7 @@ export const STAGES: Stage[] = [
       return true;
     },
     prompt: () =>
-      'Stage 4: schematic. An empty KiCad project has already been scaffolded and wired into .copperhead/config.json. You author INTENT, never geometry: write the netlist-intent IR and call draft_schematic — the deterministic engine computes every coordinate, wire, label, power symbol, and group box, and the sheet it draws satisfies the drafting standard by construction (captioned group boxes per SUBSYSTEMS.md subsystem, left-to-right flow, rails up and grounds down, net labels between groups, filled title block). The IR (schematic.intent.json) is JSON: {"version": 1, "parts": [{"ref", "libId", "value", "footprint", "group"}], "nets": [{"name", "pins": ["REF.PIN", …], "kind"?}], "noConnect": ["REF.PIN", …], "hints"?: {"groupOrder"?, "paper"?, "date"?}}. Build it from BOM.md (same refdes and values — validation cross-checks and refuses mismatches) and SUBSYSTEMS.md (every non-power part names one subsystem heading as its group). Use exact canonical KiCad lib_ids (e.g. Device:R) and REAL pin numbers from the library: the pin dossier below (when present) already lists every BOM part\'s installed symbol and its real pins — work from it and from symbol_pins rather than reading .kicad_sym files, and validation lists a part\'s actual pins when you name one that does not exist. Name nets as a reader expects: a bus or interface shares a prefix (I2S_BCLK, I2S_DIN, I2S_LRCLK; SPI_…; BTN_…) so the drawing colours the family together, differential pairs end in +/- or P/N, and part values carry their unit (F, H, R). Declare every deliberately unused pin in noConnect; power rails are recognized from pin types automatically (override with "kind" only when the inference is wrong — the draft report lists every net\'s resolved class). Pass the full IR as intent_json to draft_schematic; the report embeds the legibility findings and the score for the fresh sheet. To repair ANY finding (ERC, legibility, validation), fix the IR and call draft_schematic again — edit_file is refused on the drafted sheet. Text-collision findings scale with TEXT LENGTH: a net label, part value, or SUBSYSTEMS heading that is shorter draws a smaller box, so renaming a colliding net (and updating PINOUT.md) or tightening a long heading is a real repair lever; paper size and declaration order are not (placement is grid-derived). When the draft is clean run run_erc and check_drift, update PINOUT.md to match the IR\'s pin assignments, and finish.',
+      'Stage 4: schematic. An empty KiCad project has already been scaffolded and wired into .copperhead/config.json. You author INTENT, never geometry: write the netlist-intent IR and call draft_schematic — the deterministic engine computes every coordinate, wire, label, power symbol, and group box, and the sheet it draws satisfies the drafting standard by construction (captioned group boxes per SUBSYSTEMS.md subsystem, left-to-right flow, rails up and grounds down, net labels between groups, filled title block). The IR (schematic.intent.json) is JSON: {"version": 1, "parts": [{"ref", "libId", "value", "footprint", "group"}], "nets": [{"name", "pins": ["REF.PIN", …], "kind"?}], "noConnect": ["REF.PIN", …], "hints"?: {"groupOrder"?, "paper"?, "date"?}}. The parts are already decided in docs/parts.intent.json (stage 3 wrote it): list each on-board part by "ref" alone, or with the manifest\'s exact libId, value, footprint and group — validation fills what you omit from the manifest and refuses a disagreement — and leave off-board entries out; your work is the nets and noConnect. (Without a manifest, build the parts from BOM.md — same refdes and values, validation cross-checks and refuses mismatches — and SUBSYSTEMS.md, every non-power part naming one subsystem heading as its group.) Use exact canonical KiCad lib_ids (e.g. Device:R) and REAL pin numbers from the library: the pin dossier below (when present) already lists every BOM part\'s installed symbol and its real pins — work from it and from symbol_pins rather than reading .kicad_sym files, and validation lists a part\'s actual pins when you name one that does not exist. Name nets as a reader expects: a bus or interface shares a prefix (I2S_BCLK, I2S_DIN, I2S_LRCLK; SPI_…; BTN_…) so the drawing colours the family together, differential pairs end in +/- or P/N, and part values carry their unit (F, H, R). Declare every deliberately unused pin in noConnect; power rails are recognized from pin types automatically (override with "kind" only when the inference is wrong — the draft report lists every net\'s resolved class). Pass the full IR as intent_json to draft_schematic; the report embeds the legibility findings and the score for the fresh sheet. To repair ANY finding (ERC, legibility, validation), fix the IR and call draft_schematic again — edit_file is refused on the drafted sheet. Text-collision findings scale with TEXT LENGTH: a net label, part value, or SUBSYSTEMS heading that is shorter draws a smaller box, so renaming a colliding net (and updating PINOUT.md) or tightening a long heading is a real repair lever; paper size and declaration order are not (placement is grid-derived). When the draft is clean run run_erc and check_drift, update PINOUT.md to match the IR\'s pin assignments, and finish.',
   },
   {
     name: 'layout-draft',
@@ -467,7 +466,7 @@ async function bomFootprintMisses(
 ): Promise<{ missing: MissingFootprint[]; searched: string[] } | null> {
   const bomPath = path.join(root, docs, 'BOM.md');
   if (!existsSync(bomPath)) return null;
-  const rows = bomFootprintRows(await readFile(bomPath, 'utf8'));
+  const rows = bomFootprintRows(await readFile(bomPath, 'utf8')).filter((r) => !r.offBoard);
   if (!rows.length) return null;
   const config = await loadConfig(root);
   const anchor = config.board ?? config.schematic;
@@ -589,14 +588,24 @@ async function layoutDraftGap(root: string, docs: string, opts: { drcFailed?: bo
 export async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
   if (stageName === 'part-selection') {
-    const r = await bomFootprintMisses(root, config.docs);
-    const fixable = r?.missing.filter(modelFixable) ?? [];
-    if (fixable.length) {
-      return (
-        `the part-selection contract is not met: ${fixable.length} BOM.md footprint(s) do not resolve to an installed footprint — ` +
-        fixable.map((m) => `${m.ref} ${m.footprint || '(none)'}${m.near.length ? ` (installed: ${m.near.slice(0, 3).join(', ')})` : ''}`).join('; ') +
-        '; call check_footprints on every Footprint cell and use exact installed ids'
-      );
+    const check = await checkPartsManifest(root, config);
+    const gap = partsStageGap(check);
+    if (gap) return `the part-selection contract is not met: ${gap}`;
+    if (!check) {
+      const bomPath = path.join(root, config.docs, 'BOM.md');
+      const rows = existsSync(bomPath) ? bomFootprintRows(await readFile(bomPath, 'utf8')) : [];
+      if (!rows.length) {
+        return `the part-selection contract is not met: no ${partsManifestPath(config.docs)} and no BOM.md table — write the parts manifest and call draft_bom`;
+      }
+      const r = await bomFootprintMisses(root, config.docs);
+      const fixable = r?.missing.filter(modelFixable) ?? [];
+      if (fixable.length) {
+        return (
+          `the part-selection contract is not met: ${fixable.length} BOM.md footprint(s) do not resolve to an installed footprint — ` +
+          fixable.map((m) => `${m.ref} ${m.footprint || '(none)'}${m.near.length ? ` (installed: ${m.near.slice(0, 3).join(', ')})` : ''}`).join('; ') +
+          '; write the parts manifest and call draft_bom, which checks every footprint and names the installed ids'
+        );
+      }
     }
   }
   if (stageName === 'firmware' && (await noFirmwareReadme(root))) {
@@ -1058,6 +1067,9 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
   const minFreeMb = Number(process.env.COPPERHEAD_MIN_FREE_MB);
   const minFree = Number.isFinite(minFreeMb) && minFreeMb >= 0 ? minFreeMb * 1024 * 1024 : DEFAULT_MIN_FREE_BYTES;
   await assertDiskSpace(opts.repoRoot, minFree);
+  // Library lookups (symbol pins, footprint pads) persist under the gitignored
+  // .copperhead/cache/ across stages and across a failed attempt's rollback.
+  libraryCache.attach(opts.repoRoot);
   // Reclaim scratch dirs leaked by earlier runs whose cleanup was skipped (a
   // watchdog SIGKILL or hard abort bypasses the per-call `finally`). Age-gated,
   // so a concurrent run's fresh dirs are never touched; best-effort, so it never
@@ -1242,7 +1254,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
               // Bounded: a slow or wedged library scan must delay the stage by a
               // fixed cost at most — on timeout the stage simply runs dossier-less.
               const dossier = await withTimeout(
-                async () => bomSymbolDossier(await readFile(bomPath, 'utf8'), await symbolSearchDirs()),
+                async () => bomSymbolDossier(await readFile(bomPath, 'utf8'), await symbolSearchDirs(), { manifest: (await readManifest(path.join(opts.repoRoot, config.docs))) ?? undefined }),
                 60_000,
               );
               if (dossier) {
@@ -1278,6 +1290,20 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
                 stageGate: async () => {
                   const gap = await layoutDraftGap(opts.repoRoot, config.docs);
                   return gap && `the layout-draft contract is not met: ${gap}`;
+                },
+              }
+            : {}),
+          // part-selection: the manifest validator at finish (structured-part-
+          // selection, design D2), so a bad id is heard in-run, not after a
+          // rollback. A fresh stage run must produce the manifest; the
+          // manifest-less path exists only to resume older runs past isComplete.
+          ...(stage.name === 'part-selection'
+            ? {
+                stageGate: async () => {
+                  const check = await checkPartsManifest(opts.repoRoot, config);
+                  if (!check) return `the part-selection contract is not met: no ${partsManifestPath(config.docs)} — write the parts manifest and call draft_bom (BOM.md is rendered from it, never hand-written)`;
+                  const gap = partsStageGap(check);
+                  return gap && `the part-selection contract is not met: ${gap}`;
                 },
               }
             : {}),

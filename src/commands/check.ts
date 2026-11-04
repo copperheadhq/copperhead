@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { libraryCache } from '../kicad/cache.js';
 import { existsSync } from 'node:fs';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
@@ -39,6 +40,7 @@ export interface CheckResult {
 
 export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
+  libraryCache.attach(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
 

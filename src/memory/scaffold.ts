@@ -145,6 +145,20 @@ write time. This directory is gitignored. A run that fails or refuses after
 touching files leaves that work in a git stash entry named
 \`copperhead failed run <run-id>\` (the run dir's name); a docs-only \`create\`
 stage retries from it, and \`git stash apply\` recovers it by hand.
+
+## cache/
+
+Library lookups (symbol pin tables, footprint pad sets) keyed by the library
+file's path and modification time, so a retried stage, the schematic stage and
+\`check\` do not re-parse unchanged KiCad libraries. Disposable and gitignored:
+delete it at any time and it is rebuilt.
+
+## docs/parts.intent.json (in the docs directory, not here)
+
+The parts manifest \`create\` writes in part selection: one entry per refdes
+with the verified symbol, footprint and MPN. \`docs/BOM.md\` is rendered from
+it by the \`draft_bom\` tool; edit the manifest, not the table, and \`check\`
+reports a BOM.md that no longer matches its render as drift.
 `;
 }
 

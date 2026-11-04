@@ -9,6 +9,9 @@ import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
 import { scoreSchematic, formatScore } from '../kicad/score.js';
 import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
 import { FootprintResolver } from '../kicad/footprints.js';
+import { checkPartsManifest, partsStageGap, partsManifestPath } from '../kicad/parts/stage.js';
+import { MANIFEST_FILENAME } from '../kicad/parts/manifest.js';
+import { formatManifestFindings } from '../kicad/parts/validate.js';
 import { moveFootprint } from '../kicad/populate.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
@@ -622,6 +625,61 @@ export const HANDLERS: HandlerDef[] = [
       });
       ctx.lastScore = score.composite;
       return [formatSchematicDraftReport(res.report), formatLegibility(leg), formatScore(score)].join('\n');
+    },
+  },
+  {
+    schema: {
+      name: 'draft_bom',
+      description:
+        'Validate the parts manifest (docs/' + MANIFEST_FILENAME + ') against the KiCad libraries installed on THIS machine and, when clean, render docs/BOM.md from it deterministically. Pass manifest_json to write the manifest first, or omit it to check the file as it is. BOM.md is never hand-written while a manifest exists: it is this render, and a hand edit is drift. ' +
+        'Manifest: {"version": 1, "parts": [entry, …], "substitutions"?: [{"ref", "wanted", "chosen", "reason"}]}. Entry: {"ref": "U1", "value": "STM32F103C8T6", "group": "<a SUBSYSTEMS.md heading>", "libId": "MCU_ST_STM32F1:STM32F103C8Tx", "footprint": "Package_QFP:LQFP-48_7x7mm_P0.5mm", "mpn": "STM32F103C8T6", "rationale": "why this part", "verified": false}. ' +
+        'A passive (R, C, L, D, LED, F, FB, Y, SW, TP refdes) gives "package" ("0603", "SOD-123", "3mm") instead of libId and footprint and the engine fills both from the stock library; explicit ids still win. A BOM line with no place on the board (a battery with leads, a cable) sets "offBoard": true and needs no libId or footprint. ' +
+        'Rules checked, each reported with its refdes and fix: one entry per refdes (no "C5-C8"); "value" is the component value (prose goes in "rationale"); every entry names a SUBSYSTEMS.md heading; every active part has libId, footprint and mpn; the libId resolves to an installed symbol (nearest installed lib_ids on a miss); the footprint resolves exactly as the board will (closest installed ids on a miss); the symbol pins are pads of the footprint; a substitution names an entry that carries the chosen part. ' +
+        'The MPN is rendered "(UNVERIFIED)" until "verified": true — do not write the flag yourself. A footprint whose library is not installed anywhere is reported for the user to install and does not block you. Headings with no part yet are noted, so a large manifest can be written one subsystem at a time and checked between edits.',
+      parameters: {
+        type: 'object',
+        properties: {
+          manifest_json: { type: 'string', description: 'full manifest as JSON text (optional: omit to validate and render the current file)' },
+        },
+        required: [],
+      },
+    },
+    requiresUnlock: true,
+    handler: async (ctx, args) => {
+      const manifestRel = partsManifestPath(ctx.config.docs);
+      if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
+        const corrupt = corruptionError({ manifest_json: args.manifest_json });
+        if (corrupt) return corrupt;
+        try {
+          JSON.parse(args.manifest_json);
+        } catch (e) {
+          return `manifest_json is not valid JSON (${(e as Error).message}); nothing written`;
+        }
+        const abs = resolveInRepo(ctx.repoRoot, manifestRel);
+        await mkdir(path.dirname(abs), { recursive: true });
+        await writeFile(abs, args.manifest_json.endsWith('\n') ? args.manifest_json : `${args.manifest_json}\n`, 'utf8');
+        ctx.filesTouched.add(manifestRel);
+      }
+      const check = await checkPartsManifest(ctx.repoRoot, ctx.config);
+      if (!check) return `no ${manifestRel} yet: pass manifest_json to write one`;
+      if (!check.manifest || !check.validation!.ok) {
+        return { ok: false, text: `${partsStageGap(check)}\nBOM.md not written; fix the manifest and call draft_bom again.` };
+      }
+      const bomRel = path.join(ctx.config.docs, 'BOM.md');
+      if (!check.bomMatches) {
+        await writeFile(resolveInRepo(ctx.repoRoot, bomRel), check.rendered!, 'utf8');
+        markTouched(ctx, bomRel);
+      }
+      const v = check.validation!;
+      const onBoard = v.parts.filter((p) => !p.offBoard).length;
+      const lines = [
+        `draft_bom: clean — ${v.parts.length} part(s) (${onBoard} on the board, ${v.parts.length - onBoard} off-board)${check.bomMatches ? `; ${bomRel} already matches` : ` rendered to ${bomRel}`}`,
+      ];
+      const notes = formatManifestFindings({ findings: [], omitted: 0, stops: v.stops, warnings: v.warnings });
+      if (notes) lines.push(notes);
+      if (v.stops.length) lines.push('The stop above is for the user: the run halts before the schematic stage until that library is installed. Finish the stage with the manifest as it is unless another installed part fits.');
+      lines.push('Run check_drift, then finish.');
+      return lines.join('\n');
     },
   },
   {
