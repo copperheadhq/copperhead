@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdtemp, cp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dispatchToolResult, type RunContext } from '../src/agent/tools.js';
@@ -12,7 +13,7 @@ import { bomSymbolDossier } from '../src/kicad/dossier.js';
 import { validateIntent, type SchematicIntent } from '../src/kicad/draft/ir.js';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { checkDrift } from '../src/memory/drift.js';
-import { safeWriteAtomic } from '../src/capabilities/helpers.js';
+import { safeWriteAtomic, markTouched } from '../src/capabilities/helpers.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DRAFT_FIXTURE = path.join(HERE, 'fixtures', 'draft');
@@ -404,6 +405,15 @@ describe('Phase 5 & 6 — draft_bom Capability & Stage 3/4 Integration', () => {
       // Verify drift obligation was opened in ledger
       const openObligations = ctx.ledger.openObligations;
       expect(openObligations.some((o) => o.kind === 'drift')).toBe(true);
+
+      // Verify unrelated .json does not open a drift obligation
+      const freshCtx = makeContext(repo, true);
+      expect(freshCtx.ledger.openObligations.some((o) => o.kind === 'drift')).toBe(false);
+      markTouched(freshCtx, 'package.json');
+      markTouched(freshCtx, '.copperhead/config.json');
+      expect(freshCtx.ledger.openObligations.some((o) => o.kind === 'drift')).toBe(false);
+      markTouched(freshCtx, 'docs/parts.intent.json');
+      expect(freshCtx.ledger.openObligations.some((o) => o.kind === 'drift')).toBe(true);
     } finally {
       await cleanup();
     }
@@ -469,6 +479,53 @@ describe('Phase 5 & 6 — draft_bom Capability & Stage 3/4 Integration', () => {
       const dossier = await bomSymbolDossier(bomContent, [SYMLIB]);
       expect(dossier).toContain('U1');
       expect(dossier).toContain('CopperAmp:OpAmp');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('13. Atomic rollback: draft_bom rolls back parts.intent.json if BOM.md write fails', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      const ctx = makeContext(repo, true);
+      const manifestPath = path.join(repo, 'docs', 'parts.intent.json');
+      const bomPath = path.join(repo, 'docs', 'BOM.md');
+
+      // Case A: Pre-existing manifest must be restored if BOM replacement fails
+      const initialManifest = JSON.stringify({
+        version: 1,
+        parts: [{ ref: 'R1', value: '10k', package: '0603', group: 'Power' }],
+      }, null, 2);
+      await writeFile(manifestPath, initialManifest, 'utf8');
+
+      // Replace docs/BOM.md with a directory to force atomic rename to fail
+      await rm(bomPath, { force: true, recursive: true });
+      await mkdir(bomPath, { recursive: true });
+
+      const newManifest = JSON.stringify({
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', group: 'Power' },
+          { ref: 'C1', value: '100nF', package: '0402', group: 'MCU' },
+        ],
+      }, null, 2);
+
+      const resFailA = await dispatchToolResult(ctx, 'draft_bom', { manifest_json: newManifest });
+      expect(resFailA.ok).toBe(false);
+
+      // Verify manifest content was rolled back to initialManifest
+      const contentAfterFailA = await readFile(manifestPath, 'utf8');
+      expect(contentAfterFailA).toBe(initialManifest);
+
+      // Case B: Newly created manifest must be deleted if BOM replacement fails
+      await rm(manifestPath, { force: true });
+      expect(existsSync(manifestPath)).toBe(false);
+
+      const resFailB = await dispatchToolResult(ctx, 'draft_bom', { manifest_json: newManifest });
+      expect(resFailB.ok).toBe(false);
+
+      // Verify newly created manifest was removed upon failure
+      expect(existsSync(manifestPath)).toBe(false);
     } finally {
       await cleanup();
     }

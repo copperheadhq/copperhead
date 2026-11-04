@@ -11,46 +11,16 @@ export interface TableRow {
 
   /**
    * Escape a cell value for inclusion in a GFM pipe table.
+   * In GitHub Flavored Markdown (GFM), table splitting precedes inline parsing;
+   * unescaped pipes even inside backticks delimit columns. Therefore:
    * - Replaces newlines with spaces.
-   * - Preserves matched backtick code spans verbatim (where pipes are naturally protected).
-   * - Escapes backslashes (\\ -> \\\\) outside code spans.
-   * - Escapes pipe characters (| -> \\|) outside code spans.
+   * - Escapes backslashes (\\ -> \\\\).
+   * - Escapes pipe characters (| -> \\|).
    * - Trims whitespace.
    */
   export function escapeCell(text: string | undefined | null): string {
     if (text === undefined || text === null) return '';
-    const normalized = text.replace(/\r?\n/g, ' ').trim();
-    if (!normalized) return '';
-
-    let result = '';
-    for (let i = 0; i < normalized.length; i++) {
-      const ch = normalized[i];
-
-      // Check if this starts a matched backtick code span
-      if (ch === '`') {
-        let k = i;
-        while (k < normalized.length && normalized[k] === '`') k++;
-        const runLen = k - i;
-        const delimiter = normalized.slice(i, k);
-        const closeIdx = normalized.indexOf(delimiter, k);
-        if (closeIdx !== -1) {
-          const spanEnd = closeIdx + runLen;
-          result += normalized.slice(i, spanEnd);
-          i = spanEnd - 1;
-          continue;
-        }
-      }
-
-      if (ch === '\\') {
-        result += '\\\\';
-      } else if (ch === '|') {
-        result += '\\|';
-      } else {
-        result += ch;
-      }
-    }
-
-    return result;
+    return text.replace(/\r?\n/g, ' ').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').trim();
   }
 
   /**
@@ -83,9 +53,9 @@ export interface TableRow {
    * table exactly like `| Refdes | Pin | Net |` does, and a hand- or LLM-authored
    * doc may legitimately be written either way.
    *
-   * Honors escaped pipes (`\|`), escaped backslashes (`\\`), inline backtick code
-   * spans (where pipes do not delimit columns), and unescapes cells while preserving
-   * literal user backslashes.
+   * In GFM, table cell splitting operates on unescaped pipe delimiters (`|`).
+   * Escaped pipes (`\|`) do not delimit columns and unescape to literal `|`.
+   * Escaped backslashes (`\\`) unescape to `\` and do not escape subsequent characters.
    */
   export function splitRow(line: string): string[] {
     const trimmed = line.replace(/\r$/, '').trim();
@@ -114,47 +84,20 @@ export interface TableRow {
     const inner = trimmed.slice(start, end);
     const cells: string[] = [];
     let current = '';
-    let inCode = 0;
 
     for (let i = 0; i < inner.length; i++) {
       const ch = inner[i];
 
-      // Inside inline code span: backslashes and pipes are literal
-      if (inCode > 0) {
-        if (ch === '`') {
-          let k = i;
-          while (k < inner.length && inner[k] === '`') k++;
-          const count = k - i;
-          if (count === inCode) {
-            inCode = 0;
-          }
-          current += inner.slice(i, k);
-          i = k - 1;
-        } else {
-          current += ch;
-        }
-        continue;
-      }
-
-      // Outside inline code span
-      if (ch === '`') {
-        let k = i;
-        while (k < inner.length && inner[k] === '`') k++;
-        inCode = k - i;
-        current += inner.slice(i, k);
-        i = k - 1;
-      } else if (ch === '\\') {
+      if (ch === '\\') {
         if (i + 1 < inner.length) {
           const next = inner[i + 1];
           if (next === '|' || next === '\\') {
             current += next;
             i++;
-          } else {
-            current += ch;
+            continue;
           }
-        } else {
-          current += ch;
         }
+        current += ch;
       } else if (ch === '|') {
         cells.push(current.trim());
         current = '';

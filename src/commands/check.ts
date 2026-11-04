@@ -142,39 +142,47 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
       errors.push(`failed to read parts.intent.json: ${(err as Error).message}`);
     }
 
-    if (rawManifest) {
-      const subsystemsPath = path.join(repoRoot, config.docs, 'SUBSYSTEMS.md');
-      const subHeadings = existsSync(subsystemsPath) ? await headingsOf(subsystemsPath) : null;
-      const anchor = config.board ?? config.schematic;
-      const footprints = await FootprintResolver.create({
-        projectDir: anchor ? path.dirname(path.join(repoRoot, anchor)) : repoRoot,
-      });
-
-      const valRes = await validatePartsManifest(rawManifest, {
-        subsystemsHeadings: subHeadings,
-        footprints,
-      });
-
-      if (!valRes.ok) {
-        errors.push(...valRes.findings.map((f) => f.detail));
+    if (errors.length === 0) {
+      if (!rawManifest.trim()) {
+        errors.push('parts.intent.json is empty');
       } else {
-        const bomPath = path.join(repoRoot, config.docs, 'BOM.md');
-        if (!existsSync(bomPath)) {
-          errors.push('BOM.md is missing but parts.intent.json exists; run draft_bom');
-          isDrift = true;
-        } else {
-          try {
-            const actualBom = await readFile(bomPath, 'utf8');
-            const expectedBom = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
-            const normActual = actualBom.replace(/\r\n/g, '\n').trim();
-            const normExpected = expectedBom.replace(/\r\n/g, '\n').trim();
-            if (normActual !== normExpected) {
-              errors.push('BOM.md is out of sync with parts.intent.json; run draft_bom to synchronize');
+        try {
+          const subsystemsPath = path.join(repoRoot, config.docs, 'SUBSYSTEMS.md');
+          const subHeadings = existsSync(subsystemsPath) ? await headingsOf(subsystemsPath) : null;
+          const anchor = config.board ?? config.schematic;
+          const footprints = await FootprintResolver.create({
+            projectDir: anchor ? path.dirname(path.join(repoRoot, anchor)) : repoRoot,
+          });
+
+          const valRes = await validatePartsManifest(rawManifest, {
+            subsystemsHeadings: subHeadings,
+            footprints,
+          });
+
+          if (!valRes.ok) {
+            errors.push(...valRes.findings.map((f) => f.detail));
+          } else {
+            const bomPath = path.join(repoRoot, config.docs, 'BOM.md');
+            if (!existsSync(bomPath)) {
+              errors.push('BOM.md is missing but parts.intent.json exists; run draft_bom');
               isDrift = true;
+            } else {
+              try {
+                const actualBom = await readFile(bomPath, 'utf8');
+                const expectedBom = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
+                const normActual = actualBom.replace(/\r\n/g, '\n').trim();
+                const normExpected = expectedBom.replace(/\r\n/g, '\n').trim();
+                if (normActual !== normExpected) {
+                  errors.push('BOM.md is out of sync with parts.intent.json; run draft_bom to synchronize');
+                  isDrift = true;
+                }
+              } catch (err) {
+                errors.push(`failed to read BOM.md: ${(err as Error).message}`);
+              }
             }
-          } catch (err) {
-            errors.push(`failed to read BOM.md: ${(err as Error).message}`);
           }
+        } catch (resolverErr) {
+          errors.push(`manifest resolver failure: ${(resolverErr as Error).message}`);
         }
       }
     }

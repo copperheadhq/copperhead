@@ -54,11 +54,11 @@ The firmware scaffold SHALL compile clean against the vendor toolchain when one 
 - **THEN** the firmware stage stays incomplete until source exists under `firmware/`, and the stage's failure detail names the parts that need it
 
 ### Requirement: Parts manifest and draft_bom engine
-Stage 3 part selection SHALL validate `docs/parts.intent.json` and render `docs/BOM.md` via the deterministic `draft_bom` capability. The manifest SHALL follow schema version 1, expand passive packages deterministically, enforce bidirectional subsystem coverage with SUBSYSTEMS.md, and resolve all symbols and footprints against local libraries before rendering.
+Stage 3 part selection SHALL validate `docs/parts.intent.json` and render `docs/BOM.md` via the deterministic `draft_bom` capability. The manifest SHALL follow schema version 1, expand passive packages deterministically, enforce bidirectional subsystem coverage with SUBSYSTEMS.md, and resolve all symbols and footprints against local libraries before rendering. `docs/BOM.md` SHALL be written atomically. When `manifest_json` is passed, `parts.intent.json` is updated and rolled back if BOM replacement fails.
 
 #### Scenario: Manifest validated and BOM rendered
 - **WHEN** `draft_bom` runs with a valid parts manifest
-- **THEN** `docs/parts.intent.json` and canonical `docs/BOM.md` are written atomically, and the stage is marked complete
+- **THEN** canonical `docs/BOM.md` is replaced atomically, and the stage is marked complete
 
 #### Scenario: Missing library symbol or footprint rejected
 - **WHEN** a manifest references an uninstalled symbol or footprint

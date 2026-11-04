@@ -34,7 +34,7 @@ export function markTouched(ctx: RunContext, rel: string): void {
     ctx.ledger.onKicadEdit(rel);
     if (rel.endsWith('.kicad_sch')) ctx.lastErc = null;
     if (rel.endsWith('.kicad_pcb')) ctx.lastDrc = null;
-  } else if (rel.endsWith('.md') || rel.endsWith('.json')) {
+  } else if (rel.endsWith('.md') || rel.endsWith('parts.intent.json')) {
     ctx.ledger.onDocEdit(rel);
   }
 }

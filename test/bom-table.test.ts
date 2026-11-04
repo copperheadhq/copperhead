@@ -523,12 +523,17 @@ describe('Markdown escape contract & splitRow round-trip (Finding 2)', () => {
     expect(splitRow(fourBsRow)).toEqual(['R1', '10k\\\\', '1%']);
   });
 
-  it('backtick content: pipes inside inline code spans do not split columns', () => {
-    const row = '| R1 | `10k | 1%` | Device:R |';
-    expect(splitRow(row)).toEqual(['R1', '`10k | 1%`', 'Device:R']);
+  it('GFM table rule: unescaped pipes inside backticks delimit columns, while escaped pipes preserve cell content', () => {
+    // Under GFM §4.10, table cell splitting precedes inline parsing; unescaped pipes delimit columns
+    const unescapedRow = '| R1 | `10k | 1%` | Device:R |';
+    expect(splitRow(unescapedRow)).toEqual(['R1', '`10k', '1%`', 'Device:R']);
 
-    // Multi-backtick code span
-    const multiRow = '| R1 | ``10k | ` | 1%`` | Device:R |';
+    // Escaped pipes inside inline code spans do not split columns and unescape to literal pipes
+    const escapedRow = '| R1 | `10k \\| 1%` | Device:R |';
+    expect(splitRow(escapedRow)).toEqual(['R1', '`10k | 1%`', 'Device:R']);
+
+    // Multi-backtick code span with escaped pipes
+    const multiRow = '| R1 | ``10k \\| ` \\| 1%`` | Device:R |';
     expect(splitRow(multiRow)).toEqual(['R1', '``10k | ` | 1%``', 'Device:R']);
   });
 

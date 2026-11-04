@@ -240,4 +240,64 @@ describe('check command manifest verification (Finding 3)', () => {
       await cleanup();
     }
   });
+
+  it('8. Empty 0-byte manifest: check strictly fails (Finding 1)', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      // Write a 0-byte parts.intent.json
+      await writeFile(path.join(repo, 'docs', 'parts.intent.json'), '', 'utf8');
+
+      const res = await runCheck(repo, () => {});
+      expect(res.ok).toBe(false);
+      expect(res.manifest).toBeDefined();
+      expect(res.manifest?.ok).toBe(false);
+      expect(res.manifest?.errors).toContain('parts.intent.json is empty');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('9. Whitespace-only manifest: check strictly fails (Finding 1)', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      // Write whitespace-only parts.intent.json
+      await writeFile(path.join(repo, 'docs', 'parts.intent.json'), '   \n  \t  \n', 'utf8');
+
+      const res = await runCheck(repo, () => {});
+      expect(res.ok).toBe(false);
+      expect(res.manifest).toBeDefined();
+      expect(res.manifest?.ok).toBe(false);
+      expect(res.manifest?.errors).toContain('parts.intent.json is empty');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('10. Malformed JSON manifest: check fails with syntax error (Finding 1)', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      await writeFile(path.join(repo, 'docs', 'parts.intent.json'), '{ "version": 1, "parts": [ truncated ', 'utf8');
+
+      const res = await runCheck(repo, () => {});
+      expect(res.ok).toBe(false);
+      expect(res.manifest?.ok).toBe(false);
+      expect(res.manifest?.errors.some((e) => e.includes('not valid JSON'))).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('11. Unsupported manifest version: check fails (Finding 1)', async () => {
+    const { repo, cleanup } = await makeTestRepo();
+    try {
+      await writeFile(path.join(repo, 'docs', 'parts.intent.json'), JSON.stringify({ version: 99, parts: validParts }), 'utf8');
+
+      const res = await runCheck(repo, () => {});
+      expect(res.ok).toBe(false);
+      expect(res.manifest?.ok).toBe(false);
+      expect(res.manifest?.errors.some((e) => e.includes('unsupported manifest version'))).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
 });

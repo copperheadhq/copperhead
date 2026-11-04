@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
+import { writeFile, mkdir, appendFile, readFile, rm } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
 import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
@@ -681,6 +681,12 @@ export const HANDLERS: HandlerDef[] = [
         };
       }
 
+      let prevManifestContent: string | null = null;
+      const manifestExisted = existsSync(manifestAbs);
+      if (manifestExisted) {
+        prevManifestContent = await readFile(manifestAbs, 'utf8');
+      }
+
       if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
         await safeWriteAtomic(ctx.repoRoot, manifestRel, args.manifest_json);
         markTouched(ctx, manifestRel);
@@ -688,8 +694,20 @@ export const HANDLERS: HandlerDef[] = [
 
       const bomRel = path.join(docsDir, 'BOM.md');
       const rendered = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
-      await safeWriteAtomic(ctx.repoRoot, bomRel, rendered);
-      markTouched(ctx, bomRel);
+      try {
+        await safeWriteAtomic(ctx.repoRoot, bomRel, rendered);
+        markTouched(ctx, bomRel);
+      } catch (bomErr) {
+        // Rollback manifest update if BOM replacement fails to avoid inconsistent repository state
+        if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
+          if (manifestExisted && prevManifestContent !== null) {
+            await safeWriteAtomic(ctx.repoRoot, manifestRel, prevManifestContent).catch(() => {});
+          } else {
+            await rm(manifestAbs, { force: true }).catch(() => {});
+          }
+        }
+        throw bomErr;
+      }
 
       const warningText =
         valRes.warnings.length > 0
