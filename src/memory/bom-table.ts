@@ -42,14 +42,28 @@ export interface TableRow {
         if (closeIdx !== -1) {
           // Inside matched code span:
           // Preserve backslashes literally (do NOT double)
-          // Escape pipes so table row parser does not split columns (| -> \|)
+          // Escape pipes with backslash parity adjustment so table row parser does not split columns.
+          // In GFM, a pipe is escaped when preceded by an odd number of backslashes.
+          // For k backslashes immediately preceding '|', emit 2 * k + 1 backslashes followed by '|'.
           result += delimiter;
-          for (let j = k; j < closeIdx; j++) {
-            const c = normalized[j];
-            if (c === '|') {
+          let j = k;
+          while (j < closeIdx) {
+            if (normalized[j] === '\\') {
+              const bsStart = j;
+              while (j < closeIdx && normalized[j] === '\\') j++;
+              const bsCount = j - bsStart;
+              if (j < closeIdx && normalized[j] === '|') {
+                result += '\\'.repeat(2 * bsCount + 1) + '|';
+                j++;
+              } else {
+                result += '\\'.repeat(bsCount);
+              }
+            } else if (normalized[j] === '|') {
               result += '\\|';
+              j++;
             } else {
-              result += c;
+              result += normalized[j];
+              j++;
             }
           }
           result += delimiter;
@@ -133,16 +147,34 @@ export interface TableRow {
           current += delimiter;
           let j = k;
           while (j < closeIdx) {
-            const c = inner[j];
-            if (c === '\\' && j + 1 < closeIdx && inner[j + 1] === '|') {
-              current += '|';
-              j += 2;
-            } else if (c === '|') {
+            if (inner[j] === '\\') {
+              const bsStart = j;
+              while (j < closeIdx && inner[j] === '\\') j++;
+              const bsCount = j - bsStart;
+              if (j < closeIdx && inner[j] === '|') {
+                if (bsCount % 2 !== 0) {
+                  // Odd backslash count: pipe is escaped
+                  const unescapedBs = (bsCount - 1) / 2;
+                  if (unescapedBs > 0) current += '\\'.repeat(unescapedBs);
+                  current += '|';
+                  j++;
+                } else {
+                  // Even backslash count: pipe is unescaped and splits the cell
+                  if (bsCount > 0) current += '\\'.repeat(bsCount);
+                  cells.push(current.trim());
+                  current = '';
+                  j++;
+                }
+              } else {
+                current += '\\'.repeat(bsCount);
+              }
+            } else if (inner[j] === '|') {
+              // 0 backslashes preceding '|': unescaped pipe splits the cell
               cells.push(current.trim());
               current = '';
               j++;
             } else {
-              current += c;
+              current += inner[j];
               j++;
             }
           }

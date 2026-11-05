@@ -20,6 +20,7 @@ const DRAFT_FIXTURE = path.join(HERE, 'fixtures', 'draft');
 const SYMLIB = path.join(HERE, 'fixtures', 'symlib');
 
 async function makeTestRepo(): Promise<{ repo: string; cleanup: () => Promise<void> }> {
+  process.env.KICAD_SYMBOL_DIR = SYMLIB;
   const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-draftbom-test-'));
   await cp(path.join(DRAFT_FIXTURE, 'docs'), path.join(repo, 'docs'), { recursive: true });
   await mkdir(path.join(repo, '.copperhead'), { recursive: true });

@@ -42,6 +42,8 @@ export interface ValidatorOptions {
   symbolDirs?: string[];
   /** Allow skipping slow library filesystem lookups in unit tests */
   skipLibraryResolution?: boolean;
+  /** Allow skipping subsystem coverage in isolated unit tests */
+  skipSubsystemsCoverage?: boolean;
 }
 
 /**
@@ -75,31 +77,35 @@ export async function validatePartsManifest(
   const expandedParts = expandRes.expanded;
 
   // 3. Subsystem headings coverage
-  if (options.subsystemsHeadings && options.subsystemsHeadings.length > 0) {
-    const knownGroups = new Map(options.subsystemsHeadings.map((h) => [h.toLowerCase(), h]));
-    const assignedGroups = new Set<string>();
+  if (!options.skipSubsystemsCoverage) {
+    if (!options.subsystemsHeadings || options.subsystemsHeadings.length === 0) {
+      add('missing or empty subsystem definitions; manifest parts require valid SUBSYSTEMS.md headings', undefined, 'group');
+    } else {
+      const knownGroups = new Map(options.subsystemsHeadings.map((h) => [h.toLowerCase(), h]));
+      const assignedGroups = new Set<string>();
 
-    for (const p of expandedParts) {
-      if (!p.group) {
-        add(
-          `${p.ref}: missing subsystem "group" assignment; available headings: ${options.subsystemsHeadings.join(', ')}`,
-          p.ref,
-          'group',
-        );
-      } else if (!knownGroups.has(p.group.toLowerCase())) {
-        add(
-          `${p.ref}: group "${p.group}" does not match any SUBSYSTEMS.md heading; available: ${options.subsystemsHeadings.join(', ')}`,
-          p.ref,
-          'group',
-        );
-      } else {
-        assignedGroups.add(p.group.toLowerCase());
+      for (const p of expandedParts) {
+        if (!p.group) {
+          add(
+            `${p.ref}: missing subsystem "group" assignment; available headings: ${options.subsystemsHeadings.join(', ')}`,
+            p.ref,
+            'group',
+          );
+        } else if (!knownGroups.has(p.group.toLowerCase())) {
+          add(
+            `${p.ref}: group "${p.group}" does not match any SUBSYSTEMS.md heading; available: ${options.subsystemsHeadings.join(', ')}`,
+            p.ref,
+            'group',
+          );
+        } else {
+          assignedGroups.add(p.group.toLowerCase());
+        }
       }
-    }
 
-    for (const heading of options.subsystemsHeadings) {
-      if (!assignedGroups.has(heading.toLowerCase())) {
-        add(`subsystem heading "${heading}" has no parts assigned in the manifest`, undefined, 'group');
+      for (const heading of options.subsystemsHeadings) {
+        if (!assignedGroups.has(heading.toLowerCase())) {
+          add(`subsystem heading "${heading}" has no parts assigned in the manifest`, undefined, 'group');
+        }
       }
     }
   }
@@ -182,7 +188,13 @@ export async function validatePartsManifest(
 
       // Symbol resolution
       let symPins: LibPin[] | null = null;
-      if (p.libId && symbolDirs.length > 0) {
+      if (!symbolDirs || symbolDirs.length === 0) {
+        add(
+          `${p.ref}: symbol "${p.libId}" cannot be verified: no symbol library directories available`,
+          p.ref,
+          'libId',
+        );
+      } else if (p.libId) {
         if (symbolPinsCache.has(p.libId)) {
           symPins = symbolPinsCache.get(p.libId)!;
         } else {
@@ -210,7 +222,13 @@ export async function validatePartsManifest(
 
       // Footprint resolution
       let footprintFile: string | null = null;
-      if (p.footprint && footprints) {
+      if (!footprints) {
+        add(
+          `${p.ref}: footprint "${p.footprint}" cannot be verified: no footprint resolver available`,
+          p.ref,
+          'footprint',
+        );
+      } else if (p.footprint) {
         if (footprintFileCache.has(p.footprint)) {
           footprintFile = footprintFileCache.get(p.footprint)!;
         } else {
@@ -252,15 +270,11 @@ export async function validatePartsManifest(
           ...(unpinned.length ? { unpinned } : {}),
         });
 
-        if (missingPads.length || variant) {
+        if (missingPads.length || unpinned.length) {
           add(
             `${mismatch}; symbol pins and footprint pads diverge (${variant ? `try variant ${variant}` : 'verify datasheet footprint'})`,
             p.ref,
             'footprint',
-          );
-        } else if (unpinned.length) {
-          warnings.push(
-            `${mismatch}; pads left unconnected by library design (exposed/thermal pads); verify before fabrication`,
           );
         }
       }

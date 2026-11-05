@@ -665,6 +665,54 @@ describe('GFM structural correctness and displayed semantic fidelity (Phase 3)',
     expect(renderTableHtml(escapeCell('foo\\bar'))).toContain('<td>foo\\bar</td>');
   });
 
+  describe('GFM code-span backslash parity and pipe escaping (Finding 4)', () => {
+    it('code span containing literal backslashes before a pipe round-trips losslessly (Finding 4)', () => {
+      const testCases = [
+        '`foo|bar`', // 0 backslashes before pipe
+        '`foo\\|bar`', // 1 backslash before pipe
+        '`foo\\\\|bar`', // 2 backslashes before pipe
+        '`foo\\\\\\|bar`', // 3 backslashes before pipe
+        '`a\\|b` and `c\\\\|d`', // multiple code spans with varying backslash parity
+        '`path\\to\\dir|file`', // backslashes not immediately before pipe, plus pipe
+      ];
+
+      for (const val of testCases) {
+        const escaped = escapeCell(val);
+        const row = `| ${escaped} |`;
+        const parsed = splitRow(row);
+        expect(parsed).toHaveLength(1);
+        expect(parsed[0]).toBe(val);
+        expect(unescapeCell(escaped)).toBe(val);
+      }
+    });
+
+    it('escapes and unescapes code spans with odd/even backslash parity before pipe (Finding 4)', () => {
+      // 0 backslashes in code span -> escaped as 1 backslash: `a\|b`
+      expect(escapeCell('`a|b`')).toBe('`a\\|b`');
+      // 1 backslash in code span -> escaped as 3 backslashes: `a\\\|b`
+      expect(escapeCell('`a\\|b`')).toBe('`a\\\\\\|b`');
+      // 2 backslashes in code span -> escaped as 5 backslashes: `a\\\\\|b`
+      expect(escapeCell('`a\\\\|b`')).toBe('`a\\\\\\\\\\|b`');
+
+      // splitRow handles odd backslashes as escaped pipe
+      expect(splitRow('| `a\\|b` |')[0]).toBe('`a|b`');
+      expect(splitRow('| `a\\\\\\|b` |')[0]).toBe('`a\\|b`');
+      expect(splitRow('| `a\\\\\\\\\\|b` |')[0]).toBe('`a\\\\|b`');
+
+      // splitRow handles even backslashes as unescaped pipe (splits cell)
+      // 0 backslashes: unescaped pipe splits the cell
+      const split0 = splitRow('| `a|b` |');
+      expect(split0).toHaveLength(2);
+      // 2 backslashes: even backslash count means pipe is unescaped and splits the cell
+      const split2 = splitRow('| `a\\\\|b` |');
+      expect(split2).toHaveLength(2);
+    });
+
+    it('GFM markdown-it oracle renders code spans with escaped pipes correctly (Finding 4)', () => {
+      expect(renderTableHtml(escapeCell('`a|b`'))).toContain('<td><code>a|b</code></td>');
+    });
+  });
+
   it('Normalization specification: explicitly specifies whitespace trimming and newline folding', () => {
     // Leading and trailing whitespace is trimmed
     expect(escapeCell('   trimmed content   ')).toBe('trimmed content');

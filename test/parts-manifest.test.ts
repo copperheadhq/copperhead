@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import path from 'node:path';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { validatePartsManifest } from '../src/kicad/parts/validator.js';
 import { MANIFEST_VERSION, compareRefdes } from '../src/kicad/parts/manifest.js';
+import type { FootprintResolver } from '../src/kicad/footprints.js';
 
 describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
   it('rejects malformed JSON', async () => {
@@ -41,7 +45,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         { ref: 'R2', value: '10k', package: '0603' },
       ],
     };
-    const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+    const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(res.ok).toBe(false);
     expect(res.findings.some((f) => f.detail.includes('duplicate refdes "r1" collides case-insensitively with "R1"'))).toBe(true);
     expect(res.findings.some((f) => f.detail.includes('duplicate refdes "R2"'))).toBe(true);
@@ -56,7 +63,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         { ref: 'SW1..SW4', value: 'SPST', libId: 'Switch:SW_Push', footprint: 'Button_Switch_SMD:SW_SPST_PTS645' },
       ],
     };
-    const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+    const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(res.ok).toBe(false);
     expect(res.findings.filter((f) => f.detail.includes('grouped or compound refdes')).length).toBe(3);
   });
@@ -71,7 +81,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         { ref: 'R!', value: '10k', package: '0603' },
       ],
     };
-    const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+    const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(res.ok).toBe(false);
     expect(res.findings.some((f) => f.detail.includes('reserved property name'))).toBe(true);
     expect(res.findings.some((f) => f.detail.includes('invalid identifier format'))).toBe(true);
@@ -89,7 +102,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         },
       ],
     };
-    const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+    const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(res.ok).toBe(false);
     expect(res.findings.some((f) => f.detail.includes('looks like a prose description rather than a component value'))).toBe(true);
   });
@@ -105,7 +121,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         { ref: 'LED1', value: 'Red', package: '0603', group: 'UI' },
       ],
     };
-    const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+    const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(res.ok).toBe(true);
     expect(res.expandedParts.length).toBe(5);
 
@@ -130,7 +149,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         { ref: 'U1', value: 'MCU', package: '0603' },
       ],
     };
-    const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+    const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(res.ok).toBe(false);
     expect(res.findings.some((f) => f.detail.includes('unsupported passive package "BGA-256"'))).toBe(true);
     expect(res.findings.some((f) => f.detail.includes('is not a recognized passive prefix'))).toBe(true);
@@ -165,7 +187,7 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         version: 1,
         parts: [{ ref: 'BT1', value: '500mAh Li-Po', offBoard: true, rationale: 'Bare leads to J1 off-board' }],
       },
-      { skipLibraryResolution: true },
+      { skipLibraryResolution: true, skipSubsystemsCoverage: true },
     );
     expect(resValid.ok).toBe(true);
     expect(resValid.expandedParts[0].offBoard).toBe(true);
@@ -186,7 +208,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         },
       ],
     };
-    const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+    const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(res.ok).toBe(false);
     expect(res.findings.some((f) => f.detail.includes("model cannot assert 'verified: true'"))).toBe(true);
 
@@ -203,7 +228,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         },
       ],
     };
-    const resUnverified = await validatePartsManifest(unverifiedManifest, { skipLibraryResolution: true });
+    const resUnverified = await validatePartsManifest(unverifiedManifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(resUnverified.ok).toBe(true);
     expect(resUnverified.expandedParts[0].verified).toBe(false);
   });
@@ -243,7 +271,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
         { ref: 'U2', wanted: 'DRV8701', chosen: 'IR2104', reason: '' }, // empty reason
       ],
     };
-    const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+    const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
     expect(res.ok).toBe(false);
     expect(res.findings.some((f) => f.detail.includes('substitution names ref "U99", which is not present'))).toBe(true);
     expect(res.findings.some((f) => f.detail.includes('requires non-empty "ref", "wanted", "chosen", and "reason"'))).toBe(true);
@@ -260,7 +291,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
           { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'Distributor stock availability' },
         ],
       };
-      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
       expect(res.ok).toBe(true);
       expect(res.substitutions).toHaveLength(1);
       expect(res.substitutions[0].chosen).toBe('RC0603FR-0710KL');
@@ -277,7 +311,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
           { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'Stock shortage' },
         ],
       };
-      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
       expect(res.ok).toBe(false);
       expect(res.findings.some((f) =>
         f.detail.includes('substitution specifies chosen MPN "RC0603FR-0710KL", but canonical part has no "mpn" declared')
@@ -294,7 +331,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
           { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'Cheaper' },
         ],
       };
-      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
       expect(res.ok).toBe(false);
       expect(res.findings.some((f) =>
         f.detail.includes('canonical part mpn "CRCW060310K0FKEA" conflicts with substitution chosen MPN "RC0603FR-0710KL"')
@@ -311,7 +351,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
           { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'Stock shortage' },
         ],
       };
-      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
       expect(res.ok).toBe(true);
       expect(res.expandedParts[0].verified).toBe(false);
     });
@@ -323,7 +366,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
           { ref: 'R1', value: '10k', package: '0603', mpn: 'RC0603FR-0710KL' },
         ],
       };
-      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
       expect(res.ok).toBe(true);
       expect(res.substitutions).toHaveLength(0);
     });
@@ -339,7 +385,10 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
           { ref: 'R1', wanted: 'W2', chosen: 'RC0603FR-0710KL', reason: 'Second choice' },
         ],
       };
-      const res = await validatePartsManifest(manifest, { skipLibraryResolution: true });
+      const res = await validatePartsManifest(manifest, {
+      skipLibraryResolution: true,
+      skipSubsystemsCoverage: true,
+    });
       expect(res.ok).toBe(false);
       expect(res.findings.some((f) =>
         f.detail.includes('duplicate substitution for refdes "R1"; each refdes may have at most one substitution record')
@@ -351,5 +400,121 @@ describe('Phase 3 — Parts Manifest Validator (Adversarial Coverage)', () => {
     const refs = ['C10', 'C1', 'C2', 'R1', 'R10', 'R2', 'U1', 'BT1'];
     refs.sort(compareRefdes);
     expect(refs).toEqual(['BT1', 'C1', 'C2', 'C10', 'R1', 'R2', 'R10', 'U1']);
+  });
+
+  describe('Source Review Regression Tests (Findings 1-3)', () => {
+    it('fails closed when symbolDirs is empty or footprint resolver is unavailable (Finding 1)', async () => {
+      const manifest = {
+        version: 1,
+        parts: [
+          {
+            ref: 'U1',
+            value: 'Nonexistent',
+            libId: 'Nonexistent:NonexistentSymbol',
+            footprint: 'Nonexistent:NonexistentFootprint',
+            group: 'MCU',
+          },
+        ],
+      };
+      const res = await validatePartsManifest(manifest, {
+        symbolDirs: [],
+        footprints: undefined,
+        subsystemsHeadings: ['MCU'],
+      });
+      expect(res.ok).toBe(false);
+      expect(
+        res.findings.some((f) =>
+          f.detail.includes('symbol "Nonexistent:NonexistentSymbol" cannot be verified: no symbol library directories available'),
+        ),
+      ).toBe(true);
+      expect(
+        res.findings.some((f) =>
+          f.detail.includes('footprint "Nonexistent:NonexistentFootprint" cannot be verified: no footprint resolver available'),
+        ),
+      ).toBe(true);
+    });
+
+    it('fails closed when subsystemsHeadings is null or empty (Finding 2)', async () => {
+      const manifest = {
+        version: 1,
+        parts: [
+          { ref: 'R1', value: '10k', package: '0603', group: 'Sensors' },
+        ],
+      };
+
+      const resNull = await validatePartsManifest(manifest, {
+        subsystemsHeadings: null,
+        skipLibraryResolution: true,
+      });
+      expect(resNull.ok).toBe(false);
+      expect(
+        resNull.findings.some((f) =>
+          f.detail.includes('missing or empty subsystem definitions; manifest parts require valid SUBSYSTEMS.md headings'),
+        ),
+      ).toBe(true);
+
+      const resEmpty = await validatePartsManifest(manifest, {
+        subsystemsHeadings: [],
+        skipLibraryResolution: true,
+      });
+      expect(resEmpty.ok).toBe(false);
+      expect(
+        resEmpty.findings.some((f) =>
+          f.detail.includes('missing or empty subsystem definitions; manifest parts require valid SUBSYSTEMS.md headings'),
+        ),
+      ).toBe(true);
+    });
+
+    it('fails validation when footprint has unexplained unpinned signal pads (Finding 3)', async () => {
+      const tempDir = await mkdtemp(path.join(tmpdir(), 'copperhead-fp-test-'));
+      try {
+        const modPath = path.join(tempDir, 'Test_3Pad.kicad_mod');
+        await writeFile(
+          modPath,
+          '(footprint "Test_3Pad" (version 20240108) (generator kicad) (pad "1" smd roundrect (at -1 0)) (pad "2" smd roundrect (at 1 0)) (pad "3" smd roundrect (at 0 1)))',
+          'utf8',
+        );
+
+        const mockFootprints: FootprintResolver = {
+          resolve: async () => ({
+            ok: true,
+            file: modPath,
+            near: [],
+          }),
+          variantCovering: async () => null,
+          check: async () => ({ missing: [], available: [] }),
+        };
+
+        const manifest = {
+          version: 1,
+          parts: [
+            {
+              ref: 'R1',
+              value: '10k',
+              libId: 'Device:R',
+              footprint: 'Test:Test_3Pad',
+              group: 'Passive',
+            },
+          ],
+        };
+
+        const res = await validatePartsManifest(manifest, {
+          symbolDirs: [path.resolve('test/fixtures/symlib')],
+          footprints: mockFootprints,
+          subsystemsHeadings: ['Passive'],
+        });
+
+        expect(res.ok).toBe(false);
+        expect(
+          res.findings.some(
+            (f) =>
+              f.detail.includes('pad(s) 3 of footprint Test:Test_3Pad have no symbol pin') &&
+              f.detail.includes('diverge'),
+          ),
+        ).toBe(true);
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 });
