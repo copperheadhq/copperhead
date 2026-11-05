@@ -10,6 +10,28 @@ export interface TableRow {
   }
 
   /**
+   * Find the closing backtick delimiter of exact length `runLen` starting from `fromIndex`.
+   * In CommonMark §6.3, a code span delimiter must consist of a contiguous run of backticks
+   * that is not preceded or followed by a backtick, matching the opening run length exactly.
+   * Returns the start index of the closing delimiter run, or -1 if none is found.
+   */
+  export function findMatchingBacktickClose(text: string, fromIndex: number, runLen: number): number {
+    let idx = fromIndex;
+    while (idx < text.length) {
+      if (text[idx] === '`') {
+        const start = idx;
+        while (idx < text.length && text[idx] === '`') idx++;
+        if (idx - start === runLen) {
+          return start;
+        }
+      } else {
+        idx++;
+      }
+    }
+    return -1;
+  }
+
+  /**
    * Escape a cell value for inclusion in a GFM pipe table.
    *
    * Contracts:
@@ -38,7 +60,7 @@ export interface TableRow {
         while (k < normalized.length && normalized[k] === '`') k++;
         const runLen = k - i;
         const delimiter = normalized.slice(i, k);
-        const closeIdx = normalized.indexOf(delimiter, k);
+        const closeIdx = findMatchingBacktickClose(normalized, k, runLen);
         if (closeIdx !== -1) {
           // Inside matched code span:
           // Preserve backslashes literally (do NOT double)
@@ -71,6 +93,12 @@ export interface TableRow {
           }
           result += delimiter;
           i = closeIdx + runLen - 1;
+          continue;
+        } else {
+          // Unmatched backtick opener: consume the entire backtick run literally
+          // so shorter sub-runs cannot falsely match subsequent closers.
+          result += delimiter;
+          i = k - 1;
           continue;
         }
       }
@@ -145,7 +173,7 @@ export interface TableRow {
         while (k < inner.length && inner[k] === '`') k++;
         const runLen = k - i;
         const delimiter = inner.slice(i, k);
-        const closeIdx = inner.indexOf(delimiter, k);
+        const closeIdx = findMatchingBacktickClose(inner, k, runLen);
         if (closeIdx !== -1) {
           current += delimiter;
           let j = k;
@@ -176,6 +204,11 @@ export interface TableRow {
           }
           current += delimiter;
           i = closeIdx + runLen - 1;
+          continue;
+        } else {
+          // Unmatched backtick opener: consume the entire backtick run literally
+          current += delimiter;
+          i = k - 1;
           continue;
         }
       }

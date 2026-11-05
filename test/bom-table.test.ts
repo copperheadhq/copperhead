@@ -13,6 +13,7 @@ import {
   splitRow,
   escapeCell,
   unescapeCell,
+  findMatchingBacktickClose,
 } from '../src/memory/bom-table.js';
 
 describe('parseMarkdownTables', () => {
@@ -756,6 +757,101 @@ describe('GFM structural correctness and displayed semantic fidelity (Phase 3)',
         const reRendered = escapeCell(parsed);
         expect(reRendered).toBe(rendered);
       }
+    });
+
+    describe('Exact-length backtick delimiter run matching (CommonMark §6.3)', () => {
+      it('findMatchingBacktickClose only matches backtick runs of exact expected length', () => {
+        // Single backtick opener with double backtick closer: does not match
+        expect(findMatchingBacktickClose('`a\\*``', 1, 1)).toBe(-1);
+        // Double backtick opener with single backtick closer: does not match
+        expect(findMatchingBacktickClose('``a\\*`', 2, 2)).toBe(-1);
+        // Longer closing run of 3 for shorter opener of 1: does not match
+        expect(findMatchingBacktickClose('`a\\*```', 1, 1)).toBe(-1);
+        // Longer closing run of 3 for shorter opener of 2: does not match
+        expect(findMatchingBacktickClose('``a\\*```', 2, 2)).toBe(-1);
+        // Valid exact matches
+        expect(findMatchingBacktickClose('`foo`', 1, 1)).toBe(4);
+        expect(findMatchingBacktickClose('``foo ` bar``', 2, 2)).toBe(11);
+        expect(findMatchingBacktickClose('```foo `` bar```', 3, 3)).toBe(13);
+      });
+
+      it('Single opening backtick followed by double closing backticks', () => {
+        const input = '`a\\*``';
+        const escaped = escapeCell(input);
+        expect(escaped).toBe('`a\\\\*``');
+        expect(splitRow(`| ${escaped} |`)[0]).toBe(input);
+        expect(renderTableHtml(escaped)).toContain('`a\\*``');
+      });
+
+      it('Double opening backticks followed by a single closing backtick', () => {
+        const input = '``a\\*`';
+        const escaped = escapeCell(input);
+        expect(escaped).toBe('``a\\\\*`');
+        expect(splitRow(`| ${escaped} |`)[0]).toBe(input);
+        expect(renderTableHtml(escaped)).toContain('``a\\*`');
+      });
+
+      it('Longer closing runs containing a shorter delimiter as a substring', () => {
+        // 1 opener, 3 closer
+        const input1 = '`a\\*```';
+        const escaped1 = escapeCell(input1);
+        expect(escaped1).toBe('`a\\\\*```');
+        expect(splitRow(`| ${escaped1} |`)[0]).toBe(input1);
+        expect(renderTableHtml(escaped1)).toContain('`a\\*```');
+
+        // 2 opener, 3 closer
+        const input2 = '``a\\*```';
+        const escaped2 = escapeCell(input2);
+        expect(escaped2).toBe('``a\\\\*```');
+        expect(splitRow(`| ${escaped2} |`)[0]).toBe(input2);
+        expect(renderTableHtml(escaped2)).toContain('``a\\*```');
+      });
+
+      it('Unmatched backticks with \\*, \\_, \\| and literal backslashes', () => {
+        const input = 'unmatched ` with \\*, \\_, \\| and C:\\path';
+        const escaped = escapeCell(input);
+        // All backslashes and pipes are escaped outside code spans
+        expect(escaped).toBe('unmatched ` with \\\\*, \\\\_, \\\\\\| and C:\\\\path');
+        expect(splitRow(`| ${escaped} |`)[0]).toBe(input);
+        expect(renderTableHtml(escaped)).toContain('unmatched ` with \\*, \\_, \\| and C:\\path');
+      });
+
+      it('Valid matched single-, double- and triple-backtick spans', () => {
+        // Single
+        const single = '`a\\*b`';
+        expect(escapeCell(single)).toBe('`a\\*b`');
+        expect(splitRow(`| ${escapeCell(single)} |`)[0]).toBe(single);
+        expect(renderTableHtml(escapeCell(single))).toContain('<td><code>a\\*b</code></td>');
+
+        // Double
+        const double = '``a ` b``';
+        expect(escapeCell(double)).toBe('``a ` b``');
+        expect(splitRow(`| ${escapeCell(double)} |`)[0]).toBe(double);
+        expect(renderTableHtml(escapeCell(double))).toContain('<td><code>a ` b</code></td>');
+
+        // Triple
+        const triple = '```a `` b```';
+        expect(escapeCell(triple)).toBe('```a `` b```');
+        expect(splitRow(`| ${escapeCell(triple)} |`)[0]).toBe(triple);
+        expect(renderTableHtml(escapeCell(triple))).toContain('<td><code>a `` b</code></td>');
+      });
+
+      it('Code spans with backslashes immediately before pipes and round-trip preservation', () => {
+        const pipeCases = [
+          { val: '`a|b`', exp: '`a\\|b`', html: '<code>a|b</code>' },
+          { val: '`a\\|b`', exp: '`a\\\\|b`', html: '<code>a\\|b</code>' },
+          { val: '`a\\\\|b`', exp: '`a\\\\\\|b`', html: '<code>a\\\\|b</code>' },
+          { val: '`a\\\\\\|b`', exp: '`a\\\\\\\\|b`', html: '<code>a\\\\\\|b</code>' },
+        ];
+
+        for (const { val, exp, html } of pipeCases) {
+          const escaped = escapeCell(val);
+          expect(escaped).toBe(exp);
+          expect(splitRow(`| ${escaped} |`)[0]).toBe(val);
+          expect(unescapeCell(escaped)).toBe(val);
+          expect(renderTableHtml(escaped)).toContain(html);
+        }
+      });
     });
   });
 
