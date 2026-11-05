@@ -3,6 +3,7 @@ import { appendFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { redactSecrets } from '../util/redact.js';
 import type { RunResult } from '../agent/loop.js';
+import type { RunStats } from '../agent/transcript.js';
 import type { RefusalBlocker } from '../agent/context.js';
 import type { ConstraintRegistry } from '../memory/constraints.js';
 
@@ -14,10 +15,46 @@ import type { ConstraintRegistry } from '../memory/constraints.js';
  */
 export type AttemptCause = 'constraint-conflict' | 'turn-budget-exhausted' | 'other';
 
-export function classifyAttempt(res: Pick<RunResult, 'outcome' | 'exitPath' | 'blockers'>): AttemptCause {
+/** What `classifyAttempt` reads; `stats` is optional so a bare result still classifies. */
+export type ClassifiableRun = Pick<RunResult, 'outcome' | 'exitPath' | 'blockers'> & {
+  stats?: Pick<RunStats, 'turnsUsed' | 'maxTurns' | 'budget'>;
+};
+
+/**
+ * The share of its budget a blocker-free refusal must have used to count as
+ * exhaustion (AC-18.16). An agent that sees the end coming refuses a few turns
+ * early ("I can't finish in the turns left", #446 at 37 of 40); the budget is
+ * what that retry needs, and the numbers on the result say so without any
+ * reading of the refusal's prose.
+ */
+export const NEAR_BUDGET_FRACTION = 0.8;
+
+function budgetOf(stats: ClassifiableRun['stats']): number | null {
+  if (!stats) return null;
+  const budget = stats.budget ?? stats.maxTurns;
+  return budget > 0 ? budget : null;
+}
+
+function refusedNearBudget(res: ClassifiableRun): boolean {
+  if (res.outcome !== 'refused') return false;
+  const budget = budgetOf(res.stats);
+  return budget !== null && res.stats!.turnsUsed >= Math.ceil(NEAR_BUDGET_FRACTION * budget);
+}
+
+export function classifyAttempt(res: ClassifiableRun): AttemptCause {
   if (res.outcome === 'refused' && (res.blockers?.length ?? 0) > 0) return 'constraint-conflict';
   if (res.exitPath === 'turn-budget-exhausted') return 'turn-budget-exhausted';
+  if (refusedNearBudget(res)) return 'turn-budget-exhausted';
   return 'other';
+}
+
+/**
+ * Why a refusal was classified as exhaustion, for the cause line and the
+ * summary note (`refused at turn 37 of 40`); empty for every other case.
+ */
+export function causeNote(res: ClassifiableRun, cause: AttemptCause): string {
+  if (cause !== 'turn-budget-exhausted' || !refusedNearBudget(res)) return '';
+  return `refused at turn ${res.stats!.turnsUsed} of ${budgetOf(res.stats)}`;
 }
 
 /**

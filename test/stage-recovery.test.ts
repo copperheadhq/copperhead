@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
 import type { RefusalBlocker } from '../src/agent/context.js';
-import { classifyAttempt, nextBudget, renderDecisionStop, isDocsOnlyStage, appendSummaryNote } from '../src/commands/stage-recovery.js';
+import { classifyAttempt, causeNote, NEAR_BUDGET_FRACTION, nextBudget, renderDecisionStop, isDocsOnlyStage, appendSummaryNote } from '../src/commands/stage-recovery.js';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { applyFailedRun, preserveFailedRun, snapshot, restore } from '../src/util/git.js';
@@ -106,6 +106,31 @@ describe('attempt classification and escalation (design D2, D3)', () => {
     expect(classifyAttempt(exhausted())).toBe('turn-budget-exhausted');
     expect(classifyAttempt(providerError())).toBe('other');
     expect(classifyAttempt(ok())).toBe('other'); // a successful run with its contract unmet
+  });
+
+  it('a blocker-free refusal within the last fifth of its budget is exhaustion (AC-18.16, AC-18.8)', () => {
+    const at = (turnsUsed: number, over: Partial<RunResult['stats']> = {}) => ({ ...ok().stats, exitPath: 'refused' as const, turnsUsed, ...over });
+    expect(NEAR_BUDGET_FRACTION).toBe(0.8);
+    expect(classifyAttempt(refused([], { stats: at(37) }))).toBe('turn-budget-exhausted'); // #446, attempt 2
+    expect(classifyAttempt(refused([], { stats: at(32) }))).toBe('turn-budget-exhausted'); // ceil(0.8 × 40)
+    expect(classifyAttempt(refused([], { stats: at(31) }))).toBe('other'); // turns to spare
+    expect(classifyAttempt(refused([blocker], { stats: at(37) }))).toBe('constraint-conflict'); // a verified blocker wins
+    expect(classifyAttempt(refused([], { stats: at(37, { budget: 60 }) }))).toBe('other'); // attended extension: 37 of 60
+    expect(classifyAttempt(refused([], { stats: at(48, { budget: 60 }) }))).toBe('turn-budget-exhausted');
+    expect(classifyAttempt(refused([], { stats: at(4, { maxTurns: 5 }) }))).toBe('turn-budget-exhausted'); // tiny budget: ceil(4)
+    expect(classifyAttempt(refused([], { stats: at(0, { maxTurns: 0 }) }))).toBe('other'); // no budget, no rule
+    expect(classifyAttempt({ outcome: 'refused', exitPath: 'refused', blockers: [] })).toBe('other'); // no stats
+    expect(classifyAttempt(ok({ stats: at(40) }))).toBe('other'); // only a refusal is read this way
+  });
+
+  it('names the numbers only when the near-budget rule fired', () => {
+    const at = (turnsUsed: number) => ({ ...ok().stats, exitPath: 'refused' as const, turnsUsed });
+    const near = refused([], { stats: at(37) });
+    expect(causeNote(near, classifyAttempt(near))).toBe('refused at turn 37 of 40');
+    const spare = refused([], { stats: at(3) });
+    expect(causeNote(spare, classifyAttempt(spare))).toBe('');
+    expect(causeNote(exhausted(), 'turn-budget-exhausted')).toBe(''); // the loop ran out: no refusal to explain
+    expect(causeNote(refused([blocker], { stats: at(37) }), 'constraint-conflict')).toBe('');
   });
 
   it('escalates 40 → 60 → 90 → 120 and holds at the 3× cap (AC-18.9)', () => {
@@ -250,6 +275,39 @@ describe('create retries by cause (AC-18.6 .. AC-18.10)', () => {
       expect(partAttempts).toBe(2);
       expect(res.completed).toContain('part-selection');
       expect(lines.join('\n')).toContain('attempt 1 ended: other');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a refusal at turn 37 of 40 with no blocker escalates like an exhaustion (AC-18.16)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo, { stageMaxTurns: { 'part-selection': 40 } });
+      let partAttempts = 0;
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        if (opts.request.includes('part-selection') && ++partAttempts === 1) {
+          const transcriptDir = await runDir(opts.repoRoot, 'near-budget');
+          return refused([], { transcriptDir, stats: { ...ok().stats, exitPath: 'refused', turnsUsed: 37, maxTurns: 40 } });
+        }
+        await writeStageDoc(opts.repoRoot, opts.request);
+        return ok();
+      });
+      mockDiagnose.mockResolvedValueOnce({ verdict: 'retry', reason: 'ran out of turns', guidance: 'continue the BOM' });
+      const lines: string[] = [];
+      const res = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
+      expect(res.completed).toContain('part-selection');
+      expect(partAttempts).toBe(2);
+      const partDiagnoses = mockDiagnose.mock.calls.filter(([, input]) => (input as { stageName: string }).stageName === 'part-selection');
+      expect(partDiagnoses).toHaveLength(1); // still consulted for guidance
+      const part = mockRunAgentLoop.mock.calls.map(([o]) => o).filter((o) => o.request.includes('part-selection'));
+      expect(part.map((o) => o.maxTurns)).toEqual([40, 60]);
+      const out = lines.join('\n');
+      expect(out).toContain('attempt 1 ended: turn-budget-exhausted (refused at turn 37 of 40)');
+      expect(out).toContain('retry with 60 turns (escalated from 40');
+      const summary = await readFile(path.join(repo, '.copperhead', 'runs', 'near-budget', 'summary.md'), 'utf8');
+      expect(summary).toContain('- cause: turn-budget-exhausted (refused at turn 37 of 40)');
+      expect(summary).toContain('- action: retry with 60 turns');
     } finally {
       await cleanup();
     }
