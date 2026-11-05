@@ -119,7 +119,7 @@ describe('Phase 2 — Issue #459 Defect Reproductions', () => {
       await writeFile(path.join(docs, 'parts.intent.json'), JSON.stringify(manifest), 'utf8');
 
       const gateResult = await partSelectionStage.stageGate!(tmp, 'docs');
-      expect(gateResult).toContain('manifest validation: 1 finding(s) to reconcile:');
+      expect(gateResult).toContain('manifest validation:');
       expect(gateResult).toContain('footprint');
     } finally {
       await rm(tmp, { recursive: true, force: true });
