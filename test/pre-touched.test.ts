@@ -62,7 +62,7 @@ describe('preTouched files carry the run’s verification (AC-15.43)', () => {
       expect(res.outcome).not.toBe('success');
       const toolResults = provider.seen.flat().map((m) => JSON.stringify(m)).join('\n');
       expect(toolResults).toContain('cannot finish yet');
-      expect(toolResults).toContain('DRC has not passed since the last board edit');
+      expect(toolResults).toContain('DRC has not passed since the last board or design-rules edit');
     } finally {
       await cleanup();
     }

@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
-import { resolveInRepo, isKicadFile } from '../util/paths.js';
+import { DRC_AFTER_RULES_EDIT } from '../agent/ledger.js';
+import { resolveInRepo, isKicadFile, affectsDrc } from '../util/paths.js';
 import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
@@ -675,8 +676,14 @@ export const HANDLERS: HandlerDef[] = [
     },
     requiresUnlock: false,
     handler: async (ctx) => {
-      if (!ctx.config.board)
+      if (!ctx.config.board) {
+        // design rules only matter once there is a board for DRC to check, so a
+        // rules-only edit is waived here; a board edit is not, since DRC never ran
+        ctx.ledger.clear('drc', DRC_AFTER_RULES_EDIT);
+        if (ctx.ledger.openOfKind('drc').length > 0)
+          return 'no board configured, but a .kicad_pcb was edited in this run: set its path as "board" in .copperhead/config.json so DRC can run on it';
         return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
+      }
       const boardPath = path.join(ctx.repoRoot, ctx.config.board);
       const report = await unroutedGuard(ctx, boardPath, await runDrc(boardPath));
       countRepairCycle(ctx, 'drc', report);
@@ -975,8 +982,12 @@ export const HANDLERS: HandlerDef[] = [
       const touchedKicad = [...ctx.filesTouched].some((f) => isKicadFile(f));
       if (touchedKicad) {
         if (!ctx.lastErc?.ok) problems.push('ERC has not passed since the last schematic edit (run run_erc)');
-        const touchedPcb = [...ctx.filesTouched].some((f) => f.endsWith('.kicad_pcb'));
-        if (touchedPcb && !ctx.lastDrc?.ok) problems.push('DRC has not passed since the last board edit (run run_drc)');
+        // a board edit always needs DRC; a design-rules edit only once a board is configured
+        const needsDrc = [...ctx.filesTouched].some(
+          (f) => f.endsWith('.kicad_pcb') || (!!ctx.config.board && affectsDrc(f)),
+        );
+        if (needsDrc && !ctx.lastDrc?.ok)
+          problems.push('DRC has not passed since the last board or design-rules edit (run run_drc)');
       }
       // the changelog obligation is cleared by the commit path itself
       const blocking = ctx.ledger.openObligations.filter((o) => o.kind !== 'changelog');
