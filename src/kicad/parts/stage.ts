@@ -90,7 +90,8 @@ export function partsStageGap(check: PartsCheck | null): string | null {
   if (!check) return null;
   if (!check.manifest) return `${check.manifestPath} is not a valid parts manifest:\n${check.shapeFindings.map((f) => `  - ${f.detail}`).join('\n')}`;
   const v = check.validation!;
-  if (!v.ok) return `${check.manifestPath} has ${v.findings.length + v.omitted} finding(s):\n${formatManifestFindings(v)}`;
+  // formatManifestFindings opens with the count, so the path alone introduces it.
+  if (!v.ok) return `${check.manifestPath}: ${formatManifestFindings(v)}`;
   if (!check.bomMatches) return `BOM.md is not the render of ${check.manifestPath}; call draft_bom to render it`;
   return null;
 }

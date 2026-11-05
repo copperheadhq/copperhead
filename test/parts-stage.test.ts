@@ -124,7 +124,7 @@ describe('part-selection contractGapDetail', () => {
     const r = await tmpRepo({ 'docs/parts.intent.json': JSON.stringify(SLIP) });
     try {
       const d = await contractGapDetail('part-selection', r.root, await loadConfig(r.root));
-      expect(d).toMatch(/^the part-selection contract is not met: docs\/parts.intent.json has 1 finding\(s\)/);
+      expect(d).toMatch(/^the part-selection contract is not met: docs\/parts.intent.json: 1 finding\(s\)/);
       expect(d).toContain('U1: footprint "Package_SO:SOIC-8_3.9x4.9mm_P1.37mm" is not in library "Package_SO"; installed: Package_SO:SOIC-8_3.9x4.9mm_P1.27mm');
     } finally { await r.cleanup(); }
   });
