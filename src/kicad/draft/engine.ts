@@ -2,7 +2,7 @@ import type { Bounds } from '../sexp.js';
 import { knum, CAPTION_SIZE, type PlacementModel, type EmitSymbol, type EmitLabel, type LabelShape } from '../emit.js';
 import { strokeTextExtent, strokeTextHeight, wrapTwoLines } from '../strokefont.js';
 import { powerSymbolSource, pwrFlagSource, type ResolvedSymbol, type DraftPin } from './symsource.js';
-import type { SchematicIntent, IntentNet, IntentPart, ValidatedIntent } from './ir.js';
+import { groupMatchesHeading, type SchematicIntent, type IntentNet, type IntentPart, type ValidatedIntent } from './ir.js';
 
 /**
  * The rule-based deterministic drafting engine (design D1/D2). All geometry is
@@ -1673,7 +1673,7 @@ function draftOnce(
   const orderIndex = (g: string): number => {
     const hinted = intent.hints?.groupOrder?.findIndex((h) => h.toLowerCase() === g.toLowerCase());
     if (hinted !== undefined && hinted >= 0) return hinted;
-    const doc = docGroups?.findIndex((h) => h.toLowerCase() === g.toLowerCase());
+    const doc = docGroups?.findIndex((h) => groupMatchesHeading(h, g));
     if (doc !== undefined && doc >= 0) return 1000 + doc;
     return 2000;
   };
