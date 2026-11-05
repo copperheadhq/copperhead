@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
-import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
+import { loadConstraints, checkForbiddenPins, uncheckedForbiddenConstraints } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { runAgentLoop, type RunResult } from '../agent/loop.js';
@@ -33,6 +33,7 @@ export interface SyncViolationItem {
 export interface SyncReport {
   resolvable: SyncItem[];
   violations: SyncViolationItem[];
+  unchecked?: string[];
 }
 
 export async function syncVerify(repoRoot: string): Promise<SyncReport> {
@@ -130,6 +131,7 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
   }
 
   // requirement violations: never auto-resolved (AC-7.3)
+  let unchecked: string[] = [];
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
     const pins = await pinNets(path.join(repoRoot, config.schematic));
     for (const v of checkForbiddenPins(registry, pins)) {
@@ -139,14 +141,16 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
         governedBy: v.source,
       });
     }
+    unchecked = uncheckedForbiddenConstraints(registry, pins);
   }
 
-  return { resolvable, violations };
+  return { resolvable, violations, ...(unchecked.length ? { unchecked } : {}) };
 }
 
 export function formatSyncReport(report: SyncReport): string {
   const lines: string[] = [];
-  if (!report.resolvable.length && !report.violations.length) {
+  const unchecked = report.unchecked ?? [];
+  if (!report.resolvable.length && !report.violations.length && !unchecked.length) {
     return 'sync: no inconsistencies';
   }
   if (report.resolvable.length) {
@@ -162,6 +166,9 @@ export function formatSyncReport(report: SyncReport): string {
       lines.push(`- ${v.description}`);
       lines.push(`    governed by: ${v.governedBy}`);
     }
+  }
+  for (const key of unchecked) {
+    lines.push(`constraint ${key}: not mechanically checked`);
   }
   return lines.join('\n');
 }

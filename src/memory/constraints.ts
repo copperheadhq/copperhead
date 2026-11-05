@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import type { PinNet } from '../kicad/sexp.js';
 
 /**
  * Machine-readable constraint registry (SPEC §2.6). Built simultaneously with
@@ -11,6 +12,7 @@ export interface Constraint {
   min?: number;
   max?: number;
   forbidden?: string[];
+  refs?: string[];
   value?: string | number;
   source: string;
   affects: string[];
@@ -134,6 +136,104 @@ export interface ConstraintViolation {
   source: string;
 }
 
+export type PinNetEntry = Omit<PinNet, 'pinNumber'> & { pinNumber?: string };
+
+function normalizeRef(ref: string, knownRefs: ReadonlySet<string>): string {
+  if (knownRefs.has(ref)) return ref;
+  const m = /^([A-Za-z]+\d+)[A-Za-z]+$/.exec(ref);
+  if (m && knownRefs.has(m[1]!)) return m[1]!;
+  return ref;
+}
+
+function extractScopedRefs(
+  c: Constraint,
+  knownRefs: ReadonlySet<string>,
+): { refs: Set<string> | null; explicit: boolean } {
+  if (c.refs?.length) {
+    const explicit = new Set(c.refs.map((r) => normalizeRef(r.trim(), knownRefs)).filter(Boolean));
+    if (explicit.size > 0) return { refs: explicit, explicit: true };
+  }
+  const fromAffects = new Set<string>();
+  for (const raw of c.affects ?? []) {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.includes(':')) continue;
+    for (const rawToken of trimmed.split(/\s+/)) {
+      const cleaned = rawToken.replace(/^[(),;.[\]{}'"`]+|[(),;.[\]{}'"`]+$/g, '');
+      if (!cleaned) continue;
+      const token = normalizeRef(cleaned, knownRefs);
+      if (knownRefs.has(token) && !/^(?:GPIO|IO)\d+/i.test(token)) {
+        fromAffects.add(token);
+      }
+    }
+  }
+  return { refs: fromAffects.size > 0 ? fromAffects : null, explicit: false };
+}
+
+interface ParsedForbiddenSpec {
+  refs: Set<string> | null;
+  pinSpec: string;
+  isRefScoped: boolean;
+}
+
+function parseForbiddenSpec(
+  raw: string,
+  defaultScope: { refs: Set<string> | null; explicit: boolean },
+  knownRefs: ReadonlySet<string>,
+): ParsedForbiddenSpec {
+  const trimmed = raw.trim();
+  const prefixed = /^([A-Za-z]+\d+[A-Za-z]*)\s*:\s*(.+)$/.exec(trimmed);
+  if (prefixed) {
+    return {
+      refs: new Set([normalizeRef(prefixed[1]!, knownRefs)]),
+      pinSpec: prefixed[2]!.trim(),
+      isRefScoped: true,
+    };
+  }
+  return { refs: defaultScope.refs, pinSpec: trimmed, isRefScoped: defaultScope.explicit };
+}
+
+function canonicalIoName(name: string): string {
+  return name.trim().replace(/^GPIO(?=\d)/i, 'IO').toUpperCase();
+}
+
+function matchesPinName(pn: PinNetEntry, pinSpec: string): boolean {
+  if (!pinSpec) return false;
+  if (pn.pinName === pinSpec) return true;
+  const targetCanon = canonicalIoName(pinSpec);
+  if (canonicalIoName(pn.pinName) === targetCanon) return true;
+  if (pn.pinName.includes('/')) {
+    for (const seg of pn.pinName.split('/')) {
+      const s = seg.trim();
+      if (s && (s === pinSpec || canonicalIoName(s) === targetCanon)) return true;
+    }
+  }
+  return false;
+}
+
+function matchesPinNumber(pn: PinNetEntry, pinSpec: string, isRefScoped: boolean): boolean {
+  return (
+    Boolean(pinSpec) &&
+    isRefScoped &&
+    pn.pinNumber !== undefined &&
+    pn.pinNumber !== '' &&
+    pn.pinNumber === pinSpec
+  );
+}
+
+function matchesSpec(
+  pn: PinNetEntry,
+  spec: ParsedForbiddenSpec,
+  allPins: readonly PinNetEntry[],
+): boolean {
+  if (spec.refs && !spec.refs.has(pn.ref)) return false;
+  if (matchesPinName(pn, spec.pinSpec)) return true;
+  if (!matchesPinNumber(pn, spec.pinSpec, spec.isRefScoped)) return false;
+  const partHasNameMatch = allPins.some(
+    (other) => other.ref === pn.ref && matchesPinName(other, spec.pinSpec),
+  );
+  return !partHasNameMatch;
+}
+
 /**
  * Mechanical validation where possible (SPEC §2.6): forbidden pins against the
  * pinout, numeric budget keys surfaced for the doc-level checks. Geometry
@@ -141,20 +241,58 @@ export interface ConstraintViolation {
  */
 export function checkForbiddenPins(
   registry: ConstraintRegistry,
-  pinNets: { ref: string; pinName: string; net: string | null }[],
+  pinNets: PinNetEntry[],
 ): ConstraintViolation[] {
   const violations: ConstraintViolation[] = [];
+  const knownRefs = new Set(pinNets.map((p) => p.ref));
   for (const [key, c] of Object.entries(registry)) {
     if (!c.forbidden?.length) continue;
+    const defaultScope = extractScopedRefs(c, knownRefs);
+    const specs = c.forbidden.map((entry) => parseForbiddenSpec(entry, defaultScope, knownRefs));
     for (const pn of pinNets) {
-      if (pn.net && c.forbidden.includes(pn.pinName)) {
+      if (!pn.net) continue;
+      const matchedSpec = specs.find((spec) => matchesSpec(pn, spec, pinNets));
+      if (matchedSpec) {
+        const pinLabel =
+          pn.pinName === matchedSpec.pinSpec ? pn.pinName : `${pn.pinName} (${matchedSpec.pinSpec})`;
         violations.push({
           key,
-          description: `${pn.ref} pin ${pn.pinName} is connected to net ${pn.net} but is forbidden by ${key}`,
+          description: `${pn.ref} pin ${pinLabel} is connected to net ${pn.net} but is forbidden by ${key}`,
           source: c.source,
         });
       }
     }
   }
   return violations;
+}
+
+/**
+ * Constraint keys whose `forbidden` list contains entries that did not match
+ * any pin on the in-scope part(s), so `check` and `sync` can report
+ * `constraint <key>: not mechanically checked` instead of counting them as a
+ * silent pass (#395).
+ */
+export function uncheckedForbiddenConstraints(
+  registry: ConstraintRegistry,
+  pinNets: PinNetEntry[],
+): string[] {
+  const unchecked: string[] = [];
+  const knownRefs = new Set(pinNets.map((p) => p.ref));
+  for (const [key, c] of Object.entries(registry)) {
+    if (!c.forbidden?.length) continue;
+    const defaultScope = extractScopedRefs(c, knownRefs);
+    let anyUnmatched = false;
+    for (const raw of c.forbidden) {
+      const spec = parseForbiddenSpec(raw, defaultScope, knownRefs);
+      const matched = pinNets.some((pn) => matchesSpec(pn, spec, pinNets));
+      if (!matched) {
+        anyUnmatched = true;
+        break;
+      }
+    }
+    if (anyUnmatched) {
+      unchecked.push(key);
+    }
+  }
+  return unchecked;
 }
