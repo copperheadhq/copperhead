@@ -42,9 +42,12 @@ export interface TableRow {
         if (closeIdx !== -1) {
           // Inside matched code span:
           // Preserve backslashes literally (do NOT double)
-          // Escape pipes with backslash parity adjustment so table row parser does not split columns.
-          // In GFM, a pipe is escaped when preceded by an odd number of backslashes.
-          // For k backslashes immediately preceding '|', emit 2 * k + 1 backslashes followed by '|'.
+          // Escape pipes so the GFM table row parser does not split columns.
+          // In GFM table parsing (e.g. markdown-it / cmark table extension), the table parser
+          // unescapes \| by stripping one backslash before the pipe and leaving the remaining
+          // cell text for inline code-span parsing (where backslashes are literal).
+          // Therefore, for k literal backslashes immediately preceding '|' in the semantic cell,
+          // emit k + 1 backslashes followed by '|'.
           result += delimiter;
           let j = k;
           while (j < closeIdx) {
@@ -53,7 +56,7 @@ export interface TableRow {
               while (j < closeIdx && normalized[j] === '\\') j++;
               const bsCount = j - bsStart;
               if (j < closeIdx && normalized[j] === '|') {
-                result += '\\'.repeat(2 * bsCount + 1) + '|';
+                result += '\\'.repeat(bsCount + 1) + '|';
                 j++;
               } else {
                 result += '\\'.repeat(bsCount);
@@ -152,19 +155,12 @@ export interface TableRow {
               while (j < closeIdx && inner[j] === '\\') j++;
               const bsCount = j - bsStart;
               if (j < closeIdx && inner[j] === '|') {
-                if (bsCount % 2 !== 0) {
-                  // Odd backslash count: pipe is escaped
-                  const unescapedBs = (bsCount - 1) / 2;
-                  if (unescapedBs > 0) current += '\\'.repeat(unescapedBs);
-                  current += '|';
-                  j++;
-                } else {
-                  // Even backslash count: pipe is unescaped and splits the cell
-                  if (bsCount > 0) current += '\\'.repeat(bsCount);
-                  cells.push(current.trim());
-                  current = '';
-                  j++;
-                }
+                // Table row parser stripped one backslash before '|'.
+                // If bsCount >= 1, the pipe was escaped: restore bsCount - 1 backslashes and keep '|'.
+                const unescapedBs = bsCount - 1;
+                if (unescapedBs > 0) current += '\\'.repeat(unescapedBs);
+                current += '|';
+                j++;
               } else {
                 current += '\\'.repeat(bsCount);
               }

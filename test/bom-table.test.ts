@@ -686,30 +686,76 @@ describe('GFM structural correctness and displayed semantic fidelity (Phase 3)',
       }
     });
 
-    it('escapes and unescapes code spans with odd/even backslash parity before pipe (Finding 4)', () => {
+    it('escapes and unescapes code spans with backslashes before pipe (Finding 4)', () => {
+      // k literal backslashes before pipe in code span -> escaped as k + 1 backslashes
       // 0 backslashes in code span -> escaped as 1 backslash: `a\|b`
       expect(escapeCell('`a|b`')).toBe('`a\\|b`');
-      // 1 backslash in code span -> escaped as 3 backslashes: `a\\\|b`
-      expect(escapeCell('`a\\|b`')).toBe('`a\\\\\\|b`');
-      // 2 backslashes in code span -> escaped as 5 backslashes: `a\\\\\|b`
-      expect(escapeCell('`a\\\\|b`')).toBe('`a\\\\\\\\\\|b`');
+      // 1 backslash in code span -> escaped as 2 backslashes: `a\\|b`
+      expect(escapeCell('`a\\|b`')).toBe('`a\\\\|b`');
+      // 2 backslashes in code span -> escaped as 3 backslashes: `a\\\|b`
+      expect(escapeCell('`a\\\\|b`')).toBe('`a\\\\\\|b`');
+      // 3 backslashes in code span -> escaped as 4 backslashes: `a\\\\|b`
+      expect(escapeCell('`a\\\\\\|b`')).toBe('`a\\\\\\\\|b`');
 
-      // splitRow handles odd backslashes as escaped pipe
+      // splitRow inverts k + 1 backslashes to k backslashes
       expect(splitRow('| `a\\|b` |')[0]).toBe('`a|b`');
-      expect(splitRow('| `a\\\\\\|b` |')[0]).toBe('`a\\|b`');
-      expect(splitRow('| `a\\\\\\\\\\|b` |')[0]).toBe('`a\\\\|b`');
+      expect(splitRow('| `a\\\\|b` |')[0]).toBe('`a\\|b`');
+      expect(splitRow('| `a\\\\\\|b` |')[0]).toBe('`a\\\\|b`');
+      expect(splitRow('| `a\\\\\\\\|b` |')[0]).toBe('`a\\\\\\|b`');
 
-      // splitRow handles even backslashes as unescaped pipe (splits cell)
-      // 0 backslashes: unescaped pipe splits the cell
+      // 0 backslashes before pipe: unescaped pipe splits the cell
       const split0 = splitRow('| `a|b` |');
       expect(split0).toHaveLength(2);
-      // 2 backslashes: even backslash count means pipe is unescaped and splits the cell
-      const split2 = splitRow('| `a\\\\|b` |');
-      expect(split2).toHaveLength(2);
     });
 
-    it('GFM markdown-it oracle renders code spans with escaped pipes correctly (Finding 4)', () => {
+    it('GFM markdown-it oracle renders code spans with backslashes before pipe for k=0,1,2,3 (Finding 4)', () => {
+      // k=0: `a|b` -> escaped as `a\|b` -> rendered as <code>a|b</code> (0 backslashes)
       expect(renderTableHtml(escapeCell('`a|b`'))).toContain('<td><code>a|b</code></td>');
+      // k=1: `a\|b` -> escaped as `a\\|b` -> rendered as <code>a\|b</code> (1 backslash)
+      expect(renderTableHtml(escapeCell('`a\\|b`'))).toContain('<td><code>a\\|b</code></td>');
+      // k=2: `a\\|b` -> escaped as `a\\\|b` -> rendered as <code>a\\|b</code> (2 backslashes)
+      expect(renderTableHtml(escapeCell('`a\\\\|b`'))).toContain('<td><code>a\\\\|b</code></td>');
+      // k=3: `a\\\|b` -> escaped as `a\\\\|b` -> rendered as <code>a\\\|b</code> (3 backslashes)
+      expect(renderTableHtml(escapeCell('`a\\\\\\|b`'))).toContain('<td><code>a\\\\\\|b</code></td>');
+    });
+
+    it('handles different lengths of matched and unmatched backtick delimiters (Finding 4)', () => {
+      // Double backtick delimiter with embedded single backtick and pipe
+      const doubleBt = '``code with ` and | pipe``';
+      expect(escapeCell(doubleBt)).toBe('``code with ` and \\| pipe``');
+      expect(splitRow(`| ${escapeCell(doubleBt)} |`)[0]).toBe(doubleBt);
+      expect(renderTableHtml(escapeCell(doubleBt))).toContain('<td><code>code with ` and | pipe</code></td>');
+
+      // Triple backtick delimiter with embedded double backtick and escaped pipe (k=1)
+      const tripleBt = '```code with `` and \\| pipe```';
+      expect(escapeCell(tripleBt)).toBe('```code with `` and \\\\| pipe```');
+      expect(splitRow(`| ${escapeCell(tripleBt)} |`)[0]).toBe(tripleBt);
+      expect(renderTableHtml(escapeCell(tripleBt))).toContain('<td><code>code with `` and \\| pipe</code></td>');
+
+      // Unmatched backtick: treated as text outside code span, pipe is safely escaped
+      const unmatchedBt = 'unmatched ` backtick | test';
+      expect(escapeCell(unmatchedBt)).toBe('unmatched ` backtick \\| test');
+      expect(splitRow(`| ${escapeCell(unmatchedBt)} |`)[0]).toBe(unmatchedBt);
+      expect(renderTableHtml(escapeCell(unmatchedBt))).toContain('<td>unmatched ` backtick | test</td>');
+    });
+
+    it('render/parse/render stability across all backslash and pipe variants (Finding 4)', () => {
+      const cases = [
+        '`a|b`',
+        '`a\\|b`',
+        '`a\\\\|b`',
+        '`a\\\\\\|b`',
+        '``code with ` and | pipe``',
+        '```code with `` and \\| pipe```',
+        'unmatched ` backtick | test',
+      ];
+      for (const val of cases) {
+        const rendered = escapeCell(val);
+        const parsed = splitRow(`| ${rendered} |`)[0];
+        expect(parsed).toBe(val);
+        const reRendered = escapeCell(parsed);
+        expect(reRendered).toBe(rendered);
+      }
     });
   });
 
