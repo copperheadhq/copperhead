@@ -266,3 +266,39 @@ describe('fixture footprints', () => {
     await access(path.join(stock, 'Resistor_SMD.pretty', 'R_0603_1608Metric.kicad_mod'));
   });
 });
+
+describe('"noPart": a board feature with nothing to buy (AC-19.9)', () => {
+  // A mounting hole, a fiducial, a pad test point: on the board, so its symbol,
+  // footprint and pads are checked like any part, and exempt from the MPN rule.
+  const H1 = { ref: 'H1', value: 'MountingHole', libId: 'CopperConn:Conn_01x03', footprint: 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical', group: 'Power' };
+
+  it('validates clean without an mpn', async () => {
+    const v = await validate(manifest([{ ...H1, noPart: true }]));
+    expect(v.findings.map((f) => f.detail)).toEqual([]);
+    expect(v.parts[0]).toMatchObject({ noPart: true, mpn: null });
+  });
+
+  it('the missing-mpn finding names the flag, so a description never lands in "mpn"', async () => {
+    const v = await validate(manifest([H1]));
+    expect(v.findings.map((f) => f.detail).join('\n')).toMatch(/H1: no "mpn".*"noPart": true/);
+  });
+
+  it('refuses noPart with an mpn, and noPart with offBoard', async () => {
+    const both = await validate(manifest([{ ...H1, noPart: true, mpn: 'NPTH-3.2mm (fab-drilled)' }]));
+    expect(both.findings.map((f) => f.detail).join('\n')).toMatch(/H1: "noPart" is true but "mpn" is "NPTH-3.2mm \(fab-drilled\)"/);
+    const off = await validate(manifest([{ ref: 'H1', value: 'MountingHole', group: 'Power', offBoard: true, noPart: true }]));
+    expect(off.findings.map((f) => f.detail).join('\n')).toMatch(/"offBoard" and "noPart" cannot both be true/);
+  });
+
+  it('is still checked against the libraries: a bad footprint is a finding', async () => {
+    const v = await validate(manifest([{ ...H1, noPart: true, footprint: 'Connector_PinHeader_2.54mm:Nope' }]));
+    expect(v.ok).toBe(false);
+    expect(v.findings[0]!.detail).toMatch(/H1: footprint "Connector_PinHeader_2.54mm:Nope"/);
+  });
+
+  it('must be a boolean', () => {
+    const { manifest: m, findings } = parseManifest(manifest([{ ...H1, noPart: 'yes' }]));
+    expect(m).toBeNull();
+    expect(findings[0]!.detail).toMatch(/H1: "noPart" must be true or false/);
+  });
+});

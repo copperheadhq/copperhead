@@ -4,7 +4,7 @@
 
 ### Requirement: Stage-3 parts manifest
 
-The part-selection stage SHALL produce a parts manifest at `docs/parts.intent.json` with one entry per refdes. An active-part entry SHALL carry `ref`, `value`, `group`, `libId`, `footprint`, `mpn`, `rationale` and `verified`; a passive entry MAY give `package` in place of `libId` and `footprint`; any entry MAY set `offBoard`; the manifest MAY list `substitutions`, each with `ref`, `wanted`, `chosen` and `reason`. The model authors the manifest; BOM.md is rendered from it and SHALL NOT be authored directly while a manifest exists.
+The part-selection stage SHALL produce a parts manifest at `docs/parts.intent.json` with one entry per refdes. An active-part entry SHALL carry `ref`, `value`, `group`, `libId`, `footprint`, `mpn`, `rationale` and `verified`; a passive entry MAY give `package` in place of `libId` and `footprint`; any entry MAY set `offBoard`; an entry for a board feature with nothing to buy (a mounting hole, a fiducial, a pad test point) MAY set `noPart` in place of `mpn`; the manifest MAY list `substitutions`, each with `ref`, `wanted`, `chosen` and `reason`. The model authors the manifest; BOM.md is rendered from it and SHALL NOT be authored directly while a manifest exists.
 
 #### Scenario: Passive entry needs no ids
 
@@ -15,6 +15,16 @@ The part-selection stage SHALL produce a parts manifest at `docs/parts.intent.js
 
 - **WHEN** an entry sets `offBoard: true` and gives no `libId` or `footprint`
 - **THEN** validation accepts it, the rendered row is marked off-board, and neither the pre-schematic footprint stop nor populate nor drift reports it
+
+#### Scenario: Board feature needs no MPN
+
+- **WHEN** the entry for mounting hole `H1` gives `libId`, `footprint` and `noPart: true`, and no `mpn`
+- **THEN** validation accepts it after checking its symbol, footprint and pads like any on-board part, and the rendered MPN cell reads `(no part)`
+
+#### Scenario: A description is not a part number
+
+- **WHEN** an entry sets `noPart: true` and also gives an `mpn`, or sets both `noPart` and `offBoard`
+- **THEN** validation reports a finding naming the refdes and the two fields that contradict each other
 
 ### Requirement: Stage-3 completion is the validator's verdict
 
@@ -43,6 +53,11 @@ When a manifest exists, the schematic stage SHALL take each IR part's `libId`, `
 
 - **WHEN** the manifest records `U1` as `MCU_ST_STM32F1:STM32F103C8Tx` with a resolved footprint
 - **THEN** the dossier lists exactly that symbol's pins for `U1`, and an IR part `U1` naming a different lib_id fails validation citing the manifest
+
+#### Scenario: A manifest that does not parse is a finding
+
+- **WHEN** `docs/parts.intent.json` exists but is not a valid manifest (truncated JSON, a wrong field type) and the schematic intent is validated
+- **THEN** validation reports that the manifest is not valid, with the reason, and does not fall back to the BOM.md cross-check
 
 ### Requirement: Stage-3 prompt states the task, not the format
 

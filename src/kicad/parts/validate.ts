@@ -103,7 +103,11 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
       add(e.ref, `${e.ref}: group "${e.group}" is not a SUBSYSTEMS.md heading; available: ${groups.join(', ')}`);
     } else if (e.group) usedGroups.add(groupKey(e.group));
 
-    if (offBoard) continue; // no symbol, footprint or pad on the board to check
+    if (offBoard) {
+      // no symbol, footprint or pad on the board to check
+      if (e.noPart) add(e.ref, `${e.ref}: "offBoard" and "noPart" cannot both be true; off-board is a part you buy that is not on the board, no-part is a board feature you do not buy`);
+      continue;
+    }
 
     // ids: a passive's came from its package (resolveParts); an active part declares both
     if (passive && e.package && (!e.libId || !e.footprint) && !passiveDefault(prefix, e.package)) {
@@ -120,7 +124,11 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
         ? `${e.ref}: no "footprint"; give "package" or an explicit installed footprint id`
         : `${e.ref}: no "footprint"; give the exact installed footprint id (Lib:Name), or set "offBoard": true for a part with no place on the board`);
     }
-    if (!passive && !e.mpn) add(e.ref, `${e.ref}: no "mpn"; every active part needs a manufacturer part number (it is rendered UNVERIFIED until "verified": true)`);
+    if (e.noPart && e.mpn) {
+      add(e.ref, `${e.ref}: "noPart" is true but "mpn" is ${JSON.stringify(e.mpn)}; a board feature has no part number — drop "mpn", or drop "noPart" if this is a part you buy`);
+    } else if (!passive && !e.mpn && !e.noPart) {
+      add(e.ref, `${e.ref}: no "mpn"; every active part needs a manufacturer part number (it is rendered UNVERIFIED until "verified": true). A board feature with nothing to buy (a mounting hole, a fiducial, a pad test point) sets "noPart": true instead`);
+    }
 
     // symbol: exists, drawable
     if (part.libId) {

@@ -158,7 +158,10 @@ delete it at any time and it is rebuilt.
 The parts manifest \`create\` writes in part selection: one entry per refdes
 with the verified symbol, footprint and MPN. \`docs/BOM.md\` is rendered from
 it by the \`draft_bom\` tool; edit the manifest, not the table, and \`check\`
-reports a BOM.md that no longer matches its render as drift.
+reports a BOM.md that no longer matches its render as drift. A part bought but
+not placed (a battery with leads) is \`"offBoard": true\`; a board feature
+with nothing to buy (a mounting hole) is \`"noPart": true\`. \`export bom\`
+keeps the first off the assembly BOM and the second off every order.
 `;
 }
 

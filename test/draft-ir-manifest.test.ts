@@ -135,3 +135,14 @@ describe('stage-4 prompt contract', () => {
     expect(prompt).toMatch(/off-board entries out/);
   });
 });
+
+describe('validateIntent with a manifest file that does not parse (AC-19.11)', () => {
+  it('reports the manifest instead of falling back to the BOM.md cross-check', async () => {
+    const r = await fixtureRepo(null);
+    try {
+      await writeFile(path.join(r.docs, 'parts.intent.json'), '{"version": 1, "parts": [');
+      const res = await r.validate();
+      expect(res.findings.map((f) => f.detail).join('\n')).toMatch(/parts\.intent\.json is not a valid parts manifest \(parts manifest is not valid JSON/);
+    } finally { await r.cleanup(); }
+  });
+});

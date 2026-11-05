@@ -11,9 +11,9 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { OFF_BOARD_MARKER, parseBomTable, normalizeValue, normalizeFootprint } from '../../memory/bom-table.js';
+import { OFF_BOARD_MARKER, NO_PART_MARKER, parseBomTable, normalizeValue, normalizeFootprint } from '../../memory/bom-table.js';
 import { MANIFEST_FILENAME, type PartsManifest, type Substitution } from './manifest.js';
-import { resolveParts, readManifest, manifestPath, type ResolvedPart } from './resolve.js';
+import { resolveParts, loadManifest, invalidManifestDetail, type ResolvedPart } from './resolve.js';
 
 export { readManifest, manifestPath } from './resolve.js';
 
@@ -26,7 +26,7 @@ export function renderBom(parts: ResolvedPart[], substitutions: Substitution[] =
   const lines = ['# BOM', '', RENDER_HEADER, '', '| Refdes | Value | Footprint | MPN | Rationale | Symbol |', '| --- | --- | --- | --- | --- | --- |'];
   for (const p of parts) {
     const footprint = p.offBoard ? OFF_BOARD_MARKER : cell(p.footprint);
-    const mpn = p.mpn ? (p.verified ? cell(p.mpn) : `${cell(p.mpn)} (UNVERIFIED)`) : '';
+    const mpn = p.noPart ? NO_PART_MARKER : p.mpn ? (p.verified ? cell(p.mpn) : `${cell(p.mpn)} (UNVERIFIED)`) : '';
     const symbol = p.offBoard ? '' : cell(p.libId);
     lines.push(`| ${cell(p.ref)} | ${cell(p.value)} | ${footprint} | ${mpn} | ${cell(p.rationale)} | ${symbol} |`);
   }
@@ -49,11 +49,17 @@ const canon = (s: string): string => s.replace(/\r\n/g, '\n').split('\n').map((l
  * claim, actual): one per refdes whose value, footprint or MPN cell differs,
  * a row the render lacks or the file lacks, and a single generic mismatch when
  * only prose outside the table changed. Empty when there is no manifest, or
- * the file is its render.
+ * the file is its render. A manifest file that does not parse is itself a
+ * mismatch: silence there would let `check` pass on the old BOM.md while the
+ * manifest it is supposed to be rendered from is broken.
  */
 export async function manifestDrift(docsDir: string): Promise<{ doc: string; claim: string; actual: string }[]> {
-  const manifest = await readManifest(docsDir);
-  if (!manifest) return [];
+  const loaded = await loadManifest(docsDir);
+  if (loaded.state === 'absent') return [];
+  if (loaded.state === 'invalid') {
+    return [{ doc: MANIFEST_FILENAME, claim: 'is a valid parts manifest', actual: `${invalidManifestDetail(loaded.findings)}; fix it and run draft_bom` }];
+  }
+  const manifest = loaded.manifest;
   const bomPath = path.join(docsDir, 'BOM.md');
   const rendered = renderManifest(manifest);
   if (!existsSync(bomPath)) return [{ doc: 'BOM.md', claim: 'absent', actual: `${MANIFEST_FILENAME} lists ${manifest.parts.length} part(s); run draft_bom to render it` }];

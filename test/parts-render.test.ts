@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { renderManifest, manifestDrift } from '../src/kicad/parts/render.js';
 import { parseManifest } from '../src/kicad/parts/manifest.js';
 import { parseBomTable, bomFootprintRows, bomFootprintId } from '../src/memory/bom-table.js';
+import { parseBom, buildExport } from '../src/kicad/bom-export.js';
 import { checkDrift } from '../src/memory/drift.js';
 
 // structured-part-selection: BOM.md is the manifest's render (docs-memory
@@ -121,6 +122,82 @@ describe('manifestDrift', () => {
     const root = await mkdtemp(path.join(tmpdir(), 'copperhead-render-'));
     try {
       expect(await manifestDrift(root)).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the render through the supplier export (AC-19.10)', () => {
+  // `copperhead export bom` reads BOM.md. The render adds a Substitutions
+  // table, an "(UNVERIFIED)" annotation on the MPN, an "(off-board)" footprint
+  // and a "(no part)" MPN; none of them may reach a supplier file as a part.
+  const WITH_HOLE = JSON.stringify({
+    ...JSON.parse(MANIFEST),
+    parts: [...JSON.parse(MANIFEST).parts, { ref: 'H1', value: 'MountingHole_M3', libId: 'CopperConn:Conn_01x03', footprint: 'MountingHole:MountingHole_3.2mm_M3', group: 'Power', noPart: true }],
+  });
+  const md = renderManifest(parseManifest(WITH_HOLE).manifest!);
+  const opts = { boards: 1, spares: 10, includeUnverified: true };
+
+  it('renders a board feature with the no-part marker, read back as NO_PART', () => {
+    expect(md).toContain('| H1 | MountingHole_M3 | MountingHole:MountingHole_3.2mm_M3 | (no part) |  | CopperConn:Conn_01x03 |');
+    const h1 = parseBomTable(md).find((r) => r.refdes === 'H1')!;
+    expect(h1).toMatchObject({ noPart: true, flags: ['NO_PART'] });
+  });
+
+  it('reads only the parts table: the substitutions are not order lines', () => {
+    expect(parseBom(md).map((r) => r.refdes)).toEqual(['U1', 'R1', 'BT1', 'H1']);
+  });
+
+  it('exports the bare MPN, with the verification flag carried beside it', () => {
+    const u1 = parseBom(md).find((r) => r.refdes === 'U1')!;
+    expect(u1).toMatchObject({ mpn: 'MCU8-SOIC', unverified: true, hasMpn: true });
+    const { csv, warnings } = buildExport(parseBom(md), 'digikey', opts);
+    expect(csv).toContain('MCU8-SOIC,,2,U1');
+    expect(csv).not.toContain('UNVERIFIED');
+    expect(warnings.join('\n')).toContain('INCLUDED but UNVERIFIED (--include-unverified): U1 (MCU8-SOIC)');
+  });
+
+  it('keeps an off-board part on a distributor cart and off the assembly BOM', () => {
+    const rows = parseBom(md);
+    expect(rows.find((r) => r.refdes === 'BT1')).toMatchObject({ offBoard: true, footprint: '', mpn: 'LP503035' });
+    expect(buildExport(rows, 'digikey', opts).csv).toContain('LP503035,,2,BT1');
+    const jlc = buildExport(rows, 'jlcpcb', opts);
+    expect(jlc.csv).not.toContain('BT1');
+    expect(jlc.csv).not.toContain('off-board');
+    expect(jlc.excluded.find((e) => e.row.refdes === 'BT1')?.reason).toBe('off-board');
+    expect(jlc.warnings.join('\n')).toMatch(/EXCLUDED \(off-board\): BT1/);
+  });
+
+  it('leaves a board feature off every order, without a warning', () => {
+    for (const supplier of ['jlcpcb', 'digikey', 'mouser'] as const) {
+      const out = buildExport(parseBom(md), supplier, opts);
+      expect(out.csv).not.toContain('H1');
+      expect(out.csv).not.toContain('no part');
+      expect(out.excluded.find((e) => e.row.refdes === 'H1')?.reason).toBe('board feature');
+      expect(out.warnings.join('\n')).not.toContain('H1');
+    }
+  });
+});
+
+describe('a manifest file that does not parse (AC-19.11)', () => {
+  it('is reported as drift, not treated as no manifest', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'copperhead-render-'));
+    try {
+      const docs = path.join(root, 'docs');
+      await mkdir(docs);
+      await writeFile(path.join(docs, 'BOM.md'), renderManifest(manifest()));
+      await writeFile(path.join(root, 'empty.kicad_sch'), '(kicad_sch (version 20231120) (generator "test"))\n');
+      // truncated mid-write
+      await writeFile(path.join(docs, 'parts.intent.json'), MANIFEST.slice(0, 80));
+      const drift = await manifestDrift(docs);
+      expect(drift).toHaveLength(1);
+      expect(drift[0]).toMatchObject({ doc: 'parts.intent.json', claim: 'is a valid parts manifest' });
+      expect(drift[0]!.actual).toMatch(/not valid JSON/);
+      expect(await checkDrift(root, 'docs', 'empty.kicad_sch')).toEqual(drift);
+      // a wrong field type is the same story
+      await writeFile(path.join(docs, 'parts.intent.json'), MANIFEST.replace('"verified":true', '"verified":"yes"'));
+      expect((await manifestDrift(docs))[0]!.actual).toMatch(/R1: "verified" must be true or false/);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

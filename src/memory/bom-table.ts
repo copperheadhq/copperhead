@@ -35,6 +35,16 @@ export interface TableRow {
    * whatever cells they split into — this function never throws.
    */
   export function parseMarkdownTables(md: string): TableRow[] {
+    return parseMarkdownTableGroups(md).flat();
+  }
+
+  /**
+   * The same rows, kept one array per table, so a reader can tell where one
+   * table ends and the next begins (`export bom` reads only the tables that
+   * carry a Refdes header: a Substitutions or cost table under the parts is
+   * not a list of parts).
+   */
+  export function parseMarkdownTableGroups(md: string): TableRow[][] {
     return (
       scanTableGroups(md)
         // A group opened by an un-piped line with no delimiter row is not a table:
@@ -43,9 +53,7 @@ export interface TableRow {
         // under a BOM table becomes a part in `export bom`, which `check` cannot
         // catch because `parseCanonicalTables` drops the header-less group.
         .filter((g) => g[0]!.piped || g.some((l) => l.separator))
-        .flat()
-        .filter((l) => !l.separator)
-        .map((l) => ({ cells: l.cells }))
+        .map((g) => g.filter((l) => !l.separator).map((l) => ({ cells: l.cells })))
     );
   }
 
@@ -277,6 +285,17 @@ export interface TableRow {
   }
 
   /**
+   * The MPN cell the manifest renderer writes for a board feature with nothing
+   * to buy (a mounting hole, a fiducial, a pad test point): every reader treats
+   * it as "no part number, on purpose" — not a missing MPN, not an order line.
+   */
+  export const NO_PART_MARKER = '(no part)';
+
+  export function isNoPartCell(cell: string | undefined): boolean {
+    return (cell ?? '').replace(/[`*\s]/g, '').toLowerCase() === NO_PART_MARKER.replace(/\s/g, '');
+  }
+
+  /**
    * (refdes, footprint id) for every row of a BOM.md table that HAS a
    * Footprint column (#314). Unlike `parseBomTable` there is no positional
    * fallback: a supporting table (pin assignments, a current budget, costs)
@@ -324,9 +343,9 @@ export interface TableRow {
   /**
    * A typed BOM.md data row, per the fixed column contract that `init` writes
    * (Refdes | Value | Footprint | MPN | Rationale — see scaffold.ts's
-   * `bomTable`). `flags` currently only ever contains `UNVERIFIED` (the MPN
-   * column literally says so) or `MISSING_MPN` (no MPN column value at all);
-   * more may be added as the export/fab-gate work grows.
+   * `bomTable`). `flags` holds `UNVERIFIED` (the MPN column literally says so),
+   * `MISSING_MPN` (no MPN column value at all) or `NO_PART` (the MPN cell is
+   * the no-part marker: a board feature with nothing to buy).
    */
   export interface BomRow {
     refdes: string;
@@ -336,6 +355,8 @@ export interface TableRow {
     flags: string[];
     /** The Footprint cell is the off-board marker: a BOM line with no board part. */
     offBoard?: true;
+    /** The MPN cell is the no-part marker: a board feature with nothing to buy. */
+    noPart?: true;
   }
   
   /**
@@ -370,7 +391,9 @@ export interface TableRow {
         const flags: string[] = [];
         // the flag word anywhere in the cell: the bare placeholder, the
         // renderer's `MPN (UNVERIFIED)`, or a hand-written `UNVERIFIED MPN`
-        if (mpn && /\bUNVERIFIED\b/i.test(mpn)) flags.push('UNVERIFIED');
+        const noPart = isNoPartCell(mpn);
+        if (noPart) flags.push('NO_PART');
+        else if (mpn && /\bUNVERIFIED\b/i.test(mpn)) flags.push('UNVERIFIED');
         else if (!mpn) flags.push('MISSING_MPN');
         out.push({
           refdes,
@@ -379,6 +402,7 @@ export interface TableRow {
           mpn: mpn || undefined,
           flags,
           ...(isOffBoardCell(footprint) ? { offBoard: true as const } : {}),
+          ...(noPart ? { noPart: true as const } : {}),
         });
       }
     }

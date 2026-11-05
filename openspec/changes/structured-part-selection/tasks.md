@@ -45,3 +45,10 @@
 
 - [x] 8.1 Typecheck, full vitest suite, build green
 - [x] 8.2 Fixture end-to-end: run stage 3 through the pipeline with a scripted provider that writes a manifest with one bad footprint, one off-board row and one substitution; verify finish is refused once with the footprint, completes after the fix, BOM.md matches the render, and stage 4's dossier uses the recorded lib_ids
+
+## 9. Review and live-run follow-ups
+
+- [x] 9.1 `noPart` entries (design D11): manifest field and shape check, MPN rule waived, `noPart` with `mpn` or `offBoard` refused, `(no part)` rendered and read back as `NO_PART`; the `draft_bom` description and the stage-3 prompt name the flag; verify with validator and render tests.
+- [x] 9.2 Supplier export reads the render (design D12): only Refdes-headed tables are parts, the `(UNVERIFIED)` annotation is stripped from the orderable MPN, no-part rows are on no order, off-board rows are on distributor carts and off the JLCPCB assembly BOM; verify by exporting a render that has a substitution, an unverified MPN, an off-board part and a board feature.
+- [x] 9.3 Invalid manifest is reported (design D13): `loadManifest` tells absent, invalid and ok apart; drift and the IR validator report an invalid file; verify with a truncated manifest and a wrong field type.
+- [x] 9.4 Stage-3 prompt points passives at `package`; SPEC.md AC-19.9 to AC-19.11 and the delta specs updated; `openspec validate` passes.

@@ -77,7 +77,7 @@ Eight stages, each one a full `do` loop with its own prompt and gate. A stage th
 | --- | --- |
 | 1. Spec | `docs/SPEC.md`, every budget also recorded as a constraint |
 | 2. Architecture | `docs/SUBSYSTEMS.md`, one section per subsystem with reasoning |
-| 3. Parts | `docs/parts.intent.json` (the parts manifest: one entry per refdes with its verified symbol, footprint and MPN) and `docs/BOM.md`, rendered from it by `draft_bom`; MPNs flagged `UNVERIFIED` until verified; off-board lines and library-forced substitutions recorded explicitly |
+| 3. Parts | `docs/parts.intent.json` (the parts manifest: one entry per refdes with its verified symbol, footprint and MPN) and `docs/BOM.md`, rendered from it by `draft_bom`; MPNs flagged `UNVERIFIED` until verified; off-board lines, board features with nothing to buy (`noPart`) and library-forced substitutions recorded explicitly |
 | 4. Schematic | The `.kicad_sch`, sheet by sheet, ERC clean after each |
 | 5. Layout | First-draft placement and critical routing, DRC clean |
 | 6. Outputs | `outputs/`: gerbers, drill, DXF, STEP, SVG, `BOM.csv` |

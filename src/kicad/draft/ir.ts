@@ -5,7 +5,7 @@ import { SymbolSource, SymbolResolutionError, powerNetToken, type ResolvedSymbol
 import { parseBomTable, normalizeValue, normalizeFootprint, bomFootprintRows } from '../../memory/bom-table.js';
 import type { FootprintResolver } from '../footprints.js';
 import { checkPinsAgainstPads } from '../parts/pads.js';
-import { manifestPartsOf } from '../parts/resolve.js';
+import { loadManifest, invalidManifestDetail, resolveParts } from '../parts/resolve.js';
 import { MANIFEST_FILENAME } from '../parts/manifest.js';
 
 /**
@@ -234,7 +234,14 @@ export async function validateIntent(
   // and inherit libId, value, footprint and group; a field it does give must
   // agree; an off-board entry is not drawn; a ref the manifest lacks is a
   // finding. Without a manifest the BOM.md cross-check below applies instead.
-  const manifestParts = docsDir ? await manifestPartsOf(docsDir) : null;
+  // A manifest file that does not parse is a finding, never a silent return to
+  // the BOM.md cross-check: the manifest is the decided part list, so the intent
+  // cannot be judged against it until it reads.
+  const loaded = docsDir ? await loadManifest(docsDir) : ({ state: 'absent' } as const);
+  if (loaded.state === 'invalid') {
+    add(`${MANIFEST_FILENAME} is not a valid parts manifest (${invalidManifestDetail(loaded.findings)}); fix it and run draft_bom before drafting the schematic`);
+  }
+  const manifestParts = loaded.state === 'ok' ? new Map(resolveParts(loaded.manifest).map((p) => [p.ref, p])) : null;
   for (const p of intent.parts) {
     const refOf = (p as unknown as { ref?: unknown })?.ref;
     if (manifestParts && typeof refOf === 'string' && refOf) {

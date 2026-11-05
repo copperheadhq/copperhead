@@ -31,6 +31,8 @@ export interface PartEntry {
   verified?: boolean;
   /** A BOM line with no place on the board (a battery with leads, a cable): exempt from symbol/footprint/pad checks. */
   offBoard?: boolean;
+  /** A board feature with nothing to buy (a mounting hole, a fiducial, a pad test point): on the board, exempt from the MPN rule. */
+  noPart?: boolean;
 }
 
 export interface Substitution {
@@ -124,7 +126,7 @@ export function parseManifest(json: string): { manifest: PartsManifest | null; f
         return;
       }
     }
-    for (const k of ['verified', 'offBoard'] as const) {
+    for (const k of ['verified', 'offBoard', 'noPart'] as const) {
       if (!optBool(e[k])) {
         findings.push({ ref, detail: `${ref}: "${k}" must be true or false, got ${JSON.stringify(e[k])}` });
         return;
@@ -138,6 +140,7 @@ export function parseManifest(json: string): { manifest: PartsManifest | null; f
     }
     if (e.verified !== undefined) entry.verified = e.verified as boolean;
     if (e.offBoard !== undefined) entry.offBoard = e.offBoard as boolean;
+    if (e.noPart !== undefined) entry.noPart = e.noPart as boolean;
     parts.push(entry);
   });
   let substitutions: Substitution[] | undefined;
