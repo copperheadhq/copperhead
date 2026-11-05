@@ -8,19 +8,231 @@
 export interface TableRow {
     cells: string[];
   }
-  
+
+  /**
+   * Find the closing backtick delimiter of exact length `runLen` starting from `fromIndex`.
+   * In CommonMark §6.3, a code span delimiter must consist of a contiguous run of backticks
+   * that is not preceded or followed by a backtick, matching the opening run length exactly.
+   * Returns the start index of the closing delimiter run, or -1 if none is found.
+   */
+  export function findMatchingBacktickClose(text: string, fromIndex: number, runLen: number): number {
+    let idx = fromIndex;
+    while (idx < text.length) {
+      if (text[idx] === '`') {
+        const start = idx;
+        while (idx < text.length && text[idx] === '`') idx++;
+        if (idx - start === runLen) {
+          return start;
+        }
+      } else {
+        idx++;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Escape a cell value for inclusion in a GFM pipe table.
+   *
+   * Contracts:
+   * 1. Structural Markdown correctness: pipes (|) must never split a cell.
+   *    In GFM §4.10, table cell splitting precedes inline parsing; pipes
+   *    inside and outside code spans must be escaped as \|.
+   * 2. Displayed semantic correctness:
+   *    - Inside matched backtick code spans, backslashes are literal in GFM;
+   *      they must NOT be doubled, preserving exact paths like `C:\tools\bin`.
+   *    - Outside code spans, backslashes are escape characters in Markdown;
+   *      they must be escaped (\\ -> \\\\) so GitHub renders literal backslashes.
+   * 3. Normalization: newlines are converted to spaces and ends are trimmed.
+   */
+  export function escapeCell(text: string | undefined | null): string {
+    if (text === undefined || text === null) return '';
+    const normalized = text.replace(/\r?\n/g, ' ').trim();
+    if (!normalized) return '';
+
+    let result = '';
+    for (let i = 0; i < normalized.length; i++) {
+      const ch = normalized[i];
+
+      // Matched backtick code span check
+      if (ch === '`') {
+        let k = i;
+        while (k < normalized.length && normalized[k] === '`') k++;
+        const runLen = k - i;
+        const delimiter = normalized.slice(i, k);
+        const closeIdx = findMatchingBacktickClose(normalized, k, runLen);
+        if (closeIdx !== -1) {
+          // Inside matched code span:
+          // Preserve backslashes literally (do NOT double)
+          // Escape pipes so the GFM table row parser does not split columns.
+          // In GFM table parsing (e.g. markdown-it / cmark table extension), the table parser
+          // unescapes \| by stripping one backslash before the pipe and leaving the remaining
+          // cell text for inline code-span parsing (where backslashes are literal).
+          // Therefore, for k literal backslashes immediately preceding '|' in the semantic cell,
+          // emit k + 1 backslashes followed by '|'.
+          result += delimiter;
+          let j = k;
+          while (j < closeIdx) {
+            if (normalized[j] === '\\') {
+              const bsStart = j;
+              while (j < closeIdx && normalized[j] === '\\') j++;
+              const bsCount = j - bsStart;
+              if (j < closeIdx && normalized[j] === '|') {
+                result += '\\'.repeat(bsCount + 1) + '|';
+                j++;
+              } else {
+                result += '\\'.repeat(bsCount);
+              }
+            } else if (normalized[j] === '|') {
+              result += '\\|';
+              j++;
+            } else {
+              result += normalized[j];
+              j++;
+            }
+          }
+          result += delimiter;
+          i = closeIdx + runLen - 1;
+          continue;
+        } else {
+          // Unmatched backtick opener: consume the entire backtick run literally
+          // so shorter sub-runs cannot falsely match subsequent closers.
+          result += delimiter;
+          i = k - 1;
+          continue;
+        }
+      }
+
+      if (ch === '\\') {
+        result += '\\\\';
+      } else if (ch === '|') {
+        result += '\\|';
+      } else {
+        result += ch;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Unescape a cell value from a GFM pipe table.
+   * Uses the shared GFM row scanner to ensure exact agreement with splitRow.
+   */
+  export function unescapeCell(cell: string): string {
+    const cells = splitRow('| ' + cell + ' |');
+    return cells[0] ?? '';
+  }
+
   /**
    * Split one row into trimmed cells. The outer pipes are optional, because they
    * are optional in GitHub-flavored markdown: `Refdes | Pin | Net` renders as a
    * table exactly like `| Refdes | Pin | Net |` does, and a hand- or LLM-authored
    * doc may legitimately be written either way.
+   *
+   * In GFM, table cell splitting operates on unescaped pipe delimiters (`|`).
+   * Escaped pipes (`\|`) do not delimit columns and unescape to literal `|`.
+   * Escaped backslashes (`\\`) outside code spans unescape to `\`.
+   * Backslashes inside code spans are preserved literally.
    */
-  function splitRow(line: string): string[] {
-    return line
-      .replace(/^\|/, '')
-      .replace(/\|$/, '')
-      .split('|')
-      .map((c) => c.trim());
+  export function splitRow(line: string): string[] {
+    const trimmed = line.replace(/\r$/, '').trim();
+    if (!trimmed) return [];
+
+    let start = 0;
+    let end = trimmed.length;
+
+    // Optional leading border pipe (not escaped)
+    if (trimmed.startsWith('|')) {
+      start = 1;
+    }
+
+    // Optional trailing border pipe (only if not escaped)
+    if (end > start && trimmed.endsWith('|')) {
+      let bsCount = 0;
+      for (let j = end - 2; j >= start; j--) {
+        if (trimmed[j] === '\\') bsCount++;
+        else break;
+      }
+      if (bsCount % 2 === 0) {
+        end = end - 1;
+      }
+    }
+
+    const inner = trimmed.slice(start, end);
+    const cells: string[] = [];
+    let current = '';
+
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+
+      // Matched backtick code span: unescape \| -> | while preserving literal backslashes
+      // An unescaped | inside code spans still delimits columns under GFM §4.10
+      if (ch === '`') {
+        let k = i;
+        while (k < inner.length && inner[k] === '`') k++;
+        const runLen = k - i;
+        const delimiter = inner.slice(i, k);
+        const closeIdx = findMatchingBacktickClose(inner, k, runLen);
+        if (closeIdx !== -1) {
+          current += delimiter;
+          let j = k;
+          while (j < closeIdx) {
+            if (inner[j] === '\\') {
+              const bsStart = j;
+              while (j < closeIdx && inner[j] === '\\') j++;
+              const bsCount = j - bsStart;
+              if (j < closeIdx && inner[j] === '|') {
+                // Table row parser stripped one backslash before '|'.
+                // If bsCount >= 1, the pipe was escaped: restore bsCount - 1 backslashes and keep '|'.
+                const unescapedBs = bsCount - 1;
+                if (unescapedBs > 0) current += '\\'.repeat(unescapedBs);
+                current += '|';
+                j++;
+              } else {
+                current += '\\'.repeat(bsCount);
+              }
+            } else if (inner[j] === '|') {
+              // 0 backslashes preceding '|': unescaped pipe splits the cell
+              cells.push(current.trim());
+              current = '';
+              j++;
+            } else {
+              current += inner[j];
+              j++;
+            }
+          }
+          current += delimiter;
+          i = closeIdx + runLen - 1;
+          continue;
+        } else {
+          // Unmatched backtick opener: consume the entire backtick run literally
+          current += delimiter;
+          i = k - 1;
+          continue;
+        }
+      }
+
+      if (ch === '\\') {
+        if (i + 1 < inner.length) {
+          const next = inner[i + 1];
+          if (next === '|' || next === '\\') {
+            current += next;
+            i++;
+            continue;
+          }
+        }
+        current += ch;
+      } else if (ch === '|') {
+        cells.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+
+    cells.push(current.trim());
+    return cells;
   }
 
   /** `|---|:--:|` and friends: the row separating a header from its data. */
@@ -269,16 +481,24 @@ export interface TableRow {
    * Footprint column (#314). Unlike `parseBomTable` there is no positional
    * fallback: a supporting table (pin assignments, a current budget, costs)
    * has no footprint, and its third cell is not one. First row per refdes wins.
+   * Off-board rows are excluded.
    */
   export function bomFootprintRows(md: string): { refdes: string; footprint: string }[] {
     const out = new Map<string, string>();
     for (const { header, rows } of parseCanonicalTables(md)) {
       const refI = header.cells.findIndex((c) => /^refdes$/i.test(c));
       const fpI = header.cells.findIndex((c) => /^footprint$/i.test(c));
+      const symI = header.cells.findIndex((c) => /^symbol$/i.test(c));
       if (refI < 0 || fpI < 0) continue;
       for (const row of rows) {
         const refdes = row.cells[refI]?.replace(/[`*]/g, '').trim();
         if (!refdes || out.has(refdes)) continue;
+        const fpRaw = row.cells[fpI]?.trim();
+        const symRaw = symI >= 0 ? row.cells[symI]?.trim() : undefined;
+        const isOffBoard =
+          (fpRaw !== undefined && /^\(?off-board\)?$/i.test(fpRaw)) ||
+          (symRaw !== undefined && /^\(?off-board\)?$/i.test(symRaw));
+        if (isOffBoard) continue;
         out.set(refdes, bomFootprintId(row.cells[fpI]));
       }
     }
@@ -318,49 +538,74 @@ export interface TableRow {
   export interface BomRow {
     refdes: string;
     value?: string;
+    symbol?: string;
     footprint?: string;
     mpn?: string;
     flags: string[];
+    offBoard?: boolean;
   }
   
   /**
    * Parses BOM.md's data rows into typed rows. Columns are resolved by header
-   * *name* (Refdes/Value/Footprint/MPN), falling back to the canonical position
-   * when a header is absent — the same header-name discipline `parsePinoutRows`
-   * uses (#I12), so a doc that reorders or drops an optional column is still read
-   * correctly instead of silently shifting every cell. Rows without a refdes are
-   * dropped rather than thrown on: a hand-edited doc with a ragged or partial
-   * table shouldn't crash `check` or `export bom`, it should just be skipped
-   * (drift/export callers report the gaps that matter against the schematic).
+   * *name* (Refdes/Value/Footprint/MPN/Symbol).
+   *
+   * A canonical component BOM table must:
+   * 1. Have both Refdes and Value headers.
+   * 2. Have at least one of Footprint, Symbol, or MPN headers.
+   * 3. Not be a pin-assignment table (which has both Pin and Net headers).
+   *
+   * Supporting tables (quiescent current, substitutions, notes) that do not
+   * satisfy this structural contract are ignored.
    */
   export function parseBomTable(md: string): BomRow[] {
     const out: BomRow[] = [];
     for (const { header, rows } of parseCanonicalTables(md)) {
-      // Resolve by header name; -1 means "not found", so fall back to the
-      // canonical index for that column (Refdes 0, Value 1, Footprint 2, MPN 3).
-      const col = (re: RegExp, fallback: number): number => {
-        const i = header.cells.findIndex((c) => re.test(c));
-        return i >= 0 ? i : fallback;
-      };
-      const refI = col(/^refdes$/i, 0);
-      const valI = col(/^value$/i, 1);
-      const fpI = col(/^footprint$/i, 2);
-      const mpnI = col(/^mpn$/i, 3);
+      const col = (re: RegExp): number => header.cells.findIndex((c) => re.test(c));
+      const refI = col(/^refdes$/i);
+      const valI = col(/^value$/i);
+      const symI = col(/^symbol$/i);
+      const fpI = col(/^footprint$/i);
+      const mpnI = col(/^mpn$/i);
+      const pinI = col(/^pin$/i);
+      const netI = col(/^net$/i);
+
+      // Canonical component table check
+      if (refI < 0 || valI < 0) continue;
+      if (fpI < 0 && symI < 0 && mpnI < 0) continue;
+      if (pinI >= 0 && netI >= 0) continue;
+
       for (const row of rows) {
-        const refdes = row.cells[refI];
+        const refdes = row.cells[refI]?.replace(/[`*]/g, '').trim();
         if (!refdes) continue;
-        const value = row.cells[valI];
-        const footprint = row.cells[fpI];
-        const mpn = row.cells[mpnI];
+        const value = row.cells[valI]?.replace(/`/g, '').trim();
+        const symbol = symI >= 0 ? row.cells[symI]?.replace(/`/g, '').trim() : undefined;
+        const footprint = fpI >= 0 ? row.cells[fpI]?.replace(/`/g, '').trim() : undefined;
+        let mpn = mpnI >= 0 ? row.cells[mpnI]?.replace(/[`*]/g, '').trim() : undefined;
+
         const flags: string[] = [];
-        if (mpn === 'UNVERIFIED') flags.push('UNVERIFIED');
-        else if (!mpn) flags.push('MISSING_MPN');
+        if (mpn?.toUpperCase().startsWith('UNVERIFIED')) {
+          flags.push('UNVERIFIED');
+        } else if (!mpn || mpn === '-') {
+          flags.push('MISSING_MPN');
+          mpn = undefined;
+        }
+
+        const isOffBoard =
+          (footprint !== undefined && /^\(?off-board\)?$/i.test(footprint)) ||
+          (symbol !== undefined && /^\(?off-board\)?$/i.test(symbol));
+
+        if (isOffBoard) {
+          flags.push('off-board');
+        }
+
         out.push({
           refdes,
           value: value || undefined,
+          ...(symbol ? { symbol } : {}),
           footprint: footprint || undefined,
           mpn: mpn || undefined,
           flags,
+          ...(isOffBoard ? { offBoard: true } : {}),
         });
       }
     }

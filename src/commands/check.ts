@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
@@ -9,6 +10,10 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { validatePartsManifest } from '../kicad/parts/validator.js';
+import { renderBomMarkdown } from '../kicad/parts/bom-renderer.js';
+import { headingsOf } from '../kicad/draft/ir.js';
+import { FootprintResolver } from '../kicad/footprints.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -21,6 +26,7 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  manifest?: { ok: boolean; errors: string[]; drift: boolean };
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -122,12 +128,87 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let manifestReport: { ok: boolean; errors: string[]; drift: boolean } | null = null;
+  const manifestPath = path.join(repoRoot, config.docs, 'parts.intent.json');
+
+  if (existsSync(manifestPath)) {
+    const errors: string[] = [];
+    let isDrift = false;
+
+    let rawManifest = '';
+    try {
+      rawManifest = await readFile(manifestPath, 'utf8');
+    } catch (err) {
+      errors.push(`failed to read parts.intent.json: ${(err as Error).message}`);
+    }
+
+    if (errors.length === 0) {
+      if (!rawManifest.trim()) {
+        errors.push('parts.intent.json is empty');
+      } else {
+        try {
+          const subsystemsPath = path.join(repoRoot, config.docs, 'SUBSYSTEMS.md');
+          const subHeadings = existsSync(subsystemsPath) ? await headingsOf(subsystemsPath) : null;
+          const anchor = config.board ?? config.schematic;
+          const footprints = await FootprintResolver.create({
+            projectDir: anchor ? path.dirname(path.join(repoRoot, anchor)) : repoRoot,
+          });
+
+          const valRes = await validatePartsManifest(rawManifest, {
+            subsystemsHeadings: subHeadings,
+            footprints,
+          });
+
+          if (!valRes.ok) {
+            errors.push(...valRes.findings.map((f) => f.detail));
+          } else {
+            const bomPath = path.join(repoRoot, config.docs, 'BOM.md');
+            if (!existsSync(bomPath)) {
+              errors.push('BOM.md is missing but parts.intent.json exists; run draft_bom');
+              isDrift = true;
+            } else {
+              try {
+                const actualBom = await readFile(bomPath, 'utf8');
+                const expectedBom = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
+                const normActual = actualBom.replace(/\r\n/g, '\n').trim();
+                const normExpected = expectedBom.replace(/\r\n/g, '\n').trim();
+                if (normActual !== normExpected) {
+                  errors.push('BOM.md is out of sync with parts.intent.json; run draft_bom to synchronize');
+                  isDrift = true;
+                }
+              } catch (err) {
+                errors.push(`failed to read BOM.md: ${(err as Error).message}`);
+              }
+            }
+          }
+        } catch (resolverErr) {
+          errors.push(`manifest resolver failure: ${(resolverErr as Error).message}`);
+        }
+      }
+    }
+
+    manifestReport = {
+      ok: errors.length === 0,
+      errors,
+      drift: isDrift,
+    };
+
+    if (manifestReport.ok) {
+      log('parts manifest ✓');
+    } else {
+      for (const err of manifestReport.errors) {
+        log(`manifest: ${err}`);
+      }
+    }
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (manifestReport?.ok ?? true);
 
   return {
     ok,
@@ -137,5 +218,6 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,
+    ...(manifestReport ? { manifest: manifestReport } : {}),
   };
 }

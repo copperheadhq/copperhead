@@ -167,7 +167,7 @@ Firmware scope: scaffold + pin definitions + driver stubs + one working happy-pa
 brief.md
   → SPEC.md (budgets, ASSUMED flags)          [gate: spec is self-consistent]
   → architecture (block diagram in SUBSYSTEMS.md)
-  → part selection (BOM.md with rationale)     [gate: check_drift]
+  → part selection (parts.intent.json + BOM.md via draft_bom) [gate: semantic validation, check_drift]
   → footprint check (every BOM footprint installed, else stop for the user)
   → schematic, sheet by sheet                  [gate: ERC after every sheet]
   → board populate (deterministic, see below)
@@ -590,6 +590,9 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-15.43 (populated board verified and reversible)** A board populate wrote must pass DRC before the layout-draft stage's first agent turn; otherwise the run stops, naming the findings (and a missing global `fp-lib-table` when KiCad cannot find the libraries). The stage's agent run counts the board as touched, so it cannot finish without a passing `run_drc`. Each retry starts from the last verified board: the board an attempt committed when it still matches the schematic, so a DRC-clean placement is not redone over a documentation gap, else the pre-stage board, re-populated; and a stage that does not complete (a stop, an abort, exhausted retries, an error) leaves the last verified board: byte-identical to the pre-stage board, or, when an attempt committed, to that commit's board, so the tree never reverts HEAD.
 - **AC-15.44 (scaffold hole rules)** The scaffold project allows 0.2 mm holes, so stock footprints' thermal vias pass DRC, and its `.kicad_dru` holds every board via to a 0.3 mm drill.
 - **AC-15.45 (no programmable part, no firmware)** The firmware stage completes on source under `firmware/`, or, only when the schematic has parts and every one comes from a stock non-programmable library (`Device`, `Connector*`, `Diode*`, `Transistor_*`, `Regulator_*`, `Mechanical`, `power`, `Power_Protection`, `LED`, `Switch`, `Jumper`, `Graphic`, `Amplifier_Operational`, `Amplifier_Instrumentation`, `Comparator`, `Reference_Voltage`, `Relay`, `Timer`), on a `firmware/README.md` whose first line is `# No firmware` with a reason written below it (an HTML comment is not one). The schematic decides, not the model: a part from any other library, a project library included (`fixture:ESP32-S3-MINI`), still needs source, and a missing or partless schematic waives nothing (#377).
+- **AC-15.46 (parts manifest and draft_bom engine)** Stage 3 part selection validates `docs/parts.intent.json` against semantic requirements (version 1, refdes uniqueness, passive package expansion, subsystem bidirectional coverage, library symbol existence, footprint resolution, pin/pad count match) and renders `docs/BOM.md` deterministically via `draft_bom`. Stage 3 completes only when both `docs/parts.intent.json` and `docs/BOM.md` exist, pass semantic validation, and are synchronized.
+- **AC-15.47 (exact symbol identity propagation)** Stage 4 schematic drafting consumes the exact `Symbol` (`libId`) recorded in `docs/BOM.md` without fuzzy fallback. Off-board components marked `(off-board)` are excluded from the schematic sheet.
+- **AC-15.48 (manifest verification in check)** `copperhead check` validates `docs/parts.intent.json` against installed KiCad libraries and verifies `docs/BOM.md` synchronization when a manifest is present; repositories without a manifest preserve legacy check behavior.
 
 ### AC-8 · Run observability (change: record-run-metadata)
 

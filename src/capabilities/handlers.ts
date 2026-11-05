@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
+import { writeFile, mkdir, appendFile, readFile, rm } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
 import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
@@ -8,6 +8,9 @@ import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
 import { scoreSchematic, formatScore } from '../kicad/score.js';
 import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
+import { headingsOf } from '../kicad/draft/ir.js';
+import { validatePartsManifest, formatValidationFindings } from '../kicad/parts/validator.js';
+import { renderBomMarkdown } from '../kicad/parts/bom-renderer.js';
 import { FootprintResolver } from '../kicad/footprints.js';
 import { moveFootprint } from '../kicad/populate.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
@@ -18,7 +21,7 @@ import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RefusalBlocker, RunContext } from '../agent/context.js';
-import { corruptionError, markTouched, str } from './helpers.js';
+import { corruptionError, markTouched, safeWriteAtomic, str } from './helpers.js';
 
 /**
  * Findings that say nothing about whether a repair worked: silkscreen text (cosmetic,
@@ -622,6 +625,131 @@ export const HANDLERS: HandlerDef[] = [
       });
       ctx.lastScore = score.composite;
       return [formatSchematicDraftReport(res.report), formatLegibility(leg), formatScore(score)].join('\n');
+    },
+  },
+  {
+    schema: {
+      name: 'draft_bom',
+      description:
+        'Validate the parts manifest (docs/parts.intent.json) and regenerate docs/BOM.md deterministically. Pass manifest_json to write a new manifest first, or omit it to re-validate and re-render the existing file. The engine validates manifest structure, passive expansions, KiCad symbol and footprint existence, pin-to-pad coverage, and subsystem coverage. A failed validation leaves docs/BOM.md untouched and returns structured findings to reconcile.',
+      parameters: {
+        type: 'object',
+        properties: {
+          manifest_json: {
+            type: 'string',
+            description:
+              'full parts manifest document as JSON text (optional: omit to re-validate and re-render the current manifest)',
+          },
+        },
+        required: [],
+      },
+    },
+    requiresUnlock: true,
+    handler: async (ctx, args) => {
+      const docsDir = ctx.config.docs || 'docs';
+      const manifestRel = path.join(docsDir, 'parts.intent.json');
+      const manifestAbs = resolveInRepo(ctx.repoRoot, manifestRel);
+
+      let rawManifest: string;
+      if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
+        const corrupt = corruptionError({ manifest_json: args.manifest_json });
+        if (corrupt) return corrupt;
+        rawManifest = args.manifest_json;
+      } else {
+        if (!existsSync(manifestAbs)) {
+          return `no ${manifestRel} found; pass manifest_json to draft_bom or author ${manifestRel} first`;
+        }
+        try {
+          rawManifest = await readFile(manifestAbs, 'utf8');
+        } catch (readErr) {
+          return {
+            ok: false,
+            text: `draft_bom failed: unable to read existing ${manifestRel}: ${(readErr as Error).message}`,
+          };
+        }
+      }
+
+      const subsystemsPath = path.join(ctx.repoRoot, docsDir, 'SUBSYSTEMS.md');
+      const subHeadings = existsSync(subsystemsPath) ? await headingsOf(subsystemsPath) : null;
+      const anchor = ctx.config.board ?? ctx.config.schematic;
+      const footprints = await FootprintResolver.create({
+        projectDir: anchor ? path.dirname(path.join(ctx.repoRoot, anchor)) : ctx.repoRoot,
+      });
+
+      const valRes = await validatePartsManifest(rawManifest, {
+        subsystemsHeadings: subHeadings,
+        footprints,
+      });
+
+      if (!valRes.ok) {
+        return {
+          ok: false,
+          text: formatValidationFindings(valRes.findings),
+        };
+      }
+
+      let prevManifestContent: string | null = null;
+      const manifestExisted = existsSync(manifestAbs);
+      if (manifestExisted) {
+        try {
+          prevManifestContent = await readFile(manifestAbs, 'utf8');
+        } catch (readErr) {
+          return {
+            ok: false,
+            text: `draft_bom failed: unable to read existing ${manifestRel}: ${(readErr as Error).message}`,
+          };
+        }
+      }
+
+      const isWritingManifest = typeof args.manifest_json === 'string' && args.manifest_json.trim();
+      if (isWritingManifest) {
+        await safeWriteAtomic(ctx.repoRoot, manifestRel, args.manifest_json as string, ctx.writeHooks);
+        // Note: markTouched is deferred until BOM replacement succeeds.
+      }
+
+      const bomRel = path.join(docsDir, 'BOM.md');
+      const rendered = renderBomMarkdown(valRes.expandedParts, valRes.substitutions);
+      try {
+        await safeWriteAtomic(ctx.repoRoot, bomRel, rendered, ctx.writeHooks);
+      } catch (bomErr) {
+        // Rollback manifest update if BOM replacement fails to avoid inconsistent repository state
+        if (isWritingManifest) {
+          try {
+            if (manifestExisted && prevManifestContent !== null) {
+              await safeWriteAtomic(ctx.repoRoot, manifestRel, prevManifestContent, ctx.writeHooks);
+            } else {
+              const doRm = ctx.writeHooks?.rm ?? rm;
+              await doRm(manifestAbs, { force: true });
+            }
+          } catch (rollbackErr) {
+            // BOTH failed: repository state is potentially inconsistent!
+            // Mark manifest touched so ledger and safety gates recognize the repository was modified
+            markTouched(ctx, manifestRel);
+            const action = manifestExisted ? `restore ${manifestRel} to prior content` : `remove newly created ${manifestRel}`;
+            throw new Error(
+              `draft_bom failed: unable to write ${bomRel}: ${(bomErr as Error).message}. ` +
+              `CRITICAL RECOVERY FAILURE: failed to ${action}: ${(rollbackErr as Error).message}. ` +
+              `Repository state is potentially inconsistent.`
+            );
+          }
+        }
+        throw bomErr;
+      }
+
+      // Both writes succeeded! Mark both files touched and register obligations in ledger.
+      if (isWritingManifest) {
+        markTouched(ctx, manifestRel);
+      }
+      markTouched(ctx, bomRel);
+
+      const warningText =
+        valRes.warnings.length > 0
+          ? `\nWarnings (verify before fabrication):\n${valRes.warnings.map((w) => `  - ${w}`).join('\n')}`
+          : '';
+      return {
+        ok: true,
+        text: `draft_bom: successfully validated ${valRes.expandedParts.length} parts and rendered ${bomRel} deterministically.${warningText}`,
+      };
     },
   },
   {

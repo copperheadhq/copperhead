@@ -32,6 +32,7 @@ const HINT: Record<string, ViewHint> = {
   resolve_affected: 'mutation',
   record_decision: 'mutation',
   finish: 'diagnostic',
+  draft_bom: 'mutation',
 };
 
 function wrap(def: (typeof HANDLERS)[number]): CatalogTool {

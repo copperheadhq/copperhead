@@ -250,4 +250,124 @@ describe('export command end-to-end (supplier-bom-export)', () => {
     }
     expect(fetched).toBe(false);
   });
+
+  it('excludes Substitutions and supporting tables from component inventory across all suppliers (Finding 1)', () => {
+    const bom = [
+      '# Bill of Materials',
+      '',
+      '| Refdes | Value | Symbol | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|---|',
+      '| U1 | STM32F103C8T6 | MCU_ST_STM32F1:STM32F103C8Tx | Package_QFP:LQFP-48_7x7mm_P0.5mm | STM32F103C8T6 | Main MCU |',
+      '| R1 | 10k | Device:R | Resistor_SMD:R_0603_1608Metric | RC0603FR-0710KL | Pull-up |',
+      '| C1 | 100nF | Device:C | Capacitor_SMD:C_0402_1005Metric | UNVERIFIED GRM155R71C104KA88D | Decoupling |',
+      '',
+      '## Substitutions',
+      '',
+      '| Refdes | Wanted | Chosen | Reason |',
+      '|---|---|---|---|',
+      '| U2 | DRV8701 | IR2104 | IR2104PBF |',
+      '',
+      '## Power Budget',
+      '',
+      '| Rail | Nominal | Max | Voltage | Notes |',
+      '|---|---|---|---|---|',
+      '| 3V3 | 50mA | 150mA | 3.3V | Microcontroller supply |',
+    ].join('\n');
+
+    const rows = parseBom(bom);
+    // Substitutions and Power Budget must NOT enter parsed rows
+    expect(rows.map((r) => r.refdes)).toEqual(['U1', 'R1', 'C1']);
+    expect(rows.some((r) => r.refdes === 'U2')).toBe(false);
+    expect(rows.some((r) => r.refdes === '3V3')).toBe(false);
+
+    // Test supplier export for JLCPCB, DigiKey, and Mouser
+    for (const supplier of ['jlcpcb', 'digikey', 'mouser'] as const) {
+      const res = buildExport(rows, supplier, { boards: 1, spares: 10, includeUnverified: false });
+
+      // Included must only contain verified parts with real MPN (U1 and R1)
+      expect(res.included.map((r) => r.refdes)).toEqual(['U1', 'R1']);
+      // Excluded must contain C1 (UNVERIFIED)
+      expect(res.excluded.some((e) => e.row.refdes === 'C1' && e.reason === 'UNVERIFIED')).toBe(true);
+      // U2 and 3V3 must NEVER appear in included, excluded, or warnings
+      expect(res.included.some((r) => r.refdes === 'U2' || r.refdes === '3V3')).toBe(false);
+      expect(res.excluded.some((e) => e.row.refdes === 'U2' || e.row.refdes === '3V3')).toBe(false);
+      expect(res.warnings.some((w) => w.includes('U2') || w.includes('DRV8701') || w.includes('3V3'))).toBe(false);
+
+      if (supplier === 'digikey') {
+        // Quantity arithmetic: R1 is passive, so min spares is base + 2 = 3; U1 with 10% spares ceils to 2
+        expect(res.csv).toContain('RC0603FR-0710KL,,3,R1');
+        expect(res.csv).toContain('STM32F103C8T6,,2,U1');
+      }
+    }
+
+    // With includeUnverified: true
+    const resUnv = buildExport(rows, 'mouser', { boards: 2, spares: 10, includeUnverified: true });
+    expect(resUnv.included.map((r) => r.refdes)).toEqual(['U1', 'R1', 'C1']);
+    expect(resUnv.warnings.some((w) => w.includes('INCLUDED but UNVERIFIED') && w.includes('C1'))).toBe(true);
+    expect(resUnv.warnings.some((w) => w.includes('U2'))).toBe(false);
+  });
+
+  it('exports canonical row of a valid substitution with clean MPN and explicit unverified handling (Task 1 & 2)', () => {
+    // BOM where R1 has an unverified chosen substitute MPN rendered by draft_bom
+    const bomWithSubstitute = [
+      '# Bill of Materials',
+      '',
+      '| Refdes | Value | Symbol | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|---|',
+      '| R1 | 10k | Device:R | Resistor_SMD:R_0603_1608Metric | UNVERIFIED RC0603FR-0710KL | Substituted |',
+      '',
+      '## Substitutions',
+      '',
+      '| Refdes | Wanted | Chosen | Reason |',
+      '|---|---|---|---|',
+      '| R1 | CRCW060310K0FKEA | RC0603FR-0710KL | Distributor stock availability |',
+      '',
+    ].join('\n');
+
+    const rows = parseBom(bomWithSubstitute);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      refdes: 'R1',
+      mpn: 'RC0603FR-0710KL',
+      unverified: true,
+      hasMpn: true,
+    });
+
+    // Default export (includeUnverified: false) excludes it with UNVERIFIED reason
+    const defaultExport = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(defaultExport.included).toHaveLength(0);
+    expect(defaultExport.excluded).toHaveLength(1);
+    expect(defaultExport.excluded[0].reason).toBe('UNVERIFIED');
+
+    // With --include-unverified: exported with clean usable MPN and warning
+    const unverifiedExport = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: true });
+    expect(unverifiedExport.included).toHaveLength(1);
+    expect(unverifiedExport.csv).toContain('RC0603FR-0710KL');
+    expect(unverifiedExport.csv).not.toContain('UNVERIFIED RC0603FR-0710KL');
+    expect(unverifiedExport.warnings.some((w) => w.includes('INCLUDED but UNVERIFIED'))).toBe(true);
+  });
+
+  it('preserves clean usable MPN for unverified rows across DigiKey and Mouser (Task 2)', () => {
+    const bom = [
+      '| Refdes | Value | Symbol | Footprint | MPN | Rationale |',
+      '|---|---|---|---|---|---|',
+      '| U1 | MCU8 | CopperMCU:MCU8 | Package_SO:SOIC-8_3.9x4.9mm_P1.27mm | UNVERIFIED ATTINY85-20SU | host MCU |',
+    ].join('\n');
+
+    const rows = parseBom(bom);
+    expect(rows[0].mpn).toBe('ATTINY85-20SU');
+    expect(rows[0].unverified).toBe(true);
+
+    const dk = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: true });
+    expect(dk.csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+      'ATTINY85-20SU,,2,U1\n'
+    );
+
+    const mouser = buildExport(rows, 'mouser', { boards: 1, spares: 10, includeUnverified: true });
+    expect(mouser.csv).toBe(
+      'Mfr. Part Number,Manufacturer,Quantity,Customer Reference\n' +
+      'ATTINY85-20SU,,2,U1\n'
+    );
+  });
 });

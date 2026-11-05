@@ -63,7 +63,7 @@
 
 ## 7. `check` command
 
-- [x] 7.1 Implement `copperhead check` (with `verify` alias): ERC + DRC + drift + `openspec validate` + mechanical constraint checks; zero LLM/network calls; non-zero exit on any violation (AC-2.1, AC-2.2)
+- [x] 7.1 Implement `copperhead check` (with `verify` alias): ERC + DRC + drift + `openspec validate` + mechanical constraint checks + parts manifest and BOM sync validation; zero LLM/network calls; non-zero exit on any violation (AC-2.1, AC-2.2)
 - [x] 7.2 Implement `--json` output with stable keys (AC-2.4)
 - [x] 7.3 Tests: clean fixture passes < 60 s with network guard asserting no api.* calls; broken-pin fixture fails with location; BOM-drift fixture fails naming doc/claim/actual (AC-2.5)
 
@@ -83,7 +83,7 @@
 
 - [x] 9.1 Implement brief ingestion + stage runner: each stage a do-loop run with stage prompt and gate; stage completion inferred from repo state (resumable)
 - [x] 9.2 Stage 1: seed openspec/specs/ from brief (requirements with Given/When/Then scenarios) + SPEC.md budgets with ASSUMED flags
-- [x] 9.3 Stages 2–4: architecture (SUBSYSTEMS.md) → part selection (BOM.md, drift gate) → schematic sheet-by-sheet (ERC gate per sheet)
+- [x] 9.3 Stages 2–4: architecture (SUBSYSTEMS.md) → part selection (parts.intent.json + BOM.md via draft_bom, semantic validation and drift gate) → schematic sheet-by-sheet (exact symbol libId propagation, ERC gate per sheet)
 - [x] 9.4 Stage 5: first-draft layout — rule-driven placement coordinates, power/critical net routing, DRC gate, auto-written `## Draft quality` section in LAYOUT.md
 - [x] 9.5 Stage 6: outputs package via kicad-cli — gerbers+drill zip (JLC/PCBWay profile), DXF/STEP, SVG renders, ordering BOM.csv from BOM.md
 - [x] 9.6 Stage 7: firmware scaffold + pins.h generated from PINOUT.md; vendor toolchain build gate with explicit "not compiled here" fallback in DEVPLAN.md

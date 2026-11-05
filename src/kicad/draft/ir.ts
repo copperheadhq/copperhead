@@ -63,15 +63,23 @@ export interface ValidatedIntent {
 }
 
 /** `## Heading` names from a markdown file, in order. */
-async function headingsOf(file: string): Promise<string[] | null> {
+export async function headingsOf(file: string): Promise<string[] | null> {
   if (!existsSync(file)) return null;
   const text = await readFile(file, 'utf8');
   const names = [...text.matchAll(/^#{2,6}\s+(.+?)\s*$/gm)].map((m) => m[1]!.trim()).filter(Boolean);
   return names.length ? names : null;
 }
 
+export interface BomRowSummary {
+  ref: string;
+  value: string;
+  footprint: string;
+  symbol?: string;
+  offBoard?: boolean;
+}
+
 /**
- * BOM.md rows as { ref, value }, or null when the file/table is absent.
+ * BOM.md rows as { ref, value, footprint, symbol, offBoard }, or null when the file/table is absent.
  *
  * Goes through the shared canonical reader (`parseBomTable`) rather than
  * scanning every pipe-line in the file: the old inline scan read a supporting
@@ -84,18 +92,24 @@ async function headingsOf(file: string): Promise<string[] | null> {
  * verbatim and simply matches nothing, because the BOM contract is one row per
  * part — the row's single Rationale cell is where that part's purpose lives.
  */
-async function bomRowsOf(file: string): Promise<{ ref: string; value: string; footprint: string }[] | null> {
+async function bomRowsOf(file: string): Promise<BomRowSummary[] | null> {
   if (!existsSync(file)) return null;
   const md = await readFile(file, 'utf8');
   // first row per refdes: the canonical BOM table leads the doc, and a later
   // supporting table (pin assignments, costs) must not override its cells
   const fps = new Map(bomFootprintRows(md).map((r) => [r.refdes, r.footprint]));
   const seen = new Set<string>();
-  const rows: { ref: string; value: string; footprint: string }[] = [];
+  const rows: BomRowSummary[] = [];
   for (const r of parseBomTable(md)) {
     if (seen.has(r.refdes)) continue;
     seen.add(r.refdes);
-    rows.push({ ref: r.refdes, value: r.value ?? '', footprint: fps.get(r.refdes) ?? '' });
+    rows.push({
+      ref: r.refdes,
+      value: r.value ?? '',
+      footprint: fps.get(r.refdes) ?? '',
+      symbol: r.symbol,
+      offBoard: r.offBoard,
+    });
   }
   return rows.length ? rows : null;
 }
@@ -430,25 +444,30 @@ export async function validateIntent(
   // BOM cross-check: a transcription slip dies here, not at the drift gate (D6)
   const bomRows = docsDir ? await bomRowsOf(path.join(docsDir, 'BOM.md')) : null;
   if (bomRows) {
-    const bomByRef = new Map(bomRows.map((r) => [r.ref, r.value]));
-    const bomFootprint = new Map(bomRows.map((r) => [r.ref, r.footprint]));
+    const bomByRef = new Map(bomRows.map((r) => [r.ref, r]));
     for (const p of partByRef.values()) {
       if (symbols.get(p.ref)?.isPower) continue;
-      const bomValue = bomByRef.get(p.ref);
-      // The footprint was chosen at part selection and checked installed
-      // before this stage ran (#314); the intent carries it verbatim. Another
-      // package here would reach the board unchecked, so it is refused rather
-      // than accepted as a substitute.
-      const fp = bomFootprint.get(p.ref);
+      const bomEntry = bomByRef.get(p.ref);
+      if (bomEntry === undefined) {
+        add(`${p.ref} is not a BOM.md row; add it to the BOM or drop it from the intent`);
+        continue;
+      }
+      if (bomEntry.offBoard) {
+        add(`${p.ref} is marked off-board in BOM.md and cannot be placed on the schematic`);
+        continue;
+      }
+      if (bomEntry.symbol && bomEntry.symbol !== '(off-board)' && p.libId !== bomEntry.symbol) {
+        add(
+          `${p.ref} libId "${p.libId}" differs from BOM.md's symbol "${bomEntry.symbol}"; copy the BOM symbol exactly`,
+        );
+      }
+      const bomValue = bomEntry.value;
+      const fp = bomEntry.footprint;
       if (bomValue !== undefined && fp && normalizeFootprint(p.footprint) !== fp) {
         add(
           `${p.ref} footprint ${p.footprint ? `"${p.footprint}"` : '(none)'} differs from BOM.md's "${fp}"; ` +
             `copy the BOM footprint exactly (do not substitute another package)`,
         );
-      }
-      if (bomValue === undefined) {
-        add(`${p.ref} is not a BOM.md row; add it to the BOM or drop it from the intent`);
-        continue;
       }
       // Drawability first, and independently of whether the two agree. Whether
       // the cell can be drawn is a property of BOM.md alone, and the agent's
