@@ -81,3 +81,14 @@ When the model's reply continues past its tool calls in the harness's own transc
 #### Scenario: A skill's sub-run invents a tool result
 - **WHEN** a skill's sub-run gets a reply cut for an invented `[result of …]` block
 - **THEN** the sub-run sends the notice after the real results and the transcript has a `fabricated-results` event naming the skill
+
+### Requirement: Undispatched calls in a mixed reply are named
+When a reply dispatches at least one tool call and also holds tool-call JSON that did not run (a tool outside the turn's catalog, or a call that does not parse), the provider SHALL return those tool names with the turn, and the loop SHALL send the model one message after the real tool results naming them and record an `undispatched-calls` event (AC-3.22). A `finish` in that reply SHALL be answered as not run, naming those calls, and SHALL NOT end the run (AC-3.23). Nothing that did not run before SHALL be dispatched, so the edit lock is unchanged.
+
+#### Scenario: A write after validate_change in the same reply
+- **WHEN** one reply calls `propose_change`, `validate_change`, then `write_file`, and `write_file` was not in the turn's catalog
+- **THEN** the first two calls run, the next message names `write_file` as available now, and the transcript has an `undispatched-calls` event listing it
+
+#### Scenario: A finish rides in the same reply
+- **WHEN** that reply also ends with `finish`
+- **THEN** `finish` is answered as held back with `write_file` named, the run does not commit, and the next reply can send the write and finish

@@ -7,6 +7,7 @@ import type { ChatOpts, Msg, Provider, Turn } from '../src/agent/types.js';
 import { InteractiveRenderer, makeRenderer, plainRenderer } from '../src/agent/render.js';
 import { isColorEnabled, setColorEnabled, stageLine, toolLine } from '../src/agent/theme.js';
 import { tempFixtureRepo } from './helpers.js';
+import { parseToolCalls } from '../src/agent/providers/tool-protocol.js';
 
 /** Replays a fixed script of turns; the last turn repeats forever. */
 class ScriptedProvider implements Provider {
@@ -335,6 +336,108 @@ describe('a turn that left tool calls undispatched (#306)', () => {
       expect(later).toHaveLength(2);
       expect(later[1]).toMatch(/"edit_files": not a tool in the catalog\. Use one of the available tools: .*write_file/);
       expect(later[1]).not.toMatch(/withheld until a proposal validates/);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+});
+
+describe('a finish in a reply that left calls undispatched (#296)', () => {
+  it('is answered, not run, and the note names the calls; a later finish ends the run', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const seen: Msg[][] = [];
+      const lines: string[] = [];
+      const turns: Turn[] = [
+        {
+          text: null,
+          toolCalls: [{ id: 'early', name: 'finish', args: { outcome: 'done', summary: 'wrote the spec' } }],
+          usage: { inputTokens: 1, outputTokens: 1 },
+          undispatched: { unavailable: ['write_file', 'write_file'], malformed: ['edit_file'] },
+        },
+        finishTurn('done', 'nothing to change after all'),
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          return turns[Math.min(seen.length - 1, turns.length - 1)]!;
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, lines, { maxTurns: 3 }));
+      expect(res.outcome).toBe('success');
+      expect(seen).toHaveLength(2);
+
+      const events = await transcriptEvents(res.transcriptDir);
+      const held = events.find((e) => e.type === 'tool-not-run');
+      expect(held?.data).toMatchObject({ name: 'finish' });
+      expect(held?.data.result).toMatch(/^not run: finish was held back because "write_file", "edit_file" in this reply did not run/);
+      // Only the second reply's finish ran.
+      expect(events.filter((e) => e.type === 'tool').map((e) => e.data.name)).toEqual(['finish']);
+
+      // The model reads the held-back result, then the #306 note naming the calls.
+      const second = seen[1]!;
+      const resultAt = second.findIndex((m) => m.role === 'tool' && m.toolCallId === 'early');
+      const noteAt = second.findIndex((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('did not run'));
+      expect(second[resultAt]!.content).toMatch(/held back/);
+      expect(noteAt).toBeGreaterThan(resultAt);
+      expect(lines.some((l) => l.includes('held back: write_file, edit_file did not run in this reply'))).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('holds back a refusal the same way', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const provider = new ScriptedProvider([
+        { ...finishTurn('refuse', 'cannot do it'), undispatched: { unavailable: [], malformed: ['record_constraint'] } },
+        finishTurn('refuse', 'cannot do it'),
+      ]);
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 3 }));
+      expect(res.outcome).toBe('refused');
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.filter((e) => e.type === 'tool-not-run').map((e) => e.data.name)).toEqual(['finish']);
+      expect(events.filter((e) => e.type === 'tool').map((e) => e.data.name)).toEqual(['finish']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('the #296 reply through the real parser: the write is not lost to a same-reply finish', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const call = (tool: string, args: Record<string, unknown>) => '```json\n' + JSON.stringify({ tool, args }) + '\n```';
+      const write = call('write_file', { path: 'docs/NOTES.md', content: '# Notes\n\nSeeded by the spec stage.\n' });
+      const replies = [
+        // propose, validate, write and finish in one reply: write_file is not in the
+        // catalog this turn was given, so the parser cannot dispatch it.
+        [
+          call('propose_change', { id: 'seed-notes', why: 'w', what_changes: '- docs/NOTES.md', tasks: '- [ ] write it' }),
+          call('validate_change', {}),
+          write,
+          call('finish', { outcome: 'done', summary: 'notes written' }),
+        ].join('\n'),
+        [write, call('check_drift', {}), call('finish', { outcome: 'done', summary: 'notes written' })].join('\n'),
+      ];
+      let turn = 0;
+      let seq = 0;
+      const provider: Provider = {
+        name: 'scripted-text-protocol',
+        chat: async (_messages, tools) => {
+          const catalog = new Set(tools.map((t) => t.name));
+          const parsed = parseToolCalls(replies[Math.min(turn++, replies.length - 1)]!, () => `cc-${++seq}`, catalog);
+          return { ...parsed, usage: { inputTokens: 1, outputTokens: 1 } };
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 4 }));
+      expect(res.outcome).toBe('success');
+      expect(turn).toBe(2);
+      const committed = (await execa('git', ['show', '--name-only', '--format=', 'HEAD'], { cwd: repo })).stdout.split('\n');
+      expect(committed).toContain('docs/NOTES.md');
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.find((e) => e.type === 'undispatched-calls')?.data).toEqual({ unavailable: ['write_file'], malformed: [] });
+      expect(events.find((e) => e.type === 'tool-not-run')?.data).toMatchObject({ name: 'finish' });
     } finally {
       await cleanup();
     }
