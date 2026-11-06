@@ -120,6 +120,51 @@ describe('draft_bom tool', () => {
     }
   });
 
+  it('keeps the drift gate open while the written manifest is invalid (AC-19.12)', async () => {
+    const { root, ctx, cleanup } = await repo();
+    try {
+      // a clean render first, checked, so the ledger starts clear with a BOM.md on disk
+      await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
+      expect(await dispatchTool(ctx, 'check_drift', {})).toMatch(/vacuously clean/);
+      expect(ctx.ledger.isClear).toBe(true);
+      const bomBefore = await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8');
+
+      // valid JSON, invalid manifest shape: written, BOM.md untouched
+      const out = await dispatchTool(ctx, 'draft_bom', { manifest_json: '{"version": 1, "parts": "none"}' });
+      expect(out).toContain('BOM.md not written');
+      expect(await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8')).toBe(bomBefore);
+      expect(ctx.ledger.openOfKind('drift').map((o) => o.openedBy)).toEqual(['docs/parts.intent.json']);
+
+      // check_drift does not clear it, with or without a schematic configured
+      const drift = await dispatchTool(ctx, 'check_drift', {});
+      expect(drift).toMatch(/parts\.intent\.json: claims "is a valid parts manifest"/);
+      expect(ctx.ledger.isClear).toBe(false);
+
+      // a valid manifest again closes it
+      await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
+      expect(await dispatchTool(ctx, 'check_drift', {})).toMatch(/vacuously clean/);
+      expect(ctx.ledger.isClear).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('opens the drift gate when another tool writes the manifest', async () => {
+    const { ctx, cleanup } = await repo();
+    try {
+      await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
+      await dispatchTool(ctx, 'check_drift', {});
+      expect(ctx.ledger.isClear).toBe(true);
+      // edit_file changes one part's value: BOM.md is no longer the render
+      await dispatchTool(ctx, 'edit_file', { path: 'docs/parts.intent.json', old_string: '"10k"', new_string: '"22k"' });
+      expect(ctx.ledger.openOfKind('drift')).toHaveLength(1);
+      expect(await dispatchTool(ctx, 'check_drift', {})).toMatch(/BOM\.md/);
+      expect(ctx.ledger.isClear).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('refuses invalid JSON without writing either file', async () => {
     const { root, ctx, cleanup } = await repo();
     try {

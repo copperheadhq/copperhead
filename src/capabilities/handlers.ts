@@ -12,6 +12,7 @@ import { FootprintResolver } from '../kicad/footprints.js';
 import { checkPartsManifest, partsStageGap, partsManifestPath } from '../kicad/parts/stage.js';
 import { MANIFEST_FILENAME } from '../kicad/parts/manifest.js';
 import { formatManifestFindings } from '../kicad/parts/validate.js';
+import { manifestDrift } from '../kicad/parts/render.js';
 import { moveFootprint } from '../kicad/populate.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
@@ -658,7 +659,9 @@ export const HANDLERS: HandlerDef[] = [
         const abs = resolveInRepo(ctx.repoRoot, manifestRel);
         await mkdir(path.dirname(abs), { recursive: true });
         await writeFile(abs, args.manifest_json.endsWith('\n') ? args.manifest_json : `${args.manifest_json}\n`, 'utf8');
-        ctx.filesTouched.add(manifestRel);
+        // opens the drift obligation whether or not validation passes below:
+        // a manifest left invalid must not reach finish with a clear ledger
+        markTouched(ctx, manifestRel);
       }
       const check = await checkPartsManifest(ctx.repoRoot, ctx.config);
       if (!check) return `no ${manifestRel} yet: pass manifest_json to write one`;
@@ -789,7 +792,7 @@ export const HANDLERS: HandlerDef[] = [
   {
     schema: {
       name: 'check_drift',
-      description: 'Compare BOM.md/PINOUT.md tables against the parsed schematic. Clears the drift obligation when clean.',
+      description: 'Compare BOM.md/PINOUT.md tables against the parsed schematic, and BOM.md against the parts manifest when there is one. Clears the drift obligation when clean.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: false,
@@ -801,6 +804,15 @@ export const HANDLERS: HandlerDef[] = [
       // exists): a doc edit opens the drift obligation, this is the only tool
       // that clears it, and finish refuses while any obligation is open.
       if (!ctx.config.schematic) {
+        // The parts manifest is the one drift check that needs no schematic:
+        // an invalid manifest, or a BOM.md that is not its render, keeps the
+        // obligation open. A repo with no manifest has nothing to report here.
+        const manifest = await manifestDrift(path.join(ctx.repoRoot, ctx.config.docs));
+        if (manifest.length) {
+          const text = manifest.map((m) => `${m.doc}: claims "${m.claim}" but actual is "${m.actual}"`).join('\n');
+          ctx.lastDrift = text;
+          return { ok: false, text };
+        }
         ctx.ledger.clear('drift');
         ctx.lastDrift = 'no schematic configured; drift vacuously clean';
         return 'no schematic configured; drift vacuously clean';

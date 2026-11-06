@@ -47,6 +47,8 @@ See proposal.md — Why, and #459 for the audit. Stage 4 already has the shape t
 
 **D13. A manifest that does not parse is reported, never skipped.** `loadManifest` returns `absent`, `invalid` (with the shape findings) or `ok`. The readers that enforce the manifest act on `invalid`: drift reports `parts.intent.json` as not a valid manifest, and the IR validator adds a finding instead of returning to the BOM.md cross-check. Only the pin dossier, which uses the manifest as a convenience, treats invalid as absent. Before this, a truncated manifest made `check` pass against the old BOM.md.
 
+**D14. Writing the manifest opens the drift gate.** The manifest is a doc that BOM.md is rendered from, so a write to it by any tool opens the ledger's drift obligation the way a markdown doc edit does. `draft_bom` opens it before validating, so a manifest that fails validation cannot reach `finish` with a clear ledger and be committed beside the old BOM.md. `check_drift` runs the manifest check even with no schematic configured, where it used to clear the obligation unconditionally; with no manifest that path is unchanged, so the docs-only create stages still finish. Before this, `draft_bom` only recorded the manifest path as touched, and outside create's part-selection stage (which has its own gate) nothing stopped the commit.
+
 ## Risks / Trade-offs
 
 - [A large manifest is one big write, the single-point-of-failure pattern of #145] → The prompt tells the model to write it per subsystem with `edit_file`; `draft_bom` validates whatever is present and reports which SUBSYSTEMS.md headings have no parts yet, so partial progress is checkable.
