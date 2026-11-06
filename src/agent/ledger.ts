@@ -56,7 +56,9 @@ export class ObligationsLedger {
 
   /** A KiCad edit re-opens verification obligations even if previously cleared. */
   onKicadEdit(file: string): void {
-    this.add('erc', 'ERC must pass after schematic edits', file);
+    if (!file.endsWith('.kicad_pcb')) {
+      this.add('erc', 'ERC must pass after schematic edits', file);
+    }
     if (file.endsWith('.kicad_pcb')) this.add('drc', 'DRC must pass after board edits', file);
     if (file.endsWith('.kicad_sch') && this.gateLegibility) {
       this.add('legibility', 'check_legibility must run clean after schematic edits', file);

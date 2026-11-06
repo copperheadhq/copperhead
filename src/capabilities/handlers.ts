@@ -408,8 +408,10 @@ export const HANDLERS: HandlerDef[] = [
     },
     requiresUnlock: false,
     handler: async (ctx) => {
-      if (!ctx.config.schematic)
+      if (!ctx.config.schematic) {
+        ctx.ledger.clear('erc');
         return 'no schematic configured; ERC does not apply yet — skip it until a schematic exists and is set in .copperhead/config.json';
+      }
       const schPath = path.join(ctx.repoRoot, ctx.config.schematic);
       const report = await runErc(schPath);
       countRepairCycle(ctx, 'erc', report);
@@ -1044,12 +1046,12 @@ export const HANDLERS: HandlerDef[] = [
       const problems: string[] = [];
       const touchedKicad = [...ctx.filesTouched].some((f) => isKicadFile(f));
       if (touchedKicad) {
-        if (!ctx.lastErc?.ok) problems.push('ERC has not passed since the last schematic edit (run run_erc)');
+        if (ctx.config.schematic && !ctx.lastErc?.ok) problems.push('ERC has not passed since the last schematic edit (run run_erc)');
         const touchedPcb = [...ctx.filesTouched].some((f) => f.endsWith('.kicad_pcb'));
         if (touchedPcb && !ctx.lastDrc?.ok) problems.push('DRC has not passed since the last board edit (run run_drc)');
       }
       // the changelog obligation is cleared by the commit path itself
-      const blocking = ctx.ledger.openObligations.filter((o) => o.kind !== 'changelog');
+      const blocking = ctx.ledger.openObligations.filter((o) => o.kind !== 'changelog' && (ctx.config.schematic || o.kind !== 'erc'));
       if (blocking.length) {
         problems.push('open sync obligations:\n' + blocking.map((o) => `  - [${o.kind}] ${o.detail}`).join('\n'));
       }
