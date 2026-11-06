@@ -5,12 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 
 export const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'open-key');
+/** open-key plus an RGB LED and six more GPIOs (AC-3.3); see fixtures/rgb-key-source/README.md. */
+export const RGB_FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'rgb-key');
 export const REPORTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'reports');
 
-/** Copy the open-key fixture into a fresh temp dir and git-init it. */
-export async function tempFixtureRepo(): Promise<{ repo: string; cleanup: () => Promise<void> }> {
+/** Copy a fixture (open-key by default) into a fresh temp dir and git-init it. */
+export async function tempFixtureRepo(fixture: string = FIXTURE): Promise<{ repo: string; cleanup: () => Promise<void> }> {
   const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-test-'));
-  await cp(FIXTURE, repo, { recursive: true });
+  await cp(fixture, repo, { recursive: true });
   // the target-repo convention (AC-4.3): .env and the run audit trail ignored
   await writeFile(path.join(repo, '.gitignore'), '.env\n.copperhead/runs/\n', 'utf8');
   await execa('git', ['init', '-q'], { cwd: repo });
