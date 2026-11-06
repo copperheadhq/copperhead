@@ -33,3 +33,31 @@ export function redactSecrets(text: string): string {
   for (const re of PATTERNS) out = out.replace(re, '[REDACTED]');
   return out;
 }
+
+/**
+ * Some endpoints embed a credential in the URL itself (a query param or
+ * userinfo): Gemini's OpenAI-compat endpoint does this with ?key=....
+ * redactSecrets only catches known key shapes, and a key embedded in a URL
+ * query is not reliably one of them, so this drops the query and userinfo
+ * entirely rather than pattern-matching, regardless of shape. Used anywhere
+ * a configured `baseURL` is shown to the user or embedded in an error
+ * message (doctor's credential display, makeProvider's compat errors).
+ *
+ * A schemeless host:port string (no `//`, e.g. "localhost:11434/v1" or
+ * "myhost:8080/v1") parses as an opaque `scheme:path` URL rather than
+ * throwing: `u.origin` is the literal string "null" and the rest ends up in
+ * `pathname` verbatim, credential included. Trust the parsed origin only
+ * when it is real; otherwise fall through to a structural strip (query,
+ * fragment, userinfo) before the pattern-based fallback, same as the throw
+ * case, instead of handing back the unparsed input.
+ */
+export function sanitizeEndpoint(url: string | undefined): string {
+  if (!url) return '(no endpoint configured)';
+  try {
+    const u = new URL(url);
+    if (u.origin !== 'null') return redactSecrets(`${u.origin}${u.pathname}`);
+  } catch {
+    // fall through to the structural strip below
+  }
+  return redactSecrets(url.replace(/[?#].*$/s, '').replace(/^((?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\/)?[^?#]*@/, '$1'));
+}
