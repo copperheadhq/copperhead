@@ -29,8 +29,11 @@ These previews are AI-generated concept renders, not KiCad outputs. They can com
 
 ```bash
 mkdir my-board && cd my-board && git init
+git commit --allow-empty -m "initial commit"
 copperhead create --brief ../copperhead/examples/simple/usb-c-breakout.md
 ```
+
+`create` needs at least one commit to roll back to if a stage's verification fails, so a fresh `git init` needs this empty commit before the first run (see `gitPreflight` in `src/util/git.ts`).
 
 The pipeline is resumable. If a stage fails, rerun the same command and it picks up where it stopped.
 
