@@ -18,7 +18,7 @@ When `docs/parts.intent.json` exists, BOM.md SHALL be the deterministic render o
 
 ### Requirement: Drift covers manifest-to-BOM.md agreement
 
-When a manifest exists, the drift check SHALL compare BOM.md with the manifest's render and report a mismatch naming BOM.md and the manifest, in addition to the existing BOM.md-to-schematic comparisons. `check` SHALL report it without an LLM or network call. Without a manifest the drift check is unchanged.
+When a manifest exists, the drift check SHALL compare BOM.md with the manifest's render and report a mismatch naming BOM.md and the manifest, in addition to the existing BOM.md-to-schematic comparisons. `check` SHALL report it without an LLM or network call. `check` and the `sync` verify phase SHALL run the manifest comparison even when no schematic is configured. Without a manifest the drift check is unchanged.
 
 #### Scenario: Hand edit to the rendered file is drift
 
@@ -29,6 +29,11 @@ When a manifest exists, the drift check SHALL compare BOM.md with the manifest's
 
 - **WHEN** `docs/parts.intent.json` exists but is not a valid manifest
 - **THEN** `check` reports `parts.intent.json` as not a valid parts manifest, with the reason, instead of passing against the BOM.md on disk
+
+#### Scenario: Manifest drift is checked with no schematic configured
+
+- **WHEN** a repo has no schematic configured and its manifest does not parse, its BOM.md is missing, or its BOM.md is not the manifest's render
+- **THEN** `check` reports the mismatch and exits 1, and the `sync` verify phase lists it; with no manifest, both behave as they did
 
 ### Requirement: The supplier export reads the rendered BOM as parts only
 

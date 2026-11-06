@@ -165,6 +165,18 @@ describe('draft_bom tool', () => {
     }
   });
 
+  it('reports an empty part list as a finding and renders nothing (AC-19.13)', async () => {
+    const { root, ctx, cleanup } = await repo();
+    try {
+      const out = await dispatchTool(ctx, 'draft_bom', { manifest_json: '{"version": 1, "parts": []}' });
+      expect(out).toMatch(/the manifest lists no parts/);
+      expect(out).toContain('BOM.md not written');
+      expect(existsSync(path.join(root, 'docs', 'BOM.md'))).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('refuses invalid JSON without writing either file', async () => {
     const { root, ctx, cleanup } = await repo();
     try {

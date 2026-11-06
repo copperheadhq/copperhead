@@ -49,6 +49,10 @@ See proposal.md — Why, and #459 for the audit. Stage 4 already has the shape t
 
 **D14. Writing the manifest opens the drift gate.** The manifest is a doc that BOM.md is rendered from, so a write to it by any tool opens the ledger's drift obligation the way a markdown doc edit does. `draft_bom` opens it before validating, so a manifest that fails validation cannot reach `finish` with a clear ledger and be committed beside the old BOM.md. `check_drift` runs the manifest check even with no schematic configured, where it used to clear the obligation unconditionally; with no manifest that path is unchanged, so the docs-only create stages still finish. Before this, `draft_bom` only recorded the manifest path as touched, and outside create's part-selection stage (which has its own gate) nothing stopped the commit.
 
+**D15. An empty part list is a finding.** `{"version": 1, "parts": []}` parses, and its render is a header-only BOM.md that matches itself, so the stage contract passed on a design with nothing selected; the manifest-less predicate it replaced required at least one row. The rule lives in the validator, so `draft_bom`, the completion predicate and the finish gate all report it. An empty manifest has no use as a working state: `draft_bom` takes the whole manifest each time.
+
+**D16. `check` and `sync` run the manifest check without a schematic.** `checkDrift` needs a schematic and both commands skipped it without one, so in a docs-only repo (a create run between part selection and the schematic stage) a broken manifest or a hand-edited render passed `check`. Both now call the manifest comparison alone in that case. It reads two files in `docs/`, so `check` stays LLM-free and network-free, and a repo with no manifest prints and returns what it did before.
+
 ## Risks / Trade-offs
 
 - [A large manifest is one big write, the single-point-of-failure pattern of #145] → The prompt tells the model to write it per subsystem with `edit_file`; `draft_bom` validates whatever is present and reports which SUBSYSTEMS.md headings have no parts yet, so partial progress is checkable.

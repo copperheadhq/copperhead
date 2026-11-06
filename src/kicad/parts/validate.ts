@@ -81,6 +81,10 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
   const groupKey = (g: string): string => g.toLowerCase();
   const usedGroups = new Set<string>();
 
+  // An empty part list renders a header-only BOM.md that matches itself, so
+  // without this the stage contract would pass on a design with nothing selected.
+  if (manifest.parts.length === 0) add(undefined, 'the manifest lists no parts; add one entry per refdes the design needs');
+
   const derived = resolveParts(manifest);
   for (const [i, e] of manifest.parts.entries()) {
     const prefix = refPrefix(e.ref);

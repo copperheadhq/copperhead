@@ -7,6 +7,8 @@ import { parseManifest } from '../src/kicad/parts/manifest.js';
 import { parseBomTable, bomFootprintRows, bomFootprintId } from '../src/memory/bom-table.js';
 import { parseBom, buildExport } from '../src/kicad/bom-export.js';
 import { checkDrift } from '../src/memory/drift.js';
+import { runCheck } from '../src/commands/check.js';
+import { syncVerify } from '../src/commands/sync.js';
 
 // structured-part-selection: BOM.md is the manifest's render (docs-memory
 // delta). Existing readers must see the same rows a hand-written table gives,
@@ -201,5 +203,54 @@ describe('a manifest file that does not parse (AC-19.11)', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe('manifest drift with no schematic configured (AC-19.14)', () => {
+  async function docsOnly(): Promise<{ root: string; docs: string; cleanup: () => Promise<void> }> {
+    const root = await mkdtemp(path.join(tmpdir(), 'copperhead-docsonly-'));
+    const docs = path.join(root, 'docs');
+    await mkdir(docs);
+    return { root, docs, cleanup: () => rm(root, { recursive: true, force: true }) };
+  }
+
+  it('check and sync stay clean with no manifest, or with a manifest and its render', async () => {
+    const { root, docs, cleanup } = await docsOnly();
+    try {
+      expect((await runCheck(root, () => {})).drift).toMatchObject({ ok: true, mismatches: [] });
+      await writeFile(path.join(docs, 'parts.intent.json'), MANIFEST);
+      await writeFile(path.join(docs, 'BOM.md'), renderManifest(manifest()));
+      const res = await runCheck(root, () => {});
+      expect(res.drift).toMatchObject({ ok: true, mismatches: [] });
+      expect(res.ok).toBe(true);
+      expect((await syncVerify(root)).resolvable.filter((i) => i.kind === 'drift')).toEqual([]);
+    } finally { await cleanup(); }
+  });
+
+  it('check fails and sync lists it when the manifest does not parse, the BOM is missing, or the render was hand-edited', async () => {
+    const { root, docs, cleanup } = await docsOnly();
+    try {
+      const lines: string[] = [];
+      // manifest with no BOM.md
+      await writeFile(path.join(docs, 'parts.intent.json'), MANIFEST);
+      let res = await runCheck(root, (s) => lines.push(s));
+      expect(res.ok).toBe(false);
+      expect(res.drift.mismatches[0]).toMatchObject({ doc: 'BOM.md', claim: 'absent' });
+      expect(lines.join('\n')).toMatch(/drift: BOM\.md claims "absent"/);
+      // hand-edited render
+      await writeFile(path.join(docs, 'BOM.md'), renderManifest(manifest()).replace('| R1 | 10k |', '| R1 | 47k |'));
+      res = await runCheck(root, () => {});
+      expect(res.ok).toBe(false);
+      expect(res.drift.mismatches.map((m) => m.doc)).toContain('BOM.md');
+      // truncated manifest
+      await writeFile(path.join(docs, 'parts.intent.json'), MANIFEST.slice(0, 80));
+      res = await runCheck(root, () => {});
+      expect(res.ok).toBe(false);
+      expect(res.drift.mismatches[0]).toMatchObject({ doc: 'parts.intent.json', claim: 'is a valid parts manifest' });
+      const drift = (await syncVerify(root)).resolvable.filter((i) => i.kind === 'drift');
+      expect(drift).toHaveLength(1);
+      expect(drift[0]).toMatchObject({ doc: 'parts.intent.json' });
+      expect(drift[0]!.resolution).toMatch(/draft_bom/);
+    } finally { await cleanup(); }
   });
 });

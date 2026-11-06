@@ -105,6 +105,17 @@ describe('part-selection isComplete with a manifest', () => {
   });
 });
 
+describe('an empty parts manifest (AC-19.13)', () => {
+  const EMPTY = { version: 1, parts: [] };
+  it('does not complete the stage even though the header-only BOM.md is its render', async () => {
+    const r = await tmpRepo({ 'docs/parts.intent.json': JSON.stringify(EMPTY), 'docs/BOM.md': render(EMPTY) });
+    try {
+      expect(await isComplete(r.root, DOCS)).toBe(false);
+      expect(await contractGapDetail('part-selection', r.root, await loadConfig(r.root))).toMatch(/the manifest lists no parts/);
+    } finally { await r.cleanup(); }
+  });
+});
+
 describe('part-selection isComplete without a manifest (resume of an older run)', () => {
   const BOM = (fp: string) => `# BOM\n\n| Refdes | Value | Footprint | MPN | Rationale |\n|---|---|---|---|---|\n| R1 | 10k | ${fp} | UNVERIFIED | bias |\n`;
   it('completes on footprints alone, whatever the MPN column says', async () => {

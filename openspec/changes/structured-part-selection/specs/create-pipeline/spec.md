@@ -28,12 +28,17 @@ The part-selection stage SHALL produce a parts manifest at `docs/parts.intent.js
 
 ### Requirement: Stage-3 completion is the validator's verdict
 
-The part-selection stage SHALL be complete only when the manifest exists, validates clean against the installed symbol and footprint libraries of the machine running the pipeline, and BOM.md equals the manifest's render. The same validator SHALL answer the stage's completion check, a finish-time stage gate, and the contract-gap message, so the three never disagree. The completion check SHALL NOT read the MPN column, and the previous "at least one MPN not flagged UNVERIFIED" test SHALL be removed. A library that is not installed anywhere remains the user's stop and SHALL NOT be reported as a gap the model can fix.
+The part-selection stage SHALL be complete only when the manifest exists, validates clean against the installed symbol and footprint libraries of the machine running the pipeline, and BOM.md equals the manifest's render. A manifest with no parts SHALL NOT validate clean. The same validator SHALL answer the stage's completion check, a finish-time stage gate, and the contract-gap message, so the three never disagree. The completion check SHALL NOT read the MPN column, and the previous "at least one MPN not flagged UNVERIFIED" test SHALL be removed. A library that is not installed anywhere remains the user's stop and SHALL NOT be reported as a gap the model can fix.
 
 #### Scenario: Finish refuses with the exact gap
 
 - **WHEN** the model calls `finish` while an active part's `libId` does not resolve
 - **THEN** finish is refused with a message naming the refdes, the lib_id, and the nearest installed lib_ids, and the run continues
+
+#### Scenario: An empty manifest does not complete the stage
+
+- **WHEN** the manifest's `parts` list is empty and BOM.md is its header-only render
+- **THEN** the validator reports that the manifest lists no parts, `draft_bom` renders nothing, and part selection is not complete
 
 #### Scenario: Flagged MPNs do not block completion
 
