@@ -252,6 +252,22 @@ describe('parseToolCalls — undispatched calls in a mixed reply (#306)', () => 
     expect(parsed.undispatched).toEqual({ unavailable: [], malformed: ['move_footprint'] });
   });
 
+  it('reports a call written args-first, which would have run had its tool been in the catalog', () => {
+    // toToolCall reads through JSON.parse, so key order does not decide whether a call runs;
+    // it must not decide whether a call that did not run is reported either.
+    const argsFirst = '```json\n{"args": {"path": "a.md", "content": "x"}, "tool": "edit_file"}\n```';
+    const braceShort = '```json\n{"args": {"ref": "R1"}, "tool": "move_footprint"\n```';
+    const parsed = parseToolCalls([call('run_drc'), argsFirst, braceShort].join('\n'), ids(), catalog);
+    expect(parsed.toolCalls.map((c) => c.name)).toEqual(['run_drc']);
+    expect(parsed.undispatched).toEqual({ unavailable: ['edit_file'], malformed: ['move_footprint'] });
+  });
+
+  it('dispatches an args-first catalog call and reports nothing', () => {
+    const parsed = parseToolCalls([call('run_drc'), '```json\n{"args": {}, "tool": "write_file"}\n```'].join('\n'), ids(), catalog);
+    expect(parsed.toolCalls.map((c) => c.name)).toEqual(['run_drc', 'write_file']);
+    expect(parsed.undispatched).toBeUndefined();
+  });
+
   it('reports nothing when every call in the reply ran', () => {
     const reply = [call('run_drc'), call('write_file', { path: 'a.md', content: 'see {"tool": "edit_file"} above' })].join('\n');
     const parsed = parseToolCalls(reply, ids(), catalog);
@@ -282,7 +298,7 @@ describe('renderUndispatched (#306)', () => {
   });
 
   it('points at propose_change and validate_change while the tool is still locked', () => {
-    const message = renderUndispatched({ unavailable: ['write_file', 'edit_file'], malformed: ['run_drc'] }, new Set(['run_drc']), false);
+    const message = renderUndispatched({ unavailable: ['write_file', 'edit_file'], malformed: ['run_drc'] }, new Set(['run_drc', 'propose_change']), false);
     expect(message).toMatch(/"write_file", "edit_file": not in the tool catalog\. .*propose_change, then validate_change/);
     expect(message).toMatch(/"run_drc": a call did not parse as valid JSON/);
     expect(message).toMatch(/Do not assume a result/);
@@ -298,5 +314,19 @@ describe('renderUndispatched (#306)', () => {
     const message = renderUndispatched({ unavailable: ['edit_files'], malformed: [] }, available, true);
     expect(message).toMatch(/"edit_files": not a tool in the catalog\. Use one of the available tools: run_drc, edit_file\./);
     expect(message).not.toMatch(/propose_change/);
+  });
+
+  it('uses the plural for several unknown names once edits are unlocked', () => {
+    const message = renderUndispatched({ unavailable: ['edit_files', 'write_files'], malformed: [] }, new Set(['run_drc']), true);
+    expect(message).toMatch(/"edit_files", "write_files": not tools in the catalog\./);
+  });
+
+  it('gives proposal advice only where the catalog offers propose_change', () => {
+    const main = renderUndispatched({ unavailable: ['write_file'], malformed: [] }, new Set(['run_drc', 'propose_change']), false);
+    expect(main).toMatch(/call propose_change, then validate_change/);
+    // A skill's fixed catalog: the model cannot propose there, so the name is simply not available.
+    const skill = renderUndispatched({ unavailable: ['write_file'], malformed: [] }, new Set(['list_nets']), false);
+    expect(skill).toMatch(/"write_file": not a tool in the catalog\. Use one of the available tools: list_nets\./);
+    expect(skill).not.toMatch(/propose_change/);
   });
 });

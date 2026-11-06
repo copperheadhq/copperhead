@@ -198,12 +198,15 @@ function detectMalformedCall(text: string, catalog: Set<string>): string | undef
  * `detectMalformedCall` only speaks when nothing parsed; in a mixed reply the
  * off-catalog and near-miss calls were dropped to prose with no message, so the
  * model assumed they ran. `prose` is the reply with the dispatched calls removed,
- * so a call that did run is never reported. Only a `"tool"` key that opens an
- * object and names an identifier counts: narration that quotes a call, or an echo
- * of the protocol template (`"<tool_name>"`), is not a call that failed to run.
+ * so a call that did run is never reported. Only a `"tool"` object key that names
+ * an identifier counts: the key opens the object or follows a comma, since
+ * `toToolCall` reads the object through JSON.parse and an `{"args": …, "tool": …}`
+ * call runs like any other. Narration that quotes a call, or an echo of the
+ * protocol template (`"<tool_name>"`), is not a call that failed to run. A quote
+ * inside a JSON string is escaped, so a string value cannot match.
  */
 function detectUndispatched(prose: string, catalog: Set<string>): UndispatchedCalls | undefined {
-  const re = /\{\s*"tool"\s*:\s*"([A-Za-z_][A-Za-z0-9_]*)"/g;
+  const re = /[{,]\s*"tool"\s*:\s*"([A-Za-z_][A-Za-z0-9_]*)"/g;
   const unavailable: string[] = [];
   const malformed: string[] = [];
   let m: RegExpExecArray | null;
@@ -221,7 +224,9 @@ function detectUndispatched(prose: string, catalog: Set<string>): UndispatchedCa
  * have unlocked the edit tools, and then the steer is to re-send, not to propose.
  * The edit lock is the only gate on the catalog, so once `editsUnlocked` a name
  * that is still absent is not locked, it does not exist: say so and print the
- * catalog, since a second propose_change would open a second change.
+ * catalog, since a second propose_change would open a second change. A skill's
+ * sub-run has a fixed catalog without propose_change, so there the proposal advice
+ * would point at a tool it cannot call (the same rule `detectMalformedCall` keeps).
  */
 export function renderUndispatched(calls: UndispatchedCalls, available: Set<string>, editsUnlocked: boolean): string {
   const quote = (names: string[]) => names.map((n) => `"${n}"`).join(', ');
@@ -234,7 +239,7 @@ export function renderUndispatched(calls: UndispatchedCalls, available: Set<stri
         `${unlocked.length > 1 ? 'They are' : 'It is'} available now, so send those calls again.`,
     );
   }
-  if (absent.length && editsUnlocked) {
+  if (absent.length && (editsUnlocked || !available.has('propose_change'))) {
     lines.push(
       `- ${quote(absent)}: not ${absent.length > 1 ? 'tools' : 'a tool'} in the catalog. ` +
         `Use one of the available tools: ${[...available].join(', ')}.`,
