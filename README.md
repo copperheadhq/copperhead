@@ -72,6 +72,7 @@ copperhead demo --model cursor # full USB-C breakout create pipeline
 # or one-shot:
 copperhead do "add reverse-polarity protection on VIN"
 copperhead check               # ERC + DRC + doc drift; no LLM, CI-safe
+copperhead check --spice       # also run ## Simulation assertions via local ngspice
 ```
 
 Starting from nothing instead? Write a product brief and run `copperhead create --brief brief.md`. The [examples/](examples/) directory has ready-made briefs sorted by difficulty, plus a note on which one is designed to fail.
@@ -118,6 +119,7 @@ copperhead do "<change request>"     # the core loop: propose, edit, verify, pro
 copperhead skill list                # registered skills (no LLM)
 copperhead skill run generate-report # read-only design report (needs a model)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
+copperhead check --spice             # plus ## Simulation assertions via local ngspice; --strict fails a skip
 copperhead explain U1                # look up a refdes, net, or pin from the schematic and docs; no LLM
 copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
@@ -129,6 +131,22 @@ copperhead mcp                       # EXPERIMENTAL: serve the gated pipeline to
 Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, `skill run`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
 
 `copperhead create` still uses its own hardcoded stages; those are not yet skills.
+
+### SPICE gate (opt-in)
+
+ERC and DRC confirm connectivity and layout. They do not confirm that a divider, reference, or filter actually sits at the voltage you wrote down. `check --spice` runs those behavioral assertions locally through ngspice.
+
+A subsystem opts in with a `## Simulation` block in `docs/SUBSYSTEMS.md`:
+
+```markdown
+## Simulation
+scope: nets VIN, VOUT
+analysis: op
+source: VIN=3.3
+assert: V(VOUT) between 1.6 and 1.7
+```
+
+Assertions use `V(<net>)`, `I(<refdes>)`, or `corner(<net>)`, with `between a and b`, `< x`, or `> x`. `op` and `dc` read the value at the first `source:` value; `ac` drives the first source with `AC 1` and needs one; `corner()` is the -3 dB point. Raw ngspice control blocks are rejected, both in the block and in the exported netlist (a schematic `.control` text item, or one in an `.include`d model file, fails the gate before ngspice runs). ngspice runs as `ngspice -n -b` in a temp directory, so no `.spiceinit` is loaded. Default `check` (no `--spice`) is unchanged, including `--json` keys. Missing ngspice prints `SPICE gate skipped (ngspice not found): N assertion(s) unverified` and exits 0; `check --spice --strict` fails that skip. A scope that names a sheet or net the schematic does not have is a failure, not a skip. Override the binary with `COPPERHEAD_NGSPICE` or `spice.ngspice` in `.copperhead/config.json`.
 
 `--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), and `codex` / `codex:<id>` (Codex CLI, saved login). Routing is by prefix; `claude-code` is matched before the `claude` prefix. `compat:<id>` targets any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, or a local Ollama) via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV` - worked examples for each in [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
 

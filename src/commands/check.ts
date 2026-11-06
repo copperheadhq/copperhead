@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { libraryCache } from '../kicad/cache.js';
 import { existsSync } from 'node:fs';
-import { loadConfig } from '../config.js';
+import { loadConfig, type CopperheadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
@@ -11,6 +11,12 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import {
+  formatSpiceGate,
+  runSpiceGate,
+  type RunSpiceGateOptions,
+  type SpiceGateReport,
+} from '../kicad/spice-run.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
@@ -37,9 +43,36 @@ export interface CheckResult {
     /** Advisory quantitative score; null when no schematic is configured. */
     score: ScoreReport | null;
   };
+  /**
+   * Present only when `check --spice` ran. Idle (no Simulation blocks) and
+   * skip (ngspice missing) do not fail the exit code unless `--strict`.
+   */
+  spice?: SpiceGateReport;
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+/** True when the SPICE gate should fail `check` (failed assertions, or a skip under `--strict`). */
+export function spiceGateFailsCheck(spice: SpiceGateReport | undefined, strict: boolean): boolean {
+  return spice?.status === 'fail' || Boolean(strict && spice?.status === 'skip');
+}
+
+export interface CheckOptions {
+  spice?: boolean;
+  strict?: boolean;
+}
+
+/** The `spice` config plumbing the gate receives. `loadConfig` already dropped mistyped values. */
+export function spiceGateConfig(config: CopperheadConfig): Pick<RunSpiceGateOptions, 'timeoutMs' | 'ngspicePath'> {
+  return {
+    ...(config.spice?.timeoutMs !== undefined ? { timeoutMs: config.spice.timeoutMs } : {}),
+    ...(config.spice?.ngspice !== undefined ? { ngspicePath: config.spice.ngspice } : {}),
+  };
+}
+
+export async function runCheck(
+  repoRoot: string,
+  log: (s: string) => void,
+  opts: CheckOptions = {},
+): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   libraryCache.attach(repoRoot);
   let erc: CheckReport | null = null;
@@ -132,12 +165,34 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let spice: SpiceGateReport | undefined;
+  if (opts.spice) {
+    if (!config.schematic || !existsSync(path.join(repoRoot, config.schematic))) {
+      spice = {
+        status: 'fail',
+        blocks: 0,
+        assertions: [],
+        violations: [],
+        errors: ['SPICE gate needs a configured schematic'],
+      };
+    } else {
+      spice = await runSpiceGate({
+        repoRoot,
+        schematic: config.schematic,
+        docsDir: config.docs,
+        ...spiceGateConfig(config),
+      });
+    }
+    for (const line of formatSpiceGate(spice)) log(line);
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    !spiceGateFailsCheck(spice, opts.strict ?? false);
 
   return {
     ok,
@@ -147,5 +202,6 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,
+    ...(spice ? { spice } : {}),
   };
 }
