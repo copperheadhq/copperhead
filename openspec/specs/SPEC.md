@@ -111,13 +111,15 @@ their-board/
 │   └── <name>.kicad_pcb
 ├── docs/
 │   ├── SPEC.md             # what the device is; top-level constraints & budgets
-│   ├── BOM.md              # every part: refdes, MPN, value, package, WHY chosen
+│   ├── parts.intent.json   # parts manifest (create): refdes, verified lib_id, footprint, MPN, group, rationale
+│   ├── BOM.md              # every part: refdes, MPN, value, package, WHY chosen (rendered from the manifest when one exists)
 │   ├── PINOUT.md           # MCU pin assignment table + strapping/RTC notes
 │   ├── SUBSYSTEMS.md       # per-sheet values & reasoning (regulator, charger…)
 │   ├── BRIEF.sha256        # originating brief path + SHA-256; created on first successful spec-seed run, preserved thereafter
 │   └── LAYOUT.md           # placement/routing intent: keepouts, pours, ESD placement
 └── .copperhead/
     ├── config.json         # paths, model, budgets (see §5)
+    ├── cache/              # library lookups keyed by file mtime (gitignored, disposable)
     └── runs/               # transcript of each `do` run (audit trail)
 ```
 
@@ -167,7 +169,7 @@ Firmware scope: scaffold + pin definitions + driver stubs + one working happy-pa
 brief.md
   → SPEC.md (budgets, ASSUMED flags)          [gate: spec is self-consistent]
   → architecture (block diagram in SUBSYSTEMS.md)
-  → part selection (BOM.md with rationale)     [gate: check_drift]
+  → part selection (parts.intent.json → draft_bom → BOM.md)  [gate: manifest validates, BOM.md is its render]
   → footprint check (every BOM footprint installed, else stop for the user)
   → schematic, sheet by sheet                  [gate: ERC after every sheet]
   → board populate (deterministic, see below)
@@ -390,7 +392,8 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `run_erc` | () → {violations: [...]} | `kicad-cli sch erc --format json --exit-code-violations` |
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |
 | `export_svg` | (sch\|pcb) → path | For viewer + before/after diffing |
-| `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic |
+| `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic, and BOM.md against its manifest render |
+| `draft_bom` | (manifest_json?) → findings \| rendered BOM.md | Validates `docs/parts.intent.json` against the installed libraries (symbol, footprint, pins vs pads, groups, substitutions, off-board, no-part) and renders BOM.md when clean; spec-gated like `draft_schematic` |
 | `generate_report` | (scope?: power\|all) → report | Skill: nested read-only sub-run; ERC/DRC/drift/nets. Always in the catalog. |
 
 ### 4.3 System prompt — key rules (verbatim requirements)
@@ -434,6 +437,7 @@ interface Provider {
 - Provider turn watchdog: a turn that goes `turnTimeoutMs` without a response or streamed progress is treated as hung, aborted, and retried up to 3 times before failing as above. A streaming provider's progress restarts that deadline, so a long turn that keeps producing output is not killed; a provider that reports no progress gets `turnTimeoutMs` as a whole-turn deadline. `turnMaxMs` caps a turn that is producing output, however much it streams, and is never shorter than `turnTimeoutMs`: a turn that reaches it is too large rather than hung, so it fails as above without a retry. A turn that has reported no progress is judged by `turnTimeoutMs` alone.
 - Nested skill provider turns use the same bounded timeout (inactivity deadline and hard cap) and 429 backoff policy. A provider error inside a skill becomes a failed tool envelope, so it cannot escape the parent loop and bypass its failure/rollback path.
 - The Anthropic provider marks `cache_control` breakpoints (system prompt, last tool, last message block) so the resent conversation prefix is cached; reported input tokens include cache reads/writes
+- The `claude-code` provider reports input tokens the same way: uncached input plus cache reads and cache writes (AC-18.4, AC-18.5). The create cost table's `Replayed` column and its `N% turns replayed` line count turns answered from copperhead's own response cache, never provider cache hits (AC-18.13)
 
 ---
 
@@ -724,6 +728,23 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 - **AC-18.14** A part-selection retry runs with every file inherited from earlier attempts counted as touched, whether this apply changed its bytes or a previous one did, so `finish` with outcome `done` is refused until `check_drift` has run clean on it; a restored constraint registry reopens the revisit obligations of each constraint it holds beyond HEAD.
 - **AC-18.15** A part-selection stage that stops after a retry restored the first attempt's draft leaves the tree at its pre-stage state with the draft in the last attempt's stash entry, and a re-run of `create` runs the stage again instead of committing the draft as already complete.
 - **AC-18.16** A part-selection attempt that refuses with no verified blocker at turn 37 of 40 is cause `turn-budget-exhausted`: the cause line and the attempt's `summary.md` read `turn-budget-exhausted (refused at turn 37 of 40)`, the supervisor is consulted once, and the retry runs with 60 turns.
+
+### AC-19 · Structured part selection (change: structured-part-selection)
+
+- **AC-19.1 (manifest is the stage-3 artifact)** Part selection writes `docs/parts.intent.json` with one entry per refdes; an active entry carries ref, value, group, libId, footprint, mpn, rationale and verified; a passive entry may give `package` instead of ids and the engine fills the canonical symbol and stock footprint; an `offBoard` entry needs neither; `substitutions` carry ref, wanted, chosen and reason.
+- **AC-19.2 (`draft_bom`)** The tool validates the manifest against this machine's libraries and renders BOM.md when clean. Each finding names the refdes and the fix: shape and grouped refdes, value-not-description, missing ids or MPN on an active part, a lib_id that does not resolve (nearest installed lib_ids), a footprint that does not resolve (closest installed ids), symbol pins without pads or pads without pins (the same check as the IR validator), a group that is not a SUBSYSTEMS.md heading, a substitution whose entry does not carry the chosen part. Findings leave BOM.md untouched; invalid JSON writes neither file; a library not installed anywhere is reported as the user's stop and does not block the stage.
+- **AC-19.3 (one validator, three callers)** The stage completion check, a finish-time stage gate and the contract-gap message all call the same validator: complete means the manifest validates clean and BOM.md equals its render. The MPN column is never read; every MPN unverified still completes. `finish` is refused in-run with the gap. Without a manifest, a resumed run completes on resolvable footprints alone.
+- **AC-19.4 (render)** BOM.md is the deterministic render: the canonical five columns plus Symbol, a header line naming the manifest, `(UNVERIFIED)` on unverified MPNs, `(off-board)` in the Footprint cell, `(no part)` in the MPN cell, a Substitutions section. Existing readers (drift, `export bom`, `explain`, the IR cross-check) see the same rows as a hand-written table, and an off-board row is no footprint, never a miss; the pre-schematic stop, populate and drift skip it.
+- **AC-19.5 (drift)** With a manifest, `check` reports a BOM.md that differs from its render as drift naming the refdes and cell, LLM-free and network-free; a repo without a manifest is unchanged.
+- **AC-19.6 (stage 4 reads the manifest)** With a manifest, an IR part may give its ref alone and inherits libId, value, footprint and group; a field that disagrees, a ref the manifest lacks, or an off-board ref in the IR is a finding naming the manifest; the BOM.md cross-check is skipped; the entry dossier resolves each recorded lib_id exactly and omits passives and off-board entries. Without a manifest, stage 4 is unchanged.
+- **AC-19.7 (prompt)** The stage-3 prompt states the design task, the manifest and `draft_bom`; it requires no per-part `search_symbols`/`symbol_pins`/`check_footprints` calls and does not restate the table format.
+- **AC-19.8 (library cache)** Symbol pin tables and footprint pad sets are cached by (file, mtime) in process and under the gitignored `.copperhead/cache/`; a changed file invalidates its entries, a corrupt store is ignored and rebuilt, and the store survives the agent loop's rollback of a failed run.
+- **AC-19.9 (board features have no MPN)** An entry with `noPart: true` (a mounting hole, a fiducial, a pad test point) needs no `mpn` and is otherwise validated like any on-board part; `noPart` with an `mpn`, or with `offBoard`, is a finding naming the refdes; the render writes `(no part)` in the MPN cell and readers flag the row `NO_PART`, never `MISSING_MPN`.
+- **AC-19.10 (supplier export of the render)** `export bom` reads parts only from Refdes-headed tables, so the Substitutions table adds no order line; the exported part number is the MPN without its `(UNVERIFIED)` annotation, with the row still unverified; a no-part row is in no export and raises no warning; an off-board row is in the DigiKey and Mouser carts and excluded from the JLCPCB assembly BOM with a notice.
+- **AC-19.11 (invalid manifest is reported)** A `docs/parts.intent.json` that exists but does not parse is reported, never treated as absent: `check` lists it as drift with the reason, and schematic intent validation reports it instead of falling back to the BOM.md cross-check.
+- **AC-19.12 (writing the manifest opens the drift gate)** Any tool that writes `docs/parts.intent.json` (`draft_bom` with `manifest_json`, `edit_file`, `write_file`) opens the drift obligation, including when `draft_bom` then reports findings and leaves BOM.md alone. `check_drift` clears it only when the manifest parses and BOM.md is its render, and it checks that even when no schematic is configured; `finish` refuses while it is open.
+- **AC-19.13 (an empty manifest selects nothing)** A manifest whose `parts` list is empty is a validator finding: `draft_bom` reports it and renders nothing, and part selection does not complete on it, although a header-only BOM.md would match its render.
+- **AC-19.14 (manifest drift needs no schematic)** With no schematic configured, `check` and the `sync` verify phase still compare the manifest with BOM.md: a manifest that does not parse, a missing BOM.md, or a hand-edited render is reported, and `check` exits 1. A repo with no manifest is unchanged.
 
 ### AC-5 · Viewer (Phase 2 — only if built)
 
