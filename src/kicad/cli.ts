@@ -101,8 +101,11 @@ const DEFAULT_WIN_ROOTS = [
  * On Windows, version-numbered directories (e.g. 10.0, 9.0, 8.0) under the KiCad root
  * are probed in descending numerical order, mirroring symlib.ts.
  */
-export function defaultFallbackBinaries(winRoots: readonly string[] = DEFAULT_WIN_ROOTS): string[] {
-  const candidates: string[] = [...MACOS_FALLBACK_BINARIES];
+export function defaultFallbackBinaries(
+  winRoots: readonly string[] = DEFAULT_WIN_ROOTS,
+  macBinaries: readonly string[] = MACOS_FALLBACK_BINARIES,
+): string[] {
+  const candidates: string[] = [...macBinaries];
   const seenRoots = new Set<string>();
 
   for (const winRoot of winRoots) {
@@ -197,8 +200,11 @@ function envOverride(): string | null {
  * override re-check here could never fire.
  */
 function fallbackAfterMissing(): string {
+  // Fixture Windows roots replace the whole probe: a real KiCad.app on the
+  // host must not shadow them.
   const candidates =
-    fallbackBinariesOverride ?? defaultFallbackBinaries(fallbackWinRootsOverride ?? undefined);
+    fallbackBinariesOverride ??
+    (fallbackWinRootsOverride ? defaultFallbackBinaries(fallbackWinRootsOverride, []) : defaultFallbackBinaries());
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
       cachedBinary = candidate;
@@ -247,7 +253,8 @@ export function setKicadFallbackBinaries(paths?: readonly string[]): void {
 
 /**
  * Test helper: point the Windows installation discovery probe at fixture roots, or call
- * with no argument to restore the default search roots.
+ * with no argument to restore the default search roots. While set, the macOS app-bundle
+ * paths are not probed, so a KiCad.app on the host cannot shadow the fixtures.
  */
 export function setKicadFallbackWinRoots(roots?: readonly string[]): void {
   fallbackWinRootsOverride = roots ?? null;
