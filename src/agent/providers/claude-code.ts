@@ -77,7 +77,12 @@ export interface QueryMessage {
   subtype?: string;
   session_id?: string;
   message?: { content?: Array<{ type: string; text?: string }> };
-  usage?: { input_tokens?: number; output_tokens?: number };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
   /** On a `stream_event` message: the raw Messages-API stream event. */
   event?: { type: string; delta?: { type: string; text?: string } };
 }
@@ -120,6 +125,8 @@ export class ClaudeCodeProvider implements Provider {
    * turn sends only the delta. Unused unless `sessionResume` is on. */
   private sessionId?: string;
   private sentCount = 0;
+  /** Bumped by close(): a turn begun before a teardown must not write session state after it. */
+  private generation = 0;
 
   constructor(
     private readonly model?: string,
@@ -142,6 +149,7 @@ export class ClaudeCodeProvider implements Provider {
   // as blocks arrive, which the loop turns into a liveness heartbeat (5.1).
   async chat(messages: Msg[], tools: ToolSchema[], opts: ChatOpts = {}): Promise<Turn> {
     const query = await this.resolveQuery();
+    const generation = this.generation;
 
     const system = messages
       .filter((m) => m.role === 'system')
@@ -230,12 +238,20 @@ export class ClaudeCodeProvider implements Provider {
             }
           }
         } else if (msg.type === 'result') {
-          if (typeof msg.usage?.input_tokens === 'number') inputTokens = msg.usage.input_tokens;
+          // Cache reads and writes are context the model processed, so they count as
+          // input, as the Anthropic provider counts them (AC-15.15, AC-18.4). Without
+          // them a cached run reports "2 in" for a 40k-token turn.
+          if (typeof msg.usage?.input_tokens === 'number') {
+            inputTokens =
+              msg.usage.input_tokens +
+              (msg.usage.cache_read_input_tokens ?? 0) +
+              (msg.usage.cache_creation_input_tokens ?? 0);
+          }
           if (typeof msg.usage?.output_tokens === 'number') outputTokens = msg.usage.output_tokens;
         }
         // The session id can arrive on any message (init/system/result); keep the
         // latest so the next turn can resume it (1.1). No-op unless resume is on.
-        if (this.sessionResume && typeof msg.session_id === 'string') this.sessionId = msg.session_id;
+        if (this.sessionResume && generation === this.generation && typeof msg.session_id === 'string') this.sessionId = msg.session_id;
       }
     } catch (err) {
       // Auth failures get an actionable message (non-retryable); everything else
@@ -251,7 +267,7 @@ export class ClaudeCodeProvider implements Provider {
     // Only advance the high-water mark on a turn that completed: a thrown turn
     // (rate limit, timeout) is retried, and must re-send the same delta so no
     // message is lost from the resumed session (1.1).
-    if (this.sessionResume) this.sentCount = messages.length;
+    if (this.sessionResume && generation === this.generation) this.sentCount = messages.length;
 
     const parsed = parseToolCalls(text, () => `cc-${++this.callSeq}`, catalog);
     return {
@@ -272,6 +288,12 @@ export class ClaudeCodeProvider implements Provider {
    * A leftover empty dir in the OS tmpdir is harmless; the startup sweep reclaims
    * any that a hard SIGKILL bypassed this cleanup for. */
   async close(): Promise<void> {
+    // A torn-down session is not resumed: its subprocess may have taken the turn's messages before
+    // it was stopped, so resending them as a delta would duplicate them. The next turn starts a new
+    // session with the whole conversation.
+    this.generation++;
+    this.sessionId = undefined;
+    this.sentCount = 0;
     for (const aborter of this.inFlight) {
       try {
         aborter.abort();

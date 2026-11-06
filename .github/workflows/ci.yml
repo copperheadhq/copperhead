@@ -28,9 +28,17 @@ jobs:
       - name: Install KiCad
         run: |
           sudo add-apt-repository --yes ppa:kicad/kicad-10.0-releases
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends kicad kicad-footprints
+          # ubuntu-26.04 images set APT::Architecture-Variants "amd64v3", and the PPA
+          # builds KiCad only in its plain amd64 list, so without this apt reads the
+          # amd64v3 lists alone and installs Ubuntu's KiCad 9 instead. On images
+          # without the variant (ubuntu-24.04) the option changes nothing.
+          APT_BASELINE="-o APT::Architecture-Variants=amd64"
+          sudo apt-get update $APT_BASELINE
+          sudo apt-get install --yes --no-install-recommends $APT_BASELINE kicad kicad-footprints
           kicad-cli --version
+          # The suite needs KiCad 10; fail here, by name, rather than as dozens of
+          # "Failed to load" test errors if the runner or PPA drifts again.
+          kicad-cli --version | grep -q '^10\.' || { echo "expected KiCad 10, got $(kicad-cli --version)" >&2; exit 1; }
           # Installing the libraries is not enough: kicad-cli resolves footprint
           # links through the user's global fp-lib-table and never creates the
           # default one headlessly, so a fresh runner still reports every stock

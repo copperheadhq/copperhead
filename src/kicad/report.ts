@@ -66,7 +66,15 @@ function normViolation(v: RawViolation, sheet?: string): Violation {
  * `ok` means nothing routed or placed is wrong. Tolerant of missing fields
  * across KiCad versions.
  */
-export function normalizeReport(raw: unknown, source: 'erc' | 'drc'): CheckReport {
+export function normalizeReport(
+  raw: unknown,
+  source: 'erc' | 'drc',
+  opts: {
+    duplicateRefs?: ReadonlySet<string>;
+    /** false when the board's references could not be read: then nothing is excused */
+    excuse?: boolean;
+  } = {},
+): CheckReport {
   const r = raw as {
     sheets?: { path?: string; violations?: RawViolation[] }[];
     violations?: RawViolation[];
@@ -87,11 +95,14 @@ export function normalizeReport(raw: unknown, source: 'erc' | 'drc'): CheckRepor
       .flatMap((v) => (v.items ?? []).map((i) => /^Footprint (\S+)/.exec(i.description ?? '')?.[1]))
       .filter((x): x is string => !!x),
   );
+  // A reference on two footprints names neither: what lies between them may
+  // be two parts overlapping, so it is never one footprint's own geometry.
+  const duplicate = opts.duplicateRefs ?? new Set<string>();
   const intrinsic: Violation[] = [];
   for (const v of r.violations ?? []) {
     const n = normViolation(v);
-    const owner = source === 'drc' ? footprintOwner(n) : null;
-    if (owner && !unvouched.has(owner) && !joinsNets(n)) intrinsic.push(n);
+    const owner = source === 'drc' && opts.excuse !== false ? footprintOwner(n) : null;
+    if (owner && !unvouched.has(owner) && !duplicate.has(owner) && !joinsNets(n)) intrinsic.push(n);
     else violations.push(n);
   }
   for (const v of r.schematic_parity ?? []) violations.push(normViolation(v));
@@ -112,17 +123,37 @@ export function joinsNets(v: Violation): boolean {
 }
 
 /**
+ * References carried by more than one footprint on a board (a mis-annotated
+ * board, or two parts pasted in pcbnew). Read with a pattern, not the parser:
+ * `check` reads every board, and the reference is the first atom after
+ * `(property "Reference"` (KiCad 8+) or `(fp_text reference` (older, where
+ * KiCad 5 leaves it unquoted).
+ */
+export function duplicateFootprintRefs(boardText: string): Set<string> {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const m of boardText.matchAll(/\((?:property\s+"Reference"|fp_text\s+reference)\s+"?([^"\s)]+)/g)) {
+    const ref = m[1]!;
+    if (seen.has(ref)) dupes.add(ref);
+    seen.add(ref);
+  }
+  return dupes;
+}
+
+/**
  * The one footprint every item of a finding belongs to, or null. KiCad names
  * a footprint's items "Pad A1 [GND] of J1 on F.Cu", "NPTH pad of J1"; a track,
- * zone, or board-edge item names none, so it never counts as intrinsic.
+ * zone, or board-edge item names none, so it never counts as intrinsic. An
+ * unannotated reference ("REF**", "R?") is not a name either: it is the
+ * library's default, so two such parts overlapping would read as one.
  */
 export function footprintOwner(v: Violation): string | null {
   if (!v.items.length) return null;
   let owner: string | null = null;
   for (const i of v.items) {
-    const m = /\bof ([A-Za-z#_][\w#.-]*)\b/.exec(i.description);
-    if (!m || (owner !== null && m[1] !== owner)) return null;
-    owner = m[1]!;
+    const ref = /\bof (\S+)/.exec(i.description)?.[1];
+    if (!ref || !/^[A-Za-z#_][\w#.-]*$/.test(ref) || (owner !== null && ref !== owner)) return null;
+    owner = ref;
   }
   return owner;
 }

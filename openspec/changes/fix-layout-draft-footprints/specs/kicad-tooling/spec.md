@@ -50,7 +50,7 @@ With a footprint resolver, validation SHALL also refuse a symbol pin its footpri
 
 ### Requirement: Project symbol libraries
 
-Symbol resolution SHALL consult the project `sym-lib-table` beside the schematic (with `${KIPRJMOD}` expanded to that directory) before the stock symbol directories, skipping rows that point into copperhead's vendored cache. Symbols from a project library SHALL be read in place and SHALL NOT be copied into the vendored cache, so the user's row stays the library's source. Drafting SHALL keep every row a user added to `sym-lib-table` verbatim, whatever its layout, when it rewrites the vendored rows, and SHALL refuse to rewrite a table it cannot parse, leaving it unchanged.
+Symbol resolution SHALL consult the project `sym-lib-table` beside the schematic (with `${KIPRJMOD}` expanded to that directory) before the stock symbol directories, skipping rows that point into copperhead's vendored cache. Symbols from a project library SHALL be read in place, ahead of any vendored cache file under the same nickname, and SHALL NOT be copied into the vendored cache, so the user's row stays the library's source. Drafting SHALL keep every row a user added to `sym-lib-table` verbatim, whatever its layout, when it rewrites the vendored rows, and SHALL refuse to rewrite a table it cannot parse, leaving it unchanged.
 
 #### Scenario: Project-only symbol library resolves
 
@@ -71,6 +71,11 @@ Symbol resolution SHALL consult the project `sym-lib-table` beside the schematic
 
 - **WHEN** the `sym-lib-table` is unbalanced
 - **THEN** drafting fails naming the table, and the file is unchanged
+
+#### Scenario: A stale cache file does not shadow a project library
+
+- **WHEN** an earlier draft vendored part of a library, and the user then names the whole library under the same nickname in the project `sym-lib-table`
+- **THEN** the next draft reads every symbol from the user's library, and the user's row is the only row for that nickname
 
 #### Scenario: Project in a subfolder
 

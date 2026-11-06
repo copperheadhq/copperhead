@@ -97,3 +97,14 @@
 - [x] 13.2 Populate remaps every object id inside a placed footprint per instance, deterministically; test: two instances of a stock footprint with nested ids share none, and DRC reports no mismatch
 - [x] 13.3 The missing-footprint stop runs before the KiCad project is scaffolded, so it writes no KiCad file; test asserts no scaffold files after the stop
 - [x] 13.4 SPEC.md AC-15.31/32/36, delta specs, design D1/D7
+
+## 14. Review of the unreleased main (post-0.11)
+
+- [x] 14.1 Layout-draft completion needs something written under Draft quality: the placeholder `copperhead init` scaffolds no longer passes now that populate fills the board before the first turn; the gate reads the document first, then the netlist, then DRC; test: a populated, DRC-clean board with the scaffolded section does not complete
+- [x] 14.2 A DRC finding counts as library-intrinsic only when its items name one annotated reference no other footprint on the board carries; tests: `REF**`, `R?`, and a reference two footprints share
+- [x] 14.3 Populate replaces the net table a footprint-less board kept, and refuses one whose old nets still carry copper; tests for both
+- [x] 14.4 A project library is read before a vendored cache file under its nickname; test: a partial cache file does not shadow the user's library or replace its row
+- [x] 14.5 SPEC.md AC-15.31/37/38/41, delta specs
+- [x] 14.6 Second review, of this section's fixes: a stale net is removed by its own span unless alone on its line (a shared line no longer eats `(net 0 "")`); only copper on a net (tracks, vias, zones, copper shapes, by code or name, in the old table or not) refuses the board, so a keepout passes, and a line only stale nets fill goes whole; the gate keeps the stray-root hint for an empty section and names a duplicate heading; post-run gaps reuse the finish gate; DRC reads the board before KiCad and excuses nothing when it cannot; the project-library check answers non-project nicknames from the table text, matching copperhead's cache rows by their URI; the post-run gap skips the DRC isComplete just ran; the off-catalog nudge offers propose_change only where the turn does, so skill sub-runs pass provider nudges through
+- [x] 14.7 Outside this change, recorded here: calls after an accepted `finish` are not run (`build-copperhead-phase-1` agent-core), and skill sub-runs send the fabricated-result notice (`add-claude-code-provider`, `add-cursor-cli-provider`); SPEC.md §4 step 5 and AC-3.21
+- [x] 14.8 Codex on PR #389: the copper check runs on every footprint-less board, not only one that still declares old nets; test: a track on code 1 with the old table already gone is refused

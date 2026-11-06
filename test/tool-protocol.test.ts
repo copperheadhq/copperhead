@@ -93,6 +93,150 @@ describe('parseToolCalls — CRLF replies', () => {
   });
 });
 
+describe('renderToolProtocol — batching (#192)', () => {
+  it('invites one or more calls per reply, run in order, and never says EXACTLY ONE', async () => {
+    const { renderToolProtocol } = await import('../src/agent/providers/tool-protocol.js');
+    const text = renderToolProtocol([
+      { name: 'read_file', description: 'read', parameters: { type: 'object', properties: {} } },
+    ]);
+    expect(text).toMatch(/one or more JSON objects, one per tool call/);
+    expect(text).toMatch(/runs in that same turn, in the order written/);
+    expect(text).toMatch(/"call k of N"/);
+    expect(text).not.toMatch(/EXACTLY ONE/i);
+    // The batching rule itself lives in the WORKFLOW prompt; the protocol must not grow a second copy.
+    expect(text).not.toMatch(/record_constraint|resolve_affected/);
+  });
+
+  it('renders nothing when no tools are advertised', async () => {
+    const { renderToolProtocol } = await import('../src/agent/providers/tool-protocol.js');
+    expect(renderToolProtocol([])).toBe('');
+  });
+
+  it('nudges a malformed near-miss per call, never "exactly one"', () => {
+    const parsed = parseToolCalls('```json\n{"tool": "run_drc", "args": {\n```', ids(), catalog);
+    expect(parsed.toolCalls).toEqual([]);
+    expect(parsed.nudge).toMatch(/looks malformed/);
+    expect(parsed.nudge).toMatch(/one complete JSON object/);
+    expect(parsed.nudge).not.toMatch(/exactly one/i);
+  });
+});
+
+describe('renderConversation / renderDelta — batched call labels (#192)', () => {
+  const history = async () => {
+    const mod = await import('../src/agent/providers/tool-protocol.js');
+    const messages = [
+      { role: 'system' as const, content: 'sys' },
+      { role: 'user' as const, content: 'go' },
+      {
+        role: 'assistant' as const,
+        content: null,
+        toolCalls: [
+          { id: 'cc-1', name: 'read_file', args: { path: 'a.md' } },
+          { id: 'cc-2', name: 'read_file', args: { path: 'b.md' } },
+          { id: 'cc-3', name: 'run_drc', args: {} },
+        ],
+      },
+      { role: 'tool' as const, toolCallId: 'cc-1', content: 'A' },
+      { role: 'tool' as const, toolCallId: 'cc-2', content: 'B' },
+      { role: 'tool' as const, toolCallId: 'cc-3', content: 'clean' },
+      { role: 'assistant' as const, content: null, toolCalls: [{ id: 'cc-4', name: 'read_file', args: { path: 'c.md' } }] },
+      { role: 'tool' as const, toolCallId: 'cc-4', content: 'C' },
+    ];
+    return { ...mod, messages };
+  };
+
+  it('numbers the calls and results of a batched reply so same-name results are told apart', async () => {
+    const { renderConversation, messages } = await history();
+    const text = renderConversation(messages);
+    expect(text).toContain('[assistant tool call 1 of 3]\n```json\n{"tool":"read_file","args":{"path":"a.md"}}');
+    expect(text).toContain('[assistant tool call 2 of 3]\n```json\n{"tool":"read_file","args":{"path":"b.md"}}');
+    expect(text).toContain('[assistant tool call 3 of 3]');
+    expect(text).toContain('[result of read_file, call 1 of 3]\nA');
+    expect(text).toContain('[result of read_file, call 2 of 3]\nB');
+    expect(text).toContain('[result of run_drc, call 3 of 3]\nclean');
+  });
+
+  it('keeps the bare label for a reply that made one call', async () => {
+    const { renderConversation, messages } = await history();
+    const text = renderConversation(messages);
+    expect(text).toContain('[assistant tool call]\n```json\n{"tool":"read_file","args":{"path":"c.md"}}');
+    expect(text).toContain('[result of read_file]\nC');
+    expect(text).not.toContain('call 1 of 1');
+  });
+
+  it('labels a resumed session delta the same way, from the call index of the whole history', async () => {
+    const { renderDelta, messages } = await history();
+    // Only the three results of the batched reply are new.
+    const text = renderDelta(messages, 3);
+    expect(text).toContain('[result of read_file, call 1 of 3]\nA');
+    expect(text).toContain('[result of read_file, call 2 of 3]\nB');
+    expect(text).toContain('[result of run_drc, call 3 of 3]\nclean');
+    expect(text).not.toContain('[assistant tool call');
+  });
+
+  it('cuts a fabricated result written in the batched label form (#320 still holds)', () => {
+    const reply = [call('run_drc'), '[result of run_drc, call 1 of 2]', 'clean', call('write_file', {})].join('\n');
+    const parsed = parseToolCalls(reply, ids(), catalog);
+    expect(parsed.toolCalls.map((c) => c.name)).toEqual(['run_drc']);
+    expect(parsed.notice).toMatch(/1 "\[result of …\]" or "\[user\]" block that you wrote yourself/);
+  });
+
+  it('strips an echoed batched call marker from the stored prose', () => {
+    const reply = ['Checking.', '[assistant tool call 2 of 2]', call('run_drc')].join('\n');
+    const parsed = parseToolCalls(reply, ids(), catalog);
+    expect(parsed.toolCalls.map((c) => c.name)).toEqual(['run_drc']);
+    expect(parsed.text).toBe('Checking.');
+  });
+});
+
+describe('untested paths from the #460 review', () => {
+  it('a tool message whose id is not in the history keeps the bare id as its label', async () => {
+    const { renderConversation } = await import('../src/agent/providers/tool-protocol.js');
+    const text = renderConversation([
+      { role: 'assistant', content: null, toolCalls: [{ id: 'a', name: 'read_file', args: {} }, { id: 'b', name: 'run_drc', args: {} }] },
+      { role: 'tool', toolCallId: 'ghost', content: 'orphan' },
+    ]);
+    expect(text).toContain('[result of ghost]\norphan');
+  });
+
+  it('an <invoke> block gets the per-call JSON steer and dispatches nothing', () => {
+    const parsed = parseToolCalls('<invoke name="run_drc">\n<parameter name="x">1</parameter>\n</invoke>', ids(), catalog);
+    expect(parsed.toolCalls).toEqual([]);
+    expect(parsed.nudge).toMatch(/written as an <invoke> block/);
+    expect(parsed.nudge).toMatch(/Write each call as its own JSON object/);
+    expect(parsed.nudge).not.toMatch(/exactly one/i);
+  });
+});
+
+describe('repeated call ids keep chronological result labels (#460 review)', () => {
+  // CachingProvider replays stored cc-N ids and a restarted provider hands the same
+  // ids out live, so one run's history can hold cc-1 twice.
+  const history = [
+    { role: 'user' as const, content: 'go' },
+    { role: 'assistant' as const, content: null, toolCalls: [{ id: 'cc-1', name: 'read_file', args: { path: 'a' } }] },
+    { role: 'tool' as const, toolCallId: 'cc-1', content: 'FILE CONTENTS' },
+    { role: 'assistant' as const, content: null, toolCalls: [{ id: 'cc-1', name: 'run_erc', args: {} }, { id: 'cc-2', name: 'run_drc', args: {} }] },
+    { role: 'tool' as const, toolCallId: 'cc-1', content: 'ERC: clean' },
+    { role: 'tool' as const, toolCallId: 'cc-2', content: 'DRC: clean' },
+  ];
+
+  it('renderConversation labels each result by the call that preceded it', async () => {
+    const { renderConversation } = await import('../src/agent/providers/tool-protocol.js');
+    const text = renderConversation(history);
+    expect(text).toContain('[result of read_file]\nFILE CONTENTS');
+    expect(text).toContain('[result of run_erc, call 1 of 2]\nERC: clean');
+    expect(text).toContain('[result of run_drc, call 2 of 2]\nDRC: clean');
+    expect(text).not.toContain('[result of run_erc, call 1 of 2]\nFILE CONTENTS');
+  });
+
+  it('renderDelta does the same, with the replies before the delta feeding the index', async () => {
+    const { renderDelta } = await import('../src/agent/providers/tool-protocol.js');
+    expect(renderDelta(history, 2)).toBe(
+      ['[result of read_file]\nFILE CONTENTS', '[result of run_erc, call 1 of 2]\nERC: clean', '[result of run_drc, call 2 of 2]\nDRC: clean'].join('\n\n'),
+    );
+  });
+});
+
 describe('parseToolCalls — undispatched calls in a mixed reply (#306)', () => {
   it('reports a call for a tool outside the catalog written next to calls that ran', () => {
     const reply = [call('run_drc'), call('edit_file', { path: 'docs/SPEC.md' }), call('edit_file', { path: 'docs/BOM.md' })].join('\n');

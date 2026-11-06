@@ -192,6 +192,26 @@ describe('create layout-draft around board populate (#314)', () => {
     }
   });
 
+  it('names a stray root section when docs/LAYOUT.md holds only the placeholder, and a duplicate heading', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'copperhead-layout-doc-'));
+    try {
+      await mkdir(path.join(root, 'docs'));
+      const placeholder = '# Layout\n\n## Draft quality\n\n<!-- copperhead writes an honest assessment here after any layout pass -->\n';
+      await writeFile(path.join(root, 'docs', 'LAYOUT.md'), placeholder, 'utf8');
+      await writeFile(path.join(root, 'LAYOUT.md'), '# Layout\n\n## Draft quality\n\nPower routed.\n', 'utf8');
+      const gap = await layoutDocGap(root, 'docs/');
+      expect(gap).toContain('section in docs/LAYOUT.md is empty');
+      expect(gap).toContain('written to LAYOUT.md at the repository root');
+      // the assessment written under a second heading below the placeholder
+      await writeFile(path.join(root, 'docs', 'LAYOUT.md'), `${placeholder}\n## Draft quality\n\nPower routed.\n`, 'utf8');
+      const dup = await layoutDocGap(root, 'docs/');
+      expect(dup).toContain('docs/LAYOUT.md has more than one "## Draft quality" heading and the first is empty: keep one heading');
+      expect(dup).toContain('written to LAYOUT.md at the repository root');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('a retry starts from the board an earlier attempt committed, not a fresh populate (#327)', async () => {
     const { repo, brief, cleanup } = await projectAtLayoutDraft();
     try {

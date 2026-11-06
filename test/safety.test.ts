@@ -95,6 +95,11 @@ describe('secret redaction (AC-4.1)', () => {
     expect(out).toBe('[REDACTED]');
   });
 
+  it('redacts an sk- key glued to the word before it', () => {
+    expect(redactSecrets('copperhead vsk-test1234567890abcdef')).toBe('copperhead v[REDACTED]');
+    expect(redactSecrets('key:xsk-proj-AbCdEf0123456789xyz')).toBe('key:x[REDACTED]');
+  });
+
   it('leaves ordinary prose alone', () => {
     // The patterns are deliberately broad, but not so broad that a run summary
     // loses readable text.
@@ -105,6 +110,8 @@ describe('secret redaction (AC-4.1)', () => {
       'see the github_pat docs',
       'a gsk_ prefixed identifier',
       'an AIza-prefixed placeholder',
+      'non-solder-mask-defined (NSMD) pads',
+      'a risk-free disk-full task-P',
     ]) {
       expect(redactSecrets(text), text).toBe(text);
     }

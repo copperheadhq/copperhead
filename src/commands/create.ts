@@ -20,7 +20,10 @@ import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
-import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit } from '../util/git.js';
+import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit, applyFailedRun, snapshot, restore, preserveFailedRun, hasFailedRun } from '../util/git.js';
+import { loadConstraints } from '../memory/constraints.js';
+import { classifyAttempt, causeNote, nextBudget, isDocsOnlyStage, renderDecisionStop, appendSummaryNote, type AttemptCause } from './stage-recovery.js';
+import type { RefusalBlocker } from '../agent/context.js';
 import type { CompatSettings, CopperheadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
 import { runAgentLoop, makeProvider, type BudgetExhaustedStats } from '../agent/loop.js';
@@ -33,7 +36,7 @@ import { openspecInit } from '../openspec/cli.js';
 import { sweepStaleTempDirs, pruneHistoryDir } from '../util/tmp.js';
 import { bomSymbolDossier } from '../kicad/dossier.js';
 import { symbolSearchDirs } from '../kicad/symlib.js';
-import { isDraftQualityHeading } from '../kicad/fab.js';
+import { draftQualitySection, isDraftQualityHeading, isFilledDraftQuality } from '../kicad/fab.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
 import { emitCreateJlcpcbBom } from './export.js';
@@ -61,18 +64,29 @@ async function docHasContent(repoRoot: string, rel: string, marker: string): Pro
   return (await readFile(p, 'utf8')).includes(marker);
 }
 
+/**
+ * The layout document's Draft quality section, under a numbered heading or not
+ * (#327): 'missing' with no such heading, 'empty' when only comments sit under
+ * it (the placeholder `copperhead init` scaffolds), 'duplicate' when that empty
+ * heading is followed by another, else 'filled'. It reads the first section,
+ * as `check --fab` does, so the stage never finishes on a section the fab
+ * check then calls empty.
+ */
+async function draftQualityState(repoRoot: string, rel: string): Promise<'missing' | 'empty' | 'duplicate' | 'filled'> {
+  const p = path.join(repoRoot, rel);
+  if (!existsSync(p)) return 'missing';
+  const text = await readFile(p, 'utf8');
+  const section = draftQualitySection(text);
+  if (section === null) return 'missing';
+  if (isFilledDraftQuality(section)) return 'filled';
+  return text.split(/\r?\n/).filter(isDraftQualityHeading).length > 1 ? 'duplicate' : 'empty';
+}
+
 // Heading-aware variant of docHasContent: matches any Markdown heading whose
 // text contains `word`, ignoring heading level, leading numbering ("3."), and
 // trailing decoration ("Budgets and constraints (...)"). Stage prompts don't
 // dictate exact heading text, so a literal `.includes('## Budgets')` produces
 // false negatives against valid docs titled e.g. "## 3. Budgets and constraints".
-/** The layout document has its Draft quality heading, numbered or not (#327). */
-async function docHasDraftQuality(repoRoot: string, rel: string): Promise<boolean> {
-  const p = path.join(repoRoot, rel);
-  if (!existsSync(p)) return false;
-  return (await readFile(p, 'utf8')).split(/\r?\n/).some(isDraftQualityHeading);
-}
-
 async function docHasHeading(repoRoot: string, rel: string, word: string): Promise<boolean> {
   const p = path.join(repoRoot, rel);
   if (!existsSync(p)) return false;
@@ -124,6 +138,49 @@ async function dirHasFiles(dirPath: string, exts?: string[]): Promise<boolean> {
     return false;
   }
   return walk(dirPath);
+}
+
+const FIRMWARE_SOURCE_EXTS = ['.c', '.h', '.cpp', '.hpp', '.py', '.rs', '.ino', '.s'];
+
+/**
+ * Stock KiCad libraries with nothing programmable in them (#377). Only these
+ * can waive firmware: a part from any other library, a project library
+ * included (`fixture:ESP32-S3-MINI`), may hold code, so an unknown part never
+ * excuses the stage.
+ */
+const NON_PROGRAMMABLE_LIB =
+  /^(Device|Connector(_\w+)?|Diode(_\w+)?|Transistor_\w+|Regulator_\w+|Mechanical|power|Power_Protection|LED|Switch|Jumper|Graphic|Amplifier_Operational|Amplifier_Instrumentation|Comparator|Reference_Voltage|Relay|Timer)$/;
+
+/**
+ * The schematic's parts that could hold firmware, by the library their symbol
+ * comes from; null when there is no schematic to read, which waives nothing.
+ */
+async function programmableParts(root: string): Promise<string[] | null> {
+  try {
+    const config = await loadConfig(root);
+    if (!config.schematic) return null;
+    const p = path.join(root, config.schematic);
+    if (!existsSync(p)) return null;
+    const symbols = await listSymbols(p);
+    if (!symbols.length) return null;
+    return symbols.filter((s) => !NON_PROGRAMMABLE_LIB.test(s.libId.split(':')[0] ?? '')).map((s) => `${s.ref} (${s.libId})`);
+  } catch {
+    return null;
+  }
+}
+
+/** firmware/README.md opens with "# No firmware" and says why below it. */
+async function noFirmwareReadme(root: string): Promise<boolean> {
+  const p = path.join(root, 'firmware', 'README.md');
+  if (!existsSync(p)) return false;
+  // an HTML comment, one line or many, closed or not, is not a written reason
+  const lines = (await readFile(p, 'utf8'))
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<!--[\s\S]*$/, '')
+    .split(/\r?\n/);
+  const first = lines.findIndex((l) => l.trim());
+  if (first < 0 || !/^#\s+No firmware\b/i.test(lines[first]!.trim())) return false;
+  return lines.slice(first + 1).some((l) => l.trim() && !l.trim().startsWith('#'));
 }
 
 export const STAGES: Stage[] = [
@@ -208,7 +265,7 @@ export const STAGES: Stage[] = [
       // (that stops the run before the schematic stage, #314)
     },
     prompt: () =>
-      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing.',
+      'Stage 3: part selection. Write docs/BOM.md with the fixed table format (| Refdes | Value | Footprint | MPN | Rationale |). The Value column holds the COMPONENT VALUE and nothing else — "4.7uF", "1M", "500mAh Li-Po", "STM32F103C8T6" — because stage 4 draws it on the sheet as that part\'s Value field, where a description ("1S Li-Po cell, 500 mAh, bare leads") collides with neighbouring symbols and fails the legibility gate. Put the prose in the Rationale column instead; that is the column for it, and nothing draws it. One row per refdes: a grouped row ("SW3-SW16", "C5-C8") is not a BOM row and the schematic stage cannot match it. Every MPN you introduce is flagged UNVERIFIED with a datasheet-verifiable justification. Check leakage/quiescent current of every part against the power budget. The design must be capturable with the KiCad symbol libraries installed on THIS machine: run search_symbols for every IC, module, connector and other active part before committing it to the BOM, and if a part has no installed symbol, pick one that has — stage 4 draws only from installed symbols, and a BOM row it cannot resolve makes the whole run unwinnable. Existence is not enough: confirm the chosen symbol with symbol_pins so the pin numbers you wire in stage 4 are real. Multi-unit symbols (gate packs, dual opamps) are fine — the engine places each unit separately under the one refdes, and net endpoints use plain package pin numbers. The Footprint column holds an exact installed KiCad footprint id (Lib:Name): call check_footprints on every Footprint cell before finishing and use only ids it reports OK (it lists the closest installed ids on a miss). The board is built from exactly these ids — nothing is substituted later — and a footprint that is not installed stops the run for the user to install it. Run check_drift before finishing. If a recorded constraint (a budget in the system prompt or a key in the constraint registry) cannot be met by any installable part, do not narrate it and do not finish "done": call finish with outcome "refuse" and one blockers entry per constraint ({"kind": "constraint-conflict", "constraint": <the registry key>, "required": <what it demands>, "found": <the best candidate and why it fails>}), so the pipeline stops for a human decision instead of retrying the same wall.',
   },
   {
     name: 'schematic',
@@ -270,21 +327,7 @@ export const STAGES: Stage[] = [
   },
   {
     name: 'layout-draft',
-    isComplete: async (root, docs) => {
-      // The LAYOUT.md marker alone is not enough: `copperhead init` scaffolds
-      // LAYOUT.md with the literal "## Draft quality" heading. And "a board
-      // with a footprint" was not enough either (#314): the board must carry
-      // exactly the schematic's parts, each with its schematic footprint, so
-      // an outline-only board or a partial one never passes (AC-15.38).
-      const config = await loadConfig(root);
-      if (!config.board || !config.schematic) return false;
-      if (!(await boardMatchesSchematic(root, config)).ok) return false;
-      if (await layoutDocGap(root, docs)) return false;
-      // DRC-clean is part of "done", as ERC is for the schematic stage: a run
-      // killed after Draft quality was written but before a clean run_drc must
-      // not resume as complete and get its board committed unverified
-      return boardDrcOk(root, config.board);
-    },
+    isComplete: async (root, docs) => (await layoutDraftGap(root, docs)) === null,
     prompt: (_brief, docs) => {
       // posix: this path is shown to the model, and must read the same on Windows
       const layoutDoc = path.posix.join(docs, 'LAYOUT.md');
@@ -312,10 +355,17 @@ export const STAGES: Stage[] = [
     name: 'firmware',
     isComplete: async (root) => {
       // An empty firmware/ dir must not count. Require at least one source file.
-      return dirHasFiles(path.join(root, 'firmware'), ['.c', '.h', '.cpp', '.hpp', '.py', '.rs', '.ino', '.s']);
+      if (await dirHasFiles(path.join(root, 'firmware'), FIRMWARE_SOURCE_EXTS)) return true;
+      // A board with nothing programmable on it (#377) completes on a written
+      // "# No firmware" README, but only when the schematic, not the model,
+      // shows there is no part to program.
+      if (!(await noFirmwareReadme(root))) return false;
+      const parts = await programmableParts(root);
+      return parts !== null && parts.length === 0;
     },
     prompt: () =>
-      'Stage 7: firmware scaffold. Generate firmware/ for the chosen MCU HAL: pins.h generated from PINOUT.md (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md.',
+      'Stage 7: firmware scaffold. Generate firmware/ for the chosen MCU HAL: pins.h generated from PINOUT.md (single source of truth), driver stubs, and one working happy path. If the vendor toolchain is available, the build must pass; if not, note "not compiled here" explicitly in DEVPLAN.md. ' +
+      'Only if the board has nothing programmable on it (every schematic symbol comes from a stock non-programmable KiCad library: Device, Connector*, Diode*, Transistor_*, Regulator_*, Mechanical, power, Power_Protection, LED, Switch, Jumper, Graphic, Amplifier_Operational, Amplifier_Instrumentation, Comparator, Reference_Voltage, Relay, Timer) do not invent code: write firmware/README.md beginning with the heading "# No firmware" and, below it, why, citing the documents that record it (SPEC.md, SUBSYSTEMS.md). The stage gate reads the schematic: a part from any other library, a project library included, still needs source.',
   },
   {
     name: 'devplan',
@@ -497,15 +547,46 @@ async function populateStop(opts: CreateOptions): Promise<string | null> {
  */
 export async function layoutDocGap(root: string, docs: string): Promise<string | null> {
   const layoutDoc = path.posix.join(docs, 'LAYOUT.md');
-  if (await docHasDraftQuality(root, layoutDoc)) return null;
-  const stray = layoutDoc !== 'LAYOUT.md' && (await docHasDraftQuality(root, 'LAYOUT.md'));
-  return (
-    `${layoutDoc} has no "## Draft quality" section` +
-    (stray ? `; the section was written to LAYOUT.md at the repository root, which this stage does not read: put it in ${layoutDoc}` : '')
-  );
+  const state = await draftQualityState(root, layoutDoc);
+  if (state === 'filled') return null;
+  const stray = layoutDoc !== 'LAYOUT.md' && (await draftQualityState(root, 'LAYOUT.md')) === 'filled';
+  const where = stray ? `; the section was written to LAYOUT.md at the repository root, which this stage does not read: put it in ${layoutDoc}` : '';
+  if (state === 'duplicate') {
+    return `${layoutDoc} has more than one "## Draft quality" heading and the first is empty: keep one heading, with the assessment under it${where}`;
+  }
+  if (state === 'empty') {
+    return `the "## Draft quality" section in ${layoutDoc} is empty: write what is fine, how many connections are still unrouted, and what a human should redo${where}`;
+  }
+  return `${layoutDoc} has no "## Draft quality" section${where}`;
 }
 
-async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
+/**
+ * What keeps layout-draft from being complete, or null when it is. The
+ * document alone is not enough: `copperhead init` scaffolds its heading, and
+ * populate puts the schematic's parts on the board before the first turn, so
+ * a gate that read either alone would pass a stage nobody placed (#314). The
+ * board must carry exactly the schematic's parts, each with its schematic
+ * footprint (AC-15.38), and pass DRC, as ERC is part of "done" for the
+ * schematic stage: a run killed after Draft quality was written but before a
+ * clean run_drc must not resume as complete and get its board committed
+ * unverified. Cheapest first, since finish asks on every attempt: a file
+ * read, then a netlist export, then a full DRC. `drcFailed` is for a caller
+ * that already knows the stage is incomplete: when the rest holds, DRC is
+ * what failed, and running it again would only cost time.
+ */
+async function layoutDraftGap(root: string, docs: string, opts: { drcFailed?: boolean } = {}): Promise<string | null> {
+  const docGap = await layoutDocGap(root, docs);
+  if (docGap) return docGap;
+  const config = await loadConfig(root);
+  const m = await boardMatchesSchematic(root, config);
+  if (!m.ok) return `${m.detail}; restore the populated footprints (never add or rewrite them) and move them instead`;
+  if (opts.drcFailed || !(await boardDrcOk(root, config.board!))) {
+    return 'the board does not pass DRC; run run_drc and fix what it reports before finishing';
+  }
+  return null;
+}
+
+export async function contractGapDetail(stageName: string, root: string, config: CopperheadConfig): Promise<string> {
   const generic = 'the run finished but the stage completion contract is not met — no usable artifact was produced';
   if (stageName === 'part-selection') {
     const r = await bomFootprintMisses(root, config.docs);
@@ -518,16 +599,21 @@ async function contractGapDetail(stageName: string, root: string, config: Copper
       );
     }
   }
-  if (stageName === 'layout-draft') {
-    const fresh = await loadConfig(root);
-    const m = await boardMatchesSchematic(root, fresh);
-    if (!m.ok) {
-      return `the layout-draft contract is not met: ${m.detail}; restore the populated footprints (never add or rewrite them) and move them instead`;
+  if (stageName === 'firmware' && (await noFirmwareReadme(root))) {
+    const parts = await programmableParts(root);
+    if (parts === null) return 'the firmware contract is not met: firmware/README.md says "No firmware", but no schematic with parts could be read to confirm it, so the stage needs source files under firmware/';
+    if (parts.length) {
+      return (
+        `the firmware contract is not met: firmware/README.md says "No firmware", but these schematic parts are not from a stock non-programmable library: ${parts.join(', ')}; ` +
+        'if one of them is programmable, write firmware source for it under firmware/; if none of them holds firmware, they are outside the waiver list, so stop for a human rather than inventing code'
+      );
     }
-    const docGap = await layoutDocGap(root, fresh.docs);
-    return docGap
-      ? `the layout-draft contract is not met: ${docGap}`
-      : 'the layout-draft contract is not met: the board does not pass DRC; run run_drc and fix what it reports before finishing';
+  }
+  if (stageName === 'layout-draft') {
+    // the same gap, in the same order, that finish was told; isComplete just ran
+    // the DRC, so it is not run again
+    const gap = await layoutDraftGap(root, (await loadConfig(root)).docs, { drcFailed: true });
+    return gap ? `the layout-draft contract is not met: ${gap}` : generic;
   }
   if (stageName !== 'schematic' || !config.schematic) return generic;
   const p = path.join(root, config.schematic);
@@ -766,7 +852,9 @@ function logResumePoint(opts: CreateOptions, stage: Stage, index: number): void 
 function printCostTable(opts: CreateOptions, costs: StageCost[]): void {
   if (!costs.length) return;
   const pct = (hits: number, turns: number): string => (turns ? `${Math.round((hits / turns) * 100)}%` : '—');
-  const header = { stage: 'Stage', wall: 'Wall', turns: 'Turns', out: 'Out tok', cache: 'Cache' };
+  // "Replayed": turns served from copperhead's own response cache (a retried
+  // stage replaying answers it already paid for), never provider cache hits.
+  const header = { stage: 'Stage', wall: 'Wall', turns: 'Turns', out: 'Out tok', cache: 'Replayed' };
   const rows = costs.map((c) => ({
     stage: c.name,
     wall: c.resumed ? '—' : fmtDuration(c.wallMs),
@@ -848,7 +936,7 @@ function logCumulative(opts: CreateOptions, stageCosts: StageCost[]): void {
   opts.log(
     dim(
       `pipeline so far: ${stageCosts.length}/${STAGES.length} stages · ${fmtDuration(t.wallMs)} · ` +
-        `${fmtTokens(t.tokensOut)} out tokens · ${cachePct(t.cacheHits, t.turns)}% cache hits`,
+        `${fmtTokens(t.tokensOut)} out tokens · ${cachePct(t.cacheHits, t.turns)}% turns replayed`,
     ),
   );
 }
@@ -897,7 +985,7 @@ async function writeRunReport(opts: CreateOptions, stageCosts: StageCost[]): Pro
     'Per-stage cost of the create pipeline, regenerated at the end of every run.',
     'Resumed stages were already complete on entry and cost nothing this run.',
     '',
-    row(['Stage', 'Wall', 'Turns', 'In', 'Out', 'Cache', 'Status']),
+    row(['Stage', 'Wall', 'Turns', 'In', 'Out', 'Replayed', 'Status']),
     row(['---', '---:', '---:', '---:', '---:', '---:', '---']),
     ...stageCosts.map((c) =>
       c.resumed
@@ -941,7 +1029,14 @@ async function writeRunReport(opts: CreateOptions, stageCosts: StageCost[]): Pro
   }
 }
 
-export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; completed: string[] }> {
+export interface CreateResult {
+  ok: boolean;
+  completed: string[];
+  /** Set when a stage stopped for a human on a classified cause (AC-18.7). */
+  stop?: { stage: string; cause: AttemptCause; blockers: RefusalBlocker[] };
+}
+
+export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
   const brief = await readFile(path.resolve(opts.briefPath), 'utf8');
   // Hashed from the content already in hand: a brief edited mid-pipeline shows
   // up as a different sha256 in the next stage's metadata (AC-8.1).
@@ -1031,6 +1126,25 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
     // stops and reports for a human — the loop keeps going by itself for the
     // recoverable cases without silently spinning on the dead-end ones.
     const stageTurns = config.stageMaxTurns?.[stage.name];
+    // The attempt's turn budget: the stage's own entry on attempt 1 (undefined
+    // leaves the loop on its default, AC-15.18), escalated only after a budget
+    // exhaustion (design D3) and kept for every other cause (AC-18.10).
+    const startBudget = stageTurns ?? config.maxTurns;
+    let budget: number | undefined = stageTurns;
+    let lastRunId: string | null = null;
+    let stop: CreateResult['stop'] | undefined;
+    // A docs-only stage keeps its own pre-stage snapshot (design D5): when it stops
+    // after a retry restored a draft, that draft must not stay on the tree for the
+    // next run's resume to commit unseen. It goes back to the last attempt's stash
+    // entry and the tree goes back to this snapshot.
+    // Best-effort: a repo the loop's own preflight will refuse (no commits yet)
+    // has nothing to snapshot, and that refusal must keep its message.
+    const stageSnap = isDocsOnlyStage(stage.name) ? await snapshot(opts.repoRoot).catch(() => null) : null;
+    let draftApplied = false;
+    // Every file a retry inherited from an earlier attempt, for the whole stage: a
+    // later rollback leaves them on the tree unchanged, so a later apply reports
+    // nothing, yet they are still unverified work the retry must own (AC-18.14).
+    const inherited = new Set<string>();
     const basePrompt = stage.prompt(brief, config.docs);
     let guidance = '';
     let stageDone = false;
@@ -1092,10 +1206,28 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
             break;
           }
         }
+        // A docs-only stage retries from the draft the previous attempt preserved
+        // (design D5, AC-18.11): the rollback left it in a stash entry, so put it
+        // back before the loop takes this attempt's own snapshot. A conflict keeps
+        // the entry and starts from the pre-stage tree, and the guidance says so.
+        if (attempt > 1 && lastRunId && isDocsOnlyStage(stage.name)) {
+          const applied = await applyFailedRun(opts.repoRoot, lastRunId);
+          if (!applied.ok) {
+            opts.log(stageLine(stage.name, `could not restore the previous attempt's draft: ${applied.error}; starting from the pre-stage tree`, 'warn'));
+            guidance += `\nThe previous attempt's draft could not be restored automatically; it is in git stash entry "copperhead failed run ${lastRunId}". Start from the current tree.`;
+          } else if (applied.files.length) {
+            for (const f of applied.files) inherited.add(f);
+            draftApplied = true;
+            opts.log(stageLine(stage.name, `restored the previous attempt's draft: ${applied.files.join(', ')}`));
+            guidance += `\nRestored from the previous attempt: ${applied.files.join(', ')}. Continue from these drafts instead of re-deriving them.`;
+          }
+        }
+        const carried = [...inherited].filter((f) => existsSync(path.join(opts.repoRoot, f)));
+        const escalated = budget !== undefined && budget !== stageTurns ? `, ${budget} turns` : '';
         opts.log(
           stageLine(
             stage.name,
-            `running${attempt > 1 ? ` (attempt ${attempt}/${config.maxStageRetries + 1})` : ''}`,
+            `running${attempt > 1 ? ` (attempt ${attempt}/${config.maxStageRetries + 1}${escalated})` : ''}`,
           ),
         );
         // The BOM freezes before this stage, so every part's real pins are
@@ -1134,18 +1266,22 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           allowDirty: true, // stages build on each other's uncommitted state within the pipeline
           // the populated board is this stage's mutation too: finish needs a
           // passing DRC on it even when the agent never edits the board
-          ...(layoutBoard ? { preTouched: [layoutBoard] } : {}),
+          // An inherited draft counts as this attempt's own edits: its drift (and ERC,
+          // should a KiCad file ride along) obligations must clear before finish.
+          ...(layoutBoard ? { preTouched: [layoutBoard] } : carried.length ? { preTouched: carried } : {}),
           // #310: in layout-draft, finish checks the stage's own contract, so the agent
           // hears what is missing while its board still exists, not after the rollback.
           // Other stages keep ending at the post-run check: their gaps have no specific
           // message yet, and a generic one would only spend turns.
           ...(stage.name === 'layout-draft'
             ? {
-                stageGate: async () =>
-                  (await stage.isComplete(opts.repoRoot, config.docs)) ? null : contractGapDetail(stage.name, opts.repoRoot, config),
+                stageGate: async () => {
+                  const gap = await layoutDraftGap(opts.repoRoot, config.docs);
+                  return gap && `the layout-draft contract is not met: ${gap}`;
+                },
               }
             : {}),
-          ...(stageTurns !== undefined ? { maxTurns: stageTurns } : {}),
+          ...(budget !== undefined ? { maxTurns: budget } : {}),
           ...(opts.onBudgetExhausted ? { onBudgetExhausted: opts.onBudgetExhausted } : {}),
           log: opts.log,
           ...(opts.renderer ? { renderer: opts.renderer } : {}),
@@ -1164,6 +1300,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         cost.tokensOut += res.stats?.tokensOut ?? 0;
         cost.cacheHits += res.cacheHits ?? 0;
         stageTranscriptDir = res.transcriptDir; // last attempt's run dir (for SVG artifacts / report)
+        lastRunId = res.transcriptDir ? path.basename(res.transcriptDir) : null;
 
         // A successful run is not the same as a completed stage: an agent can
         // finish "done" with all gates green having only planned the work (seen
@@ -1184,6 +1321,27 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
           break;
         }
 
+        // The attempt's ending is classified before anything decides what to do
+        // next (design D2), and every attempt logs its cause and action (AC-18.6).
+        const cause = classifyAttempt(res);
+        // A refusal counted as exhaustion says so with its numbers (AC-18.16).
+        const note = causeNote(res, cause);
+        const causeText = note ? `${cause} (${note})` : cause;
+        opts.log(stageLine(stage.name, `attempt ${attempt} ended: ${causeText}`, 'warn'));
+
+        if (cause === 'constraint-conflict') {
+          // A verified conflict is the user's decision, not the supervisor's and
+          // not a retry's (AC-18.7): no turn is spent, the block says what to do.
+          const blockers = res.blockers ?? [];
+          const registry = await loadConstraints(opts.repoRoot).catch(() => ({}));
+          const block = renderDecisionStop({ stage: stage.name, attempt, blockers, registry });
+          opts.log(stageLine(stage.name, 'stop: verified constraint conflict; a decision is needed', 'err'));
+          for (const line of block.terminal.split('\n')) opts.log(line);
+          await appendSummaryNote(res.transcriptDir, [`cause: ${causeText}`, 'action: stopped for a decision'], block.markdown);
+          stop = { stage: stage.name, cause, blockers };
+          break;
+        }
+
         if (attempt > config.maxStageRetries) {
           opts.log(
             stageLine(
@@ -1192,6 +1350,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
               'err',
             ),
           );
+          await appendSummaryNote(res.transcriptDir, [`cause: ${causeText}`, `action: stopped (exhausted ${config.maxStageRetries} auto-retries)`]);
           break;
         }
 
@@ -1221,12 +1380,41 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
         );
         if (diagnosis.verdict === 'abort') {
           opts.log(stageLine(stage.name, 'recovery supervisor recommends stopping for a human.', 'err'));
+          await appendSummaryNote(res.transcriptDir, [`cause: ${causeText}`, `action: stopped (supervisor: ${diagnosis.reason})`]);
           break;
         }
+        let action = `retry (supervisor: ${diagnosis.reason})`;
+        if (cause === 'turn-budget-exhausted') {
+          // The budget was the problem, so the retry gets more of it (AC-18.9);
+          // the supervisor's verdict cannot raise or lower the number.
+          // An attended extension (AC-15.1) raised the run's budget past the one it
+          // was given, so escalate from what it really had.
+          const prev = Math.max(budget ?? 0, res.stats?.budget ?? res.stats?.maxTurns ?? config.maxTurns);
+          budget = nextBudget(prev, startBudget);
+          action = `retry with ${budget} turns (escalated from ${prev}; supervisor: ${diagnosis.reason})`;
+        }
+        opts.log(stageLine(stage.name, action, 'warn'));
+        await appendSummaryNote(res.transcriptDir, [`cause: ${causeText}`, `action: ${action}`]);
         guidance = diagnosis.guidance ?? `The previous attempt failed: ${failure}. ${diagnosis.reason}`;
       }
     } finally {
       if (!stageDone) await restoreVerifiedBoard();
+      if (!stageDone && draftApplied && stageSnap) {
+        // Only while no attempt committed: a moved HEAD is a stage commit that the
+        // pre-stage snapshot must not undo.
+        const head = await headCommit(opts.repoRoot).catch(() => null);
+        if (head === stageSnap.head) {
+          if (lastRunId && !(await hasFailedRun(opts.repoRoot, lastRunId))) await preserveFailedRun(opts.repoRoot, lastRunId);
+          await restore(opts.repoRoot, stageSnap);
+          opts.log(
+            stageLine(
+              stage.name,
+              `tree put back to its pre-stage state; the restored draft stays in git stash entry "copperhead failed run ${lastRunId}" (git stash apply recovers it)`,
+              'warn',
+            ),
+          );
+        }
+      }
     }
 
     cost.wallMs = Date.now() - stageStart;
@@ -1236,7 +1424,7 @@ export async function runCreate(opts: CreateOptions): Promise<{ ok: boolean; com
       logResumePoint(opts, stage, i);
       printCostTable(opts, stageCosts);
       await writeRunReport(opts, stageCosts);
-      return { ok: false, completed };
+      return { ok: false, completed, ...(stop ? { stop } : {}) };
     }
     completed.push(stage.name);
     if (stage.name === 'spec-seed') {

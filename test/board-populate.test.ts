@@ -25,7 +25,7 @@ import {
   populateBoard,
 } from '../src/kicad/populate.js';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
-import { isManagedPath, STAGES } from '../src/commands/create.js';
+import { isManagedPath, layoutDocGap, STAGES } from '../src/commands/create.js';
 import { loadConfig } from '../src/config.js';
 import { bomFootprintRows } from '../src/memory/bom-table.js';
 import { normalizeReport } from '../src/kicad/report.js';
@@ -376,6 +376,163 @@ describe('populateBoard against kicad-cli (AC-15.36, AC-15.37)', () => {
     }
   });
 
+  it('a board whose footprints were deleted gets one net table, not the old one and a new one beside it', async () => {
+    const { repo, cleanup } = await draftedProject();
+    try {
+      await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      const board = path.join(repo, PCB);
+      const populated = await readFile(board, 'utf8');
+      // the user deletes every footprint and pcbnew keeps the net table, with
+      // a net since renamed in the schematic still holding code 1
+      const open = populated.indexOf('(kicad_pcb');
+      let stripped = populated;
+      for (const sp of childSpans(populated, open).filter((x) => x.tag === 'footprint').reverse()) {
+        stripped = stripped.slice(0, populated.lastIndexOf('\n', sp.start - 1) + 1) + stripped.slice(sp.end + 1);
+      }
+      stripped = stripped.replace(/\(net 1 "[^"]*"\)/, '(net 1 "OLD_NAME")');
+      expect(boardFootprints(stripped)).toEqual([]);
+      await writeFile(board, stripped, 'utf8');
+      const res = await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      expect(res.unchanged).toBe(false);
+      const again = await readFile(board, 'utf8');
+      const tops = childSpans(again, again.indexOf('(kicad_pcb')).filter((x) => x.tag === 'net').map((x) => again.slice(x.start, x.end));
+      const codes = tops.map((t) => /^\(net (\d+)/.exec(t)![1]);
+      expect(new Set(codes).size).toBe(codes.length);
+      expect(again).not.toContain('OLD_NAME');
+      // the same table a fresh populate writes, and every pad on its schematic net
+      const fresh = childSpans(populated, open).filter((x) => x.tag === 'net').map((x) => populated.slice(x.start, x.end));
+      expect(tops).toEqual(fresh);
+      expect(padNetMismatches(again, parseNetlist(await exportNetlist(path.join(repo, SCH))))).toEqual([]);
+      expect(await kicadLoadError(board)).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses a footprint-less board whose old nets still carry copper, and leaves it as it was', async () => {
+    const { repo, cleanup } = await draftedProject();
+    try {
+      await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      const board = path.join(repo, PCB);
+      const populated = await readFile(board, 'utf8');
+      const open = populated.indexOf('(kicad_pcb');
+      let stripped = populated;
+      for (const sp of childSpans(populated, open).filter((x) => x.tag === 'footprint').reverse()) {
+        stripped = stripped.slice(0, sp.start) + stripped.slice(sp.end);
+      }
+      const close = stripped.lastIndexOf(')');
+      stripped =
+        stripped.slice(0, close) +
+        '\t(segment (start 10 10) (end 20 10) (width 0.25) (layer "F.Cu") (net 1) (uuid "6f1a3c1e-0000-4000-8000-000000000001"))\n' +
+        stripped.slice(close);
+      await writeFile(board, stripped, 'utf8');
+      await expect(populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() })).rejects.toThrow(
+        /no footprints but still has 1 track\(s\), via\(s\), zone\(s\) or shape\(s\) on a net/,
+      );
+      expect(await readFile(board, 'utf8')).toBe(stripped);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('removes stale nets that share a line, and keeps a keepout zone and a text that are on no net', async () => {
+    const { repo, cleanup } = await draftedProject();
+    try {
+      await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      const board = path.join(repo, PCB);
+      const populated = await readFile(board, 'utf8');
+      const open = populated.indexOf('(kicad_pcb');
+      let stripped = populated;
+      for (const sp of childSpans(populated, open).filter((x) => x.tag === 'footprint').reverse()) {
+        stripped = stripped.slice(0, populated.lastIndexOf('\n', sp.start - 1) + 1) + stripped.slice(sp.end + 1);
+      }
+      // an old net hand-edited onto the net 0 line, renamed since
+      const net1 = /\n\t\(net 1 "[^"]*"\)/.exec(stripped)!;
+      stripped = stripped.slice(0, net1.index) + stripped.slice(net1.index + net1[0].length);
+      stripped = stripped.replace('(net 0 "")', '(net 0 "") (net 1 "A_MUCH_LONGER_OLD_NAME")');
+      // and two old nets that share a line with nothing else
+      const net23 = /\n\t(\(net 2 "[^"]*"\))\n\t(\(net 3 "[^"]*"\))/.exec(stripped)!;
+      stripped = stripped.replace(net23[0], `\n\t${net23[1]} ${net23[2]}`);
+      const keepout =
+        '\t(zone (net 0) (net_name "") (layers "F.Cu") (uuid "6f1a3c1e-0000-4000-8000-000000000002") (hatch edge 0.5)' +
+        ' (connect_pads (clearance 0)) (min_thickness 0.25)' +
+        ' (keepout (tracks not_allowed) (vias not_allowed) (pads allowed) (copperpour not_allowed) (footprints allowed))' +
+        ' (fill (thermal_gap 0.5) (thermal_bridge_width 0.5)) (polygon (pts (xy 1 1) (xy 5 1) (xy 5 5) (xy 1 5))))\n';
+      // and silkscreen text that only reads like a net
+      const label = '\t(gr_text "(net 1)" (at 10 10) (layer "F.SilkS") (uuid "6f1a3c1e-0000-4000-8000-000000000005") (effects (font (size 1 1) (thickness 0.15))))\n';
+      const close = stripped.lastIndexOf(')');
+      await writeFile(board, stripped.slice(0, close) + keepout + label + stripped.slice(close), 'utf8');
+      await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      const again = await readFile(board, 'utf8');
+      const tops = childSpans(again, again.indexOf('(kicad_pcb'));
+      const nets = tops.filter((x) => x.tag === 'net').map((x) => again.slice(x.start, x.end));
+      const fresh = childSpans(populated, open).filter((x) => x.tag === 'net').map((x) => populated.slice(x.start, x.end));
+      expect(nets).toEqual(fresh);
+      expect(again).not.toContain('A_MUCH_LONGER_OLD_NAME');
+      expect(again).not.toMatch(/\n[ \t]*\n/); // no line left holding only whitespace
+      expect(tops.filter((x) => x.tag === 'zone')).toHaveLength(1);
+      expect(again).toContain('(gr_text "(net 1)"');
+      expect(await kicadLoadError(board)).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses a footprint-less board with a copper shape still on an old net', async () => {
+    const { repo, cleanup } = await draftedProject();
+    try {
+      await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      const board = path.join(repo, PCB);
+      const populated = await readFile(board, 'utf8');
+      const open = populated.indexOf('(kicad_pcb');
+      let stripped = populated;
+      for (const sp of childSpans(populated, open).filter((x) => x.tag === 'footprint').reverse()) {
+        stripped = stripped.slice(0, sp.start) + stripped.slice(sp.end);
+      }
+      const close = stripped.lastIndexOf(')');
+      stripped =
+        stripped.slice(0, close) +
+        '\t(gr_poly (pts (xy 1 1) (xy 5 1) (xy 5 5)) (stroke (width 0) (type solid)) (fill yes) (layer "F.Cu") (net 2) (uuid "6f1a3c1e-0000-4000-8000-000000000003"))\n' +
+        stripped.slice(close);
+      await writeFile(board, stripped, 'utf8');
+      await expect(populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() })).rejects.toThrow(
+        /still has 1 track\(s\), via\(s\), zone\(s\) or shape\(s\) on a net/,
+      );
+      expect(await readFile(board, 'utf8')).toBe(stripped);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses copper on a net even when the old table is already gone', async () => {
+    const { repo, cleanup } = await draftedProject();
+    try {
+      await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      const board = path.join(repo, PCB);
+      const populated = await readFile(board, 'utf8');
+      const open = populated.indexOf('(kicad_pcb');
+      let stripped = populated;
+      // every footprint and every net but net 0 deleted; one track left on code 1
+      for (const sp of childSpans(populated, open)
+        .filter((x) => x.tag === 'footprint' || (x.tag === 'net' && !populated.slice(x.start, x.end).startsWith('(net 0 ')))
+        .reverse()) {
+        stripped = stripped.slice(0, populated.lastIndexOf('\n', sp.start - 1) + 1) + stripped.slice(sp.end + 1);
+      }
+      const close = stripped.lastIndexOf(')');
+      stripped =
+        stripped.slice(0, close) +
+        '\t(segment (start 10 10) (end 20 10) (width 0.25) (layer "F.Cu") (net 1) (uuid "6f1a3c1e-0000-4000-8000-000000000004"))\n' +
+        stripped.slice(close);
+      await writeFile(board, stripped, 'utf8');
+      await expect(populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() })).rejects.toThrow(
+        /still has 1 track\(s\), via\(s\), zone\(s\) or shape\(s\) on a net/,
+      );
+      expect(await readFile(board, 'utf8')).toBe(stripped);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('a footprint that is not installed throws and leaves the board byte-identical', async () => {
     const { repo, cleanup } = await draftedProject();
     try {
@@ -456,6 +613,27 @@ describe('layout-draft completion compares the board with the schematic (AC-15.3
   });
   const withLayoutDoc = async (repo: string): Promise<void> =>
     writeFile(path.join(repo, 'docs', 'LAYOUT.md'), '# Layout\n\n## Draft quality\n\nGrid placement; route by hand.\n', 'utf8');
+
+  it("the scaffolded Draft quality placeholder never completes it, on a populated, DRC-clean board", async () => {
+    const { repo, cleanup } = await draftedProject();
+    try {
+      // what `copperhead init` writes: the heading over a comment
+      await writeFile(
+        path.join(repo, 'docs', 'LAYOUT.md'),
+        '# Layout intent\n\n## Draft quality\n\n<!-- copperhead writes an honest assessment here after any layout pass -->\n',
+        'utf8',
+      );
+      await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      expect(await layoutDraft.isComplete(repo, 'docs/')).toBe(false);
+      expect(await layoutDocGap(repo, 'docs/')).toBe(
+        'the "## Draft quality" section in docs/LAYOUT.md is empty: write what is fine, how many connections are still unrouted, and what a human should redo',
+      );
+      await withLayoutDoc(repo);
+      expect(await layoutDraft.isComplete(repo, 'docs/')).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
 
   it('an outline-only board never completes the stage, even with the LAYOUT.md section', async () => {
     const { repo, cleanup } = await draftedProject();
@@ -681,6 +859,39 @@ describe('project symbol libraries (AC-15.31)', () => {
       // and KiCad sees the sheet's symbols as the library's own
       const erc = await runErc(path.join(repo, sch!));
       expect(erc.violations.filter((v) => v.type === 'lib_symbol_mismatch')).toEqual([]);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('a project library is read before a cache file an earlier draft left under its nickname', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-symtable-'));
+    try {
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      const sch = await bootstrapKicadProject(repo, '# Demo board');
+      await cp(path.join(DRAFT_FIXTURE, 'docs'), path.join(repo, 'docs'), { recursive: true });
+      const mcu = await readFile(path.join(SYMLIB, 'CopperMCU.kicad_sym'), 'utf8');
+      const conn = await readFile(path.join(SYMLIB, 'CopperConn.kicad_sym'), 'utf8');
+      const connSym = childSpans(conn, conn.indexOf('(kicad_symbol_lib')).find((x) => x.tag === 'symbol')!;
+      // an earlier draft vendored UserLib with MCU8 alone; the user has since
+      // added the whole library under that nickname to the project table
+      await mkdir(path.join(repo, 'sym-lib-cache'));
+      await writeFile(path.join(repo, 'sym-lib-cache', 'UserLib.kicad_sym'), mcu, 'utf8');
+      await mkdir(path.join(repo, 'lib'));
+      await writeFile(path.join(repo, 'lib', 'UserLib.kicad_sym'), `${mcu.slice(0, mcu.lastIndexOf(')'))}\t${conn.slice(connSym.start, connSym.end)}\n)\n`, 'utf8');
+      const row = '(lib (name "UserLib")(type "KiCad")(uri "${KIPRJMOD}/lib/UserLib.kicad_sym")(options "")(descr "user"))';
+      await writeFile(path.join(repo, 'sym-lib-table'), `(sym_lib_table\n\t(version 7)\n\t${row}\n)\n`, 'utf8');
+      const intent = (await readFile(path.join(DRAFT_FIXTURE, 'schematic.intent.json'), 'utf8'))
+        .replace('"CopperMCU:MCU8"', '"UserLib:MCU8"')
+        .replace('"CopperConn:Conn_01x03"', '"UserLib:Conn_01x03"');
+      await writeFile(path.join(repo, 'schematic.intent.json'), intent, 'utf8');
+      const res = await draftSchematic({ repoRoot: repo, schematic: sch!, intentPath: 'schematic.intent.json', docsDir: path.join(repo, 'docs'), symbolDirs: [SYMLIB] });
+      expect(res.ok ? '' : res.message).toBe('');
+      // the user's row is the only UserLib row, so KiCad reads both symbols from it
+      const table = await readFile(path.join(repo, 'sym-lib-table'), 'utf8');
+      expect(symLibTableRows(table).filter((r) => r.name === 'UserLib').map((r) => r.text)).toEqual([row]);
+      const erc = await runErc(path.join(repo, sch!));
+      expect(erc.violations.filter((v) => v.type === 'lib_symbol_issues' || v.type === 'lib_symbol_mismatch')).toEqual([]);
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

@@ -233,6 +233,31 @@ describe('a turn cut for fabricated tool results (#320)', () => {
   });
 });
 
+describe('a call after an accepted finish in the same reply', () => {
+  it('is answered, not run: the run ends on the checks finish passed', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const provider = new ScriptedProvider([
+        {
+          text: null,
+          toolCalls: [
+            { id: 'fin', name: 'finish', args: { outcome: 'done', summary: 'nothing to change' } },
+            { id: 'late', name: 'check_drift', args: {} },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1 },
+        },
+      ]);
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 2 }));
+      expect(res.outcome).toBe('success');
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.filter((e) => e.type === 'tool').map((e) => e.data.name)).toEqual(['finish']);
+      expect(events.find((e) => e.type === 'tool-not-run')?.data).toMatchObject({ name: 'check_drift' });
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
 describe('a turn that left tool calls undispatched (#306)', () => {
   it('names them after the real results and records them in the transcript', async () => {
     const { repo, cleanup } = await tempFixtureRepo();

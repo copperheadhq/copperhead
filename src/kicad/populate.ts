@@ -746,6 +746,47 @@ export async function populateBoard(opts: PopulateOptions): Promise<PopulateResu
       grown = true;
     }
   }
+  // A board with no footprints can still carry what its old parts left: copper
+  // on a net would land on whichever fresh net takes its code or name, so it
+  // is refused, whether the old table still declares that net or not (a
+  // keepout or a net-0 track is on none). And its old net table would collide
+  // with the fresh one, KiCad reading a code by its first declaration, so it
+  // goes.
+  const tops = childSpans(text, open);
+  // read from the item's own (net …) and (net_name …) lists, never from a
+  // string inside it: a silkscreen `(gr_text "(net 1)" …)` is on no net
+  const onANet = (sp: Span): boolean =>
+    childSpans(text, sp.start).some((c) => {
+      if (c.tag !== 'net' && c.tag !== 'net_name') return false;
+      const m = /^\((?:net|net_name)\s+(?:(\d+)\s*)?(?:"((?:[^"\\]|\\.)*)")?/.exec(text.slice(c.start, c.end));
+      return (!!m?.[1] && m[1] !== '0') || !!m?.[2];
+    });
+  const wired = tops.filter((sp) => /^(segment|arc|via|zone|gr_)/.test(sp.tag) && onANet(sp)).length;
+  if (wired) {
+    throw new Error(
+      `${opts.board} has no footprints but still has ${wired} track(s), via(s), zone(s) or shape(s) on a net; ` +
+        'populate fills an empty board only: remove that copper, or start from the scaffolded board',
+    );
+  }
+  const stale = tops.filter((sp) => sp.tag === 'net' && !/^\(net\s+0\s+""\)$/.test(text.slice(sp.start, sp.end)));
+  if (stale.length) {
+    // a line the stale declarations fill goes whole, so the table left behind
+    // keeps its layout; one sharing its line with anything else (`(net 0 "")`)
+    // goes alone, clear of the insert after net 0
+    const byLine = new Map<number, Span[]>();
+    for (const sp of stale) {
+      const lineStart = text.lastIndexOf('\n', sp.start - 1) + 1;
+      byLine.set(lineStart, [...(byLine.get(lineStart) ?? []), sp]);
+    }
+    for (const [lineStart, spans] of byLine) {
+      const nl = text.indexOf('\n', spans[spans.length - 1]!.end);
+      const lineEnd = nl < 0 ? text.length : nl;
+      let rest = text.slice(lineStart, lineEnd);
+      for (const sp of [...spans].reverse()) rest = rest.slice(0, sp.start - lineStart) + rest.slice(sp.end - lineStart);
+      if (!rest.trim()) edits.push({ at: lineStart, del: (nl < 0 ? lineEnd : nl + 1) - lineStart, ins: '' });
+      else for (const sp of spans) edits.push({ at: sp.start, del: sp.end - sp.start, ins: '' });
+    }
+  }
   const netDecl = netNames.map((n) => `\t(net ${code.get(n)} ${q(n)})`).join('\n');
   const net0 = /\(net\s+0\s+""\)/.exec(text);
   if (net0) edits.push({ at: net0.index + net0[0].length, del: 0, ins: `\n${netDecl}` });
