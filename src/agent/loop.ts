@@ -57,6 +57,7 @@ import { AnthropicProvider } from './providers/anthropic.js';
 import { CodexProvider } from './providers/codex.js';
 import { ClaudeCodeProvider } from './providers/claude-code.js';
 import { CursorProvider } from './providers/cursor.js';
+import { renderUndispatched } from './providers/tool-protocol.js';
 
 /** What the user sees at the moment they decide whether to keep going. */
 export interface BudgetExhaustedStats {
@@ -541,13 +542,6 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       await transcript.event('budget-extended', { extraTurns: extra, budget, ...exhaustStats });
       log(`turn budget extended by ${extra} (now ${budget})`);
     }
-    // Advertise EVERY tool each turn; dispatchTool enforces the edit-unlock gate
-    // live at call time. Hiding locked edit tools from the turn catalog meant a
-    // model that unlocked (validate_change) and edited in the SAME reply had its
-    // edit silently dropped in parsing — the call named a tool the turn had not
-    // advertised, so it was treated as prose, executed nothing, and returned no
-    // error. The model then "verified" against an unchanged file (an empty
-    // schematic even passes ERC) and finished believing it had succeeded.
     // Structural lock (SPEC.md §1.3 invariant 1): the edit tools stay OUT of the
     // advertised list until a proposal validates (`editsUnlocked`), so the model
     // is gated by omission, not by prompt text. `dispatchTool` re-checks the same
@@ -556,6 +550,11 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     // the edit tools. (Earlier this advertised every tool to let a same-turn
     // propose→validate→edit batch through, but that traded the spec's structural
     // guarantee for one saved turn — not worth it.)
+    // The cost lands on the text-protocol providers: the catalog is fixed for the
+    // whole reply, so a write after validate_change in that reply cannot parse as a
+    // call. It is not silent: the reply's undispatched calls are named to the model
+    // after the results (#306), and a finish in that reply is held back (#296), so a
+    // run cannot finish on a write that never happened.
     const tools = availableTools(ctx).map((t) => t.schema);
     r.turnStart(turn + 1, maxTurns, tokensIn, tokensOut);
     r.status('thinking');
@@ -704,6 +703,25 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         messages.push({ role: 'tool', toolCallId: call.id, content: result });
         continue;
       }
+      // #296: a finish in a reply that left calls undispatched (a write_file still
+      // locked when the turn began, a call a brace short) would end the run on work
+      // that never happened: the gates pass vacuously over an unchanged tree and the
+      // run commits "done", while the note naming those calls would only reach a
+      // model that has already stopped. So that finish is answered, not run, and
+      // the model reads the note first. Nothing new is dispatched; the lock stands.
+      if (call.name === 'finish' && res.undispatched) {
+        const names = [...new Set([...res.undispatched.unavailable, ...res.undispatched.malformed])];
+        if (names.length) {
+          const result =
+            `not run: finish was held back because ${names.map((n) => `"${n}"`).join(', ')} in this reply did not run, ` +
+            'so the run would have ended on work that never happened. Read the note after these results, send those calls ' +
+            'again if they are still needed, then call finish in a later reply.';
+          await transcript.event('tool-not-run', { name: call.name, args: call.args, result });
+          r.toolResult(call.name, `held back: ${names.join(', ')} did not run in this reply`, false);
+          messages.push({ role: 'tool', toolCallId: call.id, content: result });
+          continue;
+        }
+      }
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
@@ -713,6 +731,14 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     // After the real results, so the model reads them first and then learns which
     // of its own "results" to disregard (a tool-less turn got this as its nudge).
     if (res.notice) messages.push({ role: 'user', content: res.notice });
+    // #306: calls written next to the ones that ran but never dispatched (a locked
+    // edit tool, a brace short). Checked against the catalog as it is NOW, since a
+    // validate_change in this same reply may have just unlocked them.
+    if (res.undispatched) {
+      const available = new Set(availableTools(ctx).map((t) => t.name));
+      await transcript.event('undispatched-calls', { ...res.undispatched });
+      messages.push({ role: 'user', content: renderUndispatched(res.undispatched, available, ctx.editsUnlocked) });
+    }
 
     // Not when this same turn went on to finish: a finish done is approved only
     // after the checks passed, and nothing after it in the turn runs, so its
