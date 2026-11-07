@@ -16,6 +16,11 @@ When `docs/parts.intent.json` exists, BOM.md SHALL be the deterministic render o
 - **WHEN** `draft_bom` renders an unchanged manifest a second time
 - **THEN** BOM.md is byte-identical to the first render
 
+#### Scenario: GFM table escaping preserves cell delimiters
+
+- **WHEN** a manifest part carries characters that require GFM table escaping (pipes or backslashes)
+- **THEN** the rendered BOM table escapes pipes without splitting columns, preserving all columns and Symbol identity across readers
+
 ### Requirement: Drift covers manifest-to-BOM.md agreement
 
 When a manifest exists, the drift check SHALL compare BOM.md with the manifest's render and report a mismatch naming BOM.md and the manifest, in addition to the existing BOM.md-to-schematic comparisons. `check` SHALL report it without an LLM or network call. `check` and the `sync` verify phase SHALL run the manifest comparison even when no schematic is configured. Without a manifest the drift check is unchanged.
