@@ -18,7 +18,7 @@ import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resol
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists, loadConstraints } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RefusalBlocker, RunContext } from '../agent/context.js';
@@ -114,20 +114,6 @@ export interface HandlerDef {
 /** The `blockers` argument of `finish`, or what is wrong with it. */
 const MAX_BLOCKERS = 20;
 
-/**
- * Comparison key for one repo-relative path in the proposal guard: sandboxed
- * (resolveInRepo), separator-normalized, canonically resolved, and lowercased
- * (the Windows and macOS default file systems are case-insensitive).
- */
-function changePathKey(ctx: RunContext, rel: string): string {
-  return resolveInRepo(ctx.repoRoot, rel.replaceAll('\\', '/')).toLowerCase();
-}
-
-/** Comparison key for `openspec/changes/<id>`, whatever id form names it. */
-function changeDirectoryKey(ctx: RunContext, id: string): string {
-  return changePathKey(ctx, path.join('openspec', 'changes', id.replaceAll('\\', '/')));
-}
-
 function parseBlockers(raw: unknown): RefusalBlocker[] | string {
   if (!Array.isArray(raw)) return 'blockers must be an array of {kind, constraint, required, found}';
   if (raw.length > MAX_BLOCKERS) return `blockers lists ${raw.length} entries; name the ${MAX_BLOCKERS} that matter most`;
@@ -145,6 +131,57 @@ function parseBlockers(raw: unknown): RefusalBlocker[] | string {
     out.push({ kind: 'constraint-conflict', constraint: line(o.constraint as string), required: line(o.required as string), found: line(o.found as string) });
   }
   return out;
+}
+
+/**
+ * Canonical absolute path: the deepest existing ancestor resolved through the
+ * real file system (`realpathSync.native` folds directory links, junctions and
+ * Windows 8.3 short names into their canonical target), with the remaining
+ * not-yet-existing segments appended. Falls back to the lexical path when
+ * nothing exists, so a wholly new path still compares predictably.
+ */
+function canonicalPath(abs: string): string {
+  const root = path.parse(abs).root;
+  let existing = abs;
+  const rest: string[] = [];
+  while (!existsSync(existing)) {
+    if (existing === root) return abs;
+    rest.unshift(path.basename(existing));
+    existing = path.dirname(existing);
+  }
+  try {
+    const real = realpathSync.native(existing);
+    return rest.length ? path.join(real, ...rest) : real;
+  } catch {
+    return abs;
+  }
+}
+
+/**
+ * Comparison key for one repo-relative path in the proposal guard: sandboxed
+ * (resolveInRepo), separator-normalized, canonically resolved, and lowercased
+ * (the Windows and macOS default file systems are case-insensitive).
+ */
+function changePathKey(ctx: RunContext, rel: string): string {
+  return canonicalPath(resolveInRepo(ctx.repoRoot, rel.replaceAll('\\', '/'))).toLowerCase();
+}
+
+/** Comparison key for `openspec/changes/<id>`, whatever id form names it. */
+function changeDirectoryKey(ctx: RunContext, id: string): string {
+  return changePathKey(ctx, path.posix.join('openspec', 'changes', id.replaceAll('\\', '/')));
+}
+
+/** Proposal revisions must pass through the approval gate, including path aliases. */
+function proposalEditError(ctx: RunContext, rel: string): string | null {
+  const target = changePathKey(ctx, rel);
+  for (const id of [ctx.changeId, ctx.approvedChangeId]) {
+    if (!id) continue;
+    const dir = changeDirectoryKey(ctx, id);
+    if (target === dir || target.startsWith(dir + path.sep)) {
+      return `refused: ${rel} belongs to the current or approved proposal. Call propose_change to revise the proposal; this relocks edits and requires approval again.`;
+    }
+  }
+  return null;
 }
 
 export const HANDLERS: HandlerDef[] = [
@@ -241,9 +278,9 @@ export const HANDLERS: HandlerDef[] = [
       ctx.editsUnlocked = false;
       ctx.proposalValidated = false;
       // A replacement whose id merely names the approved directory (different
-      // case, ./ or .. segments, separators) overwrites the approved files, so
-      // the recorded approval no longer describes what is on disk; compare
-      // canonical directories, not raw id strings.
+      // case, ./ or .. segments, separators, short names, links) overwrites the
+      // approved files, so the recorded approval no longer describes what is on
+      // disk; compare canonical directories, not raw id strings.
       if (ctx.approvedChangeId && changeDirectoryKey(ctx, id) === changeDirectoryKey(ctx, ctx.approvedChangeId)) {
         ctx.approvedChangeId = null;
       }
@@ -317,6 +354,8 @@ export const HANDLERS: HandlerDef[] = [
       const corrupt = corruptionError({ new_string: args.new_string });
       if (corrupt) return corrupt;
       const rel = str(args, 'path');
+      const proposalError = proposalEditError(ctx, rel);
+      if (proposalError) return proposalError;
       const abs = resolveInRepo(ctx.repoRoot, rel);
       // Engine-drafted sheets are regenerated wholesale from the IR: a hand
       // edit would be destroyed by the next re-draft and would break the
@@ -423,6 +462,8 @@ export const HANDLERS: HandlerDef[] = [
       const corrupt = corruptionError({ content: args.content });
       if (corrupt) return corrupt;
       const rel = str(args, 'path');
+      const proposalError = proposalEditError(ctx, rel);
+      if (proposalError) return proposalError;
       const res = await toolWriteFile(ctx.repoRoot, rel, args.content as string);
       markTouched(ctx, rel);
       return res;

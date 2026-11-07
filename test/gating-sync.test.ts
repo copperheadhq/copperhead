@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { writeFile, readFile, rm } from 'node:fs/promises';
+import { writeFile, readFile, rm, mkdir, symlink } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
 import { availableTools, dispatchTool, dispatchToolResult, registry, type RunContext } from '../src/agent/tools.js';
@@ -39,6 +39,165 @@ async function makeCtx(repo: string): Promise<RunContext> {
     finishRequest: null,
   };
 }
+
+describe('proposal files must be revised through propose_change', () => {
+  async function approve(ctx: RunContext): Promise<void> {
+    ctx.interactive = true;
+    await dispatchTool(ctx, 'propose_change', {
+      id: 'proposal-a', why: 'Original intent', what_changes: '- Original scope', tasks: '- [ ] Original task',
+    });
+    expect(await dispatchTool(ctx, 'validate_change', {})).toContain('unlocked');
+  }
+
+  it('refuses editing an approved proposal and creating its spec deltas without changing files', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      await approve(ctx);
+      const proposal = 'openspec/changes/proposal-a/proposal.md';
+      const delta = 'openspec/changes/proposal-a/specs/x/spec.md';
+      const before = await readFile(path.join(repo, proposal));
+      const edited = await dispatchTool(ctx, 'edit_file', { path: proposal, old_string: 'Original intent', new_string: 'Unapproved intent' });
+      const written = await dispatchTool(ctx, 'write_file', { path: delta, content: '# Unapproved delta\n' });
+      for (const [result, target] of [[edited, proposal], [written, delta]]) {
+        expect.soft(result).toContain(`refused: ${target}`);
+        expect.soft(result).toContain('propose_change');
+        expect.soft(result).toContain('approval');
+      }
+      expect.soft(await readFile(path.join(repo, proposal))).toEqual(before);
+      await expect.soft(readFile(path.join(repo, delta))).rejects.toMatchObject({ code: 'ENOENT' });
+      expect(ctx.filesTouched.size).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.each([
+    'OPENSPEC/CHANGES/PROPOSAL-A',
+    './openspec/changes/./proposal-a',
+    'openspec/changes/other/../proposal-a',
+    'openspec\\changes\\proposal-a',
+    'openspec\\changes\\other\\..\\proposal-a',
+  ])('refuses aliases under %s', async (directory) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      await approve(ctx);
+      const before = await readFile(path.join(repo, 'openspec/changes/proposal-a/proposal.md'));
+      const edited = await dispatchTool(ctx, 'edit_file', { path: `${directory}/proposal.md`, old_string: 'Original intent', new_string: 'Changed intent' });
+      const written = await dispatchTool(ctx, 'write_file', { path: `${directory}/specs/x/spec.md`, content: 'Changed delta' });
+      expect.soft(edited).toContain(`refused: ${directory}/proposal.md`);
+      expect.soft(edited).toContain('propose_change');
+      expect.soft(written).toContain(`refused: ${directory}/specs/x/spec.md`);
+      expect.soft(written).toContain('propose_change');
+      expect.soft(await readFile(path.join(repo, 'openspec/changes/proposal-a/proposal.md'))).toEqual(before);
+      await expect.soft(readFile(path.join(repo, 'openspec/changes/proposal-a/specs/x/spec.md'))).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.each(['openspec/changes/proposal-a/', 'openspec\\changes\\proposal-a\\'])('refuses the directory itself with a trailing separator: %s', async (target) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      await approve(ctx);
+      for (const name of ['edit_file', 'write_file']) {
+        const result = await dispatchTool(ctx, name, { path: target, old_string: 'Original intent', new_string: 'Changed', content: 'Changed' });
+        expect.soft(result).toContain(`refused: ${target}`);
+        expect.soft(result).toContain('propose_change');
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('protects both the current and retained approved change ids before accessing missing files', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      await approve(ctx);
+      // Exercise both identities independently of the structural tool-list lock.
+      ctx.changeId = 'proposal-b';
+      for (const id of ['proposal-a', 'proposal-b']) {
+        const target = `openspec/changes/${id}/missing.md`;
+        for (const name of ['edit_file', 'write_file']) {
+          const result = await dispatchTool(ctx, name, { path: target, old_string: 'before', new_string: 'after', content: 'after' });
+          expect.soft(result).toContain(`refused: ${target}`);
+          expect.soft(result).toContain('propose_change');
+        }
+        await expect.soft(readFile(path.join(repo, target))).rejects.toMatchObject({ code: 'ENOENT' });
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.each([
+    'Proposal-A',
+    './proposal-a',
+    'other/../proposal-a',
+    'proposal-a/',
+    '.\\proposal-a',
+  ] as const)('clears the retained approval when a replacement names the approved directory via %s', async (variant) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      await approve(ctx);
+      expect(ctx.approvedChangeId).toBe('proposal-a');
+      await dispatchTool(ctx, 'propose_change', {
+        id: variant, why: 'Replacement', what_changes: '- Replacement scope', tasks: '- [ ] Replacement task',
+      });
+      expect(ctx.approvedChangeId).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses edits through a directory link that aliases the approved change', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      await approve(ctx);
+      // A junction on Windows, a directory symlink on POSIX: both resolve to the
+      // approved directory, so neither may bypass the guard.
+      await symlink(
+        path.join(repo, 'openspec', 'changes', 'proposal-a'),
+        path.join(repo, 'openspec', 'changes', 'alias'),
+        'junction',
+      );
+      const before = await readFile(path.join(repo, 'openspec/changes/proposal-a/proposal.md'));
+      const edited = await dispatchTool(ctx, 'edit_file', { path: 'openspec/changes/alias/proposal.md', old_string: 'Original intent', new_string: 'Aliased edit' });
+      const written = await dispatchTool(ctx, 'write_file', { path: 'openspec/changes/alias/specs/x/spec.md', content: 'Aliased delta\n' });
+      expect.soft(edited).toContain('refused: openspec/changes/alias/proposal.md');
+      expect.soft(edited).toContain('propose_change');
+      expect.soft(written).toContain('refused: openspec/changes/alias/specs/x/spec.md');
+      expect.soft(written).toContain('propose_change');
+      expect.soft(await readFile(path.join(repo, 'openspec/changes/proposal-a/proposal.md'))).toEqual(before);
+      await expect.soft(readFile(path.join(repo, 'openspec/changes/proposal-a/specs/x/spec.md'))).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.each(['openspec/changes/proposal-a-other', 'openspec/specs/x', 'docs'])('allows editing and creating files in %s', async (directory) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      await approve(ctx);
+      await mkdir(path.join(repo, directory), { recursive: true });
+      const existing = `${directory}/existing.md`;
+      const created = `${directory}/new.md`;
+      await writeFile(path.join(repo, existing), 'Original text\n');
+      expect(await dispatchTool(ctx, 'edit_file', { path: existing, old_string: 'Original text', new_string: 'Updated text' })).toContain('edited');
+      expect(await dispatchTool(ctx, 'write_file', { path: created, content: 'New text\n' })).toContain('wrote');
+      expect(await readFile(path.join(repo, existing), 'utf8')).toBe('Updated text\n');
+      expect(await readFile(path.join(repo, created), 'utf8')).toBe('New text\n');
+    } finally {
+      await cleanup();
+    }
+  });
+});
 
 describe('spec gating: structural edit lock (invariant 1)', () => {
   it.each(['first-change', 'second-change'])('relocks before writing a replacement proposal %s', async (id) => {
@@ -458,29 +617,6 @@ describe('copperhead sync verify phase (AC-7)', () => {
       expect(report.violations).toHaveLength(1);
       expect(report.violations[0]!.description).toContain('GPIO14');
       expect(report.violations[0]!.governedBy).toBe('esp32-s3 datasheet');
-    } finally {
-      await cleanup();
-    }
-  });
-});
-
-describe('replacement ids that name the approved directory clear its approval', () => {
-  it.each([
-    'Proposal-A',
-    './proposal-a',
-    'other/../proposal-a',
-    'proposal-a/',
-    '.\\proposal-a',
-  ] as const)('clears the retained approval when a replacement names the approved directory via %s', async (variant) => {
-    const { repo, cleanup } = await tempFixtureRepo();
-    try {
-      const ctx = await makeCtx(repo);
-      await approve(ctx);
-      expect(ctx.approvedChangeId).toBe('proposal-a');
-      await dispatchTool(ctx, 'propose_change', {
-        id: variant, why: 'Replacement', what_changes: '- Replacement scope', tasks: '- [ ] Replacement task',
-      });
-      expect(ctx.approvedChangeId).toBeNull();
     } finally {
       await cleanup();
     }
