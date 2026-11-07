@@ -5,6 +5,19 @@
 ### Requirement: Edit tools locked until proposal validates
 The agent SHALL NOT have `edit_file` or `write_file` in its tool list until an OpenSpec change proposal for the current request exists and `openspec validate --change <id>` passes. The lock is structural (tools absent), not prompt-based.
 
+#### Scenario: Author a complete proposal while edits are locked
+- **WHEN** the agent calls `propose_change` in an initialized OpenSpec workspace
+- **THEN** it supplies a nonempty `spec_deltas` list of capability names and requirement/scenario markdown, and the tool writes only proposal.md, tasks.md and the named capability spec.md files beneath that change
+- **AND** edit tools remain absent until actual OpenSpec validation succeeds
+
+#### Scenario: Invalid planning destination
+- **WHEN** a change id or capability is not a single kebab-case name, capabilities are duplicated, or a destination or its parent is a symlink
+- **THEN** the proposal tool rejects the call before rewriting planning files and does not unlock edits
+
+#### Scenario: Proposal revision invalidates earlier permission
+- **WHEN** an agent revises or revalidates a previously approved proposal
+- **THEN** the edit lock is restored before the operation, and a write failure, failed validation or declined human approval leaves edits locked
+
 #### Scenario: Pre-validation tool list
 - **WHEN** a `do` run is in its plan step, before validation passes
 - **THEN** the tool list sent to the provider contains no `edit_file` or `write_file`
