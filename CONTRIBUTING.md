@@ -2,6 +2,8 @@
 
 Thanks for your interest in contributing. This document covers the practical setup and the one piece of paperwork we require.
 
+New to the team? Start with [ONBOARDING.md](ONBOARDING.md): it explains the hardware basics, walks one run through the code, and lists the rules every PR is checked against.
+
 By taking part you agree to our [Code of Conduct](.github/CODE_OF_CONDUCT.md). Found a security problem? Do not open an issue: follow the [security policy](.github/SECURITY.md) instead.
 
 ## Development setup
