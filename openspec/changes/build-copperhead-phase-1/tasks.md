@@ -32,6 +32,7 @@
 - [x] 3.3 Implement transcript writer (.copperhead/runs/<ts>/ JSONL) with write-time secret redaction of `sk-[A-Za-z0-9_-]+`; unit test redaction (AC-4.1)
 - [x] 3.4 Implement git guard: dirty-tree refusal, `--allow-dirty` with `git stash create` snapshot, restore-to-snapshot helper; unit tests (AC-3.8, AC-3.6 precondition)
 - [x] 3.5 Implement human-readable run summary: write `summary.md` beside transcript.jsonl on every run end (request, change id, plan, files touched, ERC/DRC results, decisions, token usage), same redaction pass as the transcript
+- [x] 3.6 Bound the search tool's regex evaluation: worker-thread execution with a 2,000 ms budget and a 1,000-character pattern cap, typed fail-closed errors with no automatic retry (issue #366, AC-4.4)
 
 ## 4. Agent core
 
