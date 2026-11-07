@@ -35,6 +35,8 @@ export interface RunContext {
   confirm: (question: string) => Promise<boolean>;
   editsUnlocked: boolean;
   changeId: string | null;
+  /** Last approved proposal still on disk; pending proposals do not replace it. */
+  approvedChangeId: string | null;
   proposalValidated: boolean;
   filesTouched: Set<string>;
   decisions: string[];

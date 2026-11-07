@@ -114,6 +114,20 @@ export interface HandlerDef {
 /** The `blockers` argument of `finish`, or what is wrong with it. */
 const MAX_BLOCKERS = 20;
 
+/**
+ * Comparison key for one repo-relative path in the proposal guard: sandboxed
+ * (resolveInRepo), separator-normalized, canonically resolved, and lowercased
+ * (the Windows and macOS default file systems are case-insensitive).
+ */
+function changePathKey(ctx: RunContext, rel: string): string {
+  return resolveInRepo(ctx.repoRoot, rel.replaceAll('\\', '/')).toLowerCase();
+}
+
+/** Comparison key for `openspec/changes/<id>`, whatever id form names it. */
+function changeDirectoryKey(ctx: RunContext, id: string): string {
+  return changePathKey(ctx, path.join('openspec', 'changes', id.replaceAll('\\', '/')));
+}
+
 function parseBlockers(raw: unknown): RefusalBlocker[] | string {
   if (!Array.isArray(raw)) return 'blockers must be an array of {kind, constraint, required, found}';
   if (raw.length > MAX_BLOCKERS) return `blockers lists ${raw.length} entries; name the ${MAX_BLOCKERS} that matter most`;
@@ -226,6 +240,13 @@ export const HANDLERS: HandlerDef[] = [
       // Approval belongs to the previous proposal, not its replacement (even at the same id).
       ctx.editsUnlocked = false;
       ctx.proposalValidated = false;
+      // A replacement whose id merely names the approved directory (different
+      // case, ./ or .. segments, separators) overwrites the approved files, so
+      // the recorded approval no longer describes what is on disk; compare
+      // canonical directories, not raw id strings.
+      if (ctx.approvedChangeId && changeDirectoryKey(ctx, id) === changeDirectoryKey(ctx, ctx.approvedChangeId)) {
+        ctx.approvedChangeId = null;
+      }
       await mkdir(dir, { recursive: true });
       const auto = ctx.interactive ? '' : '\n> Marker: AUTO (autonomous mode; auto-approved, reviewable after the fact)\n';
       await writeFile(
@@ -270,6 +291,7 @@ export const HANDLERS: HandlerDef[] = [
         if (!approved) return 'proposal validated but human declined; edits remain locked';
       }
       ctx.editsUnlocked = true;
+      ctx.approvedChangeId = ctx.changeId;
       await ctx.transcript.event('edit-tools-unlocked', { changeId: ctx.changeId });
       return `validation passed; edit tools are now unlocked`;
     },

@@ -307,6 +307,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     confirm: opts.confirm ?? (async () => true),
     editsUnlocked: false,
     changeId: null,
+    approvedChangeId: null,
     proposalValidated: false,
     filesTouched: new Set(),
     decisions: [],
@@ -838,7 +839,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         await transcript.event('run-end', runStats);
         await transcript.writeSummary({
           request: opts.request,
-          changeId: ctx.changeId,
+          changeId: ctx.approvedChangeId ?? null,
           plan,
           filesTouched: files,
           ercResult: verification,
@@ -875,7 +876,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       // archive — is already post-commit and non-fatal below.
       try {
         await appendChangelog(repoRoot, config, {
-          changeId: ctx.changeId,
+          changeId: ctx.approvedChangeId ?? null,
           request: opts.request,
           files,
           verification,
@@ -897,19 +898,19 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       } catch (err) {
         return fail(`commit failed: ${(err as Error).message}`, 'commit-failed');
       }
-      if (ctx.changeId && existsSync(path.join(repoRoot, 'openspec', 'config.yaml'))) {
+      if (ctx.approvedChangeId && existsSync(path.join(repoRoot, 'openspec', 'config.yaml'))) {
         // The verified commit already exists; discarding it because archive
         // housekeeping failed would be the worse trade, so this is a warning.
         try {
-          const arch = await openspecArchive(repoRoot, ctx.changeId);
-          await transcript.event('openspec-archive', { changeId: ctx.changeId, ok: arch.ok });
+          const arch = await openspecArchive(repoRoot, ctx.approvedChangeId);
+          await transcript.event('openspec-archive', { changeId: ctx.approvedChangeId, ok: arch.ok });
           if (arch.ok && (await isDirty(repoRoot))) {
-            await commitAll(repoRoot, `copperhead: archive change ${ctx.changeId}`);
+            await commitAll(repoRoot, `copperhead: archive change ${ctx.approvedChangeId}`);
           }
         } catch (err) {
           const message = (err as Error).message;
           log(`warning: openspec archive failed (${message}); the run commit itself succeeded`);
-          await transcript.event('openspec-archive-failed', { changeId: ctx.changeId, error: message });
+          await transcript.event('openspec-archive-failed', { changeId: ctx.approvedChangeId, error: message });
         }
       }
       await transcript.event('run-committed', { commit, files });
@@ -917,7 +918,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       await transcript.event('run-end', runStats);
       await transcript.writeSummary({
         request: opts.request,
-        changeId: ctx.changeId,
+        changeId: ctx.approvedChangeId ?? null,
         plan,
         filesTouched: files,
         ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : 'FAILING') : 'not run',

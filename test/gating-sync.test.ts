@@ -463,3 +463,26 @@ describe('copperhead sync verify phase (AC-7)', () => {
     }
   });
 });
+
+describe('replacement ids that name the approved directory clear its approval', () => {
+  it.each([
+    'Proposal-A',
+    './proposal-a',
+    'other/../proposal-a',
+    'proposal-a/',
+    '.\\proposal-a',
+  ] as const)('clears the retained approval when a replacement names the approved directory via %s', async (variant) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      await approve(ctx);
+      expect(ctx.approvedChangeId).toBe('proposal-a');
+      await dispatchTool(ctx, 'propose_change', {
+        id: variant, why: 'Replacement', what_changes: '- Replacement scope', tasks: '- [ ] Replacement task',
+      });
+      expect(ctx.approvedChangeId).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+});
