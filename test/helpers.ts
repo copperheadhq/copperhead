@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
+import { afterAll, beforeAll, vi } from 'vitest';
 
 export const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'open-key');
 export const REPORTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'reports');
@@ -43,4 +44,23 @@ export async function seededKicadConfig(stockFootprints: string): Promise<{ dir:
     'utf8',
   );
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
+}
+
+/**
+ * Run every kicad-cli call in the calling file under `seededKicadConfig`, so
+ * ERC sees the stock footprint libraries whether or not this machine's KiCad
+ * has ever written its own global fp-lib-table (it only does so on first GUI
+ * launch). Call at the top level of a test file.
+ */
+export function useSeededKicadConfig(): void {
+  let seeded: { dir: string; cleanup: () => Promise<void> };
+  beforeAll(async () => {
+    const { footprintSearchDirs } = await import('../src/kicad/footprints.js');
+    seeded = await seededKicadConfig((await footprintSearchDirs())[0]!);
+    vi.stubEnv('KICAD_CONFIG_HOME', seeded.dir);
+  });
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    await seeded?.cleanup();
+  });
 }
