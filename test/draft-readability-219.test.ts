@@ -1174,21 +1174,33 @@ describe('schematic readability & wiring quality (#219)', () => {
     });
 
     it('draftSchematicPlacement clearOfBodies call site rejects foreign pending stubs when selecting label position', async () => {
-      // Regression test for Finding 1:
-      // Verifies that clearOfBodies at engine.ts:5126 passes real wires and pendingStubs to isLabelAnchorClear.
+      // Regression test for Finding 1 (PR #442 review):
+      // Verifies that clearOfBodies at engine.ts:5126 passes real pendingStubs to isLabelAnchorClear.
       // In this deterministic fixture, B_TARGET runs horizontally at y = 69.85 between U_B_LFT and U_B_RGT.
       // U_B_LFT body extends to x = 97.79, so candidates at x = 95.25 and 96.52 are rejected by symbol bounds.
-      // The first candidate clearing the symbol body is x = 97.79.
-      // However, foreign net Z_FOREIGN drops a pending stub from pin U_A1.1 at (97.79, 66.04)
-      // extending downward to (97.79, 71.12), intersecting (97.79, 69.85).
+      // The first candidate clearing the symbol body along the horizontal run is (97.79, 69.85).
       //
-      // Under production code (wires, pendingStubs passed):
-      // clearOfBodies(97.79, 69.85) detects the foreign pending stub and returns false.
-      // The engine selects the next candidate at x = 99.06 (safe free space).
+      // However, foreign net Z_FOREIGN drops a pending stub from pin U_A1.1 at (97.79, 66.04).
+      // During placement, every signal pin reserves a pending stub of length (STUB + 2) * U (5.08 mm),
+      // extending vertically downward to y = 71.12 and intersecting the candidate at (97.79, 69.85).
       //
-      // Under mutation (wires and pendingStubs replaced by empty arrays []):
+      // Under production code (pendingStubs passed to isLabelAnchorClear):
+      // clearOfBodies(97.79, 69.85) detects the reserved foreign pending stub and returns false.
+      // Candidate selection advances to the next grid point at x = 99.06 (safe free space),
+      // keeping the label anchor clear of the foreign stub corridor.
+      //
+      // Under the mutation where clearOfBodies passes [] for pendingStubs:
       // clearOfBodies(97.79, 69.85) fails to check pending stubs, accepts x = 97.79,
-      // and places the B_TARGET label directly on Z_FOREIGN pending stub.
+      // and places the initial B_TARGET label anchor directly inside Z_FOREIGN's reserved stub corridor.
+      // Because the downstream wired-label pass (engine.ts:5713) only checks committed wires and
+      // Z_FOREIGN has not yet routed, downstream checks do not relocate the label.
+      //
+      // Note on final electrical connectivity:
+      // While Z_FOREIGN's pending stub reserved y down to 71.12 during placement, when Z_FOREIGN
+      // is actually routed later in the drafting pass, its drawn wire turns horizontally at y = 68.58.
+      // Consequently, the committed wire does not reach y = 69.85, so the emitted netlist partitions
+      // remain separate even under the mutation. This test verifies candidate selection order
+      // and geometric clearance against reserved pending stubs.
       const intent: SchematicIntent = {
         version: 1,
         parts: [
@@ -1211,15 +1223,19 @@ describe('schematic readability & wiring quality (#219)', () => {
         const bTargetLabel = model.labels.find((l) => l.name === 'B_TARGET');
         expect(bTargetLabel).toBeDefined();
 
-        // Pin candidate coordinates: candidate at 97.79 is rejected due to foreign pending stub,
-        // advancing label placement to 99.06.
-        // Under the mutation where clearOfBodies passes [] for pendingStubs,
-        // bTargetLabel.x is 97.79 (directly colliding with Z_FOREIGN).
+        // 1. Geometric invariant oracle: The label anchor must not lie within the reserved
+        // foreign pending stub corridor (x = 97.79, y in [66.04, 71.12]).
+        // Under the pendingStubs -> [] mutation, bTargetLabel is placed at x = 97.79, failing this check.
+        const onForeignStubCorridor = pointOnSeg(bTargetLabel!.x, bTargetLabel!.y, 97.79, 66.04, 97.79, 71.12);
+        expect(onForeignStubCorridor, 'B_TARGET label must clear Z_FOREIGN reserved pending stub corridor').toBe(false);
+
+        // 2. Candidate coordinate pinning: candidate at 97.79 is rejected due to foreign pending stub,
+        // advancing label placement to the next grid position at 99.06.
         expect(bTargetLabel!.x).toBeCloseTo(99.06, 2);
         expect(bTargetLabel!.y).toBeCloseTo(69.85, 2);
         expect(Math.abs(bTargetLabel!.x - 97.79)).toBeGreaterThan(0.5);
 
-        // Independent oracle: netlist verification via kicad-cli confirms B_TARGET and Z_FOREIGN
+        // 3. Netlist verification: confirms that in the valid production output, B_TARGET and Z_FOREIGN
         // remain completely independent electrical partitions with no merged pins.
         const schText = emitSchematic(model);
         const schPath = path.join(workDir, 'board.kicad_sch');
