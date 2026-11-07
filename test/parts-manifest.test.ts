@@ -310,6 +310,25 @@ describe('validatePartsManifest', () => {
       );
     });
 
+    it('rejects generic prefix matches where suffix is an electrical variant (e.g. AP2112K vs AP2112K-1.2TRG1)', async () => {
+      const LDO12 = {
+        ref: 'U5',
+        value: '3.3V',
+        group: 'Power',
+        libId: 'Regulator_Linear:AP2112K-3.3',
+        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
+        mpn: 'AP2112K-1.2TRG1',
+      };
+      const v = await validate(
+        manifest([LDO12], {
+          substitutions: [{ ref: 'U5', wanted: 'MIC5365-3.3', chosen: 'AP2112K', reason: 'generic prefix mismatch' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for U5: "chosen" is "AP2112K" but the entry carries value "3.3V", mpn "AP2112K-1.2TRG1"; they must agree',
+      );
+    });
+
     it('rejects contradictory procurement identities (e.g. TLV70012 value with TLV70233DBVR MPN)', async () => {
       const ContradictoryLDO = {
         ref: 'U4',

@@ -71,13 +71,30 @@ export function subsystemHeadings(md: string | null | undefined): string[] | nul
 export const modelFixableMiss = (m: MissingFootprint): boolean => m.why !== 'no-library' || (m.near.length > 0 && !m.fuzzy);
 
 /**
+ * Explicit manufacturer/family variant equivalence contracts.
+ *
+ * In electronics, suffixes after delimiters (hyphens, underscores, slashes) frequently
+ * designate critical electrical ratings (e.g. voltage options such as AP2112K-1.2TRG1
+ * vs AP2112K-3.3TRG1, speed grades, or memory configurations) rather than pure packaging.
+ * Generic prefix, delimiter, or substring matching MUST NEVER infer equivalence.
+ *
+ * Equivalence between a chosen identifier and an orderable MPN is only permitted
+ * when backed by an explicitly defined, independently verifiable contract.
+ */
+const KNOWN_VARIANT_CONTRACTS: ReadonlyMap<string, readonly string[]> = new Map([
+  // CopperMCU test fixture: MCU8 controller in SOIC-8 packaging
+  ['mcu8', ['mcu8-soic']],
+]);
+
+/**
  * Checks whether a manifest part entry carries the substitution's chosen part.
  *
  * Canonical Procurement Identity Rules:
  * 1. When an explicit MPN is specified on the entry, it is the canonical orderable procurement identity:
- *    - Matches if chosen equals part.mpn (case-insensitive for manufacturer formatting).
- *    - Matches if part.mpn is an orderable packaging/variant of chosen (e.g. MCU8-SOIC carries chosen MCU8).
- *    - Rejects any mismatch where an explicit MPN contradicts chosen (e.g. value 'TLV70012' with mpn 'TLV70233DBVR').
+ *    - Matches if chosen equals part.mpn (case-insensitive canonical agreement).
+ *    - Matches if variant equivalence is backed by an explicitly defined manufacturer contract (e.g. MCU8 to MCU8-SOIC).
+ *    - Rejects any mismatch where an explicit MPN contradicts chosen (e.g. value 'TLV70012' with mpn 'TLV70233DBVR',
+ *      or chosen 'AP2112K' with mpn 'AP2112K-1.2TRG1'). Never infers equivalence from generic prefixes or delimiters.
  * 2. When no MPN is specified on the entry, component identity is governed by value or schematic symbol:
  *    - Exact string match or normalized value match (preserving SI prefix case sensitivity, e.g. 100m != 100M).
  *    - Legitimate passive descriptive specification (e.g. value '10k' carries chosen '10k 1%').
@@ -97,15 +114,14 @@ export function substitutionCarriesChosen(
     const mpnTrim = part.mpn.trim();
     const mpnLower = mpnTrim.toLowerCase();
 
-    // Exact MPN match (case-insensitive)
+    // Exact canonical MPN match (case-insensitive)
     if (mpnLower === chosenLower) return true;
 
-    // Orderable packaging / variant suffix of chosen model (e.g. MCU8-SOIC for MCU8)
-    if (
-      mpnLower.startsWith(chosenLower + '-') ||
-      mpnLower.startsWith(chosenLower + '_') ||
-      mpnLower.startsWith(chosenLower + '/')
-    ) {
+    // Permit variant equivalence only when supported by an explicitly defined,
+    // independently verifiable manufacturer-specific contract. Never infer
+    // electrical equivalence from generic prefixes, delimiters or substrings.
+    const allowedVariants = KNOWN_VARIANT_CONTRACTS.get(chosenLower);
+    if (allowedVariants && allowedVariants.includes(mpnLower)) {
       return true;
     }
 
