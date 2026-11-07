@@ -669,7 +669,7 @@ export const HANDLERS: HandlerDef[] = [
       if (!check.manifest || !check.validation!.ok) {
         return { ok: false, text: `${partsStageGap(check)}\nBOM.md not written; fix the manifest and call draft_bom again.` };
       }
-      const bomRel = path.join(ctx.config.docs, 'BOM.md');
+      const bomRel = path.posix.join(ctx.config.docs.replace(/\\/g, '/'), 'BOM.md');
       if (!check.bomMatches) {
         await writeFile(resolveInRepo(ctx.repoRoot, bomRel), check.rendered!, 'utf8');
         markTouched(ctx, bomRel);

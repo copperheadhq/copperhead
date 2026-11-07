@@ -6,22 +6,275 @@
  */
 
 export interface TableRow {
-    cells: string[];
+  cells: string[];
+}
+
+/**
+ * Find the closing backtick delimiter of exact length `runLen` starting from `fromIndex`.
+ * In CommonMark §6.3, a code span delimiter must consist of a contiguous run of backticks
+ * that is not preceded or followed by a backtick, matching the opening run length exactly.
+ * Returns the start index of the closing delimiter run, or -1 if none is found.
+ */
+export function findMatchingBacktickClose(text: string, fromIndex: number, runLen: number): number {
+  let idx = fromIndex;
+  while (idx < text.length) {
+    if (text[idx] === '`') {
+      const start = idx;
+      while (idx < text.length && text[idx] === '`') idx++;
+      if (idx - start === runLen) {
+        return start;
+      }
+    } else {
+      idx++;
+    }
   }
-  
-  /**
-   * Split one row into trimmed cells. The outer pipes are optional, because they
-   * are optional in GitHub-flavored markdown: `Refdes | Pin | Net` renders as a
-   * table exactly like `| Refdes | Pin | Net |` does, and a hand- or LLM-authored
-   * doc may legitimately be written either way.
-   */
-  function splitRow(line: string): string[] {
-    return line
-      .replace(/^\|/, '')
-      .replace(/\|$/, '')
-      .split('|')
-      .map((c) => c.trim());
+  return -1;
+}
+
+/**
+ * Find the closing backtick delimiter of exact length `runLen` within a table cell.
+ * Under GFM §4.10, an unescaped pipe (|) is a table column delimiter that splits the
+ * cell before inline parsing occurs. Therefore, if any unescaped pipe (preceded by an
+ * even number of backslashes) appears before the closing delimiter, the code span cannot
+ * close across that cell boundary; this returns -1 in that case.
+ */
+export function findMatchingBacktickCloseInCell(text: string, fromIndex: number, runLen: number): number {
+  let idx = fromIndex;
+  while (idx < text.length) {
+    if (text[idx] === '\\') {
+      const bsStart = idx;
+      while (idx < text.length && text[idx] === '\\') idx++;
+      if (idx < text.length && text[idx] === '|') {
+        // Under GFM §4.10, any backslash before pipe in a table row escapes the pipe delimiter
+        idx++;
+      }
+    } else if (text[idx] === '|') {
+      // 0 backslashes before pipe: unescaped delimiter splits the cell
+      return -1;
+    } else if (text[idx] === '`') {
+      const start = idx;
+      while (idx < text.length && text[idx] === '`') idx++;
+      if (idx - start === runLen) {
+        return start;
+      }
+    } else {
+      idx++;
+    }
   }
+  return -1;
+}
+
+/**
+ * Escape a cell value for inclusion in a GFM pipe table.
+ *
+ * Contracts:
+ * 1. Structural Markdown correctness: pipes (|) must never split a cell.
+ *    In GFM §4.10, table cell splitting precedes inline parsing; pipes
+ *    inside and outside code spans must be escaped as \|.
+ * 2. Displayed semantic correctness:
+ *    - Inside matched backtick code spans, backslashes are literal in GFM;
+ *      they must NOT be doubled, preserving exact paths like `C:\tools\bin`.
+ *    - Outside code spans, backslashes are escape characters in Markdown;
+ *      they must be escaped (\\ -> \\\\) so GitHub renders literal backslashes.
+ * 3. Normalization: newlines are converted to spaces and ends are trimmed.
+ */
+export function escapeCell(text: string | undefined | null): string {
+  if (text === undefined || text === null) return '';
+  const normalized = text.replace(/\r?\n/g, ' ').trim();
+  if (!normalized) return '';
+
+  let result = '';
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+
+    // Matched backtick code span check
+    if (ch === '`') {
+      let k = i;
+      while (k < normalized.length && normalized[k] === '`') k++;
+      const runLen = k - i;
+      const delimiter = normalized.slice(i, k);
+      const closeIdx = findMatchingBacktickClose(normalized, k, runLen);
+      if (closeIdx !== -1) {
+        result += delimiter;
+        let j = k;
+        while (j < closeIdx) {
+          if (normalized[j] === '\\') {
+            const bsStart = j;
+            while (j < closeIdx && normalized[j] === '\\') j++;
+            const bsCount = j - bsStart;
+            if (j < closeIdx && normalized[j] === '|') {
+              // Table parser consumes 1 backslash for the pipe escape; emit bsCount + 1 to preserve bsCount literal backslashes
+              result += '\\'.repeat(bsCount + 1) + '|';
+              j++;
+            } else {
+              result += '\\'.repeat(bsCount);
+            }
+          } else if (normalized[j] === '|') {
+            result += '\\|';
+            j++;
+          } else {
+            result += normalized[j];
+            j++;
+          }
+        }
+        result += delimiter;
+        i = closeIdx + runLen - 1;
+        continue;
+      } else {
+        // Unmatched backtick opener: consume the entire backtick run literally
+        result += delimiter;
+        i = k - 1;
+        continue;
+      }
+    }
+
+    if (ch === '\\') {
+      result += '\\\\';
+    } else if (ch === '|') {
+      result += '\\|';
+    } else {
+      result += ch;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Unescape a cell value from a GFM pipe table.
+ * Uses the shared GFM row scanner to ensure exact agreement with splitRow.
+ */
+export function unescapeCell(cell: string): string {
+  const cells = splitRow('| ' + cell + ' |');
+  return cells[0] ?? '';
+}
+
+/**
+ * Split one row into trimmed cells. The outer pipes are optional, because they
+ * are optional in GitHub-flavored markdown: `Refdes | Pin | Net` renders as a
+ * table exactly like `| Refdes | Pin | Net |` does, and a hand- or LLM-authored
+ * doc may legitimately be written either way.
+ *
+ * Backslash-escape parity contract (GFM §4.10 / CommonMark §6.4):
+ * A pipe is an escaped character (does not split) if and only if it is preceded
+ * by an ODD number of backslashes. An EVEN number of backslashes (including 0, 2, 4)
+ * means all backslashes are paired up escaping each other, leaving the pipe as an
+ * unescaped column delimiter that splits the row.
+ */
+export function splitRow(line: string): string[] {
+  const trimmed = line.replace(/\r?\n?$/, '').trim();
+  if (!trimmed) return [];
+
+  let start = 0;
+  let end = trimmed.length;
+
+  // Optional leading border pipe (not escaped)
+  if (trimmed.startsWith('|')) {
+    start = 1;
+  }
+
+  // Optional trailing border pipe (only if not escaped: even preceding backslashes)
+  if (end > start && trimmed.endsWith('|')) {
+    let bsCount = 0;
+    for (let j = end - 2; j >= start; j--) {
+      if (trimmed[j] === '\\') bsCount++;
+      else break;
+    }
+    if (bsCount % 2 === 0) {
+      end = end - 1;
+    }
+  }
+
+  const inner = trimmed.slice(start, end);
+  const cells: string[] = [];
+  let current = '';
+
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+
+    // Matched backtick code span: unescape \| -> | while preserving literal backslashes
+    // An unescaped | inside code spans splits columns under GFM §4.10
+    if (ch === '`') {
+      let k = i;
+      while (k < inner.length && inner[k] === '`') k++;
+      const runLen = k - i;
+      const delimiter = inner.slice(i, k);
+      const closeIdx = findMatchingBacktickCloseInCell(inner, k, runLen);
+      if (closeIdx !== -1) {
+        current += delimiter;
+        let j = k;
+        while (j < closeIdx) {
+          if (inner[j] === '\\') {
+            const bsStart = j;
+            while (j < closeIdx && inner[j] === '\\') j++;
+            const bsCount = j - bsStart;
+            if (j < closeIdx && inner[j] === '|') {
+              // In GFM table cells, exactly 1 backslash escapes the delimiter '|'.
+              // By construction in findMatchingBacktickCloseInCell, bsCount is ODD.
+              // bsCount - 1 backslashes remain literal inside the code span.
+              const remainingBs = bsCount - 1;
+              if (remainingBs > 0) current += '\\'.repeat(remainingBs);
+              current += '|';
+              j++;
+            } else {
+              current += '\\'.repeat(bsCount);
+            }
+          } else {
+            current += inner[j];
+            j++;
+          }
+        }
+        current += delimiter;
+        i = closeIdx + runLen - 1;
+        continue;
+      } else {
+        // Unmatched backtick opener or unescaped pipe intervenes: consume run literally
+        current += delimiter;
+        i = k - 1;
+        continue;
+      }
+    }
+
+    if (ch === '\\') {
+      const bsStart = i;
+      while (i < inner.length && inner[i] === '\\') i++;
+      const bsCount = i - bsStart;
+      if (i < inner.length && inner[i] === '|') {
+        if (bsCount % 2 === 1) {
+          // Odd backslashes before '|': pipe is escaped!
+          // (bsCount - 1) / 2 escaped backslashes + 1 pipe
+          const escapedBs = (bsCount - 1) / 2;
+          if (escapedBs > 0) current += '\\'.repeat(escapedBs);
+          current += '|';
+        } else {
+          // Even backslashes before '|': pipe is unescaped delimiter!
+          // bsCount / 2 escaped backslashes belong to current cell
+          const escapedBs = bsCount / 2;
+          if (escapedBs > 0) current += '\\'.repeat(escapedBs);
+          cells.push(current.trim());
+          current = '';
+        }
+      } else {
+        // Run of backslashes not followed by '|'
+        // Outside code spans, each pair of backslashes unescapes to '\'
+        const pairs = Math.floor(bsCount / 2);
+        const remainder = bsCount % 2;
+        if (pairs > 0) current += '\\'.repeat(pairs);
+        if (remainder > 0) current += '\\';
+        i--; // Adjust because outer loop will increment i
+      }
+    } else if (ch === '|') {
+      // 0 backslashes preceding '|': unescaped delimiter splits cell!
+      cells.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+
+  cells.push(current.trim());
+  return cells;
+}
 
   /** `|---|:--:|` and friends: the row separating a header from its data. */
   function isSeparatorRow(cells: string[]): boolean {
@@ -350,6 +603,7 @@ export interface TableRow {
   export interface BomRow {
     refdes: string;
     value?: string;
+    symbol?: string;
     footprint?: string;
     mpn?: string;
     flags: string[];
@@ -382,12 +636,14 @@ export interface TableRow {
       const valI = col(/^value$/i, 1);
       const fpI = col(/^footprint$/i, 2);
       const mpnI = col(/^mpn$/i, 3);
+      const symI = header.cells.findIndex((c) => /^symbol$/i.test(c));
       for (const row of rows) {
         const refdes = row.cells[refI];
         if (!refdes) continue;
         const value = row.cells[valI];
         const footprint = row.cells[fpI];
         const mpn = row.cells[mpnI];
+        const symbol = symI >= 0 ? row.cells[symI] : undefined;
         const flags: string[] = [];
         // the flag word anywhere in the cell: the bare placeholder, the
         // renderer's `MPN (UNVERIFIED)`, or a hand-written `UNVERIFIED MPN`
@@ -398,6 +654,7 @@ export interface TableRow {
         out.push({
           refdes,
           value: value || undefined,
+          ...(symbol ? { symbol } : {}),
           footprint: footprint || undefined,
           mpn: mpn || undefined,
           flags,

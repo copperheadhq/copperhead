@@ -11,16 +11,17 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { OFF_BOARD_MARKER, NO_PART_MARKER, parseBomTable, normalizeValue, normalizeFootprint } from '../../memory/bom-table.js';
+import { OFF_BOARD_MARKER, NO_PART_MARKER, parseBomTable, normalizeValue, normalizeFootprint, escapeCell } from '../../memory/bom-table.js';
 import { MANIFEST_FILENAME, type PartsManifest, type Substitution } from './manifest.js';
 import { resolveParts, loadManifest, invalidManifestDetail, type ResolvedPart } from './resolve.js';
 
 export { readManifest, manifestPath } from './resolve.js';
+export { escapeCell, unescapeCell } from '../../memory/bom-table.js';
 
 export const RENDER_HEADER = `<!-- rendered from ${MANIFEST_FILENAME} by copperhead draft_bom; edit the manifest, not this table -->`;
 
-/** A cell with the table's own delimiters neutralised. */
-const cell = (s: string | null | undefined): string => (s ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+/** A cell with the table's own delimiters neutralised per GFM rules. */
+const cell = (s: string | null | undefined): string => escapeCell(s);
 
 export function renderBom(parts: ResolvedPart[], substitutions: Substitution[] = []): string {
   const lines = ['# BOM', '', RENDER_HEADER, '', '| Refdes | Value | Footprint | MPN | Rationale | Symbol |', '| --- | --- | --- | --- | --- | --- |'];

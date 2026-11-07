@@ -48,7 +48,7 @@ export interface PartsCheckOptions {
 const canon = (s: string): string => s.replace(/\r\n/g, '\n').split('\n').map((l) => l.trimEnd()).join('\n').replace(/\n+$/, '');
 
 export function partsManifestPath(docs: string): string {
-  return path.join(docs, MANIFEST_FILENAME);
+  return path.posix.join(docs.replace(/\\/g, '/'), MANIFEST_FILENAME);
 }
 
 /** Validate the repo's manifest, or null when there is none. */
