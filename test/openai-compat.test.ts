@@ -375,4 +375,62 @@ describe('config.json baseURL reaches a real do run (offline, no injected provid
       await cleanup();
     }
   });
+
+  it('resolves compat settings when invoking providerForSkillRun (fixes #301)', async () => {
+    const { dir, cleanup } = await repoWithConfig({
+      baseURL: 'https://api.groq.com/openai/v1',
+      apiKeyEnv: 'GROQ_API_KEY',
+    });
+    const savedKey = process.env.GROQ_API_KEY;
+    const savedBaseUrl = process.env.COPPERHEAD_BASE_URL;
+    const savedApiKeyEnv = process.env.COPPERHEAD_API_KEY_ENV;
+    process.env.GROQ_API_KEY = 'gsk-test';
+    delete process.env.COPPERHEAD_BASE_URL;
+    delete process.env.COPPERHEAD_API_KEY_ENV;
+    try {
+      const { providerForSkillRun } = await import('../src/commands/skill.js');
+      const { provider } = await providerForSkillRun(dir, 'compat:llama-3-70b');
+      expect(provider).toBeInstanceOf(OpenAIProvider);
+      expect(provider.name).toBe('openai-compat');
+    } finally {
+      if (savedKey !== undefined) process.env.GROQ_API_KEY = savedKey;
+      else delete process.env.GROQ_API_KEY;
+      if (savedBaseUrl !== undefined) process.env.COPPERHEAD_BASE_URL = savedBaseUrl;
+      else delete process.env.COPPERHEAD_BASE_URL;
+      if (savedApiKeyEnv !== undefined) process.env.COPPERHEAD_API_KEY_ENV = savedApiKeyEnv;
+      else delete process.env.COPPERHEAD_API_KEY_ENV;
+      await cleanup();
+    }
+  });
+
+  it('does not append default provider hint when compat key is missing in providerForSkillRun (fixes #301)', async () => {
+    const { dir, cleanup } = await repoWithConfig({
+      baseURL: 'https://api.groq.com/openai/v1',
+      apiKeyEnv: 'GROQ_API_KEY',
+    });
+    const savedKey = process.env.GROQ_API_KEY;
+    const savedBaseUrl = process.env.COPPERHEAD_BASE_URL;
+    const savedApiKeyEnv = process.env.COPPERHEAD_API_KEY_ENV;
+    delete process.env.GROQ_API_KEY;
+    delete process.env.COPPERHEAD_BASE_URL;
+    delete process.env.COPPERHEAD_API_KEY_ENV;
+    try {
+      const { providerForSkillRun, SkillCliError } = await import('../src/commands/skill.js');
+      await expect(providerForSkillRun(dir, 'compat:llama-3-70b')).rejects.toSatisfy((err: unknown) => {
+        return (
+          err instanceof SkillCliError &&
+          err.message.includes('GROQ_API_KEY') &&
+          !err.message.includes('OPENAI_API_KEY, ANTHROPIC_API_KEY')
+        );
+      });
+    } finally {
+      if (savedKey !== undefined) process.env.GROQ_API_KEY = savedKey;
+      else delete process.env.GROQ_API_KEY;
+      if (savedBaseUrl !== undefined) process.env.COPPERHEAD_BASE_URL = savedBaseUrl;
+      else delete process.env.COPPERHEAD_BASE_URL;
+      if (savedApiKeyEnv !== undefined) process.env.COPPERHEAD_API_KEY_ENV = savedApiKeyEnv;
+      else delete process.env.COPPERHEAD_API_KEY_ENV;
+      await cleanup();
+    }
+  });
 });
