@@ -99,7 +99,6 @@ export function getSiPrefixM(s: string): 'm' | 'M' | null {
  * 2. The entry's component value:
  *    - Exact string match or normalized value match (preserving SI prefix sensitivity, e.g. 100m != 100M).
  *    - Legitimate passive tolerance or rating descriptor (e.g. value '10k' agrees with chosen '10k 1%').
- * 3. The entry's schematic symbol name (part.libId symbol).
  *
  * Liberal substring heuristics, generic prefix/delimiter splitting (e.g. startsWith),
  * and fake manufacturer aliases are strictly avoided: string matching validates field
