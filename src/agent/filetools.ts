@@ -101,20 +101,21 @@ function clipMatch(line: string): string {
 }
 
 export function globToRegex(glob: string): RegExp {
+  const normalized = glob.replace(/\\/g, '/');
   let out = '';
-  for (let i = 0; i < glob.length; i++) {
-    if (glob.startsWith('**/', i)) {
+  for (let i = 0; i < normalized.length; i++) {
+    if (normalized.startsWith('**/', i)) {
       out += '(?:.*/)?'; // zero or more directories
       i += 2;
-    } else if (glob.startsWith('**', i)) {
+    } else if (normalized.startsWith('**', i)) {
       out += '.*';
       i += 1;
-    } else if (glob[i] === '*') {
+    } else if (normalized[i] === '*') {
       out += '[^/]*';
-    } else if (glob[i] === '?') {
+    } else if (normalized[i] === '?') {
       out += '.';
     } else {
-      out += glob[i]!.replace(/[.+^${}()|[\]\\]/, '\\$&');
+      out += normalized[i]!.replace(/[.+^${}()|[\]\\]/, '\\$&');
     }
   }
   return new RegExp(`^${out}$`);
@@ -136,7 +137,7 @@ export async function toolSearch(
     for (const entry of await readdir(dir)) {
       if (SKIP_DIRS.has(entry)) continue;
       const abs = path.join(dir, entry);
-      const rel = path.relative(repoRoot, abs);
+      const rel = path.relative(repoRoot, abs).split(path.sep).join('/');
       const st = await stat(abs);
       if (st.isDirectory()) {
         await walk(abs);
