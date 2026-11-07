@@ -666,12 +666,12 @@ export const HANDLERS: HandlerDef[] = [
       }
       const check = await checkPartsManifest(ctx.repoRoot, ctx.config);
       if (!check) return `no ${manifestRel} yet: pass manifest_json to write one`;
-      if (!check.manifest || !check.validation!.ok) {
-        return { ok: false, text: `${partsStageGap(check)}\nBOM.md not written; fix the manifest and call draft_bom again.` };
+      if (!check.manifest || !check.validation!.ok || !check.rendered) {
+        return { ok: false, text: `${partsStageGap(check) ?? 'BOM.md could not be rendered'}\nBOM.md not written; fix the manifest and call draft_bom again.` };
       }
       const bomRel = path.posix.join(ctx.config.docs.replace(/\\/g, '/'), 'BOM.md');
-      if (!check.bomMatches) {
-        await writeFile(resolveInRepo(ctx.repoRoot, bomRel), check.rendered!, 'utf8');
+      if (!check.bomMatches && check.rendered) {
+        await writeFile(resolveInRepo(ctx.repoRoot, bomRel), check.rendered, 'utf8');
         markTouched(ctx, bomRel);
       }
       const v = check.validation!;

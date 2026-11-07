@@ -72,8 +72,13 @@ export async function checkPartsManifest(repoRoot: string, config: PartsCheckCon
   if (out.validation.ok) {
     try {
       out.rendered = renderManifest(manifest);
-    } catch {
+    } catch (err) {
       out.rendered = null;
+      out.validation.ok = false;
+      out.validation.findings.push({
+        ref: MANIFEST_FILENAME,
+        detail: `${MANIFEST_FILENAME} cannot be rendered to BOM.md: ${err instanceof Error ? err.message : String(err)}`,
+      });
     }
   }
   const bomAbs = path.join(repoRoot, config.docs, 'BOM.md');
@@ -98,6 +103,7 @@ export function partsStageGap(check: PartsCheck | null): string | null {
   const v = check.validation!;
   // formatManifestFindings opens with the count, so the path alone introduces it.
   if (!v.ok) return `${check.manifestPath}: ${formatManifestFindings(v)}`;
+  if (!check.rendered) return `${check.manifestPath}: failed to render to BOM.md; fix the manifest and call draft_bom again`;
   if (!check.bomMatches) return `BOM.md is not the render of ${check.manifestPath}; call draft_bom to render it`;
   return null;
 }

@@ -174,6 +174,38 @@ describe('draft_bom tool', () => {
     }
   });
 
+  it('fails closed with actionable diagnostic when rendering throws (Finding B regression)', async () => {
+    const { root, ctx, cleanup } = await repo();
+    try {
+      // First write clean BOM.md so there is an existing BOM on disk
+      await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
+      const bomBefore = await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8');
+
+      // Intercept renderManifest in checkPartsManifest to simulate an unexpected render throw
+      const renderMod = await import('../src/kicad/parts/render.js');
+      const spy = vi.spyOn(renderMod, 'renderManifest').mockImplementation(() => {
+        throw new Error('Simulated unexpected render failure');
+      });
+
+      try {
+        const out = await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
+        expect(out).toContain('BOM.md not written');
+        expect(out).toContain('cannot be rendered to BOM.md: Simulated unexpected render failure');
+        // Existing BOM.md on disk was not overwritten or corrupted with null
+        expect(await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8')).toBe(bomBefore);
+
+        const { checkPartsManifest, partsStageComplete, partsStageGap } = await import('../src/kicad/parts/stage.js');
+        const check = await checkPartsManifest(root, ctx.config);
+        expect(partsStageComplete(check)).toBe(false);
+        expect(partsStageGap(check)).toContain('cannot be rendered to BOM.md');
+      } finally {
+        spy.mockRestore();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('opens the drift gate when another tool writes the manifest', async () => {
     const { ctx, cleanup } = await repo();
     try {

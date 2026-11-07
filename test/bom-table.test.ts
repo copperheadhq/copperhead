@@ -708,11 +708,58 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
   });
 
   describe('GFM oracle agreement (markdown-it)', () => {
-  it('matches GFM markdown-it oracle rendering', () => {
-    expect(renderTableHtml(escapeCell('10k | 1%'))).toContain('<td>10k | 1%</td>');
-    expect(renderTableHtml(escapeCell('`10k | 1%`'))).toContain('<td><code>10k | 1%</code></td>');
-    expect(renderTableHtml(escapeCell('`C:\\tools\\bin`'))).toContain('<td><code>C:\\tools\\bin</code></td>');
-    expect(renderTableHtml(escapeCell('C:\\tools\\bin'))).toContain('<td>C:\\tools\\bin</td>');
-  });
+    it('matches GFM markdown-it oracle rendering', () => {
+      expect(renderTableHtml(escapeCell('10k | 1%'))).toContain('<td>10k | 1%</td>');
+      expect(renderTableHtml(escapeCell('`10k | 1%`'))).toContain('<td><code>10k | 1%</code></td>');
+      expect(renderTableHtml(escapeCell('`C:\\tools\\bin`'))).toContain('<td><code>C:\\tools\\bin</code></td>');
+      expect(renderTableHtml(escapeCell('C:\\tools\\bin'))).toContain('<td>C:\\tools\\bin</td>');
+    });
+
+    it('distinguishes escaped backticks from code span delimiters (Finding A regression)', () => {
+      // Input with backslash-escaped backtick: not a code span
+      const input = '\\`10k\\|1%\\`';
+      expect(hasUnrepresentableCodeSpanPipe(input)).toBe(false);
+
+      // 1 backslash (odd): escaped backtick -> NOT a code span
+      expect(hasUnrepresentableCodeSpanPipe('\\`10k\\|1%\\`')).toBe(false);
+      // 3 backslashes (odd): escaped backtick -> NOT a code span
+      expect(hasUnrepresentableCodeSpanPipe('\\\\\\`10k\\|1%\\\\\\`')).toBe(false);
+      // 2 backslashes (even): unescaped backtick -> IS a code span, containing unrepresentable pipe
+      expect(hasUnrepresentableCodeSpanPipe('\\\\`10k\\|1%`')).toBe(true);
+
+      // escapeCell does not throw on representable escaped backticks
+      const escaped = escapeCell(input);
+      // In input, 1 bs before backtick remains 1 bs; 1 bs before pipe is doubled (2) + 1 (escaped pipe) = 3 bs
+      expect(escaped).toBe('\\`10k\\\\\\|1%\\`');
+
+      // splitRow parses as single cell, preserving literal backtick content and escaped pipe
+      const row = `| ${escaped} | other |`;
+      const cells = splitRow(row);
+      expect(cells).toEqual(['`10k\\|1%`', 'other']);
+
+      // Matches MarkdownIt oracle: renders literal backtick, no <code> tags, no column splitting
+      const html = md.render(`| Col | Other |\n| --- | --- |\n| ${escaped} | other |`).replace(/\s+/g, ' ');
+      expect(html).toContain('<td>`10k\\|1%`</td>');
+      expect(html).toContain('<td>other</td>');
+      expect(html).not.toContain('<code>');
+    });
+
+    it('handles backtick parity across consecutive runs and delimiter lengths', () => {
+      // Double-backtick code span containing single backtick and pipe with 0 backslashes
+      const multi = '``10k | ` | 1%``';
+      expect(hasUnrepresentableCodeSpanPipe(multi)).toBe(false);
+      const parsedMulti = splitRow(`| ${escapeCell(multi)} |`);
+      expect(parsedMulti).toEqual(['``10k | ` | 1%``']);
+
+      // Unmatched backtick outside code spans
+      const unmatched = 'foo`bar';
+      expect(hasUnrepresentableCodeSpanPipe(unmatched)).toBe(false);
+      expect(splitRow(`| ${escapeCell(unmatched)} |`)).toEqual(['foo`bar']);
+
+      // Escaped opening backtick followed by real code span
+      const mixed = '\\`not-code\\` and `real-code`';
+      expect(hasUnrepresentableCodeSpanPipe(mixed)).toBe(false);
+      expect(renderTableHtml(escapeCell(mixed))).toContain('`not-code` and <code>real-code</code>');
+    });
   });
 });
