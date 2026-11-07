@@ -1,4 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+vi.mock('node:fs', async (orig) => {
+  const m = await orig<typeof import('node:fs')>();
+  return { ...m, existsSync: vi.fn(m.existsSync) };
+});
 import { mkdir, mkdtemp, rm, writeFile, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -333,6 +338,10 @@ describe('kicad-cli binary resolution', () => {
     expect(defaultFallbackBinaries([winRoot], []).some((c) => c.startsWith('/Applications/'))).toBe(false);
     expect(defaultFallbackBinaries([winRoot]).some((c) => c.startsWith('/Applications/'))).toBe(true);
 
+    const fs = await import('node:fs');
+    const existsSyncMock = vi.mocked(fs.existsSync);
+    existsSyncMock.mockClear();
+
     // When Windows roots are configured for testing, macOS fallbacks must not be probed
     setKicadFallbackWinRoots([winRoot]);
     const savedPath = process.env.PATH;
@@ -340,6 +349,10 @@ describe('kicad-cli binary resolution', () => {
     try {
       // Must reject with missing error rather than resolving host /Applications/KiCad/KiCad.app
       await expect(kicadCliVersion()).rejects.toBeInstanceOf(KicadCliMissingError);
+
+      // Verify fallbackAfterMissing() passed macosBinaries=[] so no macOS candidate paths were probed
+      const probedPaths = existsSyncMock.mock.calls.map(([p]) => String(p));
+      expect(probedPaths.some((p) => p.startsWith('/Applications/'))).toBe(false);
     } finally {
       process.env.PATH = savedPath;
     }
