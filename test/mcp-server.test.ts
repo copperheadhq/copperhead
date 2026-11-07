@@ -1,6 +1,9 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
+import { execa } from 'execa';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import {
@@ -17,11 +20,12 @@ import { registry } from '../src/agent/tools.js';
 import { runCheck } from '../src/commands/check.js';
 import { runInit } from '../src/memory/scaffold.js';
 import { runDoctor } from '../src/commands/doctor.js';
+import type { Provider, Turn } from '../src/agent/types.js';
 import { tempFixtureRepo } from './helpers.js';
 
 /** Connect an in-process client to a server bound to `repo`. */
-async function connect(repo: string): Promise<{ client: Client; close: () => Promise<void> }> {
-  const server = createMcpServer({ repoRoot: repo });
+async function connect(repo: string, provider?: Provider): Promise<{ client: Client; close: () => Promise<void> }> {
+  const server = createMcpServer({ repoRoot: repo, ...(provider ? { provider } : {}) });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'test', version: '1' });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -412,4 +416,104 @@ describe('mcpRenderer bridges loop progress onto MCP notifications', () => {
     });
     expect(() => r.turnStart(1, 40, 0, 0)).toThrow();
   });
+});
+
+/** Plays each turn in order, repeating the last one. */
+function scriptedProvider(turns: Partial<Turn>[]): Provider {
+  let i = 0;
+  return {
+    name: 'scripted',
+    async chat(): Promise<Turn> {
+      const t = turns[Math.min(i, turns.length - 1)]!;
+      i++;
+      return {
+        text: t.text ?? null,
+        toolCalls: (t.toolCalls ?? []).map((c, j) => ({ ...c, id: `call-${i}-${j}` })),
+        usage: t.usage ?? { inputTokens: 100, outputTokens: 10 },
+      };
+    },
+  };
+}
+
+/** Every file git would see (tracked, or untracked and not ignored), hashed. */
+async function treeHashes(repo: string): Promise<Record<string, string>> {
+  const { stdout } = await execa('git', ['ls-files', '-co', '--exclude-standard'], { cwd: repo });
+  const out: Record<string, string> = {};
+  for (const f of stdout.split('\n').filter(Boolean).sort()) {
+    const p = path.join(repo, f);
+    out[f] = existsSync(p) ? createHash('sha256').update(await readFile(p)).digest('hex') : '(deleted)';
+  }
+  return out;
+}
+
+describe('copperhead_do: rollback is a result, not an error (3.3a)', () => {
+  it('returns rolled_back when violations persist past maxRepairCycles, leaving the tree byte-identical', async () => {
+    const repo = await fixture();
+    await runInit({ repoRoot: repo, force: false, installHooks: false });
+    // One repair cycle, so the second failing ERC after an edit ends the run.
+    const configPath = path.join(repo, '.copperhead', 'config.json');
+    const config = JSON.parse(await readFile(configPath, 'utf8'));
+    await writeFile(configPath, JSON.stringify({ ...config, maxRepairCycles: 1 }, null, 2) + '\n', 'utf8');
+    await execa('git', ['add', '-A'], { cwd: repo });
+    await execa('git', ['commit', '-q', '-m', 'init docs'], { cwd: repo });
+
+    const sch = 'hardware/open-key.kicad_sch';
+    // Detaching the GPIO0 no_connect flag leaves a pin unconnected (as in AC-2.2),
+    // and moving it again leaves it unconnected: a repair that does not repair.
+    const provider = scriptedProvider([
+      {
+        toolCalls: [
+          { name: 'propose_change', args: { id: 'mcp-rollback', why: 'test', what_changes: '- move a flag', tasks: '- [ ] move' } },
+          { name: 'validate_change', args: {} },
+        ],
+      },
+      {
+        toolCalls: [
+          { name: 'edit_file', args: { path: sch, old_string: '(no_connect (at 127 96.52)', new_string: '(no_connect (at 127 50.8)' } },
+          { name: 'run_erc', args: {} },
+        ],
+      },
+      {
+        toolCalls: [
+          { name: 'edit_file', args: { path: sch, old_string: '(no_connect (at 127 50.8)', new_string: '(no_connect (at 127 45.72)' } },
+          { name: 'run_erc', args: {} },
+        ],
+      },
+    ]);
+
+    const head = (await execa('git', ['rev-parse', 'HEAD'], { cwd: repo })).stdout;
+    const before = await treeHashes(repo);
+    const { client, close } = await connect(repo, provider);
+    cleanups.push(close);
+    const saved = process.env.COPPERHEAD_MODEL;
+    // Model resolution runs as in production; the injected provider is what answers.
+    process.env.COPPERHEAD_MODEL = 'gpt-5';
+    let res;
+    try {
+      // the SDK's default request timeout is 60 s; the run gets the test's own budget
+      res = await client.callTool(
+        { name: 'copperhead_do', arguments: { request: 'move the GPIO0 no-connect flag' } },
+        undefined,
+        { timeout: 170_000 },
+      );
+    } finally {
+      if (saved === undefined) delete process.env.COPPERHEAD_MODEL;
+      else process.env.COPPERHEAD_MODEL = saved;
+    }
+
+    // A successful tool call (design D6): not a protocol error, not isError.
+    expect((res as { isError?: boolean }).isError).toBeUndefined();
+    const env = envelopeOf(res);
+    expect(env.ok).toBe(true);
+    const data = env.data as { status: string; exitPath: string; transcriptDir: string; commit: string | null };
+    expect(data.status).toBe('rolled_back');
+    expect(data.exitPath).toBe('repair-cycles-exhausted');
+    expect(data.commit).toBeNull();
+    expect(data.transcriptDir).toBeTruthy();
+    expect(existsSync(data.transcriptDir)).toBe(true);
+
+    // The working tree is byte-identical to the pre-run state.
+    expect((await execa('git', ['rev-parse', 'HEAD'], { cwd: repo })).stdout).toBe(head);
+    expect(await treeHashes(repo)).toEqual(before);
+  }, 180_000);
 });

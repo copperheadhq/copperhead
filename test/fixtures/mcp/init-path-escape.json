@@ -1,0 +1,26 @@
+{
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "copperhead_init",
+      "arguments": {
+        "path": "../.."
+      }
+    }
+  },
+  "response": {
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"ok\": false,\n  \"summary\": \"path escapes repo root: ../..\",\n  \"error\": {\n    \"kind\": \"validation\",\n    \"message\": \"path escapes repo root: ../..\"\n  }\n}"
+        }
+      ],
+      "isError": true
+    },
+    "jsonrpc": "2.0",
+    "id": 2
+  }
+}
