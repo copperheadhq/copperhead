@@ -514,6 +514,54 @@ describe('empty-completion tolerance (agent loop)', () => {
     }
   }, 60_000);
 
+  it('a tool-less turn says nothing was written while edits are locked (#306)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, installHooks: false });
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'docs'], { cwd: repo });
+      // Turn 1 is tool-less while edits are locked - the shape of #306, where the
+      // model narrated eight successful write_file results that never ran. Turn 3
+      // is tool-less after validate_change unlocked the edit tools, and must not
+      // claim a lock that is no longer there.
+      const provider = scriptedProvider([
+        {},
+        {
+          toolCalls: [
+            { name: 'propose_change', args: { id: 'c1', why: 'w', what_changes: '- x', tasks: '- [ ] t' } },
+            { name: 'validate_change', args: {} },
+          ],
+        },
+        {},
+        { toolCalls: [{ name: 'finish', args: { outcome: 'done', summary: 'done' } }] },
+      ]);
+      await runAgentLoop({
+        repoRoot: repo,
+        request: 'noop',
+        model: 'gpt-5',
+        provider,
+        maxTurns: 8,
+        onBudgetExhausted: async () => 0,
+        log: () => {},
+      });
+      // Every turn replays the whole message list, so dedupe before comparing.
+      const nudges = [
+        ...new Set(
+          provider.seen
+            .flat()
+            .filter((m) => m.role === 'user' && (m as { content: string }).content.includes('Continue using tools'))
+            .map((m) => (m as { content: string }).content),
+        ),
+      ];
+      expect(nudges).toHaveLength(2);
+      expect(nudges[0]).toContain('nothing ran and no file was written');
+      expect(nudges[0]).toContain('validate_change');
+      expect(nudges[1]).toBe('Continue using tools, or call finish({outcome, summary}) to end the run.');
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+
   it('three consecutive tool-less turns still fail the run', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
