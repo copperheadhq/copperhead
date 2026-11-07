@@ -149,6 +149,31 @@ describe('draft_bom tool', () => {
     }
   });
 
+  it('rejects unrepresentable code span pipes, leaving BOM.md untouched and reporting actionable finding', async () => {
+    const { root, ctx, cleanup } = await repo();
+    try {
+      // First write clean BOM.md so there is an existing BOM on disk
+      await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
+      const bomBefore = await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8');
+
+      // Attempt to update manifest with unrepresentable code span pipe in value
+      const bad = {
+        ...CLEAN,
+        parts: [
+          CLEAN.parts[0],
+          { ref: 'R1', value: '`10k\\|1%`', package: '0603', group: 'MCU' },
+          CLEAN.parts[2],
+        ],
+      };
+      const out = await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(bad) });
+      expect(out).toContain('BOM.md not written');
+      expect(out).toMatch(/R1: field "value" has an unrepresentable code-span pipe sequence/);
+      expect(await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8')).toBe(bomBefore);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('opens the drift gate when another tool writes the manifest', async () => {
     const { ctx, cleanup } = await repo();
     try {

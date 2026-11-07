@@ -16,7 +16,7 @@ import { MANIFEST_FILENAME, type PartsManifest, type Substitution } from './mani
 import { resolveParts, loadManifest, invalidManifestDetail, type ResolvedPart } from './resolve.js';
 
 export { readManifest, manifestPath } from './resolve.js';
-export { escapeCell, unescapeCell } from '../../memory/bom-table.js';
+export { escapeCell, unescapeCell, hasUnrepresentableCodeSpanPipe } from '../../memory/bom-table.js';
 
 export const RENDER_HEADER = `<!-- rendered from ${MANIFEST_FILENAME} by copperhead draft_bom; edit the manifest, not this table -->`;
 
@@ -62,7 +62,12 @@ export async function manifestDrift(docsDir: string): Promise<{ doc: string; cla
   }
   const manifest = loaded.manifest;
   const bomPath = path.join(docsDir, 'BOM.md');
-  const rendered = renderManifest(manifest);
+  let rendered: string;
+  try {
+    rendered = renderManifest(manifest);
+  } catch (err) {
+    return [{ doc: MANIFEST_FILENAME, claim: 'can be rendered to BOM.md', actual: `${err instanceof Error ? err.message : String(err)}; fix it and run draft_bom` }];
+  }
   if (!existsSync(bomPath)) return [{ doc: 'BOM.md', claim: 'absent', actual: `${MANIFEST_FILENAME} lists ${manifest.parts.length} part(s); run draft_bom to render it` }];
   const text = await readFile(bomPath, 'utf8');
   if (canon(text) === canon(rendered)) return [];

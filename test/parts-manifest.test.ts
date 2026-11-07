@@ -515,6 +515,42 @@ describe('validatePartsManifest', () => {
       );
       expect(v2.findings.filter((f) => f.detail.includes('substitution'))).toHaveLength(0);
     });
+
+    it('rejects an odd number of backslashes immediately preceding a pipe inside code span in part fields', async () => {
+      const R1 = { ref: 'R1', value: '`10k\\|1%`', group: 'Power', package: '0603' };
+      const v = await validate(manifest([R1]));
+      expect(v.ok).toBe(false);
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'R1: field "value" has an unrepresentable code-span pipe sequence ("`10k\\\\|1%`"); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table',
+      );
+    });
+
+    it('rejects an odd number of backslashes before pipe inside code span in substitution fields', async () => {
+      const R1 = { ref: 'R1', value: '10k', group: 'Power', package: '0603' };
+      const v = await validate(
+        manifest([R1], {
+          substitutions: [{ ref: 'R1', wanted: '10k', chosen: '`10k\\|1%`', reason: 'stock shortage' }],
+        }),
+      );
+      expect(v.ok).toBe(false);
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: field "chosen" has an unrepresentable code-span pipe sequence ("`10k\\\\|1%`"); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table',
+      );
+    });
+
+    it('accepts even backslashes before pipe or pipes outside code spans', async () => {
+      const R1 = { ref: 'R1', value: '10k | 1%', group: 'Power', package: '0603' };
+      const v = await validate(manifest([R1]));
+      expect(v.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
+
+      const R2 = { ref: 'R2', value: '`10k | 1%`', group: 'Power', package: '0603' };
+      const v2 = await validate(manifest([R2]));
+      expect(v2.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
+
+      const R3 = { ref: 'R3', value: '`10k\\\\|1%`', group: 'Power', package: '0603' };
+      const v3 = await validate(manifest([R3]));
+      expect(v3.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
+    });
   });
 
   it('caps the listed findings and counts the rest', async () => {

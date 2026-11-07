@@ -14,7 +14,7 @@
 import { SymbolResolutionError, type ResolvedSymbol } from '../draft/symsource.js';
 import { looksLikeDescription, unitPlacementFinding } from '../draft/ir.js';
 import type { FootprintResolver, MissingFootprint } from '../footprints.js';
-import { normalizeValue } from '../../memory/bom-table.js';
+import { normalizeValue, hasUnrepresentableCodeSpanPipe } from '../../memory/bom-table.js';
 import { checkPinsAgainstPads } from './pads.js';
 import { isPassivePrefix, knownPackages, passiveDefault } from './passives.js';
 import { refPrefix, type ManifestFinding, type PartsManifest } from './manifest.js';
@@ -252,6 +252,23 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
       if (pads.finding) add(e.ref, pads.finding);
       if (pads.warning) warnings.push(pads.warning);
     }
+
+    // GFM table representability: odd backslashes before pipe inside code span cannot be represented losslessly
+    const stringFields: Array<[string, string | undefined | null]> = [
+      ['value', e.value],
+      ['mpn', e.mpn],
+      ['footprint', part.footprint],
+      ['libId', part.libId],
+      ['rationale', e.rationale],
+    ];
+    for (const [fieldName, val] of stringFields) {
+      if (hasUnrepresentableCodeSpanPipe(val)) {
+        add(
+          e.ref,
+          `${e.ref}: field "${fieldName}" has an unrepresentable code-span pipe sequence (${JSON.stringify(val)}); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table`,
+        );
+      }
+    }
   }
 
   // substitutions: point at a real entry, and the entry carries the chosen part
@@ -268,6 +285,20 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
       continue;
     }
     seenSubRefs.add(s.ref);
+
+    const subFields: Array<[string, string | undefined | null]> = [
+      ['wanted', s.wanted],
+      ['chosen', s.chosen],
+      ['reason', s.reason],
+    ];
+    for (const [fieldName, val] of subFields) {
+      if (hasUnrepresentableCodeSpanPipe(val)) {
+        add(
+          s.ref,
+          `substitution for ${s.ref}: field "${fieldName}" has an unrepresentable code-span pipe sequence (${JSON.stringify(val)}); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table`,
+        );
+      }
+    }
 
     if (!substitutionCarriesChosen(p, s.chosen)) {
       add(s.ref, `substitution for ${s.ref}: "chosen" is ${JSON.stringify(s.chosen)} but the entry carries value ${JSON.stringify(p.value)}${p.mpn ? `, mpn ${JSON.stringify(p.mpn)}` : ''}; they must agree`);

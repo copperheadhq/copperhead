@@ -72,6 +72,52 @@ export function findMatchingBacktickCloseInCell(text: string, fromIndex: number,
 }
 
 /**
+ * Detects whether a string contains an inline code span with an odd number of
+ * literal backslashes immediately preceding a pipe delimiter.
+ *
+ * In GitHub-Flavored Markdown (cmark-gfm), table cell splitting precedes inline
+ * code span parsing. To prevent '|' from splitting the table cell into malformed
+ * columns, the pipe must be preceded by an odd number of backslashes (escaping it).
+ * The table scanner then consumes exactly 1 backslash.
+ * Because CommonMark code spans treat all backslashes literally (no inline unescaping),
+ * the resulting rendered code span always has an EVEN number of backslashes before '|'.
+ * An ODD number of literal backslashes before a pipe inside a code span is therefore
+ * mathematically impossible to represent in standard GFM pipe tables without either
+ * splitting the table columns or dropping a backslash.
+ */
+export function hasUnrepresentableCodeSpanPipe(text: string | undefined | null): boolean {
+  if (!text) return false;
+  const normalized = text.replace(/\r?\n/g, ' ').trim();
+  for (let i = 0; i < normalized.length; i++) {
+    if (normalized[i] === '`') {
+      let k = i;
+      while (k < normalized.length && normalized[k] === '`') k++;
+      const runLen = k - i;
+      const closeIdx = findMatchingBacktickClose(normalized, k, runLen);
+      if (closeIdx !== -1) {
+        let j = k;
+        while (j < closeIdx) {
+          if (normalized[j] === '\\') {
+            const bsStart = j;
+            while (j < closeIdx && normalized[j] === '\\') j++;
+            const bsCount = j - bsStart;
+            if (j < closeIdx && normalized[j] === '|' && bsCount % 2 === 1) {
+              return true;
+            }
+          } else {
+            j++;
+          }
+        }
+        i = closeIdx + runLen - 1;
+      } else {
+        i = k - 1;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Escape a cell value for inclusion in a GFM pipe table.
  *
  * Contracts:
@@ -110,18 +156,14 @@ export function escapeCell(text: string | undefined | null): string {
             while (j < closeIdx && normalized[j] === '\\') j++;
             const bsCount = j - bsStart;
             if (j < closeIdx && normalized[j] === '|') {
-              // Table parser consumes 1 backslash for the pipe escape.
-              // In GFM table scanning, to prevent '|' from splitting the cell, the emitted
-              // backslash count before '|' must be ODD.
+              if (bsCount % 2 === 1) {
+                throw new Error(
+                  `Cannot losslessly represent ${bsCount} literal backslash(es) immediately preceding a pipe inside a code span in a GFM table cell: "${normalized}". In GFM pipe tables, an odd number of backslashes before '|' inside code spans cannot be represented without data loss or column splitting.`,
+                );
+              }
               // For even bsCount (0, 2, 4, 6, 8): emit bsCount + 1 backslashes (odd).
               // The table parser consumes 1 backslash, leaving exactly bsCount literal backslashes (lossless).
-              // For odd bsCount (1, 3, 5, 7): in GFM pipe tables, representing an odd number of
-              // literal backslashes immediately before a pipe inside a code span is mathematically
-              // impossible without either splitting the cell (if even) or altering the backslash count.
-              // Emitting bsCount backslashes (already odd) preserves table structural integrity
-              // (does not split) and yields bsCount - 1 literal backslashes upon parsing.
-              const emitCount = bsCount % 2 === 0 ? bsCount + 1 : bsCount;
-              result += '\\'.repeat(emitCount) + '|';
+              result += '\\'.repeat(bsCount + 1) + '|';
               j++;
             } else {
               result += '\\'.repeat(bsCount);

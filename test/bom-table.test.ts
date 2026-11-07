@@ -12,6 +12,7 @@ import {
   escapeCell,
   unescapeCell,
   findMatchingBacktickClose,
+  hasUnrepresentableCodeSpanPipe,
 } from '../src/memory/bom-table.js';
 import MarkdownIt from 'markdown-it';
 
@@ -626,7 +627,31 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
   });
 
   describe('Generated GFM table cell escaping and lossless round-trip', () => {
-  it('round-trips 0 through 8 backslashes before pipe inside and outside code spans', () => {
+  it('detects unrepresentable code span pipes via hasUnrepresentableCodeSpanPipe', () => {
+    // Inside single-backtick code spans
+    expect(hasUnrepresentableCodeSpanPipe('`a|b`')).toBe(false); // 0 bs (even)
+    expect(hasUnrepresentableCodeSpanPipe('`a\\|b`')).toBe(true); // 1 bs (odd)
+    expect(hasUnrepresentableCodeSpanPipe('`a\\\\|b`')).toBe(false); // 2 bs (even)
+    expect(hasUnrepresentableCodeSpanPipe('`a\\\\\\|b`')).toBe(true); // 3 bs (odd)
+    expect(hasUnrepresentableCodeSpanPipe('`a\\\\\\\\|b`')).toBe(false); // 4 bs (even)
+
+    // Inside double-backtick code spans
+    expect(hasUnrepresentableCodeSpanPipe('``a|b``')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('``a\\|b``')).toBe(true);
+    expect(hasUnrepresentableCodeSpanPipe('``a\\\\|b``')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('``a\\\\\\|b``')).toBe(true);
+
+    // Outside code spans: always representable
+    expect(hasUnrepresentableCodeSpanPipe('a|b')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('a\\|b')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('10k | 1%')).toBe(false);
+
+    // Backslashes without pipe inside code span: always representable
+    expect(hasUnrepresentableCodeSpanPipe('`C:\\tools\\bin`')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('`foo\\\\bar`')).toBe(false);
+  });
+
+  it('round-trips 0 through 8 backslashes before pipe inside and outside code spans losslessly or fails explicitly', () => {
     for (let k = 0; k <= 8; k++) {
       // Outside code spans: all k from 0..8 round-trip 100% losslessly
       const origOut = `a${'\\'.repeat(k)}|b`;
@@ -635,36 +660,26 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
 
       // Inside single-backtick code spans
       const origIn = `\`a${'\\'.repeat(k)}|b\``;
-      const parsedIn = splitRow(`| ${escapeCell(origIn)} |`);
-      // Structural integrity: cell is NEVER split into extra columns
-      expect(parsedIn).toHaveLength(1);
+      // Inside double-backtick code spans
+      const origDouble = `\`\`a${'\\'.repeat(k)}|b\`\``;
 
       if (k % 2 === 0) {
         // Even k: exactly lossless round trip (emit k+1 backslashes, table parser strips 1 -> k remain)
+        const parsedIn = splitRow(`| ${escapeCell(origIn)} |`);
+        expect(parsedIn).toHaveLength(1);
         expect(parsedIn[0]).toBe(origIn);
         expect(unescapeCell(escapeCell(origIn))).toBe(origIn);
-      } else {
-        // Odd k: GFM representability boundary. An odd number of literal backslashes immediately
-        // preceding a pipe inside a code span cannot be represented without either splitting the cell
-        // (if even backslashes are emitted) or consuming 1 backslash (leaving k - 1 backslashes).
-        // escapeCell preserves cell integrity (1 column) and yields k - 1 backslashes.
-        const expectedOdd = `\`a${'\\'.repeat(k - 1)}|b\``;
-        expect(parsedIn[0]).toBe(expectedOdd);
-        expect(unescapeCell(escapeCell(origIn))).toBe(expectedOdd);
-      }
 
-      // Inside double-backtick code spans
-      const origDouble = `\`\`a${'\\'.repeat(k)}|b\`\``;
-      const parsedDouble = splitRow(`| ${escapeCell(origDouble)} |`);
-      expect(parsedDouble).toHaveLength(1);
-
-      if (k % 2 === 0) {
+        const parsedDouble = splitRow(`| ${escapeCell(origDouble)} |`);
+        expect(parsedDouble).toHaveLength(1);
         expect(parsedDouble[0]).toBe(origDouble);
         expect(unescapeCell(escapeCell(origDouble))).toBe(origDouble);
       } else {
-        const expectedOddDouble = `\`\`a${'\\'.repeat(k - 1)}|b\`\``;
-        expect(parsedDouble[0]).toBe(expectedOddDouble);
-        expect(unescapeCell(escapeCell(origDouble))).toBe(expectedOddDouble);
+        // Odd k: GFM representability boundary. An odd number of literal backslashes immediately
+        // preceding a pipe inside a code span cannot be represented without either splitting the cell
+        // or dropping a backslash. escapeCell refuses to silently corrupt the value and throws.
+        expect(() => escapeCell(origIn)).toThrow(/Cannot losslessly represent/);
+        expect(() => escapeCell(origDouble)).toThrow(/Cannot losslessly represent/);
       }
     }
   });
