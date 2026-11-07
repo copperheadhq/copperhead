@@ -359,6 +359,26 @@ describe('populateBoard against kicad-cli (AC-15.36, AC-15.37)', () => {
     }
   });
 
+  it('a value holding a tab and a newline reaches the board escaped, and the board still loads', async () => {
+    const { repo, cleanup } = await draftedProject();
+    try {
+      // the schematic carries the escapes KiCad's reader turns into the characters
+      const p = path.join(repo, SCH);
+      const text = await readFile(p, 'utf8');
+      expect(text).toContain('(property "Value" "100n"');
+      await writeFile(p, text.replace('(property "Value" "100n"', '(property "Value" "100n\\tX\\nY"'), 'utf8');
+      const res = await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      expect(res.unchanged).toBe(false);
+      const board = await readFile(path.join(repo, PCB), 'utf8');
+      expect(board).toContain('(property "Value" "100n\\tX\\nY"');
+      // populate proved the board loads; KiCad reads the escapes back as the characters
+      const netlist = parseNetlist(await exportNetlist(path.join(repo, SCH)));
+      expect(netlist.parts.find((q) => q.ref === 'C1')?.value).toBe('100n\tX\nY');
+    } finally {
+      await cleanup();
+    }
+  }, 120_000);
+
   it('is idempotent and deterministic: a second run writes nothing, and two fresh runs agree byte-for-byte', async () => {
     const a = await draftedProject();
     const b = await draftedProject();
