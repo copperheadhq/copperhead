@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ThreadOptions, TurnOptions, Usage } from '@openai/codex-sdk';
@@ -162,6 +162,10 @@ export class CodexProvider implements Provider {
   private async ensureWorkingDirectory(): Promise<string> {
     if (this.workingDirectory) {
       await mkdir(this.workingDirectory, { recursive: true });
+      if (this.ownsWorkingDirectory) {
+        const now = new Date();
+        await utimes(this.workingDirectory, now, now).catch(() => {});
+      }
       return this.workingDirectory;
     }
     this.workingDirectory = await mkdtemp(path.join(tmpdir(), 'copperhead-codex-'));
