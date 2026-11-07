@@ -57,7 +57,7 @@ describe('kicad-cli binary resolution', () => {
   });
 
   it('honours COPPERHEAD_KICAD_CLI when the path exists', async () => {
-    const bin = path.join(dir, 'kicad-cli');
+    const bin = path.join(dir, process.platform === 'win32' ? 'kicad-cli.exe' : 'kicad-cli');
     await writeFile(bin, '#!/bin/sh\nexit 0\n', 'utf8');
     await chmod(bin, 0o755);
     process.env.COPPERHEAD_KICAD_CLI = bin;
@@ -65,7 +65,7 @@ describe('kicad-cli binary resolution', () => {
   });
 
   it('trims surrounding whitespace in the override', async () => {
-    const bin = path.join(dir, 'kicad-cli');
+    const bin = path.join(dir, process.platform === 'win32' ? 'kicad-cli.exe' : 'kicad-cli');
     await writeFile(bin, '#!/bin/sh\nexit 0\n', 'utf8');
     process.env.COPPERHEAD_KICAD_CLI = `  ${bin}  `;
     expect(resolveKicadCli()).toBe(bin);
@@ -75,7 +75,7 @@ describe('kicad-cli binary resolution', () => {
     // Regression: this used to fall through to a bare PATH lookup, so a typo
     // produced "kicad-cli not found on PATH" plus advice to set the very
     // variable the user had already set.
-    const missing = path.join(dir, 'typo', 'kicad-cli');
+    const missing = path.join(dir, 'typo', process.platform === 'win32' ? 'kicad-cli.exe' : 'kicad-cli');
     process.env.COPPERHEAD_KICAD_CLI = missing;
     expect(() => resolveKicadCli()).toThrow(KicadCliBadOverrideError);
     try {
@@ -106,14 +106,15 @@ describe('kicad-cli binary resolution', () => {
     try {
       await expect(kicadCliVersion()).rejects.toBeInstanceOf(KicadCliMissingError);
     } finally {
-      process.env.PATH = savedPath;
+      if (savedPath === undefined) delete process.env.PATH;
+      else process.env.PATH = savedPath;
     }
   });
 
-  it('falls back to an app-bundle path when PATH has no kicad-cli', async () => {
-    // The macOS install case, made testable on every platform by pointing the
-    // probe at a fixture. Covers the retry: the first spawn ENOENTs on the
-    // bare PATH name, the second runs the resolved bundle binary.
+  // The macOS install case, made testable on every platform by pointing the
+  // probe at a fixture. Covers the retry: the first spawn ENOENTs on the
+  // bare PATH name, the second runs the resolved bundle binary.
+  it.skipIf(process.platform === 'win32')('falls back to an app-bundle path when PATH has no kicad-cli', async () => {
     delete process.env.COPPERHEAD_KICAD_CLI;
     const bundleBase = path.join(dir, 'KiCad.app', 'Contents', 'MacOS', 'kicad-cli');
     const bundle = await writeMockExecutable(bundleBase, '9.0.1');
@@ -121,20 +122,22 @@ describe('kicad-cli binary resolution', () => {
     const savedPath = process.env.PATH;
     process.env.PATH = dir;
     try {
+      expect(resolveKicadCli()).toBe('kicad-cli');
       expect(await kicadCliVersion()).toBe('9.0.1');
       // ...and the bundle path is cached, so the miss is not re-paid per call.
       expect(resolveKicadCli()).toBe(bundle);
     } finally {
-      process.env.PATH = savedPath;
+      if (savedPath === undefined) delete process.env.PATH;
+      else process.env.PATH = savedPath;
     }
   });
 
-  it('refuses when an override that existed at resolve time disappears mid-session', async () => {
-    // The refusal only means something if a fallback was available to take:
-    // a working `kicad-cli` sits on PATH under a different name from the
-    // override, and the bundle probes are emptied, so PATH is the one route
-    // that could still succeed. Reaching KicadCliMissingError therefore proves
-    // the fallback was never attempted, rather than attempted and also empty.
+  // The refusal only means something if a fallback was available to take:
+  // a working `kicad-cli` sits on PATH under a different name from the
+  // override, and the bundle probes are emptied, so PATH is the one route
+  // that could still succeed. Reaching KicadCliMissingError therefore proves
+  // the fallback was never attempted, rather than attempted and also empty.
+  it.skipIf(process.platform === 'win32')('refuses when an override that existed at resolve time disappears mid-session', async () => {
     const onPath = path.join(dir, 'path-bin');
     const pathBinaryBase = path.join(onPath, 'kicad-cli');
     await writeMockExecutable(pathBinaryBase, '8.0.4');
@@ -160,7 +163,8 @@ describe('kicad-cli binary resolution', () => {
       resetKicadCliCache();
       expect(await kicadCliVersion()).toBe('8.0.4');
     } finally {
-      process.env.PATH = savedPath;
+      if (savedPath === undefined) delete process.env.PATH;
+      else process.env.PATH = savedPath;
     }
   });
 
@@ -169,7 +173,7 @@ describe('kicad-cli binary resolution', () => {
     expect(resolveKicadCli()).toBe('kicad-cli');
     // A later override is ignored while the cache stands, then honoured after
     // a reset — which is what makes these tests independent of each other.
-    const bin = path.join(dir, 'kicad-cli');
+    const bin = path.join(dir, process.platform === 'win32' ? 'kicad-cli.exe' : 'kicad-cli');
     await writeFile(bin, '#!/bin/sh\nexit 0\n', 'utf8');
     process.env.COPPERHEAD_KICAD_CLI = bin;
     expect(resolveKicadCli()).toBe('kicad-cli');
