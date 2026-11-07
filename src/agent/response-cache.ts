@@ -4,6 +4,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from './types.js';
 
+export class CacheMissError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CacheMissError';
+  }
+}
+
 /**
  * Providers that speak the text tool protocol (`renderConversation` / `parseToolCalls`).
  * Their cache entries carry the protocol's parser version: a turn cached before the
@@ -74,7 +81,8 @@ export class CachingProvider implements Provider {
   }
 
   async chat(messages: Msg[], tools: ToolSchema[], opts?: ChatOpts): Promise<Turn> {
-    const file = path.join(this.dir, `${this.keyFor(messages, tools)}.json`);
+    const key = this.keyFor(messages, tools);
+    const file = path.join(this.dir, `${key}.json`);
     if (existsSync(file)) {
       try {
         const cached = JSON.parse(await readFile(file, 'utf8')) as Turn;
@@ -85,6 +93,9 @@ export class CachingProvider implements Provider {
       } catch {
         // corrupt/partial cache file — fall through and regenerate
       }
+    }
+    if (process.env.COPPERHEAD_CACHE_ONLY === '1') {
+      throw new CacheMissError(`Cache miss in COPPERHEAD_CACHE_ONLY mode for prompt hash: ${key}`);
     }
     const turn = await this.inner.chat(messages, tools, opts);
     try {
