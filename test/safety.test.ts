@@ -6,7 +6,7 @@ import path from 'node:path';
 import { resolveInRepo, SandboxError, isKicadFile } from '../src/util/paths.js';
 import { redactSecrets } from '../src/util/redact.js';
 import { withRetry } from '../src/util/retry.js';
-import { toolWriteFile, toolEditFile, toolSearch } from '../src/agent/filetools.js';
+import { toolWriteFile, toolEditFile, toolSearch, globToRegex } from '../src/agent/filetools.js';
 import { Transcript } from '../src/agent/transcript.js';
 import { isDirty, hasCommits, snapshot, restore } from '../src/util/git.js';
 import { PreflightError } from '../src/util/preflight.js';
@@ -193,6 +193,36 @@ describe('file tools', () => {
     const mdOnly = await toolSearch(dir, 'KEY_DAH', '**/*.md');
     expect(mdOnly).toHaveLength(1);
     expect(mdOnly[0]!.file).toBe('a.md');
+  });
+
+  it('normalizes Windows backslash separators in toolSearch and globToRegex (#260)', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    await mkdir(path.join(dir, 'docs'), { recursive: true });
+    await writeFile(path.join(dir, 'README.md'), 'NEEDLE root');
+    await writeFile(path.join(dir, 'docs', 'SPEC.md'), 'NEEDLE nested');
+
+    const origRelative = path.relative;
+    try {
+      // Simulate Windows path.relative returning backslash-separated paths.
+      path.relative = ((from: string, to: string) => origRelative(from, to).replace(/\//g, '\\')) as typeof path.relative;
+
+      const subOnly = await toolSearch(dir, 'NEEDLE', 'docs/*.md');
+      expect(subOnly).toHaveLength(1);
+      expect(subOnly[0]!.file).toBe('docs/SPEC.md');
+
+      const winGlob = await toolSearch(dir, 'NEEDLE', 'docs\\*.md');
+      expect(winGlob).toHaveLength(1);
+      expect(winGlob[0]!.file).toBe('docs/SPEC.md');
+
+      const rootOnly = await toolSearch(dir, 'NEEDLE', '*.md');
+      expect(rootOnly).toHaveLength(1);
+      expect(rootOnly[0]!.file).toBe('README.md');
+    } finally {
+      path.relative = origRelative;
+    }
+
+    expect(globToRegex('docs\\*.md').test('docs/SPEC.md')).toBe(true);
+    expect(globToRegex('*.md').test('docs/SPEC.md')).toBe(false);
   });
 
   it('isKicadFile covers the design formats', () => {
