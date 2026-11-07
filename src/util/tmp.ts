@@ -1,4 +1,4 @@
-import { readdir, stat, rm } from 'node:fs/promises';
+import { readdir, stat, rm, mkdtemp, writeFile, readFile, lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -67,6 +67,44 @@ export async function pruneHistoryDir(repoRoot: string, keepNewest = DEFAULT_HIS
  */
 export const TEMP_PREFIX = 'copperhead-';
 
+/**
+ * Ownership marker filename placed inside every sweepable temporary directory
+ * created by Copperhead. Prevents accidental recursive deletion of unrelated
+ * directories whose names begin with `copperhead-`.
+ */
+export const TEMP_OWNERSHIP_MARKER_NAME = '.copperhead-owned-temp';
+
+/**
+ * Exact contents of the ownership marker file.
+ */
+export const TEMP_OWNERSHIP_MARKER_CONTENT = 'copperhead-owned-temp\nv1\n';
+
+/**
+ * Create a scratch directory under `root` (defaults to OS tempdir) with the
+ * required `copperhead-` prefix, immediately stamped with the ownership marker.
+ * If marker creation fails, the newly created directory is cleaned up and the
+ * error is re-thrown.
+ */
+export async function createCopperheadTempDir(
+  prefixSuffix = '',
+  root = tmpdir(),
+): Promise<string> {
+  const prefix = prefixSuffix ? `${TEMP_PREFIX}${prefixSuffix}` : TEMP_PREFIX;
+  const dir = await mkdtemp(path.join(root, prefix));
+  try {
+    const markerPath = path.join(dir, TEMP_OWNERSHIP_MARKER_NAME);
+    await writeFile(markerPath, TEMP_OWNERSHIP_MARKER_CONTENT, 'utf8');
+  } catch (err) {
+    try {
+      await rm(dir, { recursive: true, force: true });
+    } catch {
+      // best-effort cleanup
+    }
+    throw err;
+  }
+  return dir;
+}
+
 /** Default staleness cutoff for the startup sweep: 2h. Safe even for multi-hour
  * runs (10-min turns × per-stage retries × 8 stages): a live run's only
  * long-lived scratch dir is the provider's reused cwd, which is `utimes`-touched
@@ -79,10 +117,13 @@ export const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
 /**
  * Remove leaked `copperhead-*` scratch dirs left in the OS temp dir by earlier
  * runs whose `finally` cleanup was skipped (watchdog kill / hard abort). Only
- * dirs whose mtime is older than `maxAgeMs` are removed, so a concurrent run's
- * fresh scratch dirs are never touched. Best-effort: every error is swallowed
- * (a temp dir we can't stat or remove is not worth failing a run over), and the
- * function returns the paths it removed so a caller can log the reclaim.
+ * dirs whose mtime is older than `maxAgeMs` AND that contain the positive
+ * ownership marker (`.copperhead-owned-temp`) are removed, so a concurrent run's
+ * fresh scratch dirs and unrelated user dirs matching the prefix are never touched.
+ * Symlinks are never followed (checked via `lstat`).
+ * Best-effort: every error is swallowed (a temp dir we can't stat or remove is
+ * not worth failing a run over), and the function returns the paths it removed
+ * so a caller can log the reclaim.
  *
  * `now` is injected so the behaviour is deterministically testable; callers pass
  * `Date.now()`. `root` is the OS temp dir; tests pass a private directory, since
@@ -102,9 +143,23 @@ export async function sweepStaleTempDirs(now: number, maxAgeMs = DEFAULT_STALE_M
     if (!name.startsWith(TEMP_PREFIX)) continue;
     const full = path.join(root, name);
     try {
-      const st = await stat(full);
-      if (!st.isDirectory()) continue;
-      if (now - st.mtimeMs < maxAgeMs) continue; // too fresh: could be a live run
+      const lst = await lstat(full);
+      if (!lst.isDirectory() || lst.isSymbolicLink()) continue;
+      if (now - lst.mtimeMs < maxAgeMs) continue; // too fresh: could be a live run
+
+      // Verify positive ownership marker before deletion
+      const markerPath = path.join(full, TEMP_OWNERSHIP_MARKER_NAME);
+      try {
+        const markerStat = await lstat(markerPath);
+        if (!markerStat.isFile() || markerStat.isSymbolicLink()) continue;
+        if (markerStat.size !== Buffer.byteLength(TEMP_OWNERSHIP_MARKER_CONTENT, 'utf8')) continue;
+        const markerContent = await readFile(markerPath, 'utf8');
+        if (markerContent !== TEMP_OWNERSHIP_MARKER_CONTENT) continue;
+      } catch {
+        // Missing marker, unreadable, or not a regular file: not a copperhead-owned scratch dir
+        continue;
+      }
+
       await rm(full, { recursive: true, force: true });
       removed.push(full);
     } catch {
