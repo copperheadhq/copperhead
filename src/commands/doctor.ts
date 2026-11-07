@@ -13,7 +13,7 @@ import {
   type CompatSettings,
   type CopperheadConfig,
 } from '../config.js';
-import { kicadCliVersion, MIN_KICAD_MAJOR } from '../kicad/cli.js';
+import { kicadCliVersion, KicadCliBadOverrideError, MIN_KICAD_MAJOR } from '../kicad/cli.js';
 import { redactSecrets } from '../util/redact.js';
 import { isNotFoundError } from '../util/preflight.js';
 
@@ -119,7 +119,27 @@ async function kicadCheck(probe: () => Promise<string>): Promise<DoctorCheck> {
       };
     }
     return { name: 'kicad-cli', status: 'ok', detail: raw };
-  } catch {
+  } catch (err) {
+    // An override that names nothing, and a binary that runs but fails, are
+    // not a missing install: "install KiCad" sends the user the wrong way.
+    if (err instanceof KicadCliBadOverrideError) {
+      return {
+        name: 'kicad-cli',
+        status: 'fail',
+        detail: err.reason,
+        hint: 'fix the path, or unset COPPERHEAD_KICAD_CLI to use kicad-cli from PATH.',
+      };
+    }
+    const exitCode = (err as { exitCode?: unknown }).exitCode;
+    if (typeof exitCode === 'number') {
+      const why = String((err as Error).message ?? '').trim().split('\n')[0] || `exit ${exitCode}`;
+      return {
+        name: 'kicad-cli',
+        status: 'fail',
+        detail: `found, but "kicad-cli version" failed (exit ${exitCode}): ${redactSecrets(why)}`,
+        hint: 'run "kicad-cli version" yourself to see why; reinstall KiCad >= 8 if it cannot start.',
+      };
+    }
     return {
       name: 'kicad-cli',
       status: 'fail',

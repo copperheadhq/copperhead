@@ -8,7 +8,7 @@ import {
   formatDoctor,
   type DoctorDeps,
 } from '../src/commands/doctor.js';
-import { MIN_KICAD_MAJOR } from '../src/kicad/cli.js';
+import { KicadCliBadOverrideError, MIN_KICAD_MAJOR } from '../src/kicad/cli.js';
 import { tempFixtureRepo } from './helpers.js';
 
 // Deps that make every host-dependent probe deterministic.
@@ -66,6 +66,51 @@ describe('copperhead doctor', () => {
       const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
       expect(kicad.status).toBe('fail');
       expect(kicad.hint).toMatch(/install KiCad/i);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('names a COPPERHEAD_KICAD_CLI that points nowhere instead of calling kicad-cli missing from PATH', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'claude-code',
+        deps: deps({
+          kicadVersion: async () => {
+            throw new KicadCliBadOverrideError('/opt/kicad/bin/kicad-cli');
+          },
+        }),
+      });
+      const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad.status).toBe('fail');
+      expect(kicad.detail).toContain('COPPERHEAD_KICAD_CLI');
+      expect(kicad.detail).toContain('/opt/kicad/bin/kicad-cli');
+      expect(kicad.detail).not.toMatch(/not found on PATH/);
+      expect(kicad.hint).toMatch(/unset COPPERHEAD_KICAD_CLI/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('tells a kicad-cli that runs but fails apart from a missing one', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const r = await runDoctor({
+        repoRoot: repo,
+        model: 'claude-code',
+        deps: deps({
+          // what runKicad throws when the binary starts and exits non-zero
+          kicadVersion: async () => {
+            throw Object.assign(new Error('This application failed to start because no Qt platform plugin could be initialized.'), { exitCode: 1 });
+          },
+        }),
+      });
+      const kicad = r.checks.find((c) => c.name === 'kicad-cli')!;
+      expect(kicad.status).toBe('fail');
+      expect(kicad.detail).not.toMatch(/not found on PATH/);
+      expect(kicad.detail).toContain('Qt platform plugin');
     } finally {
       await cleanup();
     }
