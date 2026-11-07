@@ -77,10 +77,12 @@ export const modelFixableMiss = (m: MissingFootprint): boolean => m.why !== 'no-
  * - milli: 100m, 100 m, 100mΩ, 100 mΩ, 100mohm, 100 mOhm, 100mF, 100mV, 100mA, 0m1
  * - mega:  100M, 100 M, 100MΩ, 100 MΩ, 100Mohm, 100 MOhm, 100MF, 100MV, 100MA, 4M7
  *
+ * Handles both U+03A9 (GREEK CAPITAL LETTER OMEGA) and U+2126 (OHM SIGN).
  * Non-prefix occurrences (e.g. '100 ohm', 'MAX3232', 'MCU8') return null.
  */
 export function getSiPrefixM(s: string): 'm' | 'M' | null {
-  const match = /\d\s*([mM])(?:(?:ohm|ohms|f|h|v|a|hz|w)\b|[ΩΩ]|(?=[\d\s,\/]|$))/i.exec(s);
+  const normalized = s.normalize('NFC');
+  const match = /\d\s*([mM])(?:(?:ohm|ohms|f|h|v|a|hz|w)\b|[\u03A9\u2126]|(?=[\d\s,\/]|$))/i.exec(normalized);
   return match ? (match[1] as 'm' | 'M') : null;
 }
 

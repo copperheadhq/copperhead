@@ -369,36 +369,76 @@ describe('validatePartsManifest', () => {
       expect(v3.findings.map((f) => f.detail)).toContain(
         'substitution for R3: "chosen" is "100MOhm" but the entry carries value "100mOhm"; they must agree',
       );
+
+      // Explicit code points: U+03A9 (GREEK CAPITAL LETTER OMEGA) and U+2126 (OHM SIGN)
+      const OMEGA_03A9 = '\u03A9';
+      const OHM_2126 = '\u2126';
+      expect(OMEGA_03A9.charCodeAt(0)).toBe(0x03a9);
+      expect(OHM_2126.charCodeAt(0)).toBe(0x2126);
+
+      // Manifest validation for U+2126 OHM SIGN
+      const R2126 = { ref: 'R4', value: `100m${OHM_2126}`, group: 'Power', package: '0603' };
+      const v4 = await validate(
+        manifest([R2126], {
+          substitutions: [{ ref: 'R4', wanted: `100m${OHM_2126}`, chosen: `100M${OHM_2126}`, reason: 'milli vs mega U+2126' }],
+        }),
+      );
+      expect(v4.findings.map((f) => f.detail)).toContain(
+        `substitution for R4: "chosen" is "100M${OHM_2126}" but the entry carries value "100m${OHM_2126}"; they must agree`,
+      );
+
+      const R2126Space = { ref: 'R5', value: `100 m${OHM_2126}`, group: 'Power', package: '0603' };
+      const v5 = await validate(
+        manifest([R2126Space], {
+          substitutions: [{ ref: 'R5', wanted: `100 m${OHM_2126}`, chosen: `100 M${OHM_2126}`, reason: 'milli vs mega with space U+2126' }],
+        }),
+      );
+      expect(v5.findings.map((f) => f.detail)).toContain(
+        `substitution for R5: "chosen" is "100 M${OHM_2126}" but the entry carries value "100 m${OHM_2126}"; they must agree`,
+      );
     });
 
     it('distinguishes SI prefix case in substitutionCarriesChosen helper across spelling and spacing variants', () => {
-      // Rejection: milli vs mega variations
-      expect(substitutionCarriesChosen({ value: '100mΩ' }, '100MΩ')).toBe(false);
-      expect(substitutionCarriesChosen({ value: '100 mΩ' }, '100 MΩ')).toBe(false);
+      const OMEGA_03A9 = '\u03A9';
+      const OHM_2126 = '\u2126';
+      expect(OMEGA_03A9.charCodeAt(0)).toBe(0x03a9);
+      expect(OHM_2126.charCodeAt(0)).toBe(0x2126);
+
+      // Rejection: milli vs mega variations with explicit code points U+03A9 and U+2126
+      expect(substitutionCarriesChosen({ value: `100m${OMEGA_03A9}` }, `100M${OMEGA_03A9}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100 m${OMEGA_03A9}` }, `100 M${OMEGA_03A9}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, `100M${OHM_2126}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100 m${OHM_2126}` }, `100 M${OHM_2126}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, `100M${OMEGA_03A9}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100m${OMEGA_03A9}` }, `100M${OHM_2126}`)).toBe(false);
       expect(substitutionCarriesChosen({ value: '100mOhm' }, '100MOhm')).toBe(false);
       expect(substitutionCarriesChosen({ value: '100mohm' }, '100Mohm')).toBe(false);
       expect(substitutionCarriesChosen({ value: '100 mOhm' }, '100 MOhm')).toBe(false);
       expect(substitutionCarriesChosen({ value: '100m' }, '100M')).toBe(false);
       expect(substitutionCarriesChosen({ value: '100 m' }, '100 M')).toBe(false);
-      expect(substitutionCarriesChosen({ value: '100mΩ' }, '100MΩ 1%')).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, `100M${OHM_2126} 1%`)).toBe(false);
 
       // Acceptance: legitimate equivalent resistance spellings (same SI multiplier)
-      expect(substitutionCarriesChosen({ value: '100mΩ' }, '100mohm')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '100 mΩ' }, '100 mohm')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '100 mΩ' }, '100 mOhm')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '100mOhm' }, '100mohm')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '100MΩ' }, '100Mohm')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '100 MΩ' }, '100 Mohm')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '100 MΩ' }, '100 MOhm')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '100MOhm' }, '100Mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, `100m${OMEGA_03A9}`)).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100m${OMEGA_03A9}` }, `100m${OHM_2126}`)).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, '100mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100 m${OHM_2126}` }, '100 mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100 m${OHM_2126}` }, '100 mOhm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100M${OHM_2126}` }, `100M${OMEGA_03A9}`)).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100M${OMEGA_03A9}` }, `100M${OHM_2126}`)).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100M${OHM_2126}` }, '100Mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100 M${OHM_2126}` }, '100 Mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100 M${OHM_2126}` }, '100 MOhm')).toBe(true);
       expect(substitutionCarriesChosen({ value: '100m' }, '100 m')).toBe(true);
       expect(substitutionCarriesChosen({ value: '100M' }, '100 M')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '10kΩ' }, '10kohm')).toBe(true);
-      expect(substitutionCarriesChosen({ value: '10 kΩ' }, '10 kohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `10k${OHM_2126}` }, '10kohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `10 k${OHM_2126}` }, '10 kohm')).toBe(true);
 
       // Non-prefix words are not falsely extracted as m/M prefix
       expect(getSiPrefixM('100 ohm')).toBeNull();
-      expect(getSiPrefixM('100 Ω')).toBeNull();
+      expect(getSiPrefixM(`100 ${OMEGA_03A9}`)).toBeNull();
+      expect(getSiPrefixM(`100 ${OHM_2126}`)).toBeNull();
+      expect(getSiPrefixM(`100${OHM_2126}`)).toBeNull();
       expect(getSiPrefixM('MCU8')).toBeNull();
       expect(getSiPrefixM('MAX3232')).toBeNull();
     });
