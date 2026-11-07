@@ -251,7 +251,7 @@ export function killProcessTree(
   processGroup = false,
   ops?: ProcessTreeKillOps,
 ): void {
-  if (!pid) return;
+  if (!pid || typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return;
   const currentPlatform = ops?.platform ?? process.platform;
   if (currentPlatform === 'win32') {
     try {

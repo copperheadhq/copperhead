@@ -57,6 +57,27 @@ function mockUnitDeps(over: Partial<CapabilityDeps> = {}): CapabilityDeps {
 const IS_WINDOWS = process.platform === 'win32';
 
 /**
+ * Public top-level commands explicitly defined by SPEC.md Section 3 CLI surface.
+ * Represents the immutable specification floor for public command discovery.
+ */
+const SPEC_MANDATED_COMMANDS = [
+  'capabilities',
+  'check',
+  'create',
+  'demo',
+  'do',
+  'draft',
+  'explain',
+  'init',
+  'mcp',
+  'repl',
+  'review',
+  'score',
+  'skill',
+  'sync',
+];
+
+/**
  * Write a fake external executable for PATH-based probe tests.
  * `body` is a cmd batch body on Windows and a sh body elsewhere.
  */
@@ -423,6 +444,58 @@ describe('hermetic collectCapabilities with injected dependencies', () => {
   it('returns empty array when neither program nor explicit commands are given', () => {
     expect(extractPublicCommands()).toEqual([]);
   });
+
+  it('automatically includes future additive commands without count coupling', () => {
+    const prog = new Command();
+    for (const cmd of SPEC_MANDATED_COMMANDS) {
+      prog.command(cmd);
+    }
+    prog.command('diff'); // future additive command (e.g. PR #415)
+
+    const commands = extractPublicCommands(prog);
+    expect(commands).toEqual(expect.arrayContaining(SPEC_MANDATED_COMMANDS));
+    expect(commands).toContain('diff');
+    expect(commands.length).toBe(SPEC_MANDATED_COMMANDS.length + 1);
+  });
+
+  it('detects disparity when a required command is omitted from program registration', () => {
+    const fullProgram = new Command();
+    for (const cmd of SPEC_MANDATED_COMMANDS) {
+      fullProgram.command(cmd);
+    }
+
+    const partialProgram = new Command();
+    for (const cmd of SPEC_MANDATED_COMMANDS) {
+      if (cmd !== 'sync') {
+        partialProgram.command(cmd);
+      }
+    }
+
+    const fullCommands = extractPublicCommands(fullProgram);
+    const partialCommands = extractPublicCommands(partialProgram);
+
+    // Exercises production extractPublicCommands: disparity between inventories is detected
+    expect(fullCommands).toEqual(expect.arrayContaining(SPEC_MANDATED_COMMANDS));
+    expect(partialCommands).not.toEqual(expect.arrayContaining(SPEC_MANDATED_COMMANDS));
+    expect(partialCommands).not.toEqual(fullCommands);
+    expect(fullCommands.filter((c) => !partialCommands.includes(c))).toEqual(['sync']);
+  });
+
+  it('propagates unexpected error if program command inspection throws', async () => {
+    const throwingProgram = {
+      commands: [
+        {
+          name: () => {
+            throw new Error('Fatal Commander inspection failure');
+          },
+        },
+      ],
+    } as unknown as Command;
+
+    await expect(collectCapabilities({ program: throwingProgram })).rejects.toThrow(
+      'Fatal Commander inspection failure',
+    );
+  });
 });
 
 describe('subprocess adapter and probe deadline enforcement', () => {
@@ -671,17 +744,20 @@ describe('subprocess adapter and probe deadline enforcement', () => {
     });
   });
 
-  it('safely handles undefined or 0 pid in killProcessTree without issuing process operations', () => {
+  it('safely handles undefined, 0, negative, NaN, or non-integer pid in killProcessTree without issuing process operations', () => {
+    const invalidPids = [undefined, 0, -1, -42, NaN, 12.34, -0, Infinity, -Infinity];
+
     const winExecSpy = vi.fn();
-    killProcessTree(undefined, false, { platform: 'win32', execFileSync: winExecSpy });
-    killProcessTree(0, false, { platform: 'win32', execFileSync: winExecSpy });
+    for (const pid of invalidPids) {
+      killProcessTree(pid, false, { platform: 'win32', execFileSync: winExecSpy });
+    }
     expect(winExecSpy).not.toHaveBeenCalled();
 
     const posixKillSpy = vi.fn();
-    killProcessTree(undefined, true, { platform: 'linux', kill: posixKillSpy });
-    killProcessTree(0, true, { platform: 'linux', kill: posixKillSpy });
-    killProcessTree(undefined, false, { platform: 'linux', kill: posixKillSpy });
-    killProcessTree(0, false, { platform: 'linux', kill: posixKillSpy });
+    for (const pid of invalidPids) {
+      killProcessTree(pid, true, { platform: 'linux', kill: posixKillSpy });
+      killProcessTree(pid, false, { platform: 'linux', kill: posixKillSpy });
+    }
     expect(posixKillSpy).not.toHaveBeenCalled();
   });
 
@@ -1321,30 +1397,52 @@ describe('real CLI process execution (published build and source entry point)', 
     expect(res.stdout).toContain('Protocol:');
   });
 
-  it('structurally rejects unimplemented protocol options in Phase 0', async () => {
+  it('structurally rejects unimplemented protocol options in Phase 0 and isolates error output', async () => {
+    const minimalEnv: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      SystemRoot: process.env.SystemRoot,
+      windir: process.env.windir,
+      NO_COLOR: '1',
+      COPPERHEAD_TEST_SECRET: 'super-secret-key-xyz123',
+    };
+
     const streamRes = await execa(process.execPath, [DIST_CLI, 'capabilities', '--event-stream'], {
       cwd: ROOT,
       reject: false,
-      env: { NO_COLOR: '1', PATH: process.env.PATH },
+      extendEnv: false,
+      env: minimalEnv,
     });
-    expect(streamRes.exitCode).not.toBe(0);
+    expect(streamRes.exitCode).toBe(1);
     expect(streamRes.stderr).toMatch(/unknown option/i);
+    expect(streamRes.stdout.trim()).toBe('');
+    expect(streamRes.stderr).not.toContain('super-secret-key-xyz123');
 
     const resultRes = await execa(process.execPath, [DIST_CLI, 'capabilities', '--result'], {
       cwd: ROOT,
       reject: false,
-      env: { NO_COLOR: '1', PATH: process.env.PATH },
+      extendEnv: false,
+      env: minimalEnv,
     });
-    expect(resultRes.exitCode).not.toBe(0);
+    expect(resultRes.exitCode).toBe(1);
     expect(resultRes.stderr).toMatch(/unknown option/i);
+    expect(resultRes.stdout.trim()).toBe('');
+    expect(resultRes.stderr).not.toContain('super-secret-key-xyz123');
   });
 
   it('derives expected commands independently from observed CLI registration and guarantees parity', async () => {
+    const minimalEnv: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      SystemRoot: process.env.SystemRoot,
+      windir: process.env.windir,
+      NO_COLOR: '1',
+    };
+
     // Read actual CLI help output to derive registered public primary command set
     const helpRes = await execa(process.execPath, [DIST_CLI, '--help'], {
       cwd: ROOT,
       reject: false,
-      env: { NO_COLOR: '1', PATH: process.env.PATH },
+      extendEnv: false,
+      env: minimalEnv,
     });
     expect(helpRes.exitCode).toBe(0);
 
@@ -1376,40 +1474,73 @@ describe('real CLI process execution (published build and source entry point)', 
     }
     const expectedSorted = [...observedCommands].sort();
 
-    // Verify observed command set is complete and truthful
-    expect(observedCommands.length).toBe(16);
-    expect(observedCommands).toEqual(
-      expect.arrayContaining([
-        'capabilities',
-        'check',
-        'create',
-        'demo',
-        'do',
-        'doctor',
-        'draft',
-        'explain',
-        'export',
-        'init',
-        'mcp',
-        'repl',
-        'review',
-        'score',
-        'skill',
-        'sync',
-      ]),
-    );
+    // Verify observed command set includes the full set of public commands mandated by SPEC.md
+    expect(observedCommands).toEqual(expect.arrayContaining(SPEC_MANDATED_COMMANDS));
+
+    // Ensure no duplicate registrations, aliases, or subcommands leaked into observed help output
+    expect(new Set(observedCommands).size).toBe(observedCommands.length);
+    expect(observedCommands).not.toContain('verify');
+    expect(observedCommands).not.toContain('help');
+    expect(observedCommands).not.toContain('schematic');
+    expect(observedCommands).not.toContain('bom');
+    expect(observedCommands).not.toContain('list');
 
     // Verify capabilities --json descriptor matches the independently observed command set exactly
     const capRes = await execa(process.execPath, [DIST_CLI, 'capabilities', '--json'], {
       cwd: ROOT,
       reject: false,
-      env: { NO_COLOR: '1', PATH: process.env.PATH },
+      extendEnv: false,
+      env: minimalEnv,
     });
     expect(capRes.exitCode).toBe(0);
 
     const parsed = JSON.parse(capRes.stdout) as CapabilityReport;
-    expect(parsed.commands.length).toBe(16);
+    // Strict independent command parity validation without hardcoded count
+    expect(new Set(parsed.commands).size).toBe(parsed.commands.length);
     expect(parsed.commands).toEqual(expectedSorted);
+
+    // Verify capabilities descriptor independently contains all spec-mandated public commands
+    expect(parsed.commands).toEqual(expect.arrayContaining(SPEC_MANDATED_COMMANDS));
+    expect(parsed.commands).not.toContain('verify');
+    expect(parsed.commands).not.toContain('help');
+    expect(parsed.commands).not.toContain('schematic');
+    expect(parsed.commands).not.toContain('bom');
+    expect(parsed.commands).not.toContain('list');
+  });
+
+  it('does not leak ambient environment secrets into capability JSON output or stderr', async () => {
+    const sentinelKey = 'COPPERHEAD_TEST_SECRET_PARENT_TOKEN';
+    const sentinelVal = 'token-4b71-sensitive-credential';
+    const hadSentinel = Object.prototype.hasOwnProperty.call(process.env, sentinelKey);
+    const prevVal = process.env[sentinelKey];
+    process.env[sentinelKey] = sentinelVal;
+
+    try {
+      const res = await execa(process.execPath, [DIST_CLI, 'capabilities', '--json'], {
+        cwd: ROOT,
+        reject: false,
+        extendEnv: false,
+        env: {
+          PATH: process.env.PATH,
+          SystemRoot: process.env.SystemRoot,
+          windir: process.env.windir,
+          NO_COLOR: '1',
+          [sentinelKey]: sentinelVal,
+        },
+      });
+
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout).not.toContain(sentinelVal);
+      expect(res.stderr).not.toContain(sentinelVal);
+      const parsed = JSON.parse(res.stdout) as CapabilityReport;
+      expect(parsed.protocol).toBe('copperhead-run/1');
+    } finally {
+      if (hadSentinel) {
+        process.env[sentinelKey] = prevVal;
+      } else {
+        delete process.env[sentinelKey];
+      }
+    }
   });
 
   it('guarantees build versus source CLI semantic parity using direct tsx execution', async () => {
@@ -1431,22 +1562,25 @@ describe('real CLI process execution (published build and source entry point)', 
         IS_WINDOWS ? '@echo 10.0.4' : 'echo "10.0.4"',
       );
 
-      const controlledEnv = {
-        ...process.env,
+      const controlledEnv: NodeJS.ProcessEnv = {
         NO_COLOR: '1',
         PATH: `${scratchDir}${path.delimiter}${process.env.PATH ?? ''}`,
+        SystemRoot: process.env.SystemRoot,
+        windir: process.env.windir,
         COPPERHEAD_KICAD_CLI: fakeKicad,
       };
 
       const distRes = await execa(process.execPath, [DIST_CLI, 'capabilities', '--json'], {
         cwd: ROOT,
         reject: false,
+        extendEnv: false,
         env: controlledEnv,
       });
 
       const srcRes = await execa(process.execPath, [TSX_CLI, SRC_CLI, 'capabilities', '--json'], {
         cwd: ROOT,
         reject: false,
+        extendEnv: false,
         env: controlledEnv,
       });
 
