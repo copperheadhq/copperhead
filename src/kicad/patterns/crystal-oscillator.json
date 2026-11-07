@@ -1,0 +1,53 @@
+{
+  "name": "crystal-oscillator",
+  "description": "Standard crystal oscillator resonant circuit with dual load capacitors, matching canonical crystal flanking topology.",
+  "parts": [
+    {
+      "ref": "Y1",
+      "libId": "Device:Crystal",
+      "value": "16MHz",
+      "footprint": "Crystal:Crystal_SMD_HC49-SD",
+      "group": "Clock"
+    },
+    {
+      "ref": "C1",
+      "libId": "Device:C",
+      "value": "22p",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Clock"
+    },
+    {
+      "ref": "C2",
+      "libId": "Device:C",
+      "value": "22p",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Clock"
+    }
+  ],
+  "nets": [
+    {
+      "name": "XTAL1",
+      "pins": [
+        "Y1.1",
+        "C1.1"
+      ],
+      "kind": "signal"
+    },
+    {
+      "name": "XTAL2",
+      "pins": [
+        "Y1.2",
+        "C2.1"
+      ],
+      "kind": "signal"
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C1.2",
+        "C2.2"
+      ],
+      "kind": "ground"
+    }
+  ]
+}
