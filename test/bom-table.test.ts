@@ -496,7 +496,8 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
     return md.render(table).replace(/\s+/g, ' ').trim();
   }
 
-  it('escaped pipe within a rendered BOM.md cell parses as 6 columns and preserves Symbol identity', () => {
+  describe('Handwritten GFM table row parsing (GFM §4.10 / CommonMark §6.4)', () => {
+    it('escaped pipe within a rendered BOM.md cell parses as 6 columns and preserves Symbol identity', () => {
     const table = [
       '# BOM',
       '',
@@ -622,7 +623,9 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
     expect(findMatchingBacktickClose('``a`', 2, 2)).toBe(-1); // shorter closing run
     expect(findMatchingBacktickClose('```a``b```', 3, 3)).toBe(7);
   });
+  });
 
+  describe('Generated GFM table cell escaping and lossless round-trip', () => {
   it('round-trips 0 through 8 backslashes before pipe inside and outside code spans', () => {
     for (let k = 0; k <= 8; k++) {
       // Outside code spans
@@ -663,11 +666,14 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
       expect(unescapeCell(escaped)).toBe(val);
     }
   });
+  });
 
+  describe('GFM oracle agreement (markdown-it)', () => {
   it('matches GFM markdown-it oracle rendering', () => {
     expect(renderTableHtml(escapeCell('10k | 1%'))).toContain('<td>10k | 1%</td>');
     expect(renderTableHtml(escapeCell('`10k | 1%`'))).toContain('<td><code>10k | 1%</code></td>');
     expect(renderTableHtml(escapeCell('`C:\\tools\\bin`'))).toContain('<td><code>C:\\tools\\bin</code></td>');
     expect(renderTableHtml(escapeCell('C:\\tools\\bin'))).toContain('<td>C:\\tools\\bin</td>');
+  });
   });
 });

@@ -5,7 +5,13 @@ import { mkdtemp, mkdir, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { parseManifest, MANIFEST_VERSION } from '../src/kicad/parts/manifest.js';
 import { passiveDefault, allPassiveFootprints, isPassivePrefix } from '../src/kicad/parts/passives.js';
-import { validatePartsManifest, formatManifestFindings, subsystemHeadings } from '../src/kicad/parts/validate.js';
+import {
+  validatePartsManifest,
+  formatManifestFindings,
+  subsystemHeadings,
+  substitutionCarriesChosen,
+  getSiPrefixM,
+} from '../src/kicad/parts/validate.js';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { FootprintResolver, footprintSearchDirs } from '../src/kicad/footprints.js';
 import { symbolSearchDirs, resolveLibrarySymbol } from '../src/kicad/symlib.js';
@@ -334,14 +340,67 @@ describe('validatePartsManifest', () => {
 
     it('rejects case/spacing differences that change real procurement identity (e.g. 100m vs 100M)', async () => {
       const R100M = { ref: 'R1', value: '100M', group: 'Power', package: '0603' };
-      const v = await validate(
+      const v1 = await validate(
         manifest([R100M], {
           substitutions: [{ ref: 'R1', wanted: '100M', chosen: '100m', reason: 'milli vs mega mismatch' }],
         }),
       );
-      expect(v.findings.map((f) => f.detail)).toContain(
+      expect(v1.findings.map((f) => f.detail)).toContain(
         'substitution for R1: "chosen" is "100m" but the entry carries value "100M"; they must agree',
       );
+
+      // Manifest validation for whitespace and SI unit variants
+      const RmOhm = { ref: 'R2', value: '100 mΩ', group: 'Power', package: '0603' };
+      const v2 = await validate(
+        manifest([RmOhm], {
+          substitutions: [{ ref: 'R2', wanted: '100 mΩ', chosen: '100 MΩ', reason: 'milli vs mega with space and omega' }],
+        }),
+      );
+      expect(v2.findings.map((f) => f.detail)).toContain(
+        'substitution for R2: "chosen" is "100 MΩ" but the entry carries value "100 mΩ"; they must agree',
+      );
+
+      const Rword = { ref: 'R3', value: '100mOhm', group: 'Power', package: '0603' };
+      const v3 = await validate(
+        manifest([Rword], {
+          substitutions: [{ ref: 'R3', wanted: '100mOhm', chosen: '100MOhm', reason: 'milli vs mega Ohm spelling' }],
+        }),
+      );
+      expect(v3.findings.map((f) => f.detail)).toContain(
+        'substitution for R3: "chosen" is "100MOhm" but the entry carries value "100mOhm"; they must agree',
+      );
+    });
+
+    it('distinguishes SI prefix case in substitutionCarriesChosen helper across spelling and spacing variants', () => {
+      // Rejection: milli vs mega variations
+      expect(substitutionCarriesChosen({ value: '100mΩ' }, '100MΩ')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100 mΩ' }, '100 MΩ')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100mOhm' }, '100MOhm')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100mohm' }, '100Mohm')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100 mOhm' }, '100 MOhm')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100m' }, '100M')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100 m' }, '100 M')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100mΩ' }, '100MΩ 1%')).toBe(false);
+
+      // Acceptance: legitimate equivalent resistance spellings (same SI multiplier)
+      expect(substitutionCarriesChosen({ value: '100mΩ' }, '100mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100 mΩ' }, '100 mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100 mΩ' }, '100 mOhm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100mOhm' }, '100mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100MΩ' }, '100Mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100 MΩ' }, '100 Mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100 MΩ' }, '100 MOhm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100MOhm' }, '100Mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100m' }, '100 m')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100M' }, '100 M')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '10kΩ' }, '10kohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '10 kΩ' }, '10 kohm')).toBe(true);
+
+      // Non-prefix words are not falsely extracted as m/M prefix
+      expect(getSiPrefixM('100 ohm')).toBeNull();
+      expect(getSiPrefixM('100 Ω')).toBeNull();
+      expect(getSiPrefixM('MCU8')).toBeNull();
+      expect(getSiPrefixM('MAX3232')).toBeNull();
     });
 
     it('rejects a chosen symbol name with conflicting canonical MPN', async () => {

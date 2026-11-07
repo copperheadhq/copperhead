@@ -71,6 +71,20 @@ export function subsystemHeadings(md: string | null | undefined): string[] | nul
 export const modelFixableMiss = (m: MissingFootprint): boolean => m.why !== 'no-library' || (m.near.length > 0 && !m.fuzzy);
 
 /**
+ * Detects an 'm' (milli, 10^-3) vs 'M' (mega, 10^6) SI prefix multiplier in a component value string.
+ *
+ * Distinguishes case-significant electrical SI multipliers that collide under case-folding:
+ * - milli: 100m, 100 m, 100mΩ, 100 mΩ, 100mohm, 100 mOhm, 100mF, 100mV, 100mA, 0m1
+ * - mega:  100M, 100 M, 100MΩ, 100 MΩ, 100Mohm, 100 MOhm, 100MF, 100MV, 100MA, 4M7
+ *
+ * Non-prefix occurrences (e.g. '100 ohm', 'MAX3232', 'MCU8') return null.
+ */
+export function getSiPrefixM(s: string): 'm' | 'M' | null {
+  const match = /\d\s*([mM])(?:(?:ohm|ohms|f|h|v|a|hz|w)\b|[ΩΩ]|(?=[\d\s,\/]|$))/i.exec(s);
+  return match ? (match[1] as 'm' | 'M') : null;
+}
+
+/**
  * Checks whether a manifest part entry carries the substitution's chosen part.
  *
  * Per SPEC.md AC-19.1:
@@ -107,16 +121,19 @@ export function substitutionCarriesChosen(
   // 2. Value agreement
   const partVal = part.value.trim();
 
-  // SI unit sensitivity: '100m' (milli) != '100M' (mega)
-  const hasUnitM = /(?:^|\d)[mM](?:ohm|Ω|F|H|V|A)?$/.test(partVal) || /(?:^|\d)[mM](?:ohm|Ω|F|H|V|A)?$/.test(chosen);
+  // SI unit sensitivity: 'm' (milli) != 'M' (mega)
+  const prefixPart = getSiPrefixM(partVal);
+  const prefixChosen = getSiPrefixM(chosen);
+  const prefixesConflict = (prefixPart !== null || prefixChosen !== null) && prefixPart !== prefixChosen;
+  if (prefixesConflict) return false;
 
   const valNorm = normalizeValue(part.value);
   const chosenNorm = normalizeValue(chosenStr);
 
   const isValueMatch =
-    (!hasUnitM && partVal.toLowerCase() === chosenLower) ||
+    partVal.toLowerCase() === chosenLower ||
     partVal === chosen ||
-    (valNorm && chosenNorm && !hasUnitM && valNorm === chosenNorm);
+    (valNorm && chosenNorm && valNorm === chosenNorm);
 
   if (isValueMatch) return true;
 
