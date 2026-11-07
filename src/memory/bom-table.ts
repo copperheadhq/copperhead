@@ -45,7 +45,14 @@ export function findMatchingBacktickCloseInCell(text: string, fromIndex: number,
       const bsStart = idx;
       while (idx < text.length && text[idx] === '\\') idx++;
       if (idx < text.length && text[idx] === '|') {
-        // Under GFM §4.10, any backslash before pipe in a table row escapes the pipe delimiter
+        if ((idx - bsStart) % 2 === 0) {
+          // Under cmark-gfm table scanning (ext_scanners.re), an even number of backslashes
+          // pairs up as escaped backslashes, leaving '|' as an unescaped table delimiter.
+          // Cell splitting precedes inline parsing; the code span cannot span across cells.
+          return -1;
+        }
+        // Odd number of backslashes: the pipe is escaped by the odd backslash (\|).
+        // It does not delimit the cell, so skip past the pipe.
         idx++;
       }
     } else if (text[idx] === '|') {
@@ -103,8 +110,18 @@ export function escapeCell(text: string | undefined | null): string {
             while (j < closeIdx && normalized[j] === '\\') j++;
             const bsCount = j - bsStart;
             if (j < closeIdx && normalized[j] === '|') {
-              // Table parser consumes 1 backslash for the pipe escape; emit bsCount + 1 to preserve bsCount literal backslashes
-              result += '\\'.repeat(bsCount + 1) + '|';
+              // Table parser consumes 1 backslash for the pipe escape.
+              // In GFM table scanning, to prevent '|' from splitting the cell, the emitted
+              // backslash count before '|' must be ODD.
+              // For even bsCount (0, 2, 4, 6, 8): emit bsCount + 1 backslashes (odd).
+              // The table parser consumes 1 backslash, leaving exactly bsCount literal backslashes (lossless).
+              // For odd bsCount (1, 3, 5, 7): in GFM pipe tables, representing an odd number of
+              // literal backslashes immediately before a pipe inside a code span is mathematically
+              // impossible without either splitting the cell (if even) or altering the backslash count.
+              // Emitting bsCount backslashes (already odd) preserves table structural integrity
+              // (does not split) and yields bsCount - 1 literal backslashes upon parsing.
+              const emitCount = bsCount % 2 === 0 ? bsCount + 1 : bsCount;
+              result += '\\'.repeat(emitCount) + '|';
               j++;
             } else {
               result += '\\'.repeat(bsCount);

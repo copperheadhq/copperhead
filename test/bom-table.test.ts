@@ -565,14 +565,14 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
     // 1 backslash: escaped pipe does NOT split; table parser consumes 1 backslash (0 literal backslashes remain)
     expect(splitRow('| `a\\|b` | c |')).toEqual(['`a|b`', 'c']);
 
-    // 2 backslashes: escaped pipe does NOT split; table parser consumes 1 backslash (1 literal backslash remains)
-    expect(splitRow('| `a\\\\|b` | c |')).toEqual(['`a\\|b`', 'c']);
+    // 2 backslashes: escaped backslash followed by unescaped pipe -> SPLITS into 3 cells under canonical cmark-gfm
+    expect(splitRow('| `a\\\\|b` | c |')).toEqual(['`a\\', 'b`', 'c']);
 
     // 3 backslashes: escaped pipe does NOT split; table parser consumes 1 backslash (2 literal backslashes remain)
     expect(splitRow('| `a\\\\\\|b` | c |')).toEqual(['`a\\\\|b`', 'c']);
 
-    // 4 backslashes: escaped pipe does NOT split; table parser consumes 1 backslash (3 literal backslashes remain)
-    expect(splitRow('| `a\\\\\\\\|b` | c |')).toEqual(['`a\\\\\\|b`', 'c']);
+    // 4 backslashes: two escaped backslashes followed by unescaped pipe -> SPLITS into 3 cells under canonical cmark-gfm
+    expect(splitRow('| `a\\\\\\\\|b` | c |')).toEqual(['`a\\\\', 'b`', 'c']);
   });
 
   it('enforces backslash-escape parity inside multi-backtick code spans', () => {
@@ -582,14 +582,14 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
     // 1 backslash: escaped pipe does NOT split (0 literal backslashes remain)
     expect(splitRow('| ``a\\|b`` | c |')).toEqual(['``a|b``', 'c']);
 
-    // 2 backslashes: escaped pipe does NOT split (1 literal backslash remains)
-    expect(splitRow('| ``a\\\\|b`` | c |')).toEqual(['``a\\|b``', 'c']);
+    // 2 backslashes: escaped backslash followed by unescaped pipe -> SPLITS into 3 cells under canonical cmark-gfm
+    expect(splitRow('| ``a\\\\|b`` | c |')).toEqual(['``a\\', 'b``', 'c']);
 
     // 3 backslashes: escaped pipe does NOT split (2 literal backslashes remain)
     expect(splitRow('| ``a\\\\\\|b`` | c |')).toEqual(['``a\\\\|b``', 'c']);
 
-    // 4 backslashes: escaped pipe does NOT split (3 literal backslashes remain)
-    expect(splitRow('| ``a\\\\\\\\|b`` | c |')).toEqual(['``a\\\\\\|b``', 'c']);
+    // 4 backslashes: two escaped backslashes followed by unescaped pipe -> SPLITS into 3 cells under canonical cmark-gfm
+    expect(splitRow('| ``a\\\\\\\\|b`` | c |')).toEqual(['``a\\\\', 'b``', 'c']);
   });
 
   it('handles trailing border pipes with 0-4 backslashes correctly', () => {
@@ -628,20 +628,44 @@ describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
   describe('Generated GFM table cell escaping and lossless round-trip', () => {
   it('round-trips 0 through 8 backslashes before pipe inside and outside code spans', () => {
     for (let k = 0; k <= 8; k++) {
-      // Outside code spans
+      // Outside code spans: all k from 0..8 round-trip 100% losslessly
       const origOut = `a${'\\'.repeat(k)}|b`;
       expect(splitRow(`| ${escapeCell(origOut)} |`)[0]).toBe(origOut);
       expect(unescapeCell(escapeCell(origOut))).toBe(origOut);
 
       // Inside single-backtick code spans
       const origIn = `\`a${'\\'.repeat(k)}|b\``;
-      expect(splitRow(`| ${escapeCell(origIn)} |`)[0]).toBe(origIn);
-      expect(unescapeCell(escapeCell(origIn))).toBe(origIn);
+      const parsedIn = splitRow(`| ${escapeCell(origIn)} |`);
+      // Structural integrity: cell is NEVER split into extra columns
+      expect(parsedIn).toHaveLength(1);
+
+      if (k % 2 === 0) {
+        // Even k: exactly lossless round trip (emit k+1 backslashes, table parser strips 1 -> k remain)
+        expect(parsedIn[0]).toBe(origIn);
+        expect(unescapeCell(escapeCell(origIn))).toBe(origIn);
+      } else {
+        // Odd k: GFM representability boundary. An odd number of literal backslashes immediately
+        // preceding a pipe inside a code span cannot be represented without either splitting the cell
+        // (if even backslashes are emitted) or consuming 1 backslash (leaving k - 1 backslashes).
+        // escapeCell preserves cell integrity (1 column) and yields k - 1 backslashes.
+        const expectedOdd = `\`a${'\\'.repeat(k - 1)}|b\``;
+        expect(parsedIn[0]).toBe(expectedOdd);
+        expect(unescapeCell(escapeCell(origIn))).toBe(expectedOdd);
+      }
 
       // Inside double-backtick code spans
       const origDouble = `\`\`a${'\\'.repeat(k)}|b\`\``;
-      expect(splitRow(`| ${escapeCell(origDouble)} |`)[0]).toBe(origDouble);
-      expect(unescapeCell(escapeCell(origDouble))).toBe(origDouble);
+      const parsedDouble = splitRow(`| ${escapeCell(origDouble)} |`);
+      expect(parsedDouble).toHaveLength(1);
+
+      if (k % 2 === 0) {
+        expect(parsedDouble[0]).toBe(origDouble);
+        expect(unescapeCell(escapeCell(origDouble))).toBe(origDouble);
+      } else {
+        const expectedOddDouble = `\`\`a${'\\'.repeat(k - 1)}|b\`\``;
+        expect(parsedDouble[0]).toBe(expectedOddDouble);
+        expect(unescapeCell(escapeCell(origDouble))).toBe(expectedOddDouble);
+      }
     }
   });
 
