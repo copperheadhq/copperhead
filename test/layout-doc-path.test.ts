@@ -22,9 +22,12 @@ describe('the layout document path is named everywhere the gate reads it (#310)'
     expect(root).not.toContain('is not read');
   });
 
-  it('the stage prompt says edit_file is the tool for tracks, zones and reference text', () => {
+  it('the stage prompt routes a Reference label through move_footprint and keeps edit_file for the rest', () => {
     const prompt = layout.prompt('brief', 'docs/');
-    expect(prompt).toMatch(/Everything else on the board is an anchored edit_file .* tracks, vias, zones, the outline, and the \(at …\) inside a part's Reference or Value property \(the label's own position, not the footprint's\)/);
+    // #380: the Reference label is placed with label_x/label_y, never hand-edited
+    expect(prompt).toMatch(/label_x\/label_y/);
+    expect(prompt).not.toMatch(/a part's Reference or Value property/);
+    expect(prompt).toMatch(/Everything else on the board is an anchored edit_file .* tracks, vias, zones, the outline, and the \(at …\) inside a part's Value property/);
   });
 
   it('the failure text names the path, and the stray root LAYOUT.md when that is the cause', async () => {
