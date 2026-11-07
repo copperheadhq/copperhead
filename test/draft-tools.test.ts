@@ -181,7 +181,13 @@ describe('stage-4 drafting contract (AC-16.20)', () => {
     try {
       const isComplete = STAGES.find((s) => s.name === 'schematic')!.isComplete;
       expect(await isComplete(repo, 'docs/')).toBe(true);
-
+      const sheetPath = path.join(repo, 'board.kicad_sch');
+      const sheet = await readFile(sheetPath, 'utf8');
+      await writeFile(sheetPath, sheet.replace(/\n/g, '\r\n'), 'utf8');
+      expect(await isComplete(repo, 'docs/')).toBe(true);
+      await writeFile(sheetPath, sheet.replace(/\n/g, '\r'), 'utf8');
+      expect(await isComplete(repo, 'docs/')).toBe(true);
+      await writeFile(sheetPath, sheet, 'utf8');
       // change the intent without re-drafting: the sheet on disk is now stale
       const intentPath = path.join(repo, 'schematic.intent.json');
       const intent = JSON.parse(await readFile(intentPath, 'utf8'));
