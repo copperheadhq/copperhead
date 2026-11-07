@@ -14,7 +14,8 @@ copperhead has no hidden database. Its memory is the markdown in your repo, whic
 | File | What it holds |
 | --- | --- |
 | `SPEC.md` | What the device is, plus top-level constraints and budgets |
-| `BOM.md` | Bill of materials |
+| `parts.intent.json` | Parts manifest written by `create` (refdes, verified symbol, footprint, MPN, group, rationale); `BOM.md` is rendered from it |
+| `BOM.md` | Bill of materials (rendered from the manifest when one exists; otherwise hand-written) |
 | `PINOUT.md` | Pin assignments |
 | `SUBSYSTEMS.md` | The design broken into functional blocks |
 | `LAYOUT.md` | Layout intent: what has to be near what, and why |

@@ -431,11 +431,11 @@ describe('copperhead sync verify phase (AC-7)', () => {
 
     // 2. Unrelated part U5 with a pin named GPIO0 -> not flagged when scoped to U1 via affects, refs, or U1: prefix
     expect(
-      checkForbiddenPins(strappingReg, [
-        { ref: 'U1', pinName: 'IO0', net: null },
-        { ref: 'U5', pinName: 'GPIO0', net: 'LED_EN' },
-      ]),
+      checkForbiddenPins(strappingReg, [{ ref: 'U5', pinName: 'GPIO0', net: 'LED_EN' }]),
     ).toEqual([]);
+    expect(
+      uncheckedForbiddenConstraints(strappingReg, [{ ref: 'U5', pinName: 'GPIO0', net: 'LED_EN' }]),
+    ).toEqual(['pins.strapping']);
     expect(
       checkForbiddenPins(
         { 'pins.strapping': { forbidden: ['U1:GPIO0'], source: 'datasheet', affects: [] } },
@@ -578,7 +578,7 @@ describe('copperhead sync verify phase (AC-7)', () => {
       'pins.paren_phrase': {
         forbidden: ['GPIO0'],
         source: 'datasheet',
-        affects: ['ESP32 strapping (U1)'],
+        affects: ['ESP32 strapping (U1)', 'U1 ( pinout )'],
       },
     };
     const parenViolations = checkForbiddenPins(parenAffectsReg, phrasePins);

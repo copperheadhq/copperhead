@@ -145,6 +145,8 @@ function normalizeRef(ref: string, knownRefs: ReadonlySet<string>): string {
   return ref;
 }
 
+const BARE_REFDES_RE = /^[A-Z]{1,4}\d+[A-Z]*$/;
+
 function extractScopedRefs(
   c: Constraint,
   knownRefs: ReadonlySet<string>,
@@ -157,11 +159,13 @@ function extractScopedRefs(
   for (const raw of c.affects ?? []) {
     const trimmed = raw.trim();
     if (!trimmed || trimmed.includes(':')) continue;
-    for (const rawToken of trimmed.split(/\s+/)) {
+    const rawTokens = trimmed.split(/\s+/);
+    for (const rawToken of rawTokens) {
       const cleaned = rawToken.replace(/^[(),;.[\]{}'"`]+|[(),;.[\]{}'"`]+$/g, '');
       if (!cleaned) continue;
       const token = normalizeRef(cleaned, knownRefs);
-      if (knownRefs.has(token) && !/^(?:GPIO|IO)\d+/i.test(token)) {
+      const isBareSingle = rawTokens.length === 1 && BARE_REFDES_RE.test(cleaned);
+      if ((isBareSingle || knownRefs.has(token)) && !/^(?:GPIO|IO)\d+/i.test(token)) {
         fromAffects.add(token);
       }
     }
