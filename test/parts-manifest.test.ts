@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { parseManifest, MANIFEST_VERSION } from '../src/kicad/parts/manifest.js';
 import { passiveDefault, allPassiveFootprints, isPassivePrefix } from '../src/kicad/parts/passives.js';
 import { validatePartsManifest, formatManifestFindings, subsystemHeadings } from '../src/kicad/parts/validate.js';
+import { capacitancePf } from '../src/kicad/parts/crystal.js';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { FootprintResolver, footprintSearchDirs } from '../src/kicad/footprints.js';
 import { symbolSearchDirs, resolveLibrarySymbol } from '../src/kicad/symlib.js';
@@ -36,6 +37,7 @@ beforeAll(async () => {
   const libs: Record<string, Record<string, string[]>> = {
     Resistor_SMD: { R_0603_1608Metric: ['1', '2'], R_0402_1005Metric: ['1', '2'] },
     Capacitor_SMD: { C_0402_1005Metric: ['1', '2'], C_0603_1608Metric: ['1', '2'] },
+    Crystal: { 'Crystal_SMD_5032-2Pin_5.0x3.2mm': ['1', '2'] },
     Package_SO: {
       'SOIC-8_3.9x4.9mm_P1.27mm': ['1', '2', '3', '4', '5', '6', '7', '8'],
       'SOIC-14_3.9x8.7mm_P1.27mm': [...Array(14)].map((_, i) => String(i + 1)),
@@ -300,5 +302,89 @@ describe('"noPart": a board feature with nothing to buy (AC-19.9)', () => {
     const { manifest: m, findings } = parseManifest(manifest([{ ...H1, noPart: 'yes' }]));
     expect(m).toBeNull();
     expect(findings[0]!.detail).toMatch(/H1: "noPart" must be true or false/);
+  });
+});
+
+describe('crystal load capacitors (AN2867 section 3.3)', () => {
+  const y1 = (crystal?: object) => ({ ref: 'Y1', value: '8MHz', package: '5032', group: 'MCU', ...(crystal ? { crystal } : {}) });
+  const cap = (ref: string, value: string) => ({ ref, value, package: '0402', group: 'MCU' });
+  const pair = (value: string, crystal: object) => manifest([U1, y1(crystal), cap('C1', value), cap('C2', value)]);
+  const record = { loadPf: 15, loadCaps: ['C1', 'C2'] };
+
+  it('reads the values a capacitor is written with, and refuses to guess a unit', () => {
+    expect(capacitancePf('22pF')).toBe(22);
+    expect(capacitancePf('22p')).toBe(22);
+    expect(capacitancePf('2p2')).toBeCloseTo(2.2);
+    expect(capacitancePf('4.7 nF')).toBeCloseTo(4700);
+    expect(capacitancePf('0.1uF')).toBeCloseTo(100000);
+    expect(capacitancePf('22pF 50V')).toBe(22);
+    expect(capacitancePf('22')).toBeNull();
+    expect(capacitancePf('100mF')).toBeNull();
+    expect(capacitancePf('MCU8')).toBeNull();
+  });
+
+  it('accepts the guide\'s worked example: a 15 pF load over 5 pF of stray takes 20 pF', async () => {
+    const v = await validate(pair('20pF', record));
+    expect(v.findings).toEqual([]);
+    expect(v.warnings.join()).not.toContain('Y1');
+  });
+
+  it('refuses capacitors set to the crystal\'s load, naming the value that works', async () => {
+    const v = await validate(pair('15pF', record));
+    expect(v.ok).toBe(false);
+    expect(v.findings).toEqual([
+      {
+        ref: 'Y1',
+        detail: 'Y1: C1 (15pF) and C2 (15pF) load the crystal with 12.5 pF over 5 pF of stray capacitance, but it needs 15 pF, so it would run off frequency; use about 20 pF for both (each capacitor = 2 × (load − stray), not the load itself)',
+      },
+    ]);
+  });
+
+  it('passes the nearest stock value at the widest E12 step, and works from a given stray', async () => {
+    // a 20 pF load wants 30 pF: 27 pF, the stock value below it, lands 1.5 pF away
+    expect((await validate(pair('27pF', { ...record, loadPf: 20 }))).findings).toEqual([]);
+    expect((await validate(pair('22pF', { ...record, loadPf: 20 }))).findings).toHaveLength(1);
+    expect((await validate(pair('24pF', { ...record, strayPf: 3 }))).findings).toEqual([]);
+    expect((await validate(pair('24pF', { ...record, strayPf: 0 }))).findings[0]?.detail).toContain('use about 30 pF');
+  });
+
+  it('works out the load of unequal capacitors from the series formula', async () => {
+    const ok = manifest([U1, y1(record), cap('C1', '15pF'), cap('C2', '30pF')]); // 10 + 5 = 15
+    expect((await validate(ok)).findings).toEqual([]);
+  });
+
+  it('says when no capacitor can reach the load, rather than asking for a negative value', async () => {
+    const v = await validate(pair('2p2', { ...record, loadPf: 4 }));
+    expect(v.findings[0]?.detail).toBe('Y1: a load of 4 pF cannot be reached over 5 pF of stray capacitance; choose a crystal with a higher load, or give the board\'s real "strayPf" in its "crystal" record');
+  });
+
+  it('reports a load capacitor it cannot read, by the refdes to fix', async () => {
+    const missing = await validate(manifest([U1, y1(record), cap('C1', '20pF')]));
+    expect(missing.findings[0]).toEqual({ ref: 'Y1', detail: 'Y1: "loadCaps" names C2, which has no entry in the manifest' });
+    const notACap = await validate(manifest([U1, y1({ ...record, loadCaps: ['C1', 'R1'] }), cap('C1', '20pF'), R1]));
+    expect(notACap.findings[0]?.detail).toContain('R1, which is not a capacitor');
+    const noUnit = await validate(pair('20', record));
+    expect(noUnit.findings.map((f) => f.ref)).toEqual(['C1', 'C2']);
+    expect(noUnit.findings[0]?.detail).toContain('give it with its unit');
+  });
+
+  it('notes a crystal with no record instead of refusing it, and leaves a resonator alone', async () => {
+    const v = await validate(manifest([U1, y1()]));
+    expect(v.ok).toBe(true);
+    expect(v.warnings.filter((w) => w.startsWith('Y1'))).toEqual(['Y1: load capacitors not checked; if it has external ones, give its "crystal" record ({"loadPf", "loadCaps"})']);
+    const resonator = { ...y1(), package: undefined, libId: 'Device:Resonator', footprint: 'Crystal:Crystal_SMD_5032-2Pin_5.0x3.2mm' };
+    expect((await validate(manifest([U1, resonator]))).warnings.join()).not.toContain('load capacitors');
+  });
+
+  it('refuses a malformed record at the shape check', () => {
+    const shape = (crystal: unknown) => parseManifest(manifest([{ ref: 'Y1', value: '8MHz', crystal }])).findings[0]?.detail;
+    expect(shape('15pF')).toContain('"crystal" must be');
+    expect(shape({ loadCaps: ['C1', 'C2'] })).toContain('"loadPf"');
+    expect(shape({ loadPf: 0, loadCaps: ['C1', 'C2'] })).toContain('"loadPf"');
+    expect(shape({ loadPf: 15, strayPf: -1, loadCaps: ['C1', 'C2'] })).toContain('"strayPf"');
+    expect(shape({ loadPf: 15, loadCaps: ['C1'] })).toContain('"loadCaps"');
+    expect(shape({ loadPf: 15, loadCaps: ['C1', 'C1'] })).toContain('"loadCaps"');
+    const ok = parseManifest(manifest([{ ref: 'Y1', value: '8MHz', crystal: { loadPf: 15, strayPf: 3, loadCaps: [' C1 ', 'C2'] } }]));
+    expect(ok.manifest?.parts[0]?.crystal).toEqual({ loadPf: 15, strayPf: 3, loadCaps: ['C1', 'C2'] });
   });
 });

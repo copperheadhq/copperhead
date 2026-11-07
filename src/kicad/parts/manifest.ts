@@ -13,6 +13,16 @@
 export const MANIFEST_VERSION = 1;
 export const MANIFEST_FILENAME = 'parts.intent.json';
 
+/** What a crystal is trimmed to run into: checked against its capacitors by `crystal.ts`. */
+export interface CrystalLoad {
+  /** The crystal's load capacitance CL from its datasheet, in pF. */
+  loadPf: number;
+  /** Stray capacitance of the pins and board, in pF; AN2867's 5 pF when omitted. */
+  strayPf?: number;
+  /** The refdes of its two load capacitors. */
+  loadCaps: [string, string];
+}
+
 export interface PartEntry {
   ref: string;
   /** The component value as drawn on the sheet (`4.7uF`, `STM32F103C8T6`); never prose. */
@@ -33,6 +43,8 @@ export interface PartEntry {
   offBoard?: boolean;
   /** A board feature with nothing to buy (a mounting hole, a fiducial, a pad test point): on the board, exempt from the MPN rule. */
   noPart?: boolean;
+  /** A crystal with external load capacitors: lets the validator check their values. */
+  crystal?: CrystalLoad;
 }
 
 export interface Substitution {
@@ -64,6 +76,19 @@ const GROUPED = /[-–,/]|\.\./;
 const isStr = (v: unknown): v is string => typeof v === 'string';
 const optStr = (v: unknown): v is string | undefined => v === undefined || typeof v === 'string';
 const optBool = (v: unknown): v is boolean | undefined => v === undefined || typeof v === 'boolean';
+
+/** A `crystal` record, or what is wrong with its shape. */
+function parseCrystal(v: unknown, ref: string): CrystalLoad | string {
+  const shape = `${ref}: "crystal" must be {"loadPf": 15, "loadCaps": ["C1", "C2"], "strayPf"?: 5}`;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return shape;
+  const c = v as Record<string, unknown>;
+  const pf = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+  if (!pf(c.loadPf) || c.loadPf <= 0) return `${shape}; "loadPf" is the crystal's load capacitance, a number of pF above 0`;
+  if (c.strayPf !== undefined && (!pf(c.strayPf) || c.strayPf < 0)) return `${shape}; "strayPf" is a number of pF, 0 or more`;
+  const caps = Array.isArray(c.loadCaps) ? c.loadCaps.map((r) => (isStr(r) ? r.trim() : '')) : [];
+  if (caps.length !== 2 || !caps[0] || !caps[1] || caps[0] === caps[1]) return `${shape}; "loadCaps" is two different refdes`;
+  return { loadPf: c.loadPf, ...(c.strayPf !== undefined ? { strayPf: c.strayPf as number } : {}), loadCaps: [caps[0], caps[1]] };
+}
 
 /**
  * Parse manifest JSON into a typed manifest, or into shape findings. A
@@ -132,6 +157,11 @@ export function parseManifest(json: string): { manifest: PartsManifest | null; f
         return;
       }
     }
+    const crystal = e.crystal === undefined ? undefined : parseCrystal(e.crystal, ref);
+    if (typeof crystal === 'string') {
+      findings.push({ ref, detail: crystal });
+      return;
+    }
     seen.add(ref);
     const entry: PartEntry = { ref, value: e.value.trim() };
     for (const k of ['group', 'libId', 'footprint', 'package', 'mpn', 'rationale'] as const) {
@@ -141,6 +171,7 @@ export function parseManifest(json: string): { manifest: PartsManifest | null; f
     if (e.verified !== undefined) entry.verified = e.verified as boolean;
     if (e.offBoard !== undefined) entry.offBoard = e.offBoard as boolean;
     if (e.noPart !== undefined) entry.noPart = e.noPart as boolean;
+    if (crystal) entry.crystal = crystal;
     parts.push(entry);
   });
   let substitutions: Substitution[] | undefined;
