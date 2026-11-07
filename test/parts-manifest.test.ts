@@ -246,6 +246,196 @@ describe('validatePartsManifest', () => {
     ]);
   });
 
+  describe('substitution procurement integrity regressions (Candidate C)', () => {
+    it('rejects duplicate substitutions for the same refdes', async () => {
+      const v = await validate(
+        manifest([U1], {
+          substitutions: [
+            { ref: 'U1', wanted: 'DRV8701', chosen: 'MCU8', reason: 'first choice' },
+            { ref: 'U1', wanted: 'DRV8702', chosen: 'MCU8', reason: 'duplicate choice' },
+          ],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'duplicate substitution for refdes "U1"; each refdes may have at most one substitution record',
+      );
+    });
+
+    it('rejects spurious substring matches like chosen "0" against value "100k"', async () => {
+      const R100k = { ref: 'R1', value: '100k', group: 'Power', package: '0603', mpn: 'RC0603FR-07100KL' };
+      const v = await validate(
+        manifest([R100k], {
+          substitutions: [{ ref: 'R1', wanted: '10k', chosen: '0', reason: 'jumper' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "0" but the entry carries value "100k", mpn "RC0603FR-07100KL"; they must agree',
+      );
+    });
+
+    it('rejects voltage mismatches (e.g. 1.2V vs 3.3V LDO regulators)', async () => {
+      const LDO = {
+        ref: 'U2',
+        value: 'TLV70233DBVR',
+        group: 'Power',
+        libId: 'Regulator_Linear:TLV70233DBVR',
+        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
+        mpn: 'TLV70233DBVR',
+      };
+      const v = await validate(
+        manifest([LDO], {
+          substitutions: [{ ref: 'U2', wanted: 'MIC5365-3.3', chosen: 'TLV70012', reason: 'voltage mismatch' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for U2: "chosen" is "TLV70012" but the entry carries value "TLV70233DBVR", mpn "TLV70233DBVR"; they must agree',
+      );
+
+      // Adversarial case: entry carries conflicting 1.2V MPN while value is 3.3V and chosen is 3.3V
+      const ConflictingLDO = {
+        ref: 'U3',
+        value: '3.3V',
+        group: 'Power',
+        libId: 'Regulator_Linear:AP2112K-3.3',
+        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
+        mpn: 'AP2112K-1.2TRG1',
+      };
+      const vConflicting = await validate(
+        manifest([ConflictingLDO], {
+          substitutions: [{ ref: 'U3', wanted: 'MIC5365-3.3', chosen: '3.3V', reason: 'voltage mismatch in MPN' }],
+        }),
+      );
+      expect(vConflicting.findings.map((f) => f.detail)).toContain(
+        'substitution for U3: "chosen" is "3.3V" but the entry carries value "3.3V", mpn "AP2112K-1.2TRG1"; they must agree',
+      );
+    });
+
+    it('rejects contradictory procurement identities (e.g. TLV70012 value with TLV70233DBVR MPN)', async () => {
+      const ContradictoryLDO = {
+        ref: 'U4',
+        value: 'TLV70012',
+        group: 'Power',
+        libId: 'Regulator_Linear:TLV70012_SOT23-5',
+        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
+        mpn: 'TLV70233DBVR',
+      };
+      const v = await validate(
+        manifest([ContradictoryLDO], {
+          substitutions: [{ ref: 'U4', wanted: 'MIC5365-1.2', chosen: 'TLV70012', reason: 'contradictory MPN' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for U4: "chosen" is "TLV70012" but the entry carries value "TLV70012", mpn "TLV70233DBVR"; they must agree',
+      );
+    });
+
+    it('rejects nearly identical manufacturer part numbers (e.g. 10k vs 100k MPNs, prefix truncations)', async () => {
+      const R10k = { ref: 'R1', value: '10k', group: 'Power', package: '0603', mpn: 'RC0603FR-0710KL' };
+      const v1 = await validate(
+        manifest([R10k], {
+          substitutions: [{ ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-07100KL', reason: 'wrong value MPN' }],
+        }),
+      );
+      expect(v1.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "RC0603FR-07100KL" but the entry carries value "10k", mpn "RC0603FR-0710KL"; they must agree',
+      );
+
+      const v2 = await validate(
+        manifest([R10k], {
+          substitutions: [{ ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710', reason: 'truncated prefix' }],
+        }),
+      );
+      expect(v2.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "RC0603FR-0710" but the entry carries value "10k", mpn "RC0603FR-0710KL"; they must agree',
+      );
+    });
+
+    it('rejects case/spacing differences that change real procurement identity (e.g. 100m vs 100M)', async () => {
+      const R100M = { ref: 'R1', value: '100M', group: 'Power', package: '0603' };
+      const v = await validate(
+        manifest([R100M], {
+          substitutions: [{ ref: 'R1', wanted: '100M', chosen: '100m', reason: 'milli vs mega mismatch' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "100m" but the entry carries value "100M"; they must agree',
+      );
+    });
+
+    it('rejects a chosen symbol name with conflicting canonical MPN', async () => {
+      const LDO = {
+        ref: 'U2',
+        value: 'TLV70233DBVR',
+        group: 'Power',
+        libId: 'Regulator_Linear:TLV70012_SOT23-5',
+        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
+        mpn: 'TLV70233DBVR',
+      };
+      const v = await validate(
+        manifest([LDO], {
+          substitutions: [{ ref: 'U2', wanted: 'MIC5365-3.3', chosen: 'TLV70012_SOT23-5', reason: 'symbol name mismatch' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for U2: "chosen" is "TLV70012_SOT23-5" but the entry carries value "TLV70233DBVR", mpn "TLV70233DBVR"; they must agree',
+      );
+    });
+
+    it('rejects descriptive extensions that happen to contain another real value (e.g. 10k vs 10k5, 1k vs 1k2, 0 vs 0.1uF)', async () => {
+      const R10k = { ref: 'R1', value: '10k', group: 'Power', package: '0603' };
+      const v1 = await validate(
+        manifest([R10k], {
+          substitutions: [{ ref: 'R1', wanted: '9.1k', chosen: '10k5', reason: '10.5k resistor' }],
+        }),
+      );
+      expect(v1.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "10k5" but the entry carries value "10k"; they must agree',
+      );
+
+      const R1k = { ref: 'R2', value: '1k', group: 'Power', package: '0603' };
+      const v2 = await validate(
+        manifest([R1k], {
+          substitutions: [{ ref: 'R2', wanted: '1k', chosen: '1k2', reason: '1.2k resistor' }],
+        }),
+      );
+      expect(v2.findings.map((f) => f.detail)).toContain(
+        'substitution for R2: "chosen" is "1k2" but the entry carries value "1k"; they must agree',
+      );
+
+      const R0 = { ref: 'R3', value: '0', group: 'Power', package: '0603' };
+      const v3 = await validate(
+        manifest([R0], {
+          substitutions: [{ ref: 'R3', wanted: '0', chosen: '0.1uF', reason: 'cap' }],
+        }),
+      );
+      expect(v3.findings.map((f) => f.detail)).toContain(
+        'substitution for R3: "chosen" is "0.1uF" but the entry carries value "0"; they must agree',
+      );
+    });
+
+    it('accepts legitimate descriptive value substitution (e.g. 10k 1%) and exact MPN substitution', async () => {
+      const R10k = { ref: 'R1', value: '10k', group: 'Power', package: '0603', mpn: 'RC0603FR-0710KL' };
+      const v1 = await validate(
+        manifest([R10k], {
+          substitutions: [
+            { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'stock shortage' },
+          ],
+        }),
+      );
+      expect(v1.findings.filter((f) => f.detail.includes('substitution'))).toHaveLength(0);
+
+      const R10kPassive = { ref: 'R2', value: '10k', group: 'Power', package: '0603' };
+      const v2 = await validate(
+        manifest([R10kPassive], {
+          substitutions: [
+            { ref: 'R2', wanted: '10k 0.1%', chosen: '10k 1%', reason: 'tolerance substitution' },
+          ],
+        }),
+      );
+      expect(v2.findings.filter((f) => f.detail.includes('substitution'))).toHaveLength(0);
+    });
+  });
+
   it('caps the listed findings and counts the rest', async () => {
     const parts = [...Array(50)].map((_, i) => ({ ref: `U${i + 1}`, value: 'X', group: 'MCU' }));
     const { manifest: m } = parseManifest(manifest(parts));

@@ -14,6 +14,7 @@
 import { SymbolResolutionError, type ResolvedSymbol } from '../draft/symsource.js';
 import { looksLikeDescription, unitPlacementFinding } from '../draft/ir.js';
 import type { FootprintResolver, MissingFootprint } from '../footprints.js';
+import { normalizeValue } from '../../memory/bom-table.js';
 import { checkPinsAgainstPads } from './pads.js';
 import { isPassivePrefix, knownPackages, passiveDefault } from './passives.js';
 import { refPrefix, type ManifestFinding, type PartsManifest } from './manifest.js';
@@ -68,6 +69,86 @@ export function subsystemHeadings(md: string | null | undefined): string[] | nul
  * is the user's to install.
  */
 export const modelFixableMiss = (m: MissingFootprint): boolean => m.why !== 'no-library' || (m.near.length > 0 && !m.fuzzy);
+
+/**
+ * Checks whether a manifest part entry carries the substitution's chosen part.
+ *
+ * Canonical Procurement Identity Rules:
+ * 1. When an explicit MPN is specified on the entry, it is the canonical orderable procurement identity:
+ *    - Matches if chosen equals part.mpn (case-insensitive for manufacturer formatting).
+ *    - Matches if part.mpn is an orderable packaging/variant of chosen (e.g. MCU8-SOIC carries chosen MCU8).
+ *    - Rejects any mismatch where an explicit MPN contradicts chosen (e.g. value 'TLV70012' with mpn 'TLV70233DBVR').
+ * 2. When no MPN is specified on the entry, component identity is governed by value or schematic symbol:
+ *    - Exact string match or normalized value match (preserving SI prefix case sensitivity, e.g. 100m != 100M).
+ *    - Legitimate passive descriptive specification (e.g. value '10k' carries chosen '10k 1%').
+ *    - Exact schematic symbol match (part.libId symbol name).
+ */
+export function substitutionCarriesChosen(
+  part: { value: string; mpn?: string | null; libId?: string | null },
+  chosenStr: string,
+): boolean {
+  const chosen = chosenStr.trim();
+  if (!chosen) return false;
+
+  const chosenLower = chosen.toLowerCase();
+
+  // 1. If canonical MPN is present, it is the orderable procurement identity.
+  if (part.mpn) {
+    const mpnTrim = part.mpn.trim();
+    const mpnLower = mpnTrim.toLowerCase();
+
+    // Exact MPN match (case-insensitive)
+    if (mpnLower === chosenLower) return true;
+
+    // Orderable packaging / variant suffix of chosen model (e.g. MCU8-SOIC for MCU8)
+    if (
+      mpnLower.startsWith(chosenLower + '-') ||
+      mpnLower.startsWith(chosenLower + '_') ||
+      mpnLower.startsWith(chosenLower + '/')
+    ) {
+      return true;
+    }
+
+    // Explicit MPN is present and conflicts with chosen
+    return false;
+  }
+
+  // 2. When no MPN is specified, identity is determined by value or symbol.
+  const partVal = part.value.trim();
+
+  // SI unit sensitivity: '100m' (milli) != '100M' (mega)
+  const hasUnitM = /(?:^|\d)[mM](?:ohm|Ω|F|H|V|A)?$/.test(partVal) || /(?:^|\d)[mM](?:ohm|Ω|F|H|V|A)?$/.test(chosen);
+
+  const valNorm = normalizeValue(part.value);
+  const chosenNorm = normalizeValue(chosenStr);
+
+  const isValueMatch =
+    (!hasUnitM && partVal.toLowerCase() === chosenLower) ||
+    partVal === chosen ||
+    (valNorm && chosenNorm && !hasUnitM && valNorm === chosenNorm);
+
+  if (isValueMatch) return true;
+
+  // Legitimate passive value with tolerance or rating descriptor in chosen
+  // (e.g. part.value is "10k", chosen is "10k 1%" or "10k 50V")
+  // MUST NOT match numeric digits (e.g. "10k" must NOT match "10k5", "1k" must NOT match "1k2", "0" must NOT match "0.1uF")
+  if (valNorm && chosenNorm) {
+    const escapedVal = partVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const descRegex = new RegExp(`^${escapedVal}\\s+(?:1%|2%|5%|10%|0\\.1%|0\\.5%|20%|\\d+V|\\d+W|X7R|X5R|C0G|NP0)(?:\\s.*)?$`, 'i');
+    if (descRegex.test(chosen)) return true;
+  }
+
+  // Exact match with schematic symbol (only when no MPN was specified)
+  if (part.libId) {
+    const fullLibId = part.libId.trim().toLowerCase();
+    if (fullLibId === chosenLower) return true;
+    const colon = fullLibId.indexOf(':');
+    const symName = colon >= 0 ? fullLibId.slice(colon + 1).trim() : fullLibId;
+    if (symName === chosenLower) return true;
+  }
+
+  return false;
+}
 
 export async function validatePartsManifest(manifest: PartsManifest, opts: ValidateOptions): Promise<ManifestValidation> {
   const findings: ManifestFinding[] = [];
@@ -175,15 +256,20 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
 
   // substitutions: point at a real entry, and the entry carries the chosen part
   const byRef = new Map(parts.map((p) => [p.ref, p]));
+  const seenSubRefs = new Set<string>();
   for (const s of manifest.substitutions ?? []) {
     const p = byRef.get(s.ref);
     if (!p) {
       add(s.ref, `substitution for ${s.ref}: no part entry has that refdes`);
       continue;
     }
-    const carries = [p.value, p.mpn, p.libId].filter((v): v is string => !!v).map((v) => v.toLowerCase());
-    const chosen = s.chosen.toLowerCase();
-    if (!carries.some((v) => v === chosen || v.includes(chosen) || chosen.includes(v))) {
+    if (seenSubRefs.has(s.ref)) {
+      add(s.ref, `duplicate substitution for refdes "${s.ref}"; each refdes may have at most one substitution record`);
+      continue;
+    }
+    seenSubRefs.add(s.ref);
+
+    if (!substitutionCarriesChosen(p, s.chosen)) {
       add(s.ref, `substitution for ${s.ref}: "chosen" is ${JSON.stringify(s.chosen)} but the entry carries value ${JSON.stringify(p.value)}${p.mpn ? `, mpn ${JSON.stringify(p.mpn)}` : ''}; they must agree`);
     }
   }
