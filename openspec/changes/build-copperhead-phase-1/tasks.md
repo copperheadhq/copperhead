@@ -65,6 +65,7 @@
 
 - [x] 7.1 Implement `copperhead check` (with `verify` alias): ERC + DRC + drift + `openspec validate` + mechanical constraint checks; zero LLM/network calls; non-zero exit on any violation (AC-2.1, AC-2.2)
 - [x] 7.2 Implement `--json` output with stable keys (AC-2.4)
+- [x] 7.4 Implement the configured-but-absent schematic case: exit non-zero and name the configured path in every skip reason (AC-2.6)
 - [x] 7.3 Tests: clean fixture passes < 60 s with network guard asserting no api.* calls; broken-pin fixture fails with location; BOM-drift fixture fails naming doc/claim/actual (AC-2.5)
 
 ## 8. `do` command end-to-end
