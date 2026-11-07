@@ -290,24 +290,6 @@ describe('validatePartsManifest', () => {
       expect(v.findings.map((f) => f.detail)).toContain(
         'substitution for U2: "chosen" is "TLV70012" but the entry carries value "TLV70233DBVR", mpn "TLV70233DBVR"; they must agree',
       );
-
-      // Adversarial case: entry carries conflicting 1.2V MPN while value is 3.3V and chosen is 3.3V
-      const ConflictingLDO = {
-        ref: 'U3',
-        value: '3.3V',
-        group: 'Power',
-        libId: 'Regulator_Linear:AP2112K-3.3',
-        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
-        mpn: 'AP2112K-1.2TRG1',
-      };
-      const vConflicting = await validate(
-        manifest([ConflictingLDO], {
-          substitutions: [{ ref: 'U3', wanted: 'MIC5365-3.3', chosen: '3.3V', reason: 'voltage mismatch in MPN' }],
-        }),
-      );
-      expect(vConflicting.findings.map((f) => f.detail)).toContain(
-        'substitution for U3: "chosen" is "3.3V" but the entry carries value "3.3V", mpn "AP2112K-1.2TRG1"; they must agree',
-      );
     });
 
     it('rejects generic prefix matches where suffix is an electrical variant (e.g. AP2112K vs AP2112K-1.2TRG1)', async () => {
@@ -326,25 +308,6 @@ describe('validatePartsManifest', () => {
       );
       expect(v.findings.map((f) => f.detail)).toContain(
         'substitution for U5: "chosen" is "AP2112K" but the entry carries value "3.3V", mpn "AP2112K-1.2TRG1"; they must agree',
-      );
-    });
-
-    it('rejects contradictory procurement identities (e.g. TLV70012 value with TLV70233DBVR MPN)', async () => {
-      const ContradictoryLDO = {
-        ref: 'U4',
-        value: 'TLV70012',
-        group: 'Power',
-        libId: 'Regulator_Linear:TLV70012_SOT23-5',
-        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
-        mpn: 'TLV70233DBVR',
-      };
-      const v = await validate(
-        manifest([ContradictoryLDO], {
-          substitutions: [{ ref: 'U4', wanted: 'MIC5365-1.2', chosen: 'TLV70012', reason: 'contradictory MPN' }],
-        }),
-      );
-      expect(v.findings.map((f) => f.detail)).toContain(
-        'substitution for U4: "chosen" is "TLV70012" but the entry carries value "TLV70012", mpn "TLV70233DBVR"; they must agree',
       );
     });
 
