@@ -41,6 +41,19 @@ If you prefer to install manually:
 npm install -g copperhead   # or: npx copperhead check
 ```
 
+With [Nix flakes](https://nixos.wiki/wiki/Flakes), run copperhead with Node.js,
+git, OpenSpec, and (on Linux) KiCad supplied by the pinned environment:
+
+```bash
+nix run github:copperheadhq/copperhead -- --help
+# From a source checkout:
+nix run . -- --help
+```
+
+The flake supports x86-64 Linux, ARM64 Linux, and Apple Silicon macOS. On
+macOS, install the KiCad application separately. Model credentials and
+saved-login provider CLIs remain user configuration.
+
 ### Bootstrap script (macOS and Linux)
 
 Prefer a one-command setup? [`install.sh`](install.sh) checks the prerequisites below, installs copperhead (globally via npm, or built from source when run inside a checkout), and verifies the result with `copperhead doctor`:
