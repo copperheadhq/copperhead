@@ -3223,10 +3223,12 @@ function draftOnce(
       // two-lead cap-to-ground drops that cap below the pin's stub end. The
       // crystal's pins are symmetric about its body, so the two caps come out
       // mirror-placed at equal offsets and a common height by construction.
+      // Ground pins hang off the body vertically, so a 4-pin crystal
+      // (Crystal_GND24, the passive table's 3225) flanks like a 2-pin one.
       for (const m of members) {
         if (!isCrystal(m.key)) continue;
         const xpl = placed.get(m.key);
-        if (!xpl || xpl.sym.pins.length !== 2) continue;
+        if (!xpl || xpl.sym.pins.filter((p) => outward(p).dx !== 0).length !== 2) continue;
         const moves = new Map<string, Placed>();
         const segments: { axisX: number; ys: number[] }[] = [];
         const clearBoxes: Bounds[] = [];
