@@ -14,6 +14,7 @@
 import { SymbolResolutionError, type ResolvedSymbol } from '../draft/symsource.js';
 import { looksLikeDescription, unitPlacementFinding } from '../draft/ir.js';
 import type { FootprintResolver, MissingFootprint } from '../footprints.js';
+import { crystalLoadFindings } from './crystal.js';
 import { checkPinsAgainstPads } from './pads.js';
 import { isPassivePrefix, knownPackages, passiveDefault } from './passives.js';
 import { refPrefix, type ManifestFinding, type PartsManifest } from './manifest.js';
@@ -186,6 +187,16 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
     if (!carries.some((v) => v === chosen || v.includes(chosen) || chosen.includes(v))) {
       add(s.ref, `substitution for ${s.ref}: "chosen" is ${JSON.stringify(s.chosen)} but the entry carries value ${JSON.stringify(p.value)}${p.mpn ? `, mpn ${JSON.stringify(p.mpn)}` : ''}; they must agree`);
     }
+  }
+
+  // crystal load capacitors, from the record that names them. A crystal without
+  // one is noted, not refused: many parts need no external capacitors, and an
+  // agent has no datasheet figure to give for a part it has not looked up
+  findings.push(...crystalLoadFindings(manifest));
+  for (const e of manifest.parts) {
+    const p = byRef.get(e.ref)!;
+    if (e.crystal || p.offBoard || refPrefix(e.ref) !== 'Y' || !/crystal/i.test(p.libId ?? '')) continue;
+    warnings.push(`${e.ref}: load capacitors not checked; if it has external ones, give its "crystal" record ({"loadPf", "loadCaps"})`);
   }
 
   // coverage the other way: a heading with no part is reported, not refused
