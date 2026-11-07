@@ -5,6 +5,7 @@ import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from '../kicad/sexp.js';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
 import { resolveInRepo } from '../util/paths.js';
+import { withRunLock } from '../util/run-lock.js';
 
 export class InitError extends Error {}
 
@@ -193,7 +194,11 @@ export interface InitOptions {
   installHooks?: boolean;
 }
 
-export async function runInit(opts: InitOptions): Promise<InitResult> {
+export function runInit(opts: InitOptions): Promise<InitResult> {
+  return withRunLock(opts.repoRoot, 'copperhead init', () => runInitUnlocked(opts));
+}
+
+async function runInitUnlocked(opts: InitOptions): Promise<InitResult> {
   const { repoRoot } = opts;
   // AC-4.2: the search root comes from an untrusted caller — a CLI flag, and
   // now an MCP tool input chosen by a host agent. Bare path.resolve lets an

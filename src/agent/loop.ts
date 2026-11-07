@@ -49,6 +49,7 @@ import { styleHeaderLines } from './theme.js';
 import { ObligationsLedger } from './ledger.js';
 import { markTouched } from '../capabilities/helpers.js';
 import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun, fileAtCommit } from '../util/git.js';
+import { withRunLock } from '../util/run-lock.js';
 import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
@@ -253,19 +254,22 @@ export function repairBudgetExhausted(used: number, max: number): boolean {
   return used >= Math.max(max, 1);
 }
 
-export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
-  const providers = new Set<Provider>();
-  try {
-    return await runWithProviders(opts, providers);
-  } finally {
-    for (const provider of providers) {
-      try {
-        await provider.close?.();
-      } catch (err) {
-        opts.log?.(`warning: ${provider.name} provider cleanup failed (${(err as Error).message})`);
+export function runAgentLoop(opts: RunOptions): Promise<RunResult> {
+  const request = typeof opts.meta?.command === 'string' ? `copperhead ${opts.meta.command}` : 'copperhead do';
+  return withRunLock(opts.repoRoot, request, async () => {
+    const providers = new Set<Provider>();
+    try {
+      return await runWithProviders(opts, providers);
+    } finally {
+      for (const provider of providers) {
+        try {
+          await provider.close?.();
+        } catch (err) {
+          opts.log?.(`warning: ${provider.name} provider cleanup failed (${(err as Error).message})`);
+        }
       }
     }
-  }
+  });
 }
 
 async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Promise<RunResult> {

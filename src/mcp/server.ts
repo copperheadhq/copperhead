@@ -14,10 +14,9 @@
  * Two rails are enforced here because they are properties of the transport
  * rather than of the pipeline: stdout carries only the JSON-RPC stream (every
  * human-readable byte goes to stderr, or the protocol corrupts), and mutating
- * calls are serialized per repo *within this server process*. That lock is
- * in-memory, so it does not interlock two separately spawned servers or a
- * concurrent CLI run — those are held apart by the loop's own dirty-tree
- * preflight, not by this.
+ * calls have a quick in-process guard. The shared per-worktree lock in
+ * `util/run-lock` is the cross-process boundary: CLI runs, separate MCP servers,
+ * and calls in this process all use the same lock file.
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -35,6 +34,7 @@ import { runAgentLoop, type RunResult } from '../agent/loop.js';
 import { kicadCliVersion } from '../kicad/cli.js';
 import { seal, type ToolResult, type ToolErrorKind } from '../agent/envelope.js';
 import { plainRenderer, type ProgressRenderer } from '../agent/render.js';
+import { RunLockError } from '../util/run-lock.js';
 
 /** The copperhead package version, for run self-description (AC-8.1). This is
  *  deliberately not MCP_PROTOCOL_VERSION: run metadata records which copperhead
@@ -125,11 +125,11 @@ async function requireKicad(): Promise<{ version: string } | { error: ToolResult
  * and retry. Concurrent `check` calls are unrestricted — they mutate nothing.
  */
 export class RepoLocks {
-  private readonly busy = new Set<string>();
+  private readonly busy = new Map<string, { pid: number; startedAt: string; request: string }>();
 
-  tryAcquire(repoRoot: string): boolean {
+  tryAcquire(repoRoot: string, request = 'MCP mutation'): boolean {
     if (this.busy.has(repoRoot)) return false;
-    this.busy.add(repoRoot);
+    this.busy.set(repoRoot, { pid: process.pid, startedAt: new Date().toISOString(), request });
     return true;
   }
 
@@ -140,6 +140,17 @@ export class RepoLocks {
   isBusy(repoRoot: string): boolean {
     return this.busy.has(repoRoot);
   }
+
+  busyMessage(repoRoot: string): string {
+    const active = this.busy.get(repoRoot);
+    if (!active) return 'another copperhead run is active for this repo; retry shortly';
+    return `another ${active.request} run is in progress for this repo (PID ${active.pid}, started ${active.startedAt}); retry after it finishes`;
+  }
+}
+
+function exceptionFailure(err: unknown): ToolResult {
+  const error = err instanceof Error ? err : new Error(String(err));
+  return failure(err instanceof RunLockError ? 'unavailable' : 'exception', error.message);
 }
 
 /** Progress sink: what the server needs from a host to report a long run. */
@@ -310,8 +321,8 @@ export function createMcpServer(opts: ServerOptions): McpServer {
     async ({ path: searchPath }) => {
       const kicad = await requireKicad();
       if ('error' in kicad) return toMcp(kicad.error);
-      if (!locks.tryAcquire(repoRoot)) {
-        return toMcp(failure('unavailable', 'another copperhead run is in progress for this repo; retry shortly'));
+      if (!locks.tryAcquire(repoRoot, 'copperhead init')) {
+        return toMcp(failure('unavailable', locks.busyMessage(repoRoot)));
       }
       try {
         const res = await runInit({
@@ -337,8 +348,9 @@ export function createMcpServer(opts: ServerOptions): McpServer {
         // A missing schematic and a path that escapes the repo are both the
         // caller's situation, not a crash: report them as validation failures
         // so the host can correct the input rather than retrying blindly.
-        const kind: ToolErrorKind =
-          err instanceof InitError || err instanceof SandboxError ? 'validation' : 'exception';
+        const kind: ToolErrorKind = err instanceof RunLockError
+          ? 'unavailable'
+          : err instanceof InitError || err instanceof SandboxError ? 'validation' : 'exception';
         return toMcp(failure(kind, (err as Error).message));
       } finally {
         locks.release(repoRoot);
@@ -365,8 +377,8 @@ export function createMcpServer(opts: ServerOptions): McpServer {
       if ('error' in kicad) return toMcp(kicad.error);
       const resolved = await resolveModelOrFail(repoRoot);
       if ('error' in resolved) return toMcp(resolved.error);
-      if (!locks.tryAcquire(repoRoot)) {
-        return toMcp(failure('unavailable', 'another copperhead run is in progress for this repo; retry shortly'));
+      if (!locks.tryAcquire(repoRoot, 'copperhead do')) {
+        return toMcp(failure('unavailable', locks.busyMessage(repoRoot)));
       }
       const progressToken = extra?._meta?.progressToken;
       const sink: ProgressSink = (update): void => {
@@ -420,7 +432,7 @@ export function createMcpServer(opts: ServerOptions): McpServer {
           }),
         );
       } catch (err) {
-        return toMcp(failure('exception', (err as Error).message));
+        return toMcp(exceptionFailure(err));
       } finally {
         locks.release(repoRoot);
       }
@@ -469,8 +481,8 @@ export function createMcpServer(opts: ServerOptions): McpServer {
 
       const resolved = await resolveModelOrFail(repoRoot);
       if ('error' in resolved) return toMcp(resolved.error);
-      if (!locks.tryAcquire(repoRoot)) {
-        return toMcp(failure('unavailable', 'another copperhead run is in progress for this repo; retry shortly'));
+      if (!locks.tryAcquire(repoRoot, 'copperhead sync --resolve')) {
+        return toMcp(failure('unavailable', locks.busyMessage(repoRoot)));
       }
       // The report above was computed before the lock was held, so another run
       // may have rewritten the tree in between. Re-verify now that nothing else
@@ -535,7 +547,7 @@ export function createMcpServer(opts: ServerOptions): McpServer {
           }),
         );
       } catch (err) {
-        return toMcp(failure('exception', (err as Error).message));
+        return toMcp(exceptionFailure(err));
       } finally {
         locks.release(repoRoot);
       }

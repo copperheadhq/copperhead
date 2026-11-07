@@ -35,6 +35,7 @@ import { fmtDuration, fmtTokens, type ProgressRenderer } from '../agent/render.j
 import { copper, dim, ok, stageLine, warn } from '../agent/theme.js';
 import { openspecInit } from '../openspec/cli.js';
 import { sweepStaleTempDirs, pruneHistoryDir } from '../util/tmp.js';
+import { withRunLock } from '../util/run-lock.js';
 import { bomSymbolDossier } from '../kicad/dossier.js';
 import { readManifest } from '../kicad/parts/resolve.js';
 import { libraryCache } from '../kicad/cache.js';
@@ -1046,7 +1047,11 @@ export interface CreateResult {
   stop?: { stage: string; cause: AttemptCause; blockers: RefusalBlocker[] };
 }
 
-export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
+export function runCreate(opts: CreateOptions): Promise<CreateResult> {
+  return withRunLock(opts.repoRoot, 'copperhead create', () => runCreateUnlocked(opts));
+}
+
+async function runCreateUnlocked(opts: CreateOptions): Promise<CreateResult> {
   const brief = await readFile(path.resolve(opts.briefPath), 'utf8');
   // Hashed from the content already in hand: a brief edited mid-pipeline shows
   // up as a different sha256 in the next stage's metadata (AC-8.1).

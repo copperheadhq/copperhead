@@ -28,6 +28,17 @@ All file tools SHALL resolve paths relative to the repo root and reject any path
 - **WHEN** a run fails unrecoverably
 - **THEN** `git status` is clean and all files are byte-identical to the pre-run state
 
+### Requirement: Exclusive per-working-tree run lock
+Every mutating `do`, `create`, `init`, or sync-resolve run SHALL acquire an exclusive lock for its working tree before preflight or startup writes, and SHALL hold it through commit or rollback. CLI and MCP entry points SHALL use the same lock. The lock records the owner PID, start time, and operation; an exited owner SHALL not leave the working tree permanently locked.
+
+#### Scenario: Concurrent run is refused
+- **WHEN** a second `do`, `create`, `init`, or sync-resolve starts while a run holds the working-tree lock
+- **THEN** it refuses before preflight or mutation and names the active process and start time
+
+#### Scenario: Stale run lock is reclaimed
+- **WHEN** the lock owner process has exited
+- **THEN** the next run safely reclaims the stale lock and proceeds
+
 ### Requirement: Secret hygiene
 API keys SHALL exist only in environment variables; `.env` and `.copperhead/runs/` SHALL be in `.gitignore` from the first commit; transcripts SHALL redact anything matching `sk-[A-Za-z0-9_-]+` at write time.
 
