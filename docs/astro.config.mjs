@@ -4,6 +4,8 @@ import starlightLlmsTxt from 'starlight-llms-txt';
 import rehypeTableLabels from './src/plugins/rehype-table-labels.mjs';
 
 const REPO = 'https://github.com/copperheadhq/copperhead';
+// The same GA property as the apex, copperhead.sh (copperhead-site).
+const GA_MEASUREMENT_ID = 'G-KGEWCR918W';
 
 // Served at the root of its own subdomain, docs.copperhead.sh. The apex,
 // copperhead.sh, is a separate Cloudflare Worker (the copperhead-site repo),
@@ -102,6 +104,21 @@ export default defineConfig({
         { tag: 'meta', attrs: { property: 'og:image', content: 'https://docs.copperhead.sh/og.png' } },
         { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
         { tag: 'meta', attrs: { name: 'twitter:image', content: 'https://docs.copperhead.sh/og.png' } },
+        // Google Analytics, the same property the apex serves (copperhead-site,
+        // src/layouts/Base.astro), so docs traffic lands in one place.
+        {
+          tag: 'script',
+          attrs: { async: true, src: `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}` },
+        },
+        {
+          tag: 'script',
+          content: [
+            'window.dataLayer = window.dataLayer || [];',
+            'function gtag(){dataLayer.push(arguments);}',
+            "gtag('js', new Date());",
+            `gtag('config', '${GA_MEASUREMENT_ID}');`,
+          ].join('\n'),
+        },
       ],
       // `data-icon` picks the leading icon for each row; see SidebarSublist.astro.
       sidebar: [
