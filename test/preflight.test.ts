@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -115,6 +115,26 @@ describe('copperhead create without a git setup (bug-report path)', () => {
       await writeFile(path.join(dir, 'brief.md'), 'A tiny USB macro keypad', 'utf8');
       await execa('git', ['init', '-q'], { cwd: dir });
       await expect(runCreate(createOpts(dir))).rejects.toThrow(/repository has no commits/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('unborn HEAD: create refuses before writing anything, not only before spec-seed starts', async () => {
+    // #322 regression: the old check sat inside spec-seed's runAgentLoop, after
+    // openspecInit/markCreateOrigin had already scaffolded .copperhead/ and the
+    // stage's "running" line had already printed. This pins that nothing is
+    // written and nothing is logged before the refusal fires.
+    const { dir, cleanup } = await tempDir();
+    try {
+      await writeFile(path.join(dir, 'brief.md'), 'A tiny USB macro keypad', 'utf8');
+      await execa('git', ['init', '-q'], { cwd: dir });
+      const lines: string[] = [];
+      await expect(
+        runCreate({ ...createOpts(dir), log: (s: string) => lines.push(s) }),
+      ).rejects.toThrow(/repository has no commits/);
+      expect((await readdir(dir)).sort()).toEqual(['.git', 'brief.md']);
+      expect(lines.some((l) => /running/.test(l))).toBe(false);
     } finally {
       await cleanup();
     }

@@ -21,7 +21,7 @@ import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
-import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit, applyFailedRun, snapshot, restore, preserveFailedRun, hasFailedRun } from '../util/git.js';
+import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit, applyFailedRun, snapshot, restore, preserveFailedRun, hasFailedRun, gitPreflight } from '../util/git.js';
 import { loadConstraints } from '../memory/constraints.js';
 import { classifyAttempt, causeNote, nextBudget, isDocsOnlyStage, renderDecisionStop, appendSummaryNote, type AttemptCause } from './stage-recovery.js';
 import type { RefusalBlocker } from '../agent/context.js';
@@ -1047,6 +1047,13 @@ export interface CreateResult {
 }
 
 export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
+  // Every stage already hits this same check inside runAgentLoop (allowDirty:
+  // true there too, since create's stages build on each other's uncommitted state,
+  // so only the unborn-HEAD case is rejected). Repeating it here, before any
+  // scaffold write, means the documented `git init && copperhead create`
+  // quickstart refuses cleanly: no "running" line for a stage that never
+  // started, and no half-written .copperhead/config.json left behind.
+  await gitPreflight(opts.repoRoot, { allowDirty: true });
   const brief = await readFile(path.resolve(opts.briefPath), 'utf8');
   // Hashed from the content already in hand: a brief edited mid-pipeline shows
   // up as a different sha256 in the next stage's metadata (AC-8.1).
