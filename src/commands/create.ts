@@ -317,7 +317,8 @@ export const STAGES: Stage[] = [
           footprints: await FootprintResolver.create({ projectDir: path.dirname(p) }),
         });
         if (!dry.ok) return false;
-        if (dry.text !== (await readFile(p, 'utf8'))) return false;
+        const existing = await readFile(p, 'utf8');
+        if (existing.replace(/\r\n?/g, '\n') !== dry.text) return false;
       }
       return true;
     },
