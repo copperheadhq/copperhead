@@ -187,6 +187,10 @@ describe('stage-4 drafting contract (AC-16.20)', () => {
       expect(await isComplete(repo, 'docs/')).toBe(true);
       await writeFile(sheetPath, sheet.replace(/\n/g, '\r'), 'utf8');
       expect(await isComplete(repo, 'docs/')).toBe(true);
+      let eol = 0;
+      const mixed = sheet.replace(/\n/g, () => ['\r\n', '\r', '\n'][eol++ % 3]!);
+      await writeFile(sheetPath, mixed, 'utf8');
+      expect(await isComplete(repo, 'docs/')).toBe(true);
       await writeFile(sheetPath, sheet, 'utf8');
       // change the intent without re-drafting: the sheet on disk is now stale
       const intentPath = path.join(repo, 'schematic.intent.json');

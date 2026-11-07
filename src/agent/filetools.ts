@@ -12,7 +12,7 @@ export async function toolReadFile(
   const abs = resolveInRepo(repoRoot, p);
   const text = await readFile(abs, 'utf8');
   if (startLine === undefined) return text;
-  const lines = text.split('\n');
+  const lines = text.split(/\r\n|\r|\n/);
   const from = Math.max(1, startLine);
   const to = Math.min(lines.length, endLine ?? lines.length);
   return lines
@@ -69,14 +69,7 @@ export async function toolEditFile(
     }
   };
   const normalizedRe = runAnchorRegex(() => new RegExp(l0.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g'));
-  // A leading LF in an anchor must not match only the LF half of a CRLF pair.
-  // Let normalizedRe match the whole break in that case.
-  const exactPattern = `${oldString.startsWith('\n') ? '(?<!\\r)' : ''}${esc(oldString)}${oldString.endsWith('\r') ? '(?!\\n)' : ''}`;
-  const exactRe = runAnchorRegex(() => new RegExp(exactPattern, 'g'));
-  // The lookarounds can drop byte-exact occurrences; if they did, let normalizedRe see them all so ambiguity is still reported.
-  const rawCount = text.split(oldString).length - 1;
-  const exactCount = rawCount > 0 ? runAnchorRegex(() => text.match(exactRe)?.length ?? 0) : 0;
-  const re = exactCount > 0 && exactCount === rawCount ? exactRe : normalizedRe;
+  const re = normalizedRe;
   let lastBreak: string | undefined;
   let nextBreakAt = -1;
   let nextBreakValue: string | undefined;
@@ -210,7 +203,7 @@ export async function toolSearch(
           continue;
         }
         if (text.includes('\u0000')) continue; // binary
-        const lines = text.split('\n');
+        const lines = text.split(/\r\n|\r|\n/);
         for (let i = 0; i < lines.length && matches.length < maxMatches; i++) {
           if (re.test(lines[i]!)) matches.push({ file: rel, line: i + 1, text: clipMatch(lines[i]!) });
         }

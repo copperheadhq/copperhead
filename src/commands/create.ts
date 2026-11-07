@@ -262,9 +262,7 @@ export const STAGES: Stage[] = [
         });
         if (!dry.ok) return false;
         const existing = await readFile(p, 'utf8');
-        const nl = dry.text.indexOf('\n');
-        const gap = nl !== -1 && existing.startsWith(dry.text.slice(0, nl)) ? existing.slice(nl, nl + 2).match(/^\r?\n|^\r/)?.[0] : undefined;
-        if ((gap ? dry.text.replace(/\n/g, gap) : dry.text) !== existing) return false;
+        if (existing.replace(/\r\n?/g, '\n') !== dry.text) return false;
       }
       return true;
     },

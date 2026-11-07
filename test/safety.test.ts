@@ -167,7 +167,7 @@ describe('file tools', () => {
     const src = '| Refdes | Value |\r\n|---|---|\r\n| R1 | 10k |\r\n| R2 | 1k |\r\n';
     await writeFile(file, src, 'utf8');
     const line = (await toolReadFile(dir, 'BOM.md', 3, 3)).replace(/^\d+: /, '');
-    expect(line).toBe('| R1 | 10k |\r');
+    expect(line).toBe('| R1 | 10k |');
 
     await toolEditFile(dir, 'BOM.md', line, '| R1 | 4.7k |');
     expect(await readFile(file, 'utf8')).toBe(src.replace('10k', '4.7k'));
@@ -187,7 +187,7 @@ describe('file tools', () => {
       .split('\n')
       .map((l) => l.replace(/^\d+: /, ''))
       .join('\n');
-    expect(excerpt).toBe('\t\t(property "Reference" "R1"\r\n\t\t\t(at 0 -1.43 0)\r');
+    expect(excerpt).toBe('\t\t(property "Reference" "R1"\n\t\t\t(at 0 -1.43 0)');
 
     await toolEditFile(dir, 'f.kicad_pcb', excerpt, excerpt.replace('-1.43', '-2.00'));
     expect(await readFile(file, 'utf8')).toBe(src.replace('-1.43', '-2.00'));
@@ -195,6 +195,28 @@ describe('file tools', () => {
     await writeFile(file, src, 'utf8');
     await toolEditFile(dir, 'f.kicad_pcb', '\t\t\t(at 0 -1.43 0)\r', '\t\t\t(at 0 -1.43 0)\r\n\t\t\t(layer "F.SilkS")\r');
     expect(await readFile(file, 'utf8')).toBe(src.replace('(at 0 -1.43 0)\r\n', '(at 0 -1.43 0)\r\n\t\t\t(layer "F.SilkS")\r\n'));
+  });
+
+  it('read_file and search handle CR-only line endings', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'cr-only.txt');
+    await writeFile(file, 'x\rneedle\rz\r', 'utf8');
+
+    expect(await toolReadFile(dir, 'cr-only.txt', 2, 2)).toBe('2: needle');
+    expect(await toolSearch(dir, 'needle')).toEqual([
+      { file: 'cr-only.txt', line: 2, text: 'needle' },
+    ]);
+  });
+
+  it('edit_file judges uniqueness after line-ending normalization', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'ch-'));
+    const file = path.join(dir, 'f.kicad_pcb');
+    const src = '(kicad_pcb\r\n\t(footprint "R_0603"\r\n\t\t(property "Reference" "R1")\r\n\t\t(pad "2" smd rect\r\n\t\t\t(net 2 "GND")\r\n\t\t)\r\n\t)\r\n'
+      + '\t(footprint "R_0603"\n\t\t(property "Reference" "R2")\n\t\t(pad "2" smd rect\n\t\t\t(net 2 "GND")\n\t\t)\n\t)\n)\r\n';
+    await writeFile(file, src, 'utf8');
+    await expect(toolEditFile(dir, 'f.kicad_pcb', '\t\t(pad "2" smd rect\n\t\t\t(net 2 "GND")', '\t\t(pad "2" smd rect\n\t\t\t(net 3 "VBUS")'))
+      .rejects.toThrow(/matched 2 times/);
+    expect(await readFile(file, 'utf8')).toBe(src);
   });
 
   it('edit_file still reports an ambiguous anchor when one occurrence sits inside a CRLF pair', async () => {
