@@ -183,6 +183,27 @@ program
   .option('--fab', 'run fabrication release-readiness documentation check (LAYOUT.md Draft quality + DEVPLAN.md)')
   .action(checkAction);
 
+program
+  .command('explain')
+  .description('look up a refdes, net, or pin in the schematic and docs; no LLM, no network')
+  .argument('<query>', 'refdes (U1), net (GND), or pin (U1.GPIO14 / R2.1)')
+  .action(async (query: string) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { runExplain } = await import('./commands/explain.js');
+      const { result, text } = await runExplain(repo, query);
+      if (json) console.log(JSON.stringify(result, null, 2));
+      else process.stdout.write(text.startsWith('\n') ? text.slice(1) : text);
+      process.exit(result.ok ? 0 : 1);
+    } catch (err) {
+      const message = (err as Error).message;
+      if (json) console.log(JSON.stringify({ ok: false, error: message, suggestions: [] }, null, 2));
+      else console.error(message);
+      process.exit(1);
+    }
+  });
+
 // `draft` and `score` are command groups taking the artifact as a noun
 // (`draft schematic` today, `draft pcb` when layout drafting exists), so the
 // verb alone never has to guess what it applies to.
@@ -578,7 +599,9 @@ program
 
 program
   .command('create')
-  .description('Mode A: full pipeline from a product brief to the output package')
+  .description(
+    'Mode A: full pipeline from a product brief to the output package. Stops for a decision on a verified constraint conflict or a footprint that is not installed; re-run to resume at that stage',
+  )
   .requiredOption('--brief <file>', 'product brief (markdown)')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
   .option('--interactive', 're-enable the human gates (spec approval, pre-export)')
