@@ -36,6 +36,7 @@ import {
   formatRunsInspect,
   formatSyncInspect,
 } from './repl-inspect.js';
+import { runExplain } from './explain.js';
 
 export interface ReplOptions {
   repoRoot: string;
@@ -83,6 +84,7 @@ export const SLASH_COMMANDS: SelectItem[] = [
   { value: '/check', label: '/check', description: 'ERC + DRC + drift — no LLM' },
   { value: '/parts', label: '/parts', description: 'refdes / value / footprint from schematic' },
   { value: '/nets', label: '/nets', description: 'net names and pin attachments' },
+  { value: '/explain', label: '/explain', description: 'look up a refdes, net, or pin (U1 / GND / U1.GPIO14)' },
   { value: '/bom', label: '/bom', description: 'parsed docs/BOM.md (read-only)' },
   { value: '/sync', label: '/sync', description: 'doc↔board inconsistency report (verify only)' },
   { value: '/drift', label: '/drift', description: 'BOM/PINOUT vs schematic drift' },
@@ -121,6 +123,7 @@ const BARE_ALIASES: Record<string, string> = {
   check: '/check',
   parts: '/parts',
   nets: '/nets',
+  explain: '/explain',
   bom: '/bom',
   sync: '/sync',
   drift: '/drift',
@@ -429,7 +432,7 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
     }
   }
 
-  const runSlash = async (cmd: string): Promise<'quit' | 'continue'> => {
+  const runSlash = async (cmd: string, args = ''): Promise<'quit' | 'continue'> => {
     if (QUIT.has(cmd)) return 'quit';
     if (cmd === '/help' || cmd === '/h' || cmd === '/?') {
       await staggerWrite(helpText().split('\n'), log);
@@ -551,6 +554,19 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
       }
       return 'continue';
     }
+    if (cmd === '/explain') {
+      if (!args) {
+        log(warn('  usage: /explain <refdes|net|pin>   e.g. /explain U1, /explain GND, /explain U1.GPIO14'));
+        return 'continue';
+      }
+      try {
+        const { text } = await runExplain(opts.repoRoot, args);
+        log(text);
+      } catch (e) {
+        log(err((e as Error).message));
+      }
+      return 'continue';
+    }
     if (cmd === '/bom') {
       try {
         log(await formatBomInspect(opts.repoRoot));
@@ -649,8 +665,8 @@ export async function runRepl(opts: ReplOptions): Promise<{ ok: boolean; turns: 
         if (slash.cmd === '/') continue;
         // Echo again above command output so history stays readable after
         // long tours (/demo) push the prompt line out of the first viewport.
-        log(dim(`  → ${slash.cmd}`));
-        const result = await runSlash(slash.cmd);
+        log(dim(`  → ${slash.cmd}${slash.args ? ` ${slash.args}` : ''}`));
+        const result = await runSlash(slash.cmd, slash.args);
         if (result === 'quit') break;
         continue;
       }
