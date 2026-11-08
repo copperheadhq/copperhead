@@ -13,6 +13,10 @@
 - **WHEN** the brief omits a needed decision (e.g. battery chemistry)
 - **THEN** SPEC.md proposes a default flagged `ASSUMED` for review
 
+#### Scenario: OpenSpec initialization fails
+- **WHEN** `create` needs a new OpenSpec workspace and its noninteractive `init --tools none` invocation fails
+- **THEN** it reports the subprocess diagnostic and returns not-ok with no completed stages before stamping the create origin or invoking any model; existing design files and configuration remain intact
+
 ### Requirement: Run-to-completion guarantee
 Once started, `create` SHALL always finish with the complete output package: gates are quality checks the agent must satisfy, never stops that wait for a human, unless `--interactive` re-enables the spec-approval and pre-export gates.
 
@@ -26,6 +30,14 @@ Pipeline state SHALL live in the repo (docs + files + gate results), so a killed
 #### Scenario: Resume after kill
 - **WHEN** `create` is killed after the BOM stage and re-run
 - **THEN** it skips spec/architecture/BOM and resumes at the schematic stage
+
+#### Scenario: Pending resumed work cannot be committed
+- **WHEN** a complete stage has pending managed files and its Git commit fails, or unrelated dirty files prevent a safe commit
+- **THEN** `create` returns not-ok without adding that stage to the completed list or invoking a later agent stage, prints the resume point, and preserves the pending work without rollback
+
+#### Scenario: Resumed work is already committed
+- **WHEN** a stage is complete and the working tree is clean
+- **THEN** `create` may skip that stage without creating another commit
 
 ### Requirement: First-draft layout with honesty gate
 The layout stage SHALL produce rule-driven placement (real coordinates in the `.kicad_pcb`) and rule-based routing of power/critical nets, with every routed net passing DRC, and SHALL auto-write a `## Draft quality` section in LAYOUT.md listing what is done and what a human or specialist tool should redo.

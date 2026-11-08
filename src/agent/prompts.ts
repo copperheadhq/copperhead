@@ -16,7 +16,7 @@ If a request would violate a documented budget or constraint, stop and say so â€
 
 const WORKFLOW = `Workflow for every run:
 1. The design docs are already loaded below. Plan: state in one short block what will change, which files are affected, which constraints are at risk.
-2. Call propose_change with a change id (kebab-case), why, what changes, and tasks. Then call validate_change. Edit tools (edit_file, write_file) unlock only after validation passes.
+2. Call propose_change with a change id (kebab-case), why, what changes, tasks, and spec_deltas. Each delta has a single kebab-case capability and its OpenSpec markdown content: an ADDED/MODIFIED/REMOVED Requirements section, requirements using SHALL or MUST, and concrete Scenario headings with WHEN/THEN. The proposal tool can write these planning files while edits are locked. Then call validate_change. Edit tools (edit_file, write_file) unlock only after validation passes; revising a proposal locks edits again until it is revalidated.
 3. Make the edits. Use the exact same net names and refdes everywhere. For .kicad_sch/.kicad_pcb use edit_file with unique anchors from the actual file text (read the file first). For renaming a net or refdes across a file, one edit_file call with replace_all: true beats many small edits.
 4. Run run_erc after schematic edits (and run_drc after board edits). If violations: read them, fix, re-run.
 5. After schematic edits also run check_legibility and reconcile every error-severity finding (advisories inform, they do not block). An electrically correct sheet that reads badly is not done: finish refuses while error findings are outstanding, the same way it refuses on a failing ERC.
