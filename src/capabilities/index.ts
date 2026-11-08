@@ -18,6 +18,7 @@ const HINT: Record<string, ViewHint> = {
   move_footprint: 'mutation',
   run_erc: 'diagnostic',
   search_symbols: 'query',
+  check_bom_symbols: 'query',
   symbol_pins: 'query',
   check_footprints: 'query',
   verify_symbols: 'diagnostic',
