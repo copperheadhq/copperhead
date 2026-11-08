@@ -111,13 +111,15 @@ their-board/
 │   └── <name>.kicad_pcb
 ├── docs/
 │   ├── SPEC.md             # what the device is; top-level constraints & budgets
-│   ├── BOM.md              # every part: refdes, MPN, value, package, WHY chosen
+│   ├── parts.intent.json   # parts manifest (create): refdes, verified lib_id, footprint, MPN, group, rationale
+│   ├── BOM.md              # every part: refdes, MPN, value, package, WHY chosen (rendered from the manifest when one exists)
 │   ├── PINOUT.md           # MCU pin assignment table + strapping/RTC notes
 │   ├── SUBSYSTEMS.md       # per-sheet values & reasoning (regulator, charger…)
 │   ├── BRIEF.sha256        # originating brief path + SHA-256; created on first successful spec-seed run, preserved thereafter
 │   └── LAYOUT.md           # placement/routing intent: keepouts, pours, ESD placement
 └── .copperhead/
     ├── config.json         # paths, model, budgets (see §5)
+    ├── cache/              # library lookups keyed by file mtime (gitignored, disposable)
     └── runs/               # transcript of each `do` run (audit trail)
 ```
 
@@ -155,25 +157,25 @@ Anything unstated → the agent proposes defaults in SPEC.md and flags them `ASS
 | **Pin map header** | pins.h — generated from PINOUT.md, single source of truth | drift-checked |
 | **Dev plan** | DEVPLAN.md: bring-up steps, test points, what to meter first, risk list, prototype order plan | agent |
 
-Firmware scope: scaffold + pin definitions + driver stubs + one working happy-path (e.g. key press → BLE HID report). "Compiles clean against the vendor toolchain" is the verification gate — same philosophy as ERC/DRC: nothing is done until the toolchain agrees.
+Firmware scope: scaffold + pin definitions + driver stubs + one working happy-path (e.g. key press → BLE HID report). "Compiles clean against the vendor toolchain" is the verification gate — same philosophy as ERC/DRC: nothing is done until the toolchain agrees. A board with nothing programmable on it has no firmware: when every schematic symbol comes from a stock non-programmable KiCad library, `firmware/README.md` opening `# No firmware` and saying why stands in for the scaffold (AC-15.45).
 
 ### The pipeline (Mode A internally)
 
-**Run-to-completion guarantee:** once `create` starts, it always finishes with the complete output package. Gates are *quality checks the agent must satisfy*, not stops that wait for a human. By default the pipeline is fully autonomous: unstated decisions get `ASSUMED` flags, imperfect layout gets the `Draft quality` label, and the run ends with gerbers, firmware, renders, and DEVPLAN.md on disk — an end product, reviewable as a whole. `--interactive` turns the two human gates (spec approval, pre-export review) back on for users who want them.
+**Run-to-completion guarantee:** once `create` starts, it always finishes with the complete output package. Gates are *quality checks the agent must satisfy*, not stops that wait for a human. By default the pipeline is fully autonomous: unstated decisions get `ASSUMED` flags, imperfect layout gets the `Draft quality` label, and the run ends with gerbers, firmware (or, on a board with nothing programmable, a `firmware/README.md` saying why there is none), renders, and DEVPLAN.md on disk — an end product, reviewable as a whole. `--interactive` turns the two human gates (spec approval, pre-export review) back on for users who want them.
 
-**The one stop:** a footprint that is not installed on the machine stops the run for the user (#314). No model turn can install a library, and a substitute package is surrogate geometry on a board that claims to match its schematic. `create` checks every BOM.md footprint before the schematic stage and again when it populates the board, exits non-zero naming each missing part and how to install it, and resumes where it stopped once the library is added. copperhead never downloads parts.
+**The two stops:** a footprint that is not installed on the machine stops the run for the user (#314): no model turn can install a library, and a substitute package is surrogate geometry on a board that claims to match its schematic. `create` checks every BOM.md footprint before the schematic stage and again when it populates the board, exits non-zero naming each missing part and how to install it, and resumes where it stopped once the library is added. copperhead never downloads parts. A verified constraint conflict stops the run for a decision (AC-18): when a stage refuses with a `blockers` entry naming a key the constraint registry holds, no retry and no supervisor call follow. `create` prints a decision block naming the constraint, its required value, the failing candidate, the attempt and the document the constraint was recorded from, with the two ways forward (revise the constraint and its source, or name a compliant part in the brief or SUBSYSTEMS.md), appends it to the attempt's `summary.md`, exits non-zero with the completed stages still committed, and resumes at that stage on the next run. A claim naming an unregistered key is prose, never a stop.
 
 ```
 brief.md
   → SPEC.md (budgets, ASSUMED flags)          [gate: spec is self-consistent]
   → architecture (block diagram in SUBSYSTEMS.md)
-  → part selection (BOM.md with rationale)     [gate: check_drift]
+  → part selection (parts.intent.json → draft_bom → BOM.md)  [gate: manifest validates, BOM.md is its render]
   → footprint check (every BOM footprint installed, else stop for the user)
   → schematic, sheet by sheet                  [gate: ERC after every sheet]
   → board populate (deterministic, see below)
   → first-draft layout (see below)             [gate: board matches schematic, DRC]
   → outputs package                            [gate: all exports succeed]
-  → firmware scaffold                          [gate: build passes]
+  → firmware scaffold                          [gate: build passes, or no programmable part]
   → DEVPLAN.md
 ```
 
@@ -251,8 +253,8 @@ copperhead [repl] ["<change request>"] [--model …] [--allow-dirty]
     refusal and the same off-by-default `--allow-dirty` escape hatch),
     then returns to the prompt.
     Slash commands: /help, /demo, /examples, /status, /check, /parts, /nets,
-    /bom, /sync, /drift, /constraints, /openspec, /config, /git, /runs, /last,
-    /model, /version, /clear, /quit. Inspect commands are verify-only (no LLM
+    /explain, /bom, /sync, /drift, /constraints, /openspec, /config, /git, /runs,
+    /last, /model, /version, /clear, /quit. Inspect commands are verify-only (no LLM
     resolve / create). An optional first request runs before the loop. Non-TTY
     without a request refuses and points at `copperhead do`. With no model
     configured anywhere, a TTY session offers an interactive picker (also
@@ -334,8 +336,14 @@ copperhead review [design] --out <dir> [--source …] [--fab …] [--fab-profile
     failed; 1 on an error or a replay that differs; 130 or 143 when cancelled
     by SIGINT or SIGTERM.
 
-copperhead explain <refdes|net|pin>       # stretch
-    Answer "why is R7 here?" from docs + schematic context.
+copperhead explain <refdes|net|pin>
+    Deterministic lookup: a refdes (`U1`) lists value, footprint, pins, and
+    connected nets; a net (`GND`) lists attached pins; a pin (`U1.GPIO14` or
+    `R2.1`) names the net; a dotted net like `VDD1.8` still resolves as a
+    net when no such part exists. Also pulls matching rows from BOM.md / PINOUT.md
+    and mentions in docs/. No LLM, no network. `--json` emits the same
+    structured hit. Unknown queries exit 1 with nearby-name suggestions.
+    The REPL exposes the same lookup as `/explain`.
 
 copperhead watch                          # Phase 2
     Start the live viewer (see §6).
@@ -376,7 +384,7 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | Tool | Signature | Notes |
 |---|---|---|
 | `read_file` | (path) → text | Repo-relative, sandboxed to repo root |
-| `edit_file` | (path, old_string, new_string) → ok | Exact-match anchored replace; fails if not unique |
+| `edit_file` | (path, old_string, new_string) → ok | Exact-match anchored replace (line endings normalized to the file's own); fails if not unique |
 | `write_file` | (path, content) → ok | New files only (docs); refuses to overwrite .kicad_* |
 | `search` | (regex, glob?) → matches | ripgrep-style over repo |
 | `list_symbols` | (sch_path) → [{ref, value, footprint, sheet}] | From s-expression parse |
@@ -384,7 +392,8 @@ It's a loop, and it looks a lot like pair-programming, except the codebase is a 
 | `run_erc` | () → {violations: [...]} | `kicad-cli sch erc --format json --exit-code-violations` |
 | `run_drc` | () → {violations: [...]} | `kicad-cli pcb drc --format json --exit-code-violations` |
 | `export_svg` | (sch\|pcb) → path | For viewer + before/after diffing |
-| `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic |
+| `check_drift` | () → [{doc, claim, actual}] | Compares doc tables (BOM/pinout) against parsed schematic, and BOM.md against its manifest render |
+| `draft_bom` | (manifest_json?) → findings \| rendered BOM.md | Validates `docs/parts.intent.json` against the installed libraries (symbol, footprint, pins vs pads, groups, substitutions, off-board, no-part) and renders BOM.md when clean; spec-gated like `draft_schematic` |
 | `generate_report` | (scope?: power\|all) → report | Skill: nested read-only sub-run; ERC/DRC/drift/nets. Always in the catalog. |
 
 ### 4.3 System prompt — key rules (verbatim requirements)
@@ -412,6 +421,7 @@ interface Provider {
 - `claude-code.ts`: saved-login Claude Code via the Claude Agent SDK: a reasoning-only backend (no SDK tools, built-ins disabled, isolated cwd) mapped onto the single-turn `Provider` seam so the loop stays the driver. Selected by `--model claude-code` / `claude-code:<id>` (routed ahead of the `claude*` prefix); needs no `ANTHROPIC_API_KEY` (uses `CLAUDE_CODE_OAUTH_TOKEN` / the logged-in CLI); never falls back to a keyed provider. `@anthropic-ai/claude-agent-sdk` ships as an `optionalDependency` (its `@anthropic-ai/sdk >=0.93.0` peer is satisfied by copperhead's bumped core SDK), lazily imported and only loaded when `claude-code` is selected.
 - `cursor.ts`: saved-login Cursor Agent CLI subprocess (`agent login`), reasoning-only (plan mode, sandbox, isolated workspace, JSON tool protocol, session resume via `--resume`). Selected by `--model cursor` / `cursor:<id>`; needs no model API keys; never falls back to a keyed provider. Optional `COPPERHEAD_CURSOR_PATH` (default `agent` on PATH).
 - Text tool protocol (`claude-code`, `cursor`): the model's reply is read only up to the first line it writes in the harness's own transcript format (`[result of <tool>]` or `[user]` alone on a line). Everything from that line on is a fabricated result and is discarded: its tool calls are not dispatched, the discarded text is not stored as assistant content, and the loop sends the model a notice (after the real tool results) saying how many blocks and calls were dropped. The discarded text is kept in the transcript as a `fabricated-results` event. The response cache keys these two providers' entries with the protocol version, so turns cached before this rule are not replayed.
+- Text tool protocol (`claude-code`, `cursor`), mixed replies: when a reply dispatches at least one tool call and also contains tool-call JSON that did not run (a tool outside the turn's catalog, or a call that does not parse), the loop sends the model one message after the real tool results naming those calls, and the transcript records an `undispatched-calls` event with their names. The message is worded from the catalog as it stands after the reply's calls ran: a tool the same reply unlocked is to be sent again, a tool still locked needs `propose_change` then `validate_change` (only where the catalog offers `propose_change`), and once edits are unlocked, or in a catalog without `propose_change`, a name still absent is reported as unknown with the available tools listed. Nothing extra is dispatched, so the edit lock is unchanged. A call is reported whatever its key order (`{"args": …, "tool": …}` included); text that only quotes a call (a `"tool"` key that neither opens an object nor follows a comma, or a name that is not an identifier) is not reported. A skill's sub-run sends the same message and records the same event, naming the skill. A `finish` in such a reply is answered, not run: its tool result says it was held back and names the calls that did not run, the transcript records a `tool-not-run` event for it, and the run goes on, so a run cannot end, and commit, on work that never happened (#296).
 - `openai.ts` compatible-endpoint mode: `--model compat:<id>` points the same provider at any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini's compat endpoint, a local Ollama) via `baseURL` + `apiKeyEnv` (config, or `COPPERHEAD_BASE_URL` / `COPPERHEAD_API_KEY_ENV`). Only the `compat` route reads `baseURL`, so a stray value never redirects a `gpt-5` run; a loopback endpoint needs no credential.
 - Selection: `--model` flag > `COPPERHEAD_MODEL` env > config.json > the available key, but **only when exactly one of `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` is set**; with two or more present and no explicit selection, resolution refuses with an actionable error rather than silently favoring one (breaking change from "first key wins")
 - All providers must pass the same integration test on the fixture repo
@@ -421,10 +431,14 @@ interface Provider {
 - `maxTurns` default 40; `maxRepairCycles` 5; per-run token budget logged
 - On turn-budget exhaustion in an attended (TTY) run: print run stats (turns, files touched, open obligations, token usage) and ask whether to continue with more turns; declining, or a non-TTY run, fails as below. The extension can repeat; each is a fresh decision with fresh numbers.
 - On any unrecoverable failure: preserve the touched work as a git stash entry named `copperhead failed run <run-id>`, restore the snapshot, print the stash ref and transcript path, exit 1
+- On a refusal with touched files: the same `copperhead failed run <run-id>` stash entry is left before the snapshot is restored, and the stash ref is printed beside the transcript path (AC-18.3); a refusal that touched nothing leaves no entry
+- `create` classifies every stage attempt that does not complete its stage as `constraint-conflict`, `turn-budget-exhausted` or `other`, and logs the cause and the action beside the attempt's start line. A refusal with no verified blocker that has used at least 80% of its budget (rounded up) is `turn-budget-exhausted` too, and the cause line says so with the turns used and the budget (AC-18.16): an agent that sees the end coming refuses a few turns early, and the budget is what that retry needs. A verified conflict stops for a decision (above). A spent budget retries with 1.5× the previous attempt's turns, rounded up, never above 3× the stage's starting budget (its `stageMaxTurns` entry, else `maxTurns`); the supervisor is still consulted for guidance and its `abort` still stops the stage. Other causes keep the budget and go to the supervisor as before. Docs-only stages (spec-seed, architecture, part-selection) retry from the previous attempt's preserved stash entry, applied before the retry's own snapshot; a stash that does not apply cleanly is kept and reported, and the retry starts from the pre-stage tree. KiCad-touching stages keep the plain rollback. Restored files count as touched by the retry, so its drift (and ERC) obligations cover them; a docs-only stage that stops after a retry restored a draft puts the tree back to its pre-stage state, and the draft stays in the last attempt's stash entry
+- The create cost table's `Replayed` column counts turns served from copperhead's own response cache, never provider cache hits (total line: `N% turns replayed`); the `claude-code` provider counts cache-read and cache-creation tokens in reported input, as the Anthropic provider does
 - Rate-limit (429): exponential backoff ×3, then fail over to the other **keyed** provider (`openai` ↔ `anthropic`) if a key exists; saved-login providers (`codex`, `claude-code`, `cursor`) never fail over to a keyed or alternate provider
 - Provider turn watchdog: a turn that goes `turnTimeoutMs` without a response or streamed progress is treated as hung, aborted, and retried up to 3 times before failing as above. A streaming provider's progress restarts that deadline, so a long turn that keeps producing output is not killed; a provider that reports no progress gets `turnTimeoutMs` as a whole-turn deadline. `turnMaxMs` caps a turn that is producing output, however much it streams, and is never shorter than `turnTimeoutMs`: a turn that reaches it is too large rather than hung, so it fails as above without a retry. A turn that has reported no progress is judged by `turnTimeoutMs` alone.
 - Nested skill provider turns use the same bounded timeout (inactivity deadline and hard cap) and 429 backoff policy. A provider error inside a skill becomes a failed tool envelope, so it cannot escape the parent loop and bypass its failure/rollback path.
 - The Anthropic provider marks `cache_control` breakpoints (system prompt, last tool, last message block) so the resent conversation prefix is cached; reported input tokens include cache reads/writes
+- The `claude-code` provider reports input tokens the same way: uncached input plus cache reads and cache writes (AC-18.4, AC-18.5). The create cost table's `Replayed` column and its `N% turns replayed` line count turns answered from copperhead's own response cache, never provider cache hits (AC-18.13)
 
 ---
 
@@ -500,6 +514,15 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.4** `--json` emits machine-readable results (parseable, stable keys).
 - **AC-2.5** Runs in < 60 s on the fixture.
 
+### AC-17 · `copperhead explain`
+
+- **AC-17.1** `explain U1` on the open-key fixture prints the part value and the GPIO14 pin on KEY_DAH; exit 0; no LLM and no network.
+- **AC-17.2** `explain KEY_DAH` lists the attached pins (U1.GPIO14 and R2.1 among them).
+- **AC-17.3** `explain U1.GPIO14` and `explain R2.1` both name net KEY_DAH.
+- **AC-17.4** `--json explain GND` is parseable with `ok: true` and `hit.kind === "net"`.
+- **AC-17.5** An unknown query exits 1 and suggests nearby names when they exist.
+- **AC-17.6** A dotted net such as `VDD1.8` resolves as a net when no part `VDD1` exists, and a pin name repeated on one part fails with "use REF.PIN" instead of "nothing named".
+
 ### AC-3 · `copperhead do` — core loop
 
 - **AC-3.1 (rename)** `do "rename net KEY_DAH to KEY_DASH"` → net renamed in every sheet it appears; PINOUT.md and SUBSYSTEMS.md updated; ERC exit 0; exactly one commit; no other net or doc line changed (diff inspected).
@@ -522,6 +545,8 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-3.18 (compat never fails over to a paid key)** A rate limit against a `compat:<id>` endpoint never fails over to `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, even when one is present in the environment: the compat provider is not `'openai'` by name, so the same isolation that protects `codex`/`claude-code`/`cursor` (AC-3.11, AC-3.12) applies to it too.
 - **AC-3.19 (ambiguous auto-selection refuses)** With no `--model`, no `COPPERHEAD_MODEL`, and no `model` in config, model resolution refuses with an actionable "ambiguous" error naming every credential found when two or more of `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` are set; with exactly one, that provider is selected as before. **Breaking change**: an environment with both keys set that previously auto-selected `OPENAI_API_KEY` now fails `do`/`sync`/`create`/`demo` until a model is chosen explicitly (`repl` degrades gracefully via its interactive picker instead).
 - **AC-3.21 (fabricated tool results are cut)** On `--model claude-code` or `--model cursor`, a reply that contains a line-anchored `[result of <tool>]` or `[user]` block after its tool calls dispatches only the calls before that line; the rest of the reply is not dispatched and not stored, the next user message to the model names the number of discarded blocks and calls, and the transcript records a `fabricated-results` event with the discarded text. A marker inside a JSON string value, or not alone on its line, does not cut. A skill's sub-run sends the same message and records the same event. A response-cache entry written before this rule is not replayed for these providers.
+- **AC-3.22 (undispatched calls in a mixed reply are named)** On `--model claude-code` or `--model cursor`, a reply that dispatches at least one tool call and also holds a call for a tool outside the turn's catalog, or a call that does not parse, yields a user message after the tool results that names each such tool, and the transcript records an `undispatched-calls` event with `unavailable` and `malformed` name lists. If `validate_change` passed in that same reply, the message says the tool is available now and does not ask for a proposal; if edits were already unlocked and the name is still absent, it says the name is not a tool and lists the catalog; otherwise, where the catalog offers `propose_change`, it points at `propose_change` then `validate_change`, and in a catalog without it the name is reported as not a tool. A call written with `"args"` before `"tool"` is reported like any other. A skill's sub-run sends the same message after its tool results and records the event with the skill's name. A reply whose calls all ran, and prose that only quotes a call, produce no message and no event.
+- **AC-3.23 (a finish cannot ride on undispatched calls)** On `--model claude-code` or `--model cursor`, a reply that holds a `finish` call and also leaves calls undispatched (AC-3.22) does not end the run, whatever the outcome: that `finish` gets the tool result `not run: finish was held back because … in this reply did not run`, naming each such tool, the transcript records a `tool-not-run` event with name `finish`, and the next turn's messages hold that result before the AC-3.22 message. A `finish` in a later reply whose calls all ran ends the run as before. For the reply in #296 (`propose_change`, `validate_change`, `write_file`, `finish`), the file is committed by the next reply instead of the run committing no files.
 - **AC-3.20 (compat cache is endpoint-scoped)** Re-running a cached `compat:<id>` request against a different `baseURL` calls the new endpoint rather than replaying the previous one's turns: one model id can be served by several hosts, so the id alone no longer identifies the backend. The endpoint enters the cache key only for the `compat` route, so a non-`compat` run's existing cache entries still replay unchanged.
 
 ### AC-4 · Safety
@@ -571,6 +596,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-15.42 (move_footprint)** Layout places parts with the spec-gated `move_footprint` tool (refdes, x, y, rotation), which rotates every pad and text angle with the footprint, since KiCad stores them as absolute, and moves and turns its zones, which KiCad stores in board coordinates; a part moved or turned with it (at any angle) passes DRC without `lib_footprint_mismatch`. A footprint that does not match its library is never excused as library-intrinsic.
 - **AC-15.43 (populated board verified and reversible)** A board populate wrote must pass DRC before the layout-draft stage's first agent turn; otherwise the run stops, naming the findings (and a missing global `fp-lib-table` when KiCad cannot find the libraries). The stage's agent run counts the board as touched, so it cannot finish without a passing `run_drc`. Each retry starts from the last verified board: the board an attempt committed when it still matches the schematic, so a DRC-clean placement is not redone over a documentation gap, else the pre-stage board, re-populated; and a stage that does not complete (a stop, an abort, exhausted retries, an error) leaves the last verified board: byte-identical to the pre-stage board, or, when an attempt committed, to that commit's board, so the tree never reverts HEAD.
 - **AC-15.44 (scaffold hole rules)** The scaffold project allows 0.2 mm holes, so stock footprints' thermal vias pass DRC, and its `.kicad_dru` holds every board via to a 0.3 mm drill.
+- **AC-15.45 (no programmable part, no firmware)** The firmware stage completes on source under `firmware/`, or, only when the schematic has parts and every one comes from a stock non-programmable library (`Device`, `Connector*`, `Diode*`, `Transistor_*`, `Regulator_*`, `Mechanical`, `power`, `Power_Protection`, `LED`, `Switch`, `Jumper`, `Graphic`, `Amplifier_Operational`, `Amplifier_Instrumentation`, `Comparator`, `Reference_Voltage`, `Relay`, `Timer`), on a `firmware/README.md` whose first line is `# No firmware` with a reason written below it (an HTML comment is not one). The schematic decides, not the model: a part from any other library, a project library included (`fixture:ESP32-S3-MINI`), still needs source, and a missing or partless schematic waives nothing (#377).
 
 ### AC-8 · Run observability (change: record-run-metadata)
 
@@ -686,6 +712,42 @@ Placement, routing, and legibility are computed from the netlist rather than sam
 
 - **AC-16.25 (illegible schematic still exits zero)** `check` on a repo with error-severity legibility findings but clean ERC and DRC prints them under a legibility heading and exits 0.
 - **AC-16.26 (score rides along without gating)** `check --json` on a repo with a drafted schematic and a low composite carries the `score` object with composite and breakdown, and the exit code is unaffected.
+
+### AC-18 · Stage recovery (change: harden-stage-recovery)
+
+- **AC-18.1** `finish` with outcome `refuse` and a blocker `{kind: "constraint-conflict", constraint, required, found}` whose key is registered ends the run refused with that blocker verified on the result; the summary's refusal section names the key, the required value and the failing candidate.
+- **AC-18.2** A blocker naming an unregistered key yields no verified blocker; the summary records it as an unverified claim and the caller treats the refusal as one without blockers.
+- **AC-18.3** A run that writes `docs/BOM.md` and then refuses restores the tree byte-identical, leaves a `copperhead failed run <run-id>` stash entry holding the file, and prints the stash ref; a clean refusal leaves no entry (AC-15.17).
+- **AC-18.4** The `claude-code` provider reports `input_tokens: 2`, `cache_read_input_tokens: 41000`, `cache_creation_input_tokens: 1500` as 42502 input tokens.
+- **AC-18.5** A result reporting only `input_tokens: 900` is counted as 900.
+- **AC-18.6** Every stage attempt that does not complete its stage logs a start line (`running (attempt n/m)`), a line naming its cause and a line naming the action taken, in that order, and records cause and action in its `summary.md`.
+- **AC-18.7** A first part-selection attempt refusing with a verified blocker starts no second attempt and makes no diagnosis call; the terminal shows the decision block naming the key, the required value, the failing candidate, attempt 1 and the document the constraint was recorded from; `create` exits non-zero with spec-seed and architecture still committed.
+- **AC-18.8** A refusal citing an unregistered key, with turns to spare (fewer than 80% of its budget used), is cause `other`: the supervisor is consulted, its verdict decides the retry, and the retry keeps the budget.
+- **AC-18.9** With a starting budget of 40 and `maxStageRetries` 3, successive exhaustions run attempts 2, 3 and 4 at 60, 90 and 120 turns.
+- **AC-18.10** An attempt that ends as `provider-error` and is retried keeps the previous attempt's budget.
+- **AC-18.11** A part-selection retry after an exhausted first attempt starts with the first attempt's `docs/BOM.md` on the tree, and the recovery guidance names it as restored.
+- **AC-18.12** A schematic-stage retry starts from the pre-stage tree, with the failed work only in the stash entry.
+- **AC-18.13** The cost table's column header is `Replayed` and a run that made every model call live ends with `0% turns replayed`.
+- **AC-18.14** A part-selection retry runs with every file inherited from earlier attempts counted as touched, whether this apply changed its bytes or a previous one did, so `finish` with outcome `done` is refused until `check_drift` has run clean on it; a restored constraint registry reopens the revisit obligations of each constraint it holds beyond HEAD.
+- **AC-18.15** A part-selection stage that stops after a retry restored the first attempt's draft leaves the tree at its pre-stage state with the draft in the last attempt's stash entry, and a re-run of `create` runs the stage again instead of committing the draft as already complete.
+- **AC-18.16** A part-selection attempt that refuses with no verified blocker at turn 37 of 40 is cause `turn-budget-exhausted`: the cause line and the attempt's `summary.md` read `turn-budget-exhausted (refused at turn 37 of 40)`, the supervisor is consulted once, and the retry runs with 60 turns.
+
+### AC-19 · Structured part selection (change: structured-part-selection)
+
+- **AC-19.1 (manifest is the stage-3 artifact)** Part selection writes `docs/parts.intent.json` with one entry per refdes; an active entry carries ref, value, group, libId, footprint, mpn, rationale and verified; a passive entry may give `package` instead of ids and the engine fills the canonical symbol and stock footprint; an `offBoard` entry needs neither; `substitutions` carry ref, wanted, chosen and reason.
+- **AC-19.2 (`draft_bom`)** The tool validates the manifest against this machine's libraries and renders BOM.md when clean. Each finding names the refdes and the fix: shape and grouped refdes, value-not-description, missing ids or MPN on an active part, a lib_id that does not resolve (nearest installed lib_ids), a footprint that does not resolve (closest installed ids), symbol pins without pads or pads without pins (the same check as the IR validator), a group that is not a SUBSYSTEMS.md heading, a substitution whose entry does not carry the chosen part. Findings leave BOM.md untouched; invalid JSON writes neither file; a library not installed anywhere is reported as the user's stop and does not block the stage.
+- **AC-19.3 (one validator, three callers)** The stage completion check, a finish-time stage gate and the contract-gap message all call the same validator: complete means the manifest validates clean and BOM.md equals its render. The MPN column is never read; every MPN unverified still completes. `finish` is refused in-run with the gap. Without a manifest, a resumed run completes on resolvable footprints alone.
+- **AC-19.4 (render)** BOM.md is the deterministic render: the canonical five columns plus Symbol, a header line naming the manifest, `(UNVERIFIED)` on unverified MPNs, `(off-board)` in the Footprint cell, `(no part)` in the MPN cell, a Substitutions section. Existing readers (drift, `export bom`, `explain`, the IR cross-check) see the same rows as a hand-written table, and an off-board row is no footprint, never a miss; the pre-schematic stop, populate and drift skip it.
+- **AC-19.5 (drift)** With a manifest, `check` reports a BOM.md that differs from its render as drift naming the refdes and cell, LLM-free and network-free; a repo without a manifest is unchanged.
+- **AC-19.6 (stage 4 reads the manifest)** With a manifest, an IR part may give its ref alone and inherits libId, value, footprint and group; a field that disagrees, a ref the manifest lacks, or an off-board ref in the IR is a finding naming the manifest; the BOM.md cross-check is skipped; the entry dossier resolves each recorded lib_id exactly and omits passives and off-board entries. Without a manifest, stage 4 is unchanged.
+- **AC-19.7 (prompt)** The stage-3 prompt states the design task, the manifest and `draft_bom`; it requires no per-part `search_symbols`/`symbol_pins`/`check_footprints` calls and does not restate the table format.
+- **AC-19.8 (library cache)** Symbol pin tables and footprint pad sets are cached by (file, mtime) in process and under the gitignored `.copperhead/cache/`; a changed file invalidates its entries, a corrupt store is ignored and rebuilt, and the store survives the agent loop's rollback of a failed run.
+- **AC-19.9 (board features have no MPN)** An entry with `noPart: true` (a mounting hole, a fiducial, a pad test point) needs no `mpn` and is otherwise validated like any on-board part; `noPart` with an `mpn`, or with `offBoard`, is a finding naming the refdes; the render writes `(no part)` in the MPN cell and readers flag the row `NO_PART`, never `MISSING_MPN`.
+- **AC-19.10 (supplier export of the render)** `export bom` reads parts only from Refdes-headed tables, so the Substitutions table adds no order line; the exported part number is the MPN without its `(UNVERIFIED)` annotation, with the row still unverified; a no-part row is in no export and raises no warning; an off-board row is in the DigiKey and Mouser carts and excluded from the JLCPCB assembly BOM with a notice.
+- **AC-19.11 (invalid manifest is reported)** A `docs/parts.intent.json` that exists but does not parse is reported, never treated as absent: `check` lists it as drift with the reason, and schematic intent validation reports it instead of falling back to the BOM.md cross-check.
+- **AC-19.12 (writing the manifest opens the drift gate)** Any tool that writes `docs/parts.intent.json` (`draft_bom` with `manifest_json`, `edit_file`, `write_file`) opens the drift obligation, including when `draft_bom` then reports findings and leaves BOM.md alone. `check_drift` clears it only when the manifest parses and BOM.md is its render, and it checks that even when no schematic is configured; `finish` refuses while it is open.
+- **AC-19.13 (an empty manifest selects nothing)** A manifest whose `parts` list is empty is a validator finding: `draft_bom` reports it and renders nothing, and part selection does not complete on it, although a header-only BOM.md would match its render.
+- **AC-19.14 (manifest drift needs no schematic)** With no schematic configured, `check` and the `sync` verify phase still compare the manifest with BOM.md: a manifest that does not parse, a missing BOM.md, or a hand-edited render is reported, and `check` exits 1. A repo with no manifest is unchanged.
 
 ### AC-5 · Viewer (Phase 2 — only if built)
 

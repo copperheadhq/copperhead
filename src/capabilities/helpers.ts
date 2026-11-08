@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { isKicadFile } from '../util/paths.js';
+import { MANIFEST_FILENAME } from '../kicad/parts/manifest.js';
 import type { RunContext } from '../agent/context.js';
 
 export const str = (args: Record<string, unknown>, key: string): string => {
@@ -31,7 +33,9 @@ export function markTouched(ctx: RunContext, rel: string): void {
     ctx.ledger.onKicadEdit(rel);
     if (rel.endsWith('.kicad_sch')) ctx.lastErc = null;
     if (rel.endsWith('.kicad_pcb')) ctx.lastDrc = null;
-  } else if (rel.endsWith('.md')) {
+  } else if (rel.endsWith('.md') || path.basename(rel) === MANIFEST_FILENAME) {
+    // the parts manifest is a doc: BOM.md is rendered from it, so writing it
+    // by any tool re-opens the drift gate until check_drift sees them agree
     ctx.ledger.onDocEdit(rel);
   }
 }
