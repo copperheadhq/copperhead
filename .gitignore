@@ -1,6 +1,7 @@
 .env
 .env.backup
 .copperhead/runs/
+.copperhead/cache/
 .DS_Store
 node_modules
 dist/
