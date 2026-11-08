@@ -190,7 +190,7 @@ program
       else process.stdout.write(text.startsWith('\n') ? text.slice(1) : text);
       process.exit(result.ok ? 0 : 1);
     } catch (err) {
-      const message = (err as Error).message;
+      const message = formatCliError(err);
       if (json) console.log(JSON.stringify({ ok: false, error: message, suggestions: [] }, null, 2));
       else console.error(message);
       process.exit(1);

@@ -209,6 +209,10 @@ describe('secret redaction (AC-4.1)', () => {
     expect(out).toContain('myhost:8080/v1');
   });
 
+  it('sanitizeEndpoint leaves a key-shaped host name readable', () => {
+    expect(sanitizeEndpoint('https://risk-assessment-llm01.corp.example/v1')).toBe('https://risk-assessment-llm01.corp.example/v1');
+  });
+
   it('sanitizeEndpoint redacts a key-shaped segment in the path of a real URL', () => {
     const out = sanitizeEndpoint('http://127.0.0.1:11434/v1/sk-proj-FAKEdemo0000key1234567890/x');
     expect(out).not.toContain('FAKEdemo');
@@ -246,8 +250,10 @@ describe('secret redaction (AC-4.1)', () => {
     // console.error((err as Error).message) or console.error(err.message)
     // gets caught here instead of silently reopening the stderr boundary.
     const src = await readFile(path.join(process.cwd(), 'src', 'cli.ts'), 'utf8');
-    expect(src).not.toMatch(/console\.error\(\(err as Error\)\.message\)/);
-    expect(src).not.toMatch(/console\.error\(err\.message\)/);
+    // any read of a caught error's message, not just the two console.error idioms:
+    // a catch that copies it into a variable first slipped past the narrower check
+    expect(src).not.toMatch(/\(err as Error\)\.message/);
+    expect(src).not.toMatch(/\berr\.message\b/);
   });
 });
 

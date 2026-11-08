@@ -809,8 +809,9 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
             `refused work preserved: git stash entry "copperhead failed run ${ctx.runId}" (${preserved.slice(0, 10)}); recover with \`git stash apply\`, discard with \`git stash drop\``,
           );
         }
-        log(`transcript: ${transcript.jsonlPath}`);
-        log(`summary: ${summaryPath}`);
+        // same as fail(): local paths the user has to open, so not through log()
+        r.log(`transcript: ${transcript.jsonlPath}`);
+        r.log(`summary: ${summaryPath}`);
         r.finish(outcomeLine(runStats));
         return {
           outcome: 'refused',

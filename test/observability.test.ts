@@ -780,4 +780,21 @@ describe('a provider error carrying a key (review of #372)', () => {
       await cleanup();
     }
   });
+
+  it('prints the transcript and summary paths intact on a refused run too', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const board = `${repo}-risk-assessment-board-v2`;
+    await rename(repo, board);
+    try {
+      const lines: string[] = [];
+      const provider = new ScriptedProvider([finishTurn('refuse', 'cannot do this safely')]);
+      const res = await runAgentLoop(loopOpts(board, provider, lines, { maxTurns: 2 }));
+      expect(res.outcome).toBe('refused');
+      expect(lines).toContain(`transcript: ${path.join(res.transcriptDir, 'transcript.jsonl')}`);
+      expect(lines).toContain(`summary: ${path.join(res.transcriptDir, 'summary.md')}`);
+    } finally {
+      await rename(board, repo);
+      await cleanup();
+    }
+  });
 });
