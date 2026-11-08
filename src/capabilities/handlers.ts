@@ -16,7 +16,8 @@ import { manifestDrift } from '../kicad/parts/render.js';
 import { moveFootprint } from '../kicad/populate.js';
 import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
-import { saveConstraint, classifyAffectsTarget, affectsTargetExists, loadConstraints } from '../memory/constraints.js';
+
+import { loadConstraints, saveConstraint, classifyAffectsTarget, affectsTargetExists, type ConstraintEvidence } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
@@ -844,6 +845,19 @@ export const HANDLERS: HandlerDef[] = [
           value: { type: 'string' },
           source: { type: 'string', description: 'doc/spec location that states this' },
           affects: { type: 'array', items: { type: 'string' } },
+          evidence: {
+            type: 'object',
+            description: 'optional cached datasheet/spec evidence citation under .copperhead/datasheets or docs/datasheets',
+            properties: {
+              path: { type: 'string' },
+              sha256: { type: 'string' },
+              sidecarSha256: { type: 'string' },
+              section: { type: 'string' },
+              quote: { type: 'string' },
+              numbers: { type: 'array', items: { type: 'number' } },
+            },
+            required: ['path', 'quote'],
+          },
         },
         required: ['key', 'source', 'affects'],
       },
@@ -865,6 +879,11 @@ export const HANDLERS: HandlerDef[] = [
         if (target && !affectsTargetExists(target, ctx.repoRoot, ctx.config)) deferred.push(item);
         else openNow.push(item);
       }
+      const existingReg = await loadConstraints(ctx.repoRoot);
+      const preservedEvidence =
+        args.evidence !== undefined
+          ? (args.evidence as ConstraintEvidence)
+          : existingReg[key]?.evidence;
       await saveConstraint(ctx.repoRoot, key, {
         ...(args.min !== undefined ? { min: args.min as number } : {}),
         ...(args.max !== undefined ? { max: args.max as number } : {}),
@@ -873,6 +892,7 @@ export const HANDLERS: HandlerDef[] = [
         source: str(args, 'source'),
         affects,
         ...(deferred.length ? { deferred } : {}),
+        ...(preservedEvidence !== undefined ? { evidence: preservedEvidence } : {}),
       });
       ctx.ledger.onConstraintChange(key, openNow);
       ctx.ledger.clear('constraint-dual-write', key);
