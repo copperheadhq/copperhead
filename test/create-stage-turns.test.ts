@@ -119,7 +119,8 @@ describe('create pipeline per-stage turn budgets (AC-15.18, AC-15.19)', () => {
 
       // 5.2: a cost table with a row per stage that ran and a TOTAL.
       expect(out).toContain('Per-stage cost summary');
-      expect(out).toMatch(/Stage\s+Wall\s+Turns\s+Out tok\s+Cache/);
+      expect(out).toMatch(/Stage\s+Wall\s+Turns\s+Out tok\s+Replayed/); // AC-18.13: copperhead's response cache, not provider cache hits
+      expect(out).toMatch(/\d+% turns replayed/); // the mocked runs report one replayed turn each
       expect(out).toMatch(/spec-seed\s+\S+\s+3\s+/); // turns from the mock's stats
       expect(out).toContain('TOTAL');
     } finally {
