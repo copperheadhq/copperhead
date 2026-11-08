@@ -311,6 +311,11 @@ export interface PinNet {
   net: string | null;
 }
 
+export interface PinGroupNet extends PinNet {
+  /** Sorted `ref.pinNumber` endpoints sharing the connected component. */
+  group?: string[];
+}
+
 // ---------- Read-only geometry accessors for the legibility checker ----------
 
 export interface Bounds {
@@ -680,6 +685,89 @@ export async function pinNets(rootSch: string): Promise<PinNet[]> {
         pinNumber: pin.number,
         pinName: pin.name,
         net: groupNet.get(uf.find(k)) ?? null,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Like `pinNets`, additionally returning the sorted `ref.pinNumber` endpoints
+ * sharing each pin's connected component so unlabeled multi-pin nets have a
+ * deterministic identity in `copperhead diff`.
+ */
+export async function pinNetsWithGroups(rootSch: string): Promise<PinGroupNet[]> {
+  const sheets = await loadSheets(rootSch);
+  const powerSyms = collectPowerSymbols(sheets);
+  const out: PinGroupNet[] = [];
+  for (const sheet of sheets) {
+    const pinDefs = libPinDefs(sheet.root);
+    const uf = new UnionFind();
+    const netNameAt = new Map<string, string>();
+
+    for (const w of children(sheet.root, 'wire')) {
+      const pts = children(child(w, 'pts') ?? [], 'xy').map((xy) => ({
+        x: parseFloat(atomAt(xy, 1) ?? '0'),
+        y: parseFloat(atomAt(xy, 2) ?? '0'),
+      }));
+      for (let i = 1; i < pts.length; i++) {
+        uf.union(key(pts[0]!.x, pts[0]!.y), key(pts[i]!.x, pts[i]!.y));
+      }
+    }
+    for (const kind of ['label', 'global_label', 'hierarchical_label']) {
+      for (const l of children(sheet.root, kind)) {
+        const name = atomAt(l, 1);
+        const at = child(l, 'at');
+        if (!name || !at) continue;
+        const k = key(parseFloat(atomAt(at, 1) ?? '0'), parseFloat(atomAt(at, 2) ?? '0'));
+        uf.find(k);
+        netNameAt.set(k, name);
+      }
+    }
+
+    const symPins: { sym: SchematicSymbol; pin: PinDef; k: string }[] = [];
+    for (const { sym, mirror } of symbolsOf(sheet)) {
+      const defs = pinsOfUnit(pinDefs.get(sym.libId) ?? [], sym.unit);
+      for (const pin of defs) {
+        const abs = pinAbsolute(sym.at, mirror, pin);
+        const k = key(abs.x, abs.y);
+        uf.find(k);
+        if (isPowerSymbol(sym.libId, powerSyms)) {
+          netNameAt.set(k, sym.value);
+        } else {
+          symPins.push({ sym, pin, k });
+        }
+      }
+    }
+
+    const groupNet = new Map<string, string>();
+    for (const [k, name] of netNameAt) groupNet.set(uf.find(k), name);
+    const groupMembers = new Map<string, Set<string>>();
+    for (const { sym, pin, k } of symPins) {
+      const root = uf.find(k);
+      let s = groupMembers.get(root);
+      if (!s) {
+        s = new Set<string>();
+        groupMembers.set(root, s);
+      }
+      s.add(`${sym.ref}.${pin.number}`);
+    }
+    const sortedGroupMembers = new Map<string, string[]>();
+    for (const [root, members] of groupMembers) {
+      sortedGroupMembers.set(
+        root,
+        [...members].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+      );
+    }
+
+    for (const { sym, pin, k } of symPins) {
+      const root = uf.find(k);
+      out.push({
+        ref: sym.ref,
+        pinNumber: pin.number,
+        pinName: pin.name,
+        net: groupNet.get(root) ?? null,
+        group: sortedGroupMembers.get(root) ?? [`${sym.ref}.${pin.number}`],
       });
     }
   }

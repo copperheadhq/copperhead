@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import { runCheck } from '../src/commands/check.js';
+import { runDiff } from '../src/commands/diff.js';
 import { syncVerify } from '../src/commands/sync.js';
 import { runInit } from '../src/memory/scaffold.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -65,6 +66,19 @@ describe('entry-point results are byte-identical to the CLI --json output', () =
       } finally {
         await second.cleanup();
       }
+    } finally {
+      await cleanup();
+    }
+  }, 120_000);
+
+  it('runDiff matches `diff --json`', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, force: false, installHooks: false });
+      const direct = JSON.stringify(await runDiff(repo), null, 2);
+      const res = await cli(repo, ['diff']);
+      expect(res.exitCode).toBe(0);
+      expect(res.stdout.trim()).toBe(direct.trim());
     } finally {
       await cleanup();
     }

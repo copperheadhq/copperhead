@@ -9,6 +9,7 @@ import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
+import { runDiff, formatDiffReport, DiffError } from './commands/diff.js';
 import { runCreate } from './commands/create.js';
 import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
@@ -181,6 +182,28 @@ program
   .action(checkAction);
 
 program
+
+  .command('diff')
+  .description('summarize electrical changes (components, connections, nets, affected constraints) since a git revision')
+  .option('--base <rev>', 'git revision to compare against (default: HEAD when dirty, else HEAD~1)')
+  .action(async (opts: { base?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const res = await runDiff(repo, opts.base !== undefined ? { base: opts.base } : {});
+      if (json) {
+        console.log(JSON.stringify(res, null, 2));
+      } else {
+        console.log(formatDiffReport(res));
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error(err instanceof DiffError ? err.message : (err as Error).message);
+      process.exit(1);
+    }
+  });
+
+
   .command('explain')
   .description('look up a refdes, net, or pin in the schematic and docs; no LLM, no network')
   .argument('<query>', 'refdes (U1), net (GND), or pin (U1.GPIO14 / R2.1)')
