@@ -1023,6 +1023,262 @@ describe('moving placed footprints (#314)', () => {
   });
 });
 
+/**
+ * #380: the reference label's position is stored in the footprint's own
+ * UNROTATED frame and rendered at `origin + rotate(local, rotation)`, so
+ * placing it at a board position means inverting that rotation against the
+ * footprint's NEW origin and rotation. The stage-5 model used to compute this
+ * by hand, on every move, for every silkscreen fix.
+ *
+ * The `at` of a property on a board is a pure text splice, so most of this is
+ * verified without kicad-cli; the last test checks the real geometry KiCad
+ * reports back.
+ */
+describe('placing a reference label in board coordinates (#380)', () => {
+  /** One placed 0603 at (100, 100), reference at local (0, -1.43). */
+  const BOARD = `(kicad_pcb
+  (version 20240108)
+  (generator "pcbnew")
+  (general (thickness 1.6))
+  (paper "A4")
+  (layers
+    (0 "F.Cu" signal)
+    (31 "B.Cu" signal)
+    (44 "Edge.Cuts" user)
+  )
+  (net 0 "")
+  (footprint "Resistor_SMD:R_0603_1608Metric"
+    (layer "F.Cu")
+    (uuid "00000000-0000-4000-8000-000000000001")
+    (at 100 100)
+    (property "Reference" "R1"
+      (at 0 -1.43 0)
+      (layer "F.SilkS")
+      (uuid "00000000-0000-4000-8000-000000000002")
+      (effects (font (size 1 1) (thickness 0.15)))
+    )
+    (property "Value" "10k"
+      (at 0 1.43 0)
+      (layer "F.Fab")
+      (uuid "00000000-0000-4000-8000-000000000003")
+      (effects (font (size 1 1) (thickness 0.15)))
+    )
+    (pad "1" smd roundrect (at -0.7875 0) (size 0.875 0.95) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.25) (net 0 ""))
+    (pad "2" smd roundrect (at 0.7875 0) (size 0.875 0.95) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.25) (net 0 ""))
+  )
+)
+`;
+
+  /** The Reference property's stored local (at x y [rot]) and the Value's, for one footprint. */
+  function refLocal(board: string, fpRef: string): { x: number; y: number; rot: number } {
+    const open = board.indexOf('(kicad_pcb');
+    const fp = childSpans(board, open).find(
+      (s) => s.tag === 'footprint' && board.slice(s.start, s.end).includes(`(property "Reference" "${fpRef}"`),
+    )!;
+    const prop = childSpans(board, fp.start).find(
+      (s) => s.tag === 'property' && board.slice(s.start, s.end).startsWith('(property "Reference"'),
+    )!;
+    const at = childSpans(board, prop.start).find((c) => c.tag === 'at')!;
+    const v = board.slice(at.start, at.end).match(/-?[\d.]+/g)!.map(Number);
+    return { x: v[0]!, y: v[1]!, rot: v[2] ?? 0 };
+  }
+
+  it('keeps every existing behaviour when no label position is given', () => {
+    const moved = moveFootprint(BOARD, 'R1', 110, 120, 90);
+    // the label is not touched: it still turns with the part because its angle
+    // (absolute) changes and its local position does not
+    expect(refLocal(moved, 'R1')).toEqual({ x: 0, y: -1.43, rot: 90 });
+    expect(moved).toContain('(at 110 120 90)');
+  });
+
+  it('turns a board point into the footprint-local frame at 0°, 90°, 180° and 270°', () => {
+    // origin (100,100) for every case; the label is asked for at a board point
+    // 10 mm right and 20 mm down, so only the rotation changes the stored value.
+    expect(refLocal(moveFootprint(BOARD, 'R1', 100, 100, 0, { x: 110, y: 120 }), 'R1')).toMatchObject({ x: 10, y: 20 });
+    expect(refLocal(moveFootprint(BOARD, 'R1', 100, 100, 90, { x: 110, y: 120 }), 'R1')).toMatchObject({ x: -20, y: 10 });
+    expect(refLocal(moveFootprint(BOARD, 'R1', 100, 100, 180, { x: 110, y: 120 }), 'R1')).toMatchObject({ x: -10, y: -20 });
+    expect(refLocal(moveFootprint(BOARD, 'R1', 100, 100, 270, { x: 110, y: 120 }), 'R1')).toMatchObject({ x: 20, y: -10 });
+  });
+
+  it('places the label against the footprint\'s NEW origin, in the same call that moves it', () => {
+    // new origin (200, 100), rotation 90, board point (210, 100): the local
+    // offset is measured from the new origin, not the old one
+    const both = moveFootprint(BOARD, 'R1', 200, 100, 90, { x: 210, y: 100 });
+    expect(refLocal(both, 'R1')).toEqual({ x: 0, y: 10, rot: 90 });
+    expect(both).toContain('(at 200 100 90)');
+  });
+
+  it('uses the footprint\'s current rotation when the move does not change it', () => {
+    const turned = moveFootprint(BOARD, 'R1', 100, 100, 180); // no label
+    expect(refLocal(turned, 'R1').rot).toBe(180);
+    // a later label-only placement (same origin/rotation) must invert 180, not 0
+    const labelled = moveFootprint(turned, 'R1', 100, 100, undefined, { x: 110, y: 120 });
+    expect(refLocal(labelled, 'R1')).toEqual({ x: -10, y: -20, rot: 180 });
+  });
+
+  it('rounds the stored coordinate to KiCad\'s 0.1 µm resolution', () => {
+    // 45° gives an irrational local offset; num() keeps it to 4 decimals
+    const at45 = refLocal(moveFootprint(BOARD, 'R1', 100, 100, 45, { x: 100, y: 90 }), 'R1');
+    expect(at45.x).toBe(7.0711);
+    expect(at45.y).toBe(-7.0711);
+  });
+
+  it('places a legacy KiCad 5 fp_text reference too', () => {
+    const legacy = BOARD.replace(
+      /\(property "Reference" "R1"\n      \(at 0 -1.43 0\)\n      \(layer "F.SilkS"\)\n      \(uuid [^)]+\)\n      \(effects \(font \(size 1 1\) \(thickness 0.15\)\)\)\n    \)/,
+      '(fp_text reference "R1" (at 0 -1.43 0) (layer F.SilkS) (effects (font (size 1 1) (thickness 0.15))))',
+    );
+    expect(legacy).toContain('(fp_text reference "R1"');
+    const moved = moveFootprint(legacy, 'R1', 100, 100, 270, { x: 110, y: 120 });
+    expect(moved).toContain('(fp_text reference "R1" (at 20 -10 270)');
+  });
+
+  it('refuses a Reference property that has no (at …) to place the label at', () => {
+    // the footprint still carries a Reference, so it is found; the label has
+    // nowhere to go
+    const noAt = BOARD.replace('      (at 0 -1.43 0)\n', '');
+    expect(noAt).toContain('(property "Reference" "R1"');
+    expect(noAt).not.toMatch(/\(property "Reference" "R1"\n\s+\(at/);
+    expect(() => moveFootprint(noAt, 'R1', 100, 100, 0, { x: 1, y: 1 })).toThrow(/Reference property has no \(at/);
+  });
+
+  it('refuses a Reference that is not a direct child of the footprint (defensive)', () => {
+    // a nested Reference (e.g. inside a (group …)) is not where moveFootprint
+    // looks; the tool says so rather than picking the wrong node
+    const refBlock =
+      '    (property "Reference" "R1"\n' +
+      '      (at 0 -1.43 0)\n' +
+      '      (layer "F.SilkS")\n' +
+      '      (uuid "00000000-0000-4000-8000-000000000002")\n' +
+      '      (effects (font (size 1 1) (thickness 0.15)))\n' +
+      '    )\n';
+    const grouped = `    (group "labels"\n${refBlock.replace(/^(?=.)/gm, '  ')}    )\n`;
+    const nested = BOARD.replace(refBlock, grouped);
+    expect(nested).not.toBe(BOARD);
+    expect(() => moveFootprint(nested, 'R1', 100, 100, 0, { x: 1, y: 1 })).toThrow(
+      /has no Reference property to place a label on/,
+    );
+  });
+
+  /** A context whose board is whatever the test put at `repo/board.kicad_pcb`. */
+  const labelCtx = (repo: string): RunContext =>
+    ({
+      repoRoot: repo,
+      config: { board: 'board.kicad_pcb' } as RunContext['config'],
+      transcript: { event: async () => {} } as unknown as RunContext['transcript'],
+      ledger: new ObligationsLedger(),
+      runId: 'test',
+      interactive: false,
+      confirm: async () => true,
+      editsUnlocked: true,
+      changeId: null,
+      proposalValidated: false,
+      filesTouched: new Set(),
+      decisions: [],
+      lastErc: null,
+      lastDrc: null,
+      lastLegibility: null,
+      lastScore: null,
+      repairCycles: 0,
+      finishRequest: null,
+    }) as RunContext;
+
+  it('a lone label_x or label_y is refused, never paired with a stale coordinate', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-label-'));
+    try {
+      await writeFile(path.join(repo, 'board.kicad_pcb'), BOARD, 'utf8');
+      const onlyX = await dispatchTool(labelCtx(repo), 'move_footprint', { ref: 'R1', x: 100, y: 100, label_x: 110 });
+      const onlyY = await dispatchTool(labelCtx(repo), 'move_footprint', { ref: 'R1', x: 100, y: 100, label_y: 110 });
+      expect(String(onlyX)).toContain('label_x and label_y must be given together');
+      expect(String(onlyY)).toContain('label_x and label_y must be given together');
+      // and the board was never written
+      expect(await readFile(path.join(repo, 'board.kicad_pcb'), 'utf8')).toBe(BOARD);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('a non-numeric label coordinate is refused like any other non-numeric argument', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-label-'));
+    try {
+      await writeFile(path.join(repo, 'board.kicad_pcb'), BOARD, 'utf8');
+      const out = await dispatchTool(labelCtx(repo), 'move_footprint', { ref: 'R1', x: 100, y: 100, label_x: 'left', label_y: 1 });
+      expect(String(out)).toContain('label_x and label_y must be numbers');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  // Goes through kicadLoadError, so it needs kicad-cli (like the DRC test below).
+  it('the handler places the label from a valid label_x/label_y pair and names the point', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-label-'));
+    try {
+      await writeFile(path.join(repo, 'board.kicad_pcb'), BOARD, 'utf8');
+      const out = await dispatchTool(labelCtx(repo), 'move_footprint', {
+        ref: 'R1',
+        x: 100,
+        y: 100,
+        rotation: 90,
+        label_x: 110,
+        label_y: 120,
+      });
+      expect(String(out)).toContain('moved R1 to (100, 100) at 90°');
+      expect(String(out)).toContain('; Reference label at (110, 120)');
+      expect(String(out)).not.toContain('REVERTED');
+      // the board keeps only the Reference's (at …) changed, to the inverse-rotated local point
+      expect(refLocal(await readFile(path.join(repo, 'board.kicad_pcb'), 'utf8'), 'R1')).toEqual({ x: -20, y: 10, rot: 90 });
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  /** Board position of a footprint's pad, applying the footprint's (at …) rotation. */
+  function padBoardPos(board: string, fpRef: string, pad: string): { x: number; y: number } {
+    const open = board.indexOf('(kicad_pcb');
+    const fp = childSpans(board, open).find(
+      (s) => s.tag === 'footprint' && board.slice(s.start, s.end).includes(`(property "Reference" "${fpRef}"`),
+    )!;
+    const kids = childSpans(board, fp.start);
+    const at = kids.find((k) => k.tag === 'at')!;
+    const o = board.slice(at.start, at.end).match(/-?[\d.]+/g)!.map(Number);
+    const padSpan = kids.find((k) => k.tag === 'pad' && new RegExp(`^\\(pad\\s+"?${pad}"?\\s`).test(board.slice(k.start, k.end)))!;
+    const padAt = childSpans(board, padSpan.start).find((c) => c.tag === 'at')!;
+    const v = board.slice(padAt.start, padAt.end).match(/-?[\d.]+/g)!.map(Number);
+    const r = ((o[2] ?? 0) * Math.PI) / 180;
+    const c = Math.cos(r);
+    const s = Math.sin(r);
+    return { x: o[0]! + v[0]! * c + v[1]! * s, y: o[1]! - v[0]! * s + v[1]! * c };
+  }
+
+  it('KiCad reports the reference field at the requested board point, at 0°, 90°, 180° and 270°', async () => {
+    const { repo, cleanup } = await draftedProject();
+    try {
+      await populateBoard({ repoRoot: repo, schematic: SCH, board: PCB, env: hermetic() });
+      const board = path.join(repo, PCB);
+      // a pad of another part: putting U1's reference text over it makes DRC
+      // report "Reference field of U1 @ (x, y)", which is the whole assertion
+      const target = padBoardPos(await readFile(board, 'utf8'), 'C1', '1');
+      for (const rot of [0, 90, 180, 270]) {
+        await writeFile(board, moveFootprint(await readFile(board, 'utf8'), 'U1', 118, 113, rot, target), 'utf8');
+        const out = path.join(repo, `drc-${rot}.json`);
+        await execa(resolveKicadCli(), ['pcb', 'drc', '--format', 'json', '--output', out, board], { reject: false, env: seeded() });
+        const raw = JSON.parse(await readFile(out, 'utf8')) as {
+          violations: { type: string; items?: { description?: string; pos?: { x: number; y: number } }[] }[];
+        };
+        const field = raw.violations
+          .flatMap((v) => (v.items ?? []).map((i) => ({ type: v.type, ...i })))
+          .find((i) => /^Reference field of U1\b/.test(i.description ?? ''));
+        expect(field, `U1's reference field over C1's pad at ${rot}°`).toBeDefined();
+        expect(field!.pos, `KiCad gives a position for the reference field at ${rot}°`).toBeDefined();
+        expect(field!.pos!.x).toBeCloseTo(target.x, 2);
+        expect(field!.pos!.y).toBeCloseTo(target.y, 2);
+      }
+    } finally {
+      await cleanup();
+    }
+  }, 240_000);
+});
+
 describe('populate edge cases (#314)', () => {
   const LEGACY = `(module R_0603_1608Metric (layer F.Cu) (tedit 5F68FEEE)
   (descr "Resistor SMD 0603")
