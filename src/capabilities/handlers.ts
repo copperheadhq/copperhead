@@ -9,15 +9,19 @@ import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
 import { scoreSchematic, formatScore } from '../kicad/score.js';
 import { draftSchematic, defaultIntentPath, formatSchematicDraftReport } from '../kicad/draft/draft.js';
 import { FootprintResolver } from '../kicad/footprints.js';
+import { checkPartsManifest, partsStageGap, partsManifestPath } from '../kicad/parts/stage.js';
+import { MANIFEST_FILENAME } from '../kicad/parts/manifest.js';
+import { formatManifestFindings } from '../kicad/parts/validate.js';
+import { manifestDrift } from '../kicad/parts/render.js';
 import { moveFootprint } from '../kicad/populate.js';
 import { verifySchematicSymbols, searchInstalledSymbols, searchInstalledSymbolsRanked, matchTierLabel, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
-import { saveConstraint, classifyAffectsTarget, affectsTargetExists } from '../memory/constraints.js';
+import { saveConstraint, classifyAffectsTarget, affectsTargetExists, loadConstraints } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
-import type { RunContext } from '../agent/context.js';
+import type { RefusalBlocker, RunContext } from '../agent/context.js';
 import { corruptionError, markTouched, str } from './helpers.js';
 
 /**
@@ -105,6 +109,28 @@ export interface HandlerDef {
   schema: ToolSchema;
   requiresUnlock: boolean;
   handler: (ctx: RunContext, args: Record<string, unknown>) => Promise<string | HandlerOutcome>;
+}
+
+/** The `blockers` argument of `finish`, or what is wrong with it. */
+const MAX_BLOCKERS = 20;
+
+function parseBlockers(raw: unknown): RefusalBlocker[] | string {
+  if (!Array.isArray(raw)) return 'blockers must be an array of {kind, constraint, required, found}';
+  if (raw.length > MAX_BLOCKERS) return `blockers lists ${raw.length} entries; name the ${MAX_BLOCKERS} that matter most`;
+  const out: RefusalBlocker[] = [];
+  // Each field is one line: the summary, the decision block and the transcript
+  // event render them as list items.
+  const line = (v: string): string => v.replace(/\s+/g, ' ').trim();
+  for (const [i, b] of raw.entries()) {
+    if (!b || typeof b !== 'object') return `blockers[${i}] must be an object`;
+    const o = b as Record<string, unknown>;
+    if (o.kind !== 'constraint-conflict') return `blockers[${i}].kind must be "constraint-conflict"`;
+    for (const field of ['constraint', 'required', 'found'] as const) {
+      if (typeof o[field] !== 'string' || !line(o[field] as string)) return `blockers[${i}].${field} must be a non-empty string`;
+    }
+    out.push({ kind: 'constraint-conflict', constraint: line(o.constraint as string), required: line(o.required as string), found: line(o.found as string) });
+  }
+  return out;
 }
 
 export const HANDLERS: HandlerDef[] = [
@@ -266,8 +292,9 @@ export const HANDLERS: HandlerDef[] = [
       const abs = resolveInRepo(ctx.repoRoot, rel);
       // Engine-drafted sheets are regenerated wholesale from the IR: a hand
       // edit would be destroyed by the next re-draft and would break the
-      // byte-identical staleness check. Geometry repairs go through the IR
-      // (design D5). Hand-drawn schematics never carry the draft generator
+      // staleness check (the draft is compared using the sheet's own line break).
+      // Geometry repairs go through the IR (design D5).
+      // Hand-drawn schematics never carry the draft generator
       // marker, so `do` on existing repos is untouched by this guard.
       if (rel.endsWith('.kicad_sch') && existsSync(abs)) {
         const head = (await readFile(abs, 'utf8')).slice(0, 400);
@@ -617,6 +644,63 @@ export const HANDLERS: HandlerDef[] = [
   },
   {
     schema: {
+      name: 'draft_bom',
+      description:
+        'Validate the parts manifest (docs/' + MANIFEST_FILENAME + ') against the KiCad libraries installed on THIS machine and, when clean, render docs/BOM.md from it deterministically. Pass manifest_json to write the manifest first, or omit it to check the file as it is. BOM.md is never hand-written while a manifest exists: it is this render, and a hand edit is drift. ' +
+        'Manifest: {"version": 1, "parts": [entry, …], "substitutions"?: [{"ref", "wanted", "chosen", "reason"}]}. Entry: {"ref": "U1", "value": "STM32F103C8T6", "group": "<a SUBSYSTEMS.md heading>", "libId": "MCU_ST_STM32F1:STM32F103C8Tx", "footprint": "Package_QFP:LQFP-48_7x7mm_P0.5mm", "mpn": "STM32F103C8T6", "rationale": "why this part", "verified": false}. ' +
+        'A passive (R, C, L, D, LED, F, FB, Y, SW, TP refdes) gives "package" ("0603", "SOD-123", "3mm") instead of libId and footprint and the engine fills both from the stock library; explicit ids still win. A BOM line with no place on the board (a battery with leads, a cable) sets "offBoard": true and needs no libId or footprint. A board feature with nothing to buy (a mounting hole, a fiducial, a pad test point) sets "noPart": true and needs no mpn: never put a description in "mpn". ' +
+        'Rules checked, each reported with its refdes and fix: one entry per refdes (no "C5-C8"); "value" is the component value (prose goes in "rationale"); every entry names a SUBSYSTEMS.md heading; every active part has libId, footprint and mpn (mpn waived by "noPart"); the libId resolves to an installed symbol (nearest installed lib_ids on a miss); the footprint resolves exactly as the board will (closest installed ids on a miss); the symbol pins are pads of the footprint; a substitution names an entry that carries the chosen part. ' +
+        'The MPN is rendered "(UNVERIFIED)" until "verified": true — do not write the flag yourself. A footprint whose library is not installed anywhere is reported for the user to install and does not block you. Headings with no part yet are noted, so a large manifest can be written one subsystem at a time and checked between edits.',
+      parameters: {
+        type: 'object',
+        properties: {
+          manifest_json: { type: 'string', description: 'full manifest as JSON text (optional: omit to validate and render the current file)' },
+        },
+        required: [],
+      },
+    },
+    requiresUnlock: true,
+    handler: async (ctx, args) => {
+      const manifestRel = partsManifestPath(ctx.config.docs);
+      if (typeof args.manifest_json === 'string' && args.manifest_json.trim()) {
+        const corrupt = corruptionError({ manifest_json: args.manifest_json });
+        if (corrupt) return corrupt;
+        try {
+          JSON.parse(args.manifest_json);
+        } catch (e) {
+          return `manifest_json is not valid JSON (${(e as Error).message}); nothing written`;
+        }
+        const abs = resolveInRepo(ctx.repoRoot, manifestRel);
+        await mkdir(path.dirname(abs), { recursive: true });
+        await writeFile(abs, args.manifest_json.endsWith('\n') ? args.manifest_json : `${args.manifest_json}\n`, 'utf8');
+        // opens the drift obligation whether or not validation passes below:
+        // a manifest left invalid must not reach finish with a clear ledger
+        markTouched(ctx, manifestRel);
+      }
+      const check = await checkPartsManifest(ctx.repoRoot, ctx.config);
+      if (!check) return `no ${manifestRel} yet: pass manifest_json to write one`;
+      if (!check.manifest || !check.validation!.ok) {
+        return { ok: false, text: `${partsStageGap(check)}\nBOM.md not written; fix the manifest and call draft_bom again.` };
+      }
+      const bomRel = path.join(ctx.config.docs, 'BOM.md');
+      if (!check.bomMatches) {
+        await writeFile(resolveInRepo(ctx.repoRoot, bomRel), check.rendered!, 'utf8');
+        markTouched(ctx, bomRel);
+      }
+      const v = check.validation!;
+      const onBoard = v.parts.filter((p) => !p.offBoard).length;
+      const lines = [
+        `draft_bom: clean — ${v.parts.length} part(s) (${onBoard} on the board, ${v.parts.length - onBoard} off-board)${check.bomMatches ? `; ${bomRel} already matches` : ` rendered to ${bomRel}`}`,
+      ];
+      const notes = formatManifestFindings({ findings: [], omitted: 0, stops: v.stops, warnings: v.warnings });
+      if (notes) lines.push(notes);
+      if (v.stops.length) lines.push('The stop above is for the user: the run halts before the schematic stage until that library is installed. Finish the stage with the manifest as it is unless another installed part fits.');
+      lines.push('Run check_drift, then finish.');
+      return lines.join('\n');
+    },
+  },
+  {
+    schema: {
       name: 'score_schematic',
       description:
         'Deterministic quantitative legibility score for the schematic: composite 0-100 with the per-metric breakdown (crossings, bends, alignment, spacing, symmetry, balance, …). Error-severity legibility findings cap the composite. Advisory: informs, never gates by itself.',
@@ -722,7 +806,7 @@ export const HANDLERS: HandlerDef[] = [
   {
     schema: {
       name: 'check_drift',
-      description: 'Compare BOM.md/PINOUT.md tables against the parsed schematic. Clears the drift obligation when clean.',
+      description: 'Compare BOM.md/PINOUT.md tables against the parsed schematic, and BOM.md against the parts manifest when there is one. Clears the drift obligation when clean.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: false,
@@ -734,6 +818,15 @@ export const HANDLERS: HandlerDef[] = [
       // exists): a doc edit opens the drift obligation, this is the only tool
       // that clears it, and finish refuses while any obligation is open.
       if (!ctx.config.schematic) {
+        // The parts manifest is the one drift check that needs no schematic:
+        // an invalid manifest, or a BOM.md that is not its render, keeps the
+        // obligation open. A repo with no manifest has nothing to report here.
+        const manifest = await manifestDrift(path.join(ctx.repoRoot, ctx.config.docs));
+        if (manifest.length) {
+          const text = manifest.map((m) => `${m.doc}: claims "${m.claim}" but actual is "${m.actual}"`).join('\n');
+          ctx.lastDrift = text;
+          return { ok: false, text };
+        }
         ctx.ledger.clear('drift');
         ctx.lastDrift = 'no schematic configured; drift vacuously clean';
         return 'no schematic configured; drift vacuously clean';
@@ -907,12 +1000,26 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'finish',
       description:
-        'End the run. outcome "done" requires all verification gates and sync obligations to be satisfied; outcome "refuse" ends without edits, citing the violated budget/constraint in summary.',
+        'End the run. outcome "done" requires all verification gates and sync obligations to be satisfied; outcome "refuse" ends without edits, citing the violated budget/constraint in summary. With "refuse", list each constraint you cannot satisfy in blockers (kind "constraint-conflict", the registered constraint key, the value it requires, the candidate that fails it); a blocker naming a key the constraint registry holds stops the pipeline for a human decision, one naming an unregistered key is kept as prose only.',
       parameters: {
         type: 'object',
         properties: {
           outcome: { type: 'string', enum: ['done', 'refuse'] },
           summary: { type: 'string' },
+          blockers: {
+            type: 'array',
+            description: 'With outcome "refuse" only: the constraints the design cannot satisfy.',
+            items: {
+              type: 'object',
+              properties: {
+                kind: { type: 'string', enum: ['constraint-conflict'] },
+                constraint: { type: 'string', description: 'a key in the constraint registry' },
+                required: { type: 'string', description: 'what the constraint demands, e.g. "≥ 16 A"' },
+                found: { type: 'string', description: 'the candidate that fails it, e.g. "G5Q-1A4 relay, 6 A"' },
+              },
+              required: ['kind', 'constraint', 'required', 'found'],
+            },
+          },
         },
         required: ['outcome', 'summary'],
       },
@@ -921,9 +1028,32 @@ export const HANDLERS: HandlerDef[] = [
     handler: async (ctx, args) => {
       const outcome = str(args, 'outcome') as 'done' | 'refuse';
       const summary = str(args, 'summary');
+      let blockers: RefusalBlocker[] = [];
+      if (args.blockers !== undefined) {
+        if (outcome !== 'refuse') {
+          return 'rejected: blockers accompany outcome "refuse" only; a done run has nothing it could not satisfy. Drop them, or refuse with them.';
+        }
+        const parsed = parseBlockers(args.blockers);
+        if (typeof parsed === 'string') return `rejected: ${parsed}`;
+        blockers = parsed;
+      }
       if (outcome === 'refuse') {
-        ctx.finishRequest = { outcome, summary };
-        return 'refusal recorded; run will end';
+        // A blocker counts only when the registry holds its key (design D1): the
+        // narration never decides, the registry does. Unregistered keys stay in the
+        // summary as prose so the claim is not lost, and never stop the pipeline.
+        const registry = blockers.length ? await loadConstraints(ctx.repoRoot) : {};
+        // Own properties only: "constructor" or "toString" is not a registered key.
+        const verified = blockers.filter((b) => Object.hasOwn(registry, b.constraint));
+        const unverified = blockers.filter((b) => !Object.hasOwn(registry, b.constraint));
+        const text = unverified.length
+          ? `${summary}\n${unverified
+              .map((b) => `(unverified claim) constraint "${b.constraint}" is not in the registry: required ${b.required}, found ${b.found}`)
+              .join('\n')}`
+          : summary;
+        ctx.finishRequest = { outcome, summary: text, blockers: verified, unverifiedBlockers: unverified };
+        return verified.length
+          ? `refusal recorded with ${verified.length} verified blocker(s); run will end`
+          : 'refusal recorded; run will end';
       }
       const problems: string[] = [];
       const touchedKicad = [...ctx.filesTouched].some((f) => isKicadFile(f));

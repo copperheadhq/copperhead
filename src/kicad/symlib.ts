@@ -19,6 +19,7 @@
  */
 
 import { readFile, readdir, access, stat } from 'node:fs/promises';
+import { libraryCache } from './cache.js';
 import path from 'node:path';
 import { parseSexp, children, child, isList, type SexpNode } from './sexp.js';
 
@@ -503,6 +504,11 @@ export async function resolveLibrarySymbol(
     if (elsewhere.length) return { status: 'found-elsewhere', libIds: elsewhere.map((m) => `${m.lib}:${m.name}`) };
     return { status: 'no-library' };
   }
+  // Cached by (file, mtime, name): a resolved symbol's pins are a property of
+  // that file alone, so the whole-library parse is paid once per library
+  // version, not once per call (design D9).
+  const cached = await libraryCache.getSymbol(file, name);
+  if (cached.value) return { status: 'ok', pins: cached.value.pins, units: cached.value.units };
   const root = parseSexp(await readFile(file, 'utf8'))[0];
   if (root === undefined || !isList(root)) return { status: 'no-library' };
   const symbols = librarySymbols(root);
@@ -514,10 +520,14 @@ export async function resolveLibrarySymbol(
     const sym = symbols.get(current);
     if (!sym) break;
     const pins = pinsOfSymbolNode(sym);
-    if (pins.length) return { status: 'ok', pins, units: maxUnitIndex(sym) };
-    // no pins of its own → follow an `extends` base if present
     const base = atomAt(child(sym, 'extends'), 1);
-    if (!base) return { status: 'ok', pins, units: maxUnitIndex(sym) }; // genuinely pinless (e.g. a graphic)
+    if (pins.length || !base) {
+      // genuinely pinless (a graphic) when both are absent
+      const value = { pins, units: maxUnitIndex(sym) };
+      libraryCache.setSymbol(file, name, cached.mtimeMs, value);
+      return { status: 'ok', ...value };
+    }
+    // no pins of its own → follow the `extends` base
     current = base;
   }
 

@@ -18,6 +18,9 @@
  */
 
 import { parseBomTable } from '../memory/bom-table.js';
+import { refPrefix, type PartsManifest } from './parts/manifest.js';
+import { isPassivePrefix } from './parts/passives.js';
+import { resolveParts } from './parts/resolve.js';
 import {
   resolveLibrarySymbol,
   searchInstalledSymbolsRanked,
@@ -25,6 +28,7 @@ import {
   listInstalledLibraries,
   comparePinNumbers,
   type LibPin,
+  type RankedInstalledSymbol,
 } from './symlib.js';
 
 /** R/C/L refdes (with optional multi-part suffix like R12A) draw from their
@@ -73,6 +77,9 @@ export interface DossierOptions {
   searchCap?: number;
   /** bound on the complete rendered block, disclosure lines included */
   maxChars?: number;
+  /** The parts manifest (structured-part-selection): when given, each part's
+   * recorded lib_id is resolved exactly and the BOM is not searched at all. */
+  manifest?: PartsManifest;
 }
 
 /**
@@ -98,9 +105,19 @@ export async function bomSymbolDossier(
     // UNVERIFIED flag word is not part of it. The Value is kept as a fallback
     // query, searched only when the MPN finds nothing — a bogus MPN over a
     // resolvable Value must not read as NO INSTALLED SYMBOL.
-    const byQuery = new Map<string, { refs: string[]; fallback?: string }>();
+    const byQuery = new Map<string, { refs: string[]; fallback?: string; exact?: string; label?: string }>();
     const unsearchable: string[] = [];
-    for (const row of parseBomTable(bomMd)) {
+    const manifestRows = opts.manifest ? resolveParts(opts.manifest) : null;
+    for (const part of manifestRows ?? []) {
+      // the manifest is the decided list: off-board entries are not drawn,
+      // passives draw from their canonical symbols, and an active part's
+      // lib_id was verified by draft_bom — resolve it exactly, never by name
+      if (part.offBoard || PASSIVE_REFDES.test(part.ref) || isPassivePrefix(refPrefix(part.ref)) || !part.libId) continue;
+      const entry = byQuery.get(part.libId) ?? { refs: [], exact: part.libId, label: part.mpn || part.value };
+      entry.refs.push(part.ref);
+      byQuery.set(part.libId, entry);
+    }
+    for (const row of manifestRows ? [] : parseBomTable(bomMd)) {
       if (PASSIVE_REFDES.test(row.refdes)) continue;
       const mpn = (row.mpn ?? '').replace(/^UNVERIFIED[:\s]*/i, '').trim();
       const value = (row.value ?? '').trim();
@@ -131,15 +148,17 @@ export async function bomSymbolDossier(
     // floor of ~60 chars, so a later part fitting where this one did not is
     // rare enough not to pay a full scan hoping for it.)
     let bodyFull = false;
-    for (const [query, { refs, fallback }] of byQuery) {
-      const who = `${refs.join(', ')} (${query})`;
+    for (const [query, { refs, fallback, exact, label }] of byQuery) {
+      const who = `${refs.join(', ')} (${label ?? query})`;
       if (bodyFull) {
         overflow.push(who);
         continue;
       }
       let line: string;
       try {
-        let hits = await searchInstalledSymbolsRanked(query, dirs, searchCap);
+        let hits: RankedInstalledSymbol[] = exact
+          ? [{ libId: exact, rank: 0, name: exact.split(':').slice(1).join(':') }]
+          : await searchInstalledSymbolsRanked(query, dirs, searchCap);
         let matchedBy = '';
         if (!hits.length && fallback) {
           hits = await searchInstalledSymbolsRanked(fallback, dirs, searchCap);
@@ -153,7 +172,9 @@ export async function bomSymbolDossier(
           line = `- ${who}: NO EXACT SYMBOL; closest approximate: ${top.libId} (${matchTierLabel(top.rank)}), a different part or package; confirm with symbol_pins before wiring`;
         } else {
           const r = await resolveLibrarySymbol(top.libId, dirs);
-          if (r.status !== 'ok') {
+          if (r.status !== 'ok' && exact) {
+            line = `- ${who}: ${exact} does NOT resolve on this machine — the manifest's lib_id is stale (a library changed since draft_bom ran); confirm with symbol_pins`;
+          } else if (r.status !== 'ok') {
             // A hit that fails to re-resolve is a library race or parse quirk;
             // report the candidates without claiming pins we could not read.
             line = `- ${who}: candidates ${hits.map((h) => h.libId).join(', ')} — pins unreadable here; confirm with symbol_pins`;

@@ -19,6 +19,7 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `demo` | [Simple demo](/getting-started/demo/) | Tour no / pipeline yes | Tour of what copperhead does, or run the USB-C breakout create pipeline. |
 | `init` | Setup | No | Scaffolds `docs/` from an existing schematic. |
 | `check` (`verify`) | Either | No | ERC, DRC, drift, constraints, spec validation. CI-safe. |
+| `explain` | Either | No | Look up a refdes, net, or pin in the schematic and docs. |
 | `do` | [Edit an existing board](/workflows/edit-existing-board/) | Yes | One change: propose, edit, verify, propagate, commit. |
 | `create` | [Design from a brief](/workflows/create-from-brief/) | Yes | Full pipeline from a markdown brief to an output package. |
 | `sync` | Either | Verify phase no, resolve phase yes | Reconciles docs, files, and constraints. |
@@ -52,7 +53,7 @@ copperhead repl --model claude-code
 | `--allow-dirty` | Permit a dirty working tree, same meaning and same default (off) as on `do`. |
 | `--interactive` | Pause for approval after each proposal validates. |
 
-Slash commands inside the shell: `/help`, `/demo`, `/examples`, `/status`, `/check`, `/parts`, `/nets`, `/bom`, `/sync`, `/drift`, `/constraints`, `/openspec`, `/config`, `/git`, `/runs`, `/last`, `/model`, `/version`, `/clear`, `/quit` (`/exit`, `/q`). Type `/` to see live filtered suggestions immediately; ↑/↓ + Enter picks one, Tab completes. `/model` opens an arrow-key picker and switches the session model in place. Requires a TTY (or a seed request for a one-shot non-TTY run). `--json` is refused; use `copperhead do … --json` instead.
+Slash commands inside the shell: `/help`, `/demo`, `/examples`, `/status`, `/check`, `/parts`, `/nets`, `/explain`, `/bom`, `/sync`, `/drift`, `/constraints`, `/openspec`, `/config`, `/git`, `/runs`, `/last`, `/model`, `/version`, `/clear`, `/quit` (`/exit`, `/q`). Type `/` to see live filtered suggestions immediately; ↑/↓ + Enter picks one, Tab completes. `/model` opens an arrow-key picker and switches the session model in place. Requires a TTY (or a seed request for a one-shot non-TTY run). `--json` is refused; use `copperhead do … --json` instead.
 
 ## `copperhead demo`
 
@@ -123,6 +124,26 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
 With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+
+## `copperhead explain`
+
+```bash
+copperhead explain U1
+copperhead explain GND
+copperhead explain U1.GPIO14
+copperhead --json explain R2.1
+```
+
+Looks up a refdes, net, or pin in the schematic and the design docs. A refdes prints value, footprint, library id, sheet, and every pin with its net. A net prints the pins attached to it. A pin (`U1.GPIO14` or `R2.1`) prints the connected net. Unique pin names (`GPIO14`) resolve without a refdes. Matching BOM.md / PINOUT.md rows and other doc mentions are included when those files exist.
+
+Makes **no LLM calls and no network requests**. Does not require `kicad-cli` (it reads the schematic the same way `init` does).
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | The query resolved. |
+| `1` | Unknown query, missing schematic, or a read error. Nearby names are suggested when they exist. |
+
+With `--json`, prints `{ ok: true, hit }` or `{ ok: false, error, suggestions }`. `hit.kind` is `part`, `net`, or `pin`.
 
 ## `copperhead draft schematic`
 
