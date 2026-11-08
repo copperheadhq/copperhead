@@ -10,6 +10,7 @@ import {
   normalizeValue,
   normalizeFootprint,
 } from './bom-table.js';
+import { manifestDrift } from '../kicad/parts/render.js';
 
 /**
  * Doc-vs-schematic drift check (AC-2.3). BOM.md and PINOUT.md use fixed table
@@ -47,6 +48,11 @@ export async function emptySchematicWarning(
 
 export async function checkDrift(repoRoot: string, docsDir: string, schematic: string): Promise<DriftMismatch[]> {
   const mismatches: DriftMismatch[] = [];
+  // A rendered BOM.md must still be its manifest's render (structured-part-
+  // selection): a hand edit to the rendered file is drift against the
+  // manifest, whatever the schematic says, so this runs before the
+  // zero-symbol carve-out below.
+  mismatches.push(...(await manifestDrift(path.join(repoRoot, docsDir))));
   const schPath = path.join(repoRoot, schematic);
   const symbols = await listSymbols(schPath);
   // A schematic with zero symbols is the bootstrap state: during the create
@@ -64,9 +70,10 @@ export async function checkDrift(repoRoot: string, docsDir: string, schematic: s
     // the drift reader and `export bom` never disagree on a reordered table.
     const rows = parseBomTable(await readFile(bomPath, 'utf8'));
     const seen = new Set<string>();
-    for (const { refdes: ref, value, footprint } of rows) {
+    for (const { refdes: ref, value, footprint, offBoard } of rows) {
       if (!ref) continue;
       seen.add(ref);
+      if (offBoard) continue; // a BOM line with no board part has nothing to match
       const sym = byRef.get(ref);
       if (!sym) {
         mismatches.push({ doc: 'BOM.md', claim: `${ref} exists`, actual: `${ref} not in schematic` });
