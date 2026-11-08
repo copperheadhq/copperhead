@@ -1,9 +1,11 @@
 import path from 'node:path';
+import { libraryCache } from '../kicad/cache.js';
 import { existsSync } from 'node:fs';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { checkDrift, emptySchematicWarning, type DriftMismatch } from '../memory/drift.js';
+import { manifestDrift } from '../kicad/parts/render.js';
 import { loadConstraints, checkForbiddenPins, type ConstraintViolation } from '../memory/constraints.js';
 import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
@@ -39,6 +41,7 @@ export interface CheckResult {
 
 export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
+  libraryCache.attach(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
 
@@ -66,6 +69,13 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     // deserves a visible note rather than a silent green.
     driftWarning = await emptySchematicWarning(repoRoot, config.docs, config.schematic);
     if (driftWarning) log(`drift warning: ${driftWarning}`);
+  } else {
+    // The parts manifest is the one doc check that needs no schematic: a
+    // docs-only repo (a create run before stage 4) still reports a manifest
+    // that does not parse, or a BOM.md that is not its render. Silent when
+    // there is no manifest, as before.
+    drift = await manifestDrift(path.join(repoRoot, config.docs));
+    if (drift.length) log(drift.map((m) => `drift: ${m.doc} claims "${m.claim}" but actual is "${m.actual}"`).join('\n'));
   }
 
   let openspec: { ok: boolean; detail: string } | null = null;

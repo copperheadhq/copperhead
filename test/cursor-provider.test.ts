@@ -71,6 +71,13 @@ describe('CursorProvider — tool protocol', () => {
     expect(turn.usage.inputTokens).toBe(10);
   });
 
+  it('forwards the calls a mixed reply left undispatched (#306)', async () => {
+    const text = '{"tool":"read_file","args":{"path":"docs/SPEC.md"}}\n{"tool":"write_file","args":{"path":"a.md","content":"x"}}';
+    const turn = await new CursorProvider(undefined, fakeRun({ text })).chat(messages, tools);
+    expect(turn.toolCalls.map((c) => c.name)).toEqual(['read_file']);
+    expect(turn.undispatched).toEqual({ unavailable: ['write_file'], malformed: [] });
+  });
+
   it('does not resume by default (mutually exclusive with response cache)', async () => {
     const resumes: Array<string | undefined> = [];
     const runFn: CursorRunLike = async (args) => {

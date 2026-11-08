@@ -23,6 +23,7 @@ const HINT: Record<string, ViewHint> = {
   check_footprints: 'query',
   verify_symbols: 'diagnostic',
   draft_schematic: 'mutation',
+  draft_bom: 'mutation',
   score_schematic: 'diagnostic',
   check_legibility: 'diagnostic',
   run_drc: 'diagnostic',
