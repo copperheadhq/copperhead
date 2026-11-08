@@ -10,6 +10,7 @@ Flow B works on a repo that already has a schematic. If you have KiCad files alr
 ```bash
 cd my-board
 copperhead init                                    # once, scaffolds docs/
+copperhead explain U1                              # optional: inspect a part, net, or pin
 copperhead do "add a 100nF decoupling cap on 3V3 at U2"
 ```
 
