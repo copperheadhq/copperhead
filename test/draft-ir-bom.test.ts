@@ -5,7 +5,8 @@ import { mkdtemp, cp, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { validateIntent, parseIntent, looksLikeDescription } from '../src/kicad/draft/ir.js';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
-import { FootprintResolver, isMechanicalPad } from '../src/kicad/footprints.js';
+import { FootprintResolver, isMechanicalPad, exposedPads } from '../src/kicad/footprints.js';
+import { draftSchematicToText } from '../src/kicad/draft/draft.js';
 import { mkdir } from 'node:fs/promises';
 
 /**
@@ -386,6 +387,85 @@ describe('footprint cross-check (#314, AC-15.34)', () => {
       const res = await validateOn(repo, docs, 'Cap1_3');
       expect(res.ok).toBe(false);
       expect(res.findings.map((f) => f.detail).join('\n')).toContain('C1: pin(s) 2 have no pad in footprint Local:Cap1_3');
+    } finally {
+      await cleanup();
+    }
+  });
+  it('exposedPads: a footprint named for two exposed pads exempts its two highest unnamed numeric pads, and none the symbol names', () => {
+    const pads = new Set(['1', '2', '3', '4', '5', '6', 'MP']);
+    expect([...exposedPads('QFN-4-2EP_2x2mm', pads, new Set(['1', '2', '3', '4']))].sort()).toEqual(['5', '6']);
+    expect([...exposedPads('QFN-4-2EP_2x2mm', pads, new Set(['1', '2', '3', '4', '6']))]).toEqual(['5']);
+    expect([...exposedPads('DFN-6-1EP_2x2mm', pads, new Set(['1', '2', '3', '4', '5']))]).toEqual(['6']);
+    expect(exposedPads('SOIC-8_3.9x4.9mm', pads, new Set(['1'])).size).toBe(0);
+    expect(exposedPads('Deep_Well', pads, new Set(['1'])).size).toBe(0);
+  });
+
+  it('variantCovering: a bad id, an unknown library, a library missing on disk, and a malformed file are not candidates', async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      await localLibrary(repo, { Cap3: smd('1', -1) + smd('2', 1) + smd('3', 3), Cap2: smd('1', -1) + smd('2', 1) });
+      await writeFile(path.join(repo, 'Local.pretty', 'Broken.kicad_mod'), '(footprint "Broken" (pad "1" smd', 'utf8');
+      const footprints = await FootprintResolver.create({ projectDir: repo, global: false });
+      const pins = new Set(['1', '2']);
+      expect(await footprints.variantCovering('Cap3', pins)).toBeNull();
+      expect(await footprints.variantCovering('Nope:Cap3', pins)).toBeNull();
+      // the malformed neighbour is skipped, the good one found
+      expect(await footprints.variantCovering('Local:Cap3', pins)).toBe('Local:Cap2');
+      await rm(path.join(repo, 'Local.pretty'), { recursive: true, force: true });
+      expect(await footprints.variantCovering('Local:Cap3', pins)).toBeNull();
+      void docs;
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('variantCovering: of several fitting footprints, the one sharing the longest name prefix is named', async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      // alphabetical order would pick Aaa2; the family's own two-pad variant wins
+      await localLibrary(repo, { Cap3: smd('1', -1) + smd('2', 1) + smd('3', 3), Aaa2: smd('1', -1) + smd('2', 1), Cap2: smd('1', -1) + smd('2', 1) });
+      const res = await validateOn(repo, docs, 'Cap3');
+      expect(res.ok).toBe(false);
+      expect(res.findings.map((f) => f.detail).join('\n')).toContain('(Local:Cap2 in the same library matches)');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a part with both a missing pad and an unnamed pad is refused on both counts, without a variant hint', async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      await localLibrary(repo, { Cap1_3_4: smd('1', -1) + smd('3', 3) + smd('4', 5), Cap2: smd('1', -1) + smd('2', 1) });
+      const res = await validateOn(repo, docs, 'Cap1_3_4');
+      expect(res.ok).toBe(false);
+      const detail = res.findings.map((f) => f.detail).join('\n');
+      expect(detail).toContain('C1: pin(s) 2 have no pad in footprint Local:Cap1_3_4');
+      expect(detail).toContain('pad(s) 3, 4');
+      expect(detail).toContain('use a symbol whose pin numbers match');
+      expect(detail).toContain('KiCad often ships a variant with the matching contact count');
+      expect(detail).not.toContain('in the same library matches');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("the draft report's notes carry the pad warning", async () => {
+    const { repo, docs, cleanup } = await fixtureRepo();
+    try {
+      await localLibrary(repo, { Cap3: smd('1', -1) + smd('2', 1) + smd('3', 3) });
+      await setBomFootprint(docs, 'C1', 'Local:Cap3');
+      const intentPath = path.join(repo, 'schematic.intent.json');
+      await writeFile(intentPath, (await readFile(intentPath, 'utf8')).replace('Capacitor_SMD:C_0402_1005Metric', 'Local:Cap3'), 'utf8');
+      const res = await draftSchematicToText({
+        repoRoot: repo,
+        schematic: 'board.kicad_sch',
+        intentPath: 'schematic.intent.json',
+        docsDir: docs,
+        symbolDirs: [SYMLIB],
+        footprints: await FootprintResolver.create({ projectDir: repo, global: false }),
+      });
+      expect(res.ok, res.ok ? '' : res.message).toBe(true);
+      if (res.ok) expect(res.report.notes.some((n) => n.includes('C1: pad(s) 3 of footprint Local:Cap3') && n.includes('unconnected by design'))).toBe(true);
     } finally {
       await cleanup();
     }
