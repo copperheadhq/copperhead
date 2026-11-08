@@ -1,0 +1,15 @@
+{
+  "rails": [
+    { "rail": "/power/3V3", "sinkRef": "U4", "irDropV": 0.042, "x": 42.5, "y": 18.0 },
+    { "rail": "1V8", "sinkRef": "U2", "irDropV": 0.048, "x": 15.0, "y": 24.0 }
+  ],
+  "currentDensity": [
+    { "rail": "5V", "layer": "F.Cu", "currentDensityAmm2": 22.4, "x": 10.0, "y": 12.0 }
+  ],
+  "thermal": [
+    { "ref": "U1", "tempRiseC": 18.5, "x": 20.0, "y": 22.0 }
+  ],
+  "dependencies": [
+    { "rail": "1V8", "dependsOn": "/power/3V3", "satisfied": true }
+  ]
+}
