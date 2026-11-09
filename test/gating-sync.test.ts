@@ -349,6 +349,61 @@ describe('spec gating: structural edit lock (invariant 1)', () => {
     }
   });
 
+  it('a board-only project refuses finish when an unconfigured schematic was touched (Finding 1)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      ctx.editsUnlocked = true;
+      ctx.config = { ...ctx.config, schematic: null, board: 'hardware/open-key.kicad_pcb' };
+
+      ctx.filesTouched.add('hardware/open-key.kicad_sch');
+      ctx.ledger.onKicadEdit('hardware/open-key.kicad_sch');
+      ctx.ledger.clear('drift');
+      ctx.ledger.clear('legibility');
+
+      const blocked = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'board edit finished' });
+      expect(blocked).toContain('cannot finish yet');
+      expect(blocked).toContain('a schematic file was edited but no schematic is configured, so ERC cannot verify it');
+      expect(ctx.finishRequest).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a board-only project handles open erc obligations from project files correctly (Finding 2)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      ctx.editsUnlocked = true;
+      ctx.config = { ...ctx.config, schematic: null, board: 'hardware/open-key.kicad_pcb' };
+
+      // Case 1: .kicad_pro edit opens erc obligation, run_erc clears it
+      ctx.filesTouched.add('hardware/open-key.kicad_pro');
+      ctx.ledger.onKicadEdit('hardware/open-key.kicad_pro');
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'erc')).toBe(true);
+
+      const ercRes = await dispatchTool(ctx, 'run_erc', {});
+      expect(ercRes).toContain('does not apply yet');
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'erc')).toBe(false);
+
+      ctx.ledger.clear('drift');
+      const doneWithClear = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'finished with cleared erc' });
+      expect(doneWithClear).toContain('all gates satisfied');
+
+      // Case 2: .kicad_pro edit opens erc obligation, finish succeeds without calling run_erc
+      ctx.ledger.onKicadEdit('hardware/open-key.kicad_pro');
+      expect(ctx.ledger.openObligations.some((o) => o.kind === 'erc')).toBe(true);
+      ctx.ledger.clear('drift');
+
+      const doneSkippingErc = await dispatchTool(ctx, 'finish', { outcome: 'done', summary: 'finished skipping run_erc' });
+      expect(doneSkippingErc).toContain('all gates satisfied');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('record_decision appends to DECISIONS.md append-only', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

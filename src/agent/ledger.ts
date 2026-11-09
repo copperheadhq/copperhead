@@ -54,7 +54,10 @@ export class ObligationsLedger {
     return this.open.filter((o) => o.kind === kind);
   }
 
-  /** A KiCad edit re-opens verification obligations even if previously cleared. */
+  /**
+   * ERC is a schematic check: board edits open only DRC; with no schematic configured ERC does not apply.
+   * A KiCad edit re-opens verification obligations even if previously cleared.
+   */
   onKicadEdit(file: string): void {
     if (!file.endsWith('.kicad_pcb')) {
       this.add('erc', 'ERC must pass after schematic edits', file);

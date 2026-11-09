@@ -921,8 +921,17 @@ export const HANDLERS: HandlerDef[] = [
         const touchedPcb = [...ctx.filesTouched].some((f) => f.endsWith('.kicad_pcb'));
         if (touchedPcb && !ctx.lastDrc?.ok) problems.push('DRC has not passed since the last board edit (run run_drc)');
       }
+      const touchedSch = [...ctx.filesTouched].some((f) => f.endsWith('.kicad_sch'));
+      if (!ctx.config.schematic && touchedSch) {
+        problems.push(
+          'a schematic file was edited but no schematic is configured, so ERC cannot verify it: set "schematic" in .copperhead/config.json or revert the edit',
+        );
+      }
       // the changelog obligation is cleared by the commit path itself
-      const blocking = ctx.ledger.openObligations.filter((o) => o.kind !== 'changelog' && (ctx.config.schematic || o.kind !== 'erc'));
+      // ERC is a schematic check: board edits open only DRC; with no schematic configured ERC does not apply.
+      const blocking = ctx.ledger.openObligations.filter(
+        (o) => o.kind !== 'changelog' && (ctx.config.schematic || touchedSch || o.kind !== 'erc'),
+      );
       if (blocking.length) {
         problems.push('open sync obligations:\n' + blocking.map((o) => `  - [${o.kind}] ${o.detail}`).join('\n'));
       }
