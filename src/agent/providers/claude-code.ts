@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ChatOpts, Msg, Provider, ToolSchema, Turn } from '../types.js';
 import { parseToolCalls, renderConversation, renderDelta, renderToolProtocol } from './tool-protocol.js';
+import { sessionLimit, type SessionLimitFacts } from '../../util/retry.js';
 
 /**
  * Saved-login provider: drives Claude Code through the Claude Agent SDK
@@ -85,8 +86,22 @@ export interface QueryMessage {
   };
   /** On a `stream_event` message: the raw Messages-API stream event. */
   event?: { type: string; delta?: { type: string; text?: string } };
+  /** On a `rate_limit_event` message: the subscription limit's state. `resetsAt`
+   * is in seconds since the epoch (checked against Agent SDK 0.3.220). */
+  rate_limit_info?: { status?: string; resetsAt?: number; rateLimitType?: string };
 }
-export type QueryLike = (args: QueryArgs) => AsyncIterable<QueryMessage>;
+/** The logged-in account as the SDK reports it (`Query.accountInfo()`). */
+export interface AccountInfoLike {
+  email?: string;
+  organization?: string;
+}
+/** What `query()` returns: the message stream, and on a real SDK the control
+ * methods of its `Query`, of which we use one. A test fake may be a bare stream. */
+export type QueryRun = AsyncIterable<QueryMessage> & { accountInfo?: () => Promise<AccountInfoLike> };
+export type QueryLike = (args: QueryArgs) => QueryRun;
+
+/** How long a failing turn waits for the account to be named before it reports without it. */
+const ACCOUNT_WAIT_MS = 3000;
 
 /** Injectable dynamic import of the optional SDK. Exists so the
  * missing-dependency path stays testable now that the SDK is a declared
@@ -173,8 +188,13 @@ export class ClaudeCodeProvider implements Provider {
     // One aborter per turn: close() aborts it to kill a hung subprocess.
     const aborter = new AbortController();
     this.inFlight.add(aborter);
+    // What this turn learns about a usage limit: who is logged in, and the
+    // limit event that rejected it. Read only if the turn then fails on a limit,
+    // so the outcome can name the account that hit it (issue #212).
+    let account: Promise<string | null> = Promise.resolve(null);
+    let rejected: QueryMessage['rate_limit_info'] | null = null;
     try {
-      for await (const msg of query({
+      const run = query({
         prompt,
         options: {
           systemPrompt,
@@ -209,8 +229,12 @@ export class ClaudeCodeProvider implements Provider {
           env: { ...process.env, ANTHROPIC_API_KEY: undefined, OPENAI_API_KEY: undefined },
           maxTurns: 1,
         },
-      })) {
-        if (msg.type === 'stream_event') {
+      });
+      account = loggedInAccount(run);
+      for await (const msg of run) {
+        if (msg.type === 'rate_limit_event') {
+          if (msg.rate_limit_info?.status === 'rejected') rejected = msg.rate_limit_info;
+        } else if (msg.type === 'stream_event') {
           // Every partial event is progress (thinking and block boundaries too),
           // and reporting it restarts the loop's inactivity watchdog; only text
           // deltas grow the count. The reply itself is still read from the
@@ -259,6 +283,12 @@ export class ClaudeCodeProvider implements Provider {
       // withRetry/isRateLimit (D4). We never fall back to a keyed provider: the
       // distinct `name` makes otherProvider() return null for us.
       if (isAuthError(err)) throw new Error(authHint((err as Error).message));
+      // A session/usage limit belongs to the account that was logged in. Attach
+      // who that was and the exact reset the SDK reported, so the loop's outcome
+      // does not tell someone who has switched accounts to wait (issue #212).
+      if (err instanceof Error && sessionLimit(err)) {
+        (err as Error & { sessionLimit?: SessionLimitFacts }).sessionLimit = limitFacts(await settled(account, ACCOUNT_WAIT_MS), rejected);
+      }
       throw err;
     } finally {
       this.inFlight.delete(aborter);
@@ -358,6 +388,43 @@ export class ClaudeCodeProvider implements Provider {
     }
     return query;
   }
+}
+
+/** Who is logged in, asked of the live query: its email, else its organization.
+ * Never throws and never blocks the turn; null when the SDK cannot say. The
+ * credential itself is still never read (D2): this is the account's name. */
+function loggedInAccount(run: QueryRun): Promise<string | null> {
+  if (typeof run.accountInfo !== 'function') return Promise.resolve(null);
+  try {
+    return run.accountInfo().then(
+      (info) => info?.email?.trim() || info?.organization?.trim() || null,
+      () => null,
+    );
+  } catch {
+    return Promise.resolve(null);
+  }
+}
+
+/** A promise's value, or null if it has not settled within `ms`. */
+function settled<T>(promise: Promise<T | null>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    void promise.then((value) => {
+      clearTimeout(timer);
+      resolve(value);
+    });
+  });
+}
+
+/** The limit facts the loop reads off the error (`sessionLimit`). */
+export function limitFacts(account: string | null, rejected: QueryMessage['rate_limit_info'] | null): SessionLimitFacts {
+  const at = rejected?.resetsAt;
+  return {
+    account,
+    // seconds since the epoch; a value already in milliseconds is kept as it is
+    resetsAtMs: typeof at === 'number' && at > 0 ? (at < 1e12 ? at * 1000 : at) : null,
+    window: rejected?.rateLimitType ?? null,
+  };
 }
 
 function isAuthError(err: unknown): boolean {
