@@ -349,8 +349,22 @@ export async function kicadLoadError(filePath: string): Promise<string | null> {
   }
 }
 
-export function runDrc(pcbPath: string): Promise<CheckReport> {
-  return runCheck('drc', pcbPath);
+export interface DrcOptions {
+  /** If true, instruct kicad-cli to refill zones prior to checking DRC. */
+  refillZones?: boolean;
+  /** If true, instruct kicad-cli to save the refilled board (requires refillZones). */
+  saveBoard?: boolean;
+}
+
+export function runDrc(pcbPath: string, opts: DrcOptions = {}): Promise<CheckReport> {
+  const extraArgs: string[] = [];
+  if (opts.refillZones) {
+    extraArgs.push('--refill-zones');
+    if (opts.saveBoard) {
+      extraArgs.push('--save-board');
+    }
+  }
+  return runCheck('drc', pcbPath, extraArgs);
 }
 
 /**
