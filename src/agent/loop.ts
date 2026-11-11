@@ -49,7 +49,7 @@ import { styleHeaderLines } from './theme.js';
 import { ObligationsLedger } from './ledger.js';
 import { markTouched } from '../capabilities/helpers.js';
 import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun, fileAtCommit } from '../util/git.js';
-import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
+import { withRetry, isRateLimit, sessionLimit, sessionLimitMessage, type SessionLimit } from '../util/retry.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
 import { OpenAIProvider } from './providers/openai.js';
@@ -122,6 +122,8 @@ export interface RunResult {
   cacheHits: number;
   /** A refusal's verified constraint-conflict blockers (AC-18.1); empty or absent otherwise. */
   blockers?: RefusalBlocker[];
+  /** On a `session-limit` exit: whose limit it was and when it resets (issue #212); absent otherwise. */
+  sessionLimit?: SessionLimit;
 }
 
 export async function makeProvider(
@@ -452,7 +454,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       `${fmtTokens(s.tokensIn)} in / ${fmtTokens(s.tokensOut)} out`,
     ].join(' · ');
 
-  const fail = async (reason: string, exitPath: ExitPath): Promise<RunResult> => {
+  const fail = async (reason: string, exitPath: ExitPath, limit?: SessionLimit): Promise<RunResult> => {
     await transcript.event('run-failed', { reason, exitPath });
     // Preserve the touched work as a stash entry before the rollback destroys
     // it, so a budget-exhaustion (or any) failure is recoverable (issue #15).
@@ -511,6 +513,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       commit: null,
       stats: runStats,
       cacheHits: cacheHits(),
+      ...(limit ? { sessionLimit: limit } : {}),
     };
   };
 
@@ -641,15 +644,13 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       // replays them at ~0 tokens and resumes in place. Surface it as its own
       // exit path with the reset time and the resume instruction, rather than a
       // bare "provider error" the operator would read as a failure to debug.
+      // The limit belongs to the account that was logged in, so the outcome
+      // names it and the exact reset time when the provider reported them: a
+      // person who has switched accounts can re-run at once (issue #212).
       const limit = sessionLimit(err);
       if (limit) {
-        const when = limit.resetsAt ? ` (resets ${limit.resetsAt})` : '';
-        await transcript.event('session-limit', { resetsAt: limit.resetsAt, provider: provider.name });
-        return fail(
-          `${provider.name} session/usage limit reached${when} — this is a schedulable pause, not a bug. ` +
-            `Wait for the reset, then re-run the same command: completed turns replay from the cache at ~0 tokens and the run resumes where it left off.`,
-          'session-limit',
-        );
+        await transcript.event('session-limit', { ...limit, provider: provider.name });
+        return fail(sessionLimitMessage(provider.name, limit), 'session-limit', limit);
       }
       return fail(`provider error: ${(err as Error).message}`, 'provider-error');
     } finally {
