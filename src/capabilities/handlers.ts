@@ -740,7 +740,7 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.board)
         return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
       const boardPath = path.join(ctx.repoRoot, ctx.config.board);
-      const report = await unroutedGuard(ctx, boardPath, await runDrc(boardPath));
+      const report = await unroutedGuard(ctx, boardPath, await runDrc(boardPath, { refillZones: true, saveBoard: true }));
       countRepairCycle(ctx, 'drc', report);
       ctx.lastDrc = report;
       if (report.ok) ctx.ledger.clear('drc');
