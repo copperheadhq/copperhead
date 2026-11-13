@@ -1,6 +1,7 @@
+import { writeFile, mkdir } from '../src/util/worktree-ownership.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';

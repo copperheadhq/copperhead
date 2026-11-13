@@ -1,6 +1,9 @@
+import { loadConfig } from '../src/config.js';
+import { commitAll } from '../src/util/git.js';
+import { writeFile, mkdir } from '../src/util/worktree-ownership.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -27,7 +30,7 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
 vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: '' }) }));
 vi.mock('../src/commands/check.js', () => ({ runCheck: async () => ({ ok: true }) }));
 
-import { runCreate } from '../src/commands/create.js';
+import { runCreate, STAGES } from '../src/commands/create.js';
 
 /** A successful mocked run result (one attempt worth of stats). */
 function ok(): RunResult {
@@ -95,6 +98,46 @@ async function seedRepo(repo: string): Promise<string> {
 }
 
 describe('create pipeline resilience (review F3)', () => {
+  it('commits a schematic stage after rerunning create with interrupted managed leftovers', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const spies: { mockRestore(): void }[] = [];
+    let finish = false; let completed = false; let schematic = '';
+    try {
+      const briefPath = await seedRepo(repo);
+      for (const stage of STAGES) spies.push(vi.spyOn(stage, 'isComplete').mockImplementation(async () => stage.name === 'schematic' ? completed : true));
+      mockRunAgentLoop.mockImplementation(async (opts) => {
+        expect(opts.request).toContain('schematic');
+        const config = await loadConfig(repo); schematic = config.schematic!;
+        const file = path.join(repo, schematic);
+        const text = await readFile(file, 'utf8');
+        await writeFile(file, text + (finish ? '\n; recovered draft\n' : '\n; interrupted draft\n'), 'utf8');
+        if (!finish) return { ...ok(), outcome: 'failure', exitPath: 'provider-error', summary: 'interrupted' };
+        expect(opts.preTouched).toContain(schematic);
+        const commit = await commitAll(repo, 'resumed schematic'); completed = true;
+        return { ...ok(), commit };
+      });
+      expect((await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} })).ok).toBe(false);
+      expect(await readFile(path.join(repo, schematic), 'utf8')).toContain('interrupted draft');
+      finish = true;
+      const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });
+      expect(result.completed).toContain('schematic');
+      const shown = await execa('git', ['show', `HEAD:${schematic}`], { cwd: repo });
+      expect(shown.stdout).toContain('recovered draft');
+      expect((await execa('git', ['log', '-1', '--format=%s'], { cwd: repo })).stdout).toBe('resumed schematic');
+    } finally { for (const spy of spies) spy.mockRestore(); await cleanup(); }
+  });
+  it('stops on external-change without asking the supervisor to retry', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const briefPath = await seedRepo(repo);
+      mockRunAgentLoop.mockResolvedValue({ ...ok(), outcome: 'failure', exitPath: 'external-change', summary: 'external changes detected' });
+      const lines: string[] = [];
+      expect((await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (line) => lines.push(line) })).ok).toBe(false);
+      expect(mockRunAgentLoop).toHaveBeenCalledTimes(1);
+      expect(mockDiagnose).not.toHaveBeenCalled();
+      expect(lines.join('\n')).toContain('stopped for manual review');
+    } finally { await cleanup(); }
+  });
   it('a retry verdict drives a successful second attempt, prepends the guidance, and accumulates cost across attempts', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -173,7 +216,7 @@ describe('create pipeline resilience (review F3)', () => {
     }
   });
 
-  it('commitResumedStage commits an already-complete, managed-only dirty tree so a later rollback cannot wipe it', async () => {
+  it('commitResumedStage leaves pre-existing managed files uncommitted because this run cannot attribute them', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const briefPath = await seedRepo(repo);
@@ -197,9 +240,10 @@ describe('create pipeline resilience (review F3)', () => {
       const lines: string[] = [];
       await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
 
-      expect(lines.join('\n')).toContain('committed already-complete work');
+      expect(lines.join('\n')).toContain('pre-existing changes that this run cannot attribute');
+      expect(await readFile(path.join(docs, 'SPEC.md'), 'utf8')).toBe('# s\n\n## Budgets\n\n- sleep_current_uA: 25\n');
       const { stdout } = await execa('git', ['log', '--oneline'], { cwd: repo });
-      expect(stdout).toMatch(/resume — commit completed stage/);
+      expect(stdout).not.toMatch(/resume — commit completed stage/);
     } finally {
       await cleanup();
     }

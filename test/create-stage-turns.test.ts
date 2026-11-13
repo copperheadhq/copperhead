@@ -1,6 +1,7 @@
+import { writeFile, mkdir } from '../src/util/worktree-ownership.js';
 import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
+import {  } from 'node:fs/promises';
 import type { RunOptions } from '../src/agent/loop.js';
 import { tempFixtureRepo } from './helpers.js';
 
@@ -8,7 +9,7 @@ const mockRunAgentLoop = vi.hoisted(() =>
   vi.fn(async (opts: RunOptions) => {
     // Simulate each doc stage meeting its completion contract; a run whose
     // stage contract stays unmet halts the pipeline (see runCreate).
-    const { mkdir: mkdirFs, writeFile: writeFileFs } = await import('node:fs/promises');
+    const { mkdir: mkdirFs, writeFile: writeFileFs } = await import('../src/util/worktree-ownership.js');
     const { default: pathMod } = await import('node:path');
     const docs = pathMod.join(opts.repoRoot, 'docs');
     await mkdirFs(docs, { recursive: true });

@@ -1,6 +1,7 @@
+import { mkdir, writeFile, ExternalChangeError, assertOwnedTree, ownershipFor, adoptOwnedPaths } from '../util/worktree-ownership.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { loadConfig, resolveCompatSettings } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
@@ -35,6 +36,7 @@ import { fmtDuration, fmtTokens, type ProgressRenderer } from '../agent/render.j
 import { copper, dim, ok, stageLine, warn } from '../agent/theme.js';
 import { openspecInit } from '../openspec/cli.js';
 import { sweepStaleTempDirs, pruneHistoryDir } from '../util/tmp.js';
+import { withRunLock } from '../util/run-lock.js';
 import { bomSymbolDossier } from '../kicad/dossier.js';
 import { readManifest } from '../kicad/parts/resolve.js';
 import { libraryCache } from '../kicad/cache.js';
@@ -698,8 +700,14 @@ async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig,
     );
     return;
   }
+  const owner = ownershipFor(opts.repoRoot);
+  if (owner && dirty.some((rel) => !owner.owned.has(rel) || owner.dirtyAtStart.has(rel))) {
+    opts.log(stageLine(stageName, 'already-complete work includes pre-existing changes that this run cannot attribute; leaving it uncommitted for manual review', 'warn'));
+    return;
+  }
   try {
     const sha = await commitAll(opts.repoRoot, `copperhead: resume — commit completed stage ${stageName}`);
+    if (!sha) return;
     opts.log(
       stageLine(
         stageName,
@@ -1046,7 +1054,11 @@ export interface CreateResult {
   stop?: { stage: string; cause: AttemptCause; blockers: RefusalBlocker[] };
 }
 
-export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
+export function runCreate(opts: CreateOptions): Promise<CreateResult> {
+  return withRunLock(opts.repoRoot, 'copperhead create', () => runCreateUnlocked(opts));
+}
+
+async function runCreateUnlocked(opts: CreateOptions): Promise<CreateResult> {
   const brief = await readFile(path.resolve(opts.briefPath), 'utf8');
   // Hashed from the content already in hand: a brief edited mid-pipeline shows
   // up as a different sha256 in the next stage's metadata (AC-8.1).
@@ -1061,6 +1073,9 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
     sha256: createHash('sha256').update(brief).digest('hex'),
   };
   const config = await loadConfig(opts.repoRoot);
+  const owner = ownershipFor(opts.repoRoot);
+  const resumedPaths = owner ? [...owner.dirtyAtStart].filter((rel) => rel !== '.gitignore' && isManagedPath(rel, config)) : [];
+  await adoptOwnedPaths(opts.repoRoot, resumedPaths);
   // Fail fast on a nearly-full disk (4.1): a create run writes fab outputs and
   // KiCad local history and can otherwise fill the disk mid-stage, failing with
   // an opaque ENOSPC only after doing expensive work. Threshold overridable via
@@ -1178,10 +1193,12 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
     const boardBefore = layoutBoard ? await readFile(path.join(opts.repoRoot, layoutBoard), 'utf8').catch(() => null) : null;
     const headBefore = layoutBoard ? await headCommit(opts.repoRoot).catch(() => null) : null;
     const restoreBoard = async (): Promise<void> => {
+      await assertOwnedTree(opts.repoRoot);
       if (layoutBoard && boardBefore !== null) await writeFile(path.join(opts.repoRoot, layoutBoard), boardBefore, 'utf8');
     };
     const restoreVerifiedBoard = async (): Promise<void> => {
       if (!layoutBoard) return;
+      await assertOwnedTree(opts.repoRoot);
       const head = await headCommit(opts.repoRoot).catch(() => null);
       const committed = head && head !== headBefore ? await fileAtCommit(opts.repoRoot, head, layoutBoard) : null;
       if (committed !== null) await writeFile(path.join(opts.repoRoot, layoutBoard), committed, 'utf8');
@@ -1268,6 +1285,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
             // the dossier is context, never a gate — the stage runs without it
           }
         }
+        await assertOwnedTree(opts.repoRoot);
         const res = await runAgentLoop({
           repoRoot: opts.repoRoot,
           model: opts.model,
@@ -1281,7 +1299,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
           // passing DRC on it even when the agent never edits the board
           // An inherited draft counts as this attempt's own edits: its drift (and ERC,
           // should a KiCad file ride along) obligations must clear before finish.
-          ...(layoutBoard ? { preTouched: [layoutBoard] } : carried.length ? { preTouched: carried } : {}),
+          ...((layoutBoard || carried.length || resumedPaths.length) ? { preTouched: [...new Set([...(layoutBoard ? [layoutBoard] : []), ...carried, ...resumedPaths])] } : {}),
           // #310: in layout-draft, finish checks the stage's own contract, so the agent
           // hears what is missing while its board still exists, not after the rollback.
           // Other stages keep ending at the post-run check: their gaps have no specific
@@ -1343,6 +1361,10 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
             : !(await stage.isComplete(opts.repoRoot, config.docs))
               ? await contractGapDetail(stage.name, opts.repoRoot, config)
               : null;
+        if (res.exitPath === 'external-change') {
+          opts.log(stageLine(stage.name, `stopped for manual review: ${res.summary}`, 'warn'));
+          break;
+        }
         if (!failure) {
           stageDone = true;
           break;
@@ -1425,14 +1447,25 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
         guidance = diagnosis.guidance ?? `The previous attempt failed: ${failure}. ${diagnosis.reason}`;
       }
     } finally {
-      if (!stageDone) await restoreVerifiedBoard();
+      if (!stageDone) {
+        try { await restoreVerifiedBoard(); }
+        catch (err) {
+          if (!(err instanceof ExternalChangeError)) throw err;
+          opts.log(stageLine(stage.name, err.message, 'warn'));
+        }
+      }
       if (!stageDone && draftApplied && stageSnap) {
         // Only while no attempt committed: a moved HEAD is a stage commit that the
         // pre-stage snapshot must not undo.
         const head = await headCommit(opts.repoRoot).catch(() => null);
         if (head === stageSnap.head) {
           if (lastRunId && !(await hasFailedRun(opts.repoRoot, lastRunId))) await preserveFailedRun(opts.repoRoot, lastRunId);
-          await restore(opts.repoRoot, stageSnap);
+          try { await restore(opts.repoRoot, stageSnap); }
+          catch (err) {
+            if (!(err instanceof ExternalChangeError)) throw err;
+            opts.log(stageLine(stage.name, err.message, 'warn'));
+            return { ok: false, completed };
+          }
           opts.log(
             stageLine(
               stage.name,

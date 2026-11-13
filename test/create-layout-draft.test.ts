@@ -1,7 +1,9 @@
+import { writeFile, mkdir } from '../src/util/worktree-ownership.js';
+import { commitAll } from '../src/util/git.js';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile as externalWrite } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { execa } from 'execa';
 import type { RunOptions } from '../src/agent/loop.js';
@@ -137,6 +139,22 @@ describe('create layout-draft around board populate (#314)', () => {
     }
   }, 180_000);
 
+  it('stage cleanup refuses to restore the board when an external file arrives', async () => {
+    const { repo, brief, cleanup } = await projectAtLayoutDraft();
+    try {
+      layout.attempts = [async (opts) => {
+        await externalWrite(path.join(opts.repoRoot, 'human.txt'), 'external work');
+        return 'failure';
+      }];
+      const lines: string[] = [];
+      const result = await run(repo, brief, lines);
+      expect(result.ok).toBe(false);
+      expect(await readFile(path.join(repo, 'human.txt'), 'utf8')).toBe('external work');
+      expect(boardFootprints(await readFile(path.join(repo, PCB), 'utf8')).length).toBe(5);
+      expect(lines.join('\n')).toContain('external changes detected');
+    } finally { await cleanup(); }
+  }, 180_000);
+
   it('a stage that fails after an attempt committed leaves that verified board, not the pre-stage one', async () => {
     const { repo, brief, cleanup } = await projectAtLayoutDraft();
     try {
@@ -144,8 +162,7 @@ describe('create layout-draft around board populate (#314)', () => {
         // attempt 1 commits the populated board (its DRC passed) but never
         // writes LAYOUT.md's Draft quality, so the stage contract fails
         async (opts) => {
-          await execa('git', ['add', '-A'], { cwd: opts.repoRoot });
-          await execa('git', ['commit', '-q', '-m', 'layout attempt'], { cwd: opts.repoRoot });
+          await commitAll(opts.repoRoot, 'layout attempt');
           return 'success';
         },
       ];
@@ -224,8 +241,7 @@ describe('create layout-draft around board populate (#314)', () => {
           const pcb = path.join(opts.repoRoot, PCB);
           const text = await readFile(pcb, 'utf8');
           await writeFile(pcb, text.slice(0, text.lastIndexOf(')')) + marker + text.slice(text.lastIndexOf(')')), 'utf8');
-          await execa('git', ['add', '-A'], { cwd: opts.repoRoot });
-          await execa('git', ['commit', '-q', '-m', 'layout attempt'], { cwd: opts.repoRoot });
+          await commitAll(opts.repoRoot, 'layout attempt');
           return 'success';
         },
         async () => 'failure',

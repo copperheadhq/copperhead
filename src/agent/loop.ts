@@ -1,5 +1,6 @@
+import { writeFile, assertOwnedTree, ExternalChangeError } from '../util/worktree-ownership.js';
 import path from 'node:path';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { Msg, Provider, Turn } from './types.js';
 import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
@@ -49,6 +50,7 @@ import { styleHeaderLines } from './theme.js';
 import { ObligationsLedger } from './ledger.js';
 import { markTouched } from '../capabilities/helpers.js';
 import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun, fileAtCommit } from '../util/git.js';
+import { withRunLock } from '../util/run-lock.js';
 import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
@@ -253,19 +255,22 @@ export function repairBudgetExhausted(used: number, max: number): boolean {
   return used >= Math.max(max, 1);
 }
 
-export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
-  const providers = new Set<Provider>();
-  try {
-    return await runWithProviders(opts, providers);
-  } finally {
-    for (const provider of providers) {
-      try {
-        await provider.close?.();
-      } catch (err) {
-        opts.log?.(`warning: ${provider.name} provider cleanup failed (${(err as Error).message})`);
+export function runAgentLoop(opts: RunOptions): Promise<RunResult> {
+  const request = typeof opts.meta?.command === 'string' ? `copperhead ${opts.meta.command}` : 'copperhead do';
+  return withRunLock(opts.repoRoot, request, async () => {
+    const providers = new Set<Provider>();
+    try {
+      return await runWithProviders(opts, providers);
+    } finally {
+      for (const provider of providers) {
+        try {
+          await provider.close?.();
+        } catch (err) {
+          opts.log?.(`warning: ${provider.name} provider cleanup failed (${(err as Error).message})`);
+        }
       }
     }
-  }
+  });
 }
 
 async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Promise<RunResult> {
@@ -466,6 +471,10 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       await restore(repoRoot, snap);
     } catch (err) {
       restoreError = (err as Error).message;
+      if (err instanceof ExternalChangeError) {
+        exitPath = 'external-change';
+        reason += `; ${restoreError}`;
+      }
       await transcript.event('restore-failed', { error: restoreError });
     }
     const runStats = stats(exitPath);
@@ -722,6 +731,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           continue;
         }
       }
+      try { await assertOwnedTree(repoRoot, false); }
+      catch (err) { return fail((err as Error).message, 'external-change'); }
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
@@ -774,7 +785,11 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         // tree that was already dirty must not stash the user's own changes.
         const preserved = ctx.filesTouched.size ? await preserveFailedRun(repoRoot, ctx.runId) : null;
         if (preserved) await transcript.event('work-preserved', { stash: preserved });
-        await restore(repoRoot, snap);
+        try { await restore(repoRoot, snap); }
+        catch (err) {
+          if (!(err instanceof ExternalChangeError)) throw err;
+          return fail((err as Error).message, 'external-change');
+        }
         const runStats = stats('refused');
         await transcript.event('run-end', runStats);
         const blockerLines = listed.map(
@@ -833,7 +848,11 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         log('--- dry run: proposed diff ---');
         log(diff || '(no diff)');
         if (untracked) log(`new files:\n${untracked}`);
-        await restore(repoRoot, snap);
+        try { await restore(repoRoot, snap); }
+        catch (err) {
+          if (!(err instanceof ExternalChangeError)) throw err;
+          return fail((err as Error).message, 'external-change');
+        }
         const runStats = stats('done');
         await transcript.event('run-end', runStats);
         await transcript.writeSummary({
@@ -891,7 +910,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       // A git failure here (e.g. `git add -A` exiting 128 on an embedded repo)
       // must land in summary.md as an outcome, not escape as a stack trace
       // (AC-8.6): roll back per the snapshot contract and report commit-failed.
-      let commit: string;
+      let commit: string | null;
       try {
         commit = await commitAll(repoRoot, commitMsg);
       } catch (err) {
@@ -912,7 +931,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           await transcript.event('openspec-archive-failed', { changeId: ctx.changeId, error: message });
         }
       }
-      await transcript.event('run-committed', { commit, files });
+      await transcript.event(commit ? 'run-committed' : 'run-unchanged', { commit, files });
       const runStats = stats('done');
       await transcript.event('run-end', runStats);
       await transcript.writeSummary({
@@ -932,8 +951,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         env: meta,
         stats: runStats,
       });
-      log(`committed ${commit.slice(0, 10)} (${files.length} file(s))`);
-      r.finish(outcomeLine(runStats, `committed ${commit.slice(0, 10)}`));
+      log(commit ? `committed ${commit.slice(0, 10)} (${files.length} file(s))` : 'no changes to commit');
+      r.finish(outcomeLine(runStats, commit ? `committed ${commit.slice(0, 10)}` : 'no changes to commit'));
       return {
         outcome: 'success',
         exitPath: 'done',

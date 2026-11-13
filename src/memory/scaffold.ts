@@ -1,10 +1,12 @@
-import { readFile, writeFile, mkdir, readdir, chmod } from 'node:fs/promises';
+import { mkdir, writeFile, adoptOwnedPaths } from '../util/worktree-ownership.js';
+import { readFile, readdir, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { listSymbols, pinNets, type SchematicSymbol, type PinNet } from '../kicad/sexp.js';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';
 import { resolveInRepo } from '../util/paths.js';
+import { withRunLock } from '../util/run-lock.js';
 
 export class InitError extends Error {}
 
@@ -193,7 +195,11 @@ export interface InitOptions {
   installHooks?: boolean;
 }
 
-export async function runInit(opts: InitOptions): Promise<InitResult> {
+export function runInit(opts: InitOptions): Promise<InitResult> {
+  return withRunLock(opts.repoRoot, 'copperhead init', () => runInitUnlocked(opts));
+}
+
+async function runInitUnlocked(opts: InitOptions): Promise<InitResult> {
   const { repoRoot } = opts;
   // AC-4.2: the search root comes from an untrusted caller — a CLI flag, and
   // now an MCP tool input chosen by a host agent. Bare path.resolve lets an
@@ -221,6 +227,15 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
   const docsDir = path.join(repoRoot, config.docs);
   await mkdir(docsDir, { recursive: true });
 
+  // Init may refresh its generated metadata and docs authorized by their saved
+  // hash or --force. Adopt only those selected targets, after checking the tree;
+  // identical files need neither a write nor ownership of pre-existing bytes.
+  const writeGenerated = async (file: string, content: string): Promise<void> => {
+    if (existsSync(file) && await readFile(file, 'utf8') === content) return;
+    await adoptOwnedPaths(repoRoot, [path.relative(repoRoot, file).split(path.sep).join('/')]);
+    await writeFile(file, content, 'utf8');
+  };
+
   const result: InitResult = { created: [], skipped: [], refused: [] };
   const hashes: Record<string, string> = { ...(config.generatedHashes ?? {}) };
   const appendOnly = new Set(['DECISIONS.md', 'CHANGELOG.md']);
@@ -243,17 +258,17 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
       if (current === content) {
         result.skipped.push(rel);
       } else if (opts.force) {
-        await writeFile(p, content, 'utf8');
+        await writeGenerated(p, content);
         hashes[name] = sha(content);
         result.created.push(rel);
       } else {
         // schematic changed since generation but doc untouched: safe to refresh
-        await writeFile(p, content, 'utf8');
+        await writeGenerated(p, content);
         hashes[name] = sha(content);
         result.created.push(rel);
       }
     } else if (opts.force) {
-      await writeFile(p, content, 'utf8');
+      await writeGenerated(p, content);
       hashes[name] = sha(content);
       result.created.push(rel);
     } else {
@@ -264,9 +279,9 @@ export async function runInit(opts: InitOptions): Promise<InitResult> {
   config.generatedHashes = hashes;
   const cfgPath = configPath(repoRoot);
   await mkdir(path.dirname(cfgPath), { recursive: true });
-  await writeFile(cfgPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
+  await writeGenerated(cfgPath, JSON.stringify(config, null, 2) + '\n');
   // generated documentation, always refreshed (design D12)
-  await writeFile(path.join(repoRoot, '.copperhead', 'README.md'), copperheadReadme(config), 'utf8');
+  await writeGenerated(path.join(repoRoot, '.copperhead', 'README.md'), copperheadReadme(config));
 
   if (opts.installHooks !== false) {
     const hook = await installPreCommitHook(repoRoot);
