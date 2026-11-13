@@ -112,6 +112,18 @@ Resolution is governed by a **truth-precedence rule**: KiCad files are ground tr
 
 Idempotence falls out of the design: phase 2 only runs when phase 1 finds resolvable inconsistencies, so a second `sync` is a no-op (AC-7.5). Alternative considered: folding resolution into `check --fix` — rejected because `check` is contractually LLM-free and CI-safe; mixing modes would blur that guarantee.
 
+### D15: Exclusive working-tree lock and crash recovery (AC-3.8)
+
+Wrap mutating `do`, `create`, `init`, `draft schematic`, and sync-resolve runs before preflight or startup writes and hold the lock through completion, commit, and rollback. CLI and MCP share `withRunLock`; nested stages reuse their outer lock through `AsyncLocalStorage`. Refuse with owner PID, lock start time, operation, and lock path instead of silently waiting behind a run that can take minutes. Verification and edit-tool gating stay inside the existing run.
+
+Resolve the lock under the working tree's Git directory as `copperhead-run.lock`, outside files staged or restored by the run; linked worktrees have separate Git directories. A canonical-path hash in the OS temporary directory handles invalid repositories without startup writes in the project. Write metadata to a private sibling temporary file, sync and close it, then publish with an exclusive hard link. A crash before publication may leave an unused temporary file but cannot expose incomplete owner details.
+
+Record hostname and PID namespace and only consider automatic reclamation in the same ownership domain. Linux also compares boot identity and `/proc/<pid>/stat` start ticks to distinguish PID reuse and reboot. Other platforms use PID liveness and require manual inspection for a reused live PID. An unreadable namespace or unavailable recorded start identity refuses reclamation. Legacy metadata without ownership information also requires manual inspection.
+
+Serialize stale-lock removal with guards scoped to the stale run token. If a guard owner exited, keep its guard in place and acquire a deterministic successor; removing and recreating the same guard path would allow concurrent reclaimers to unlink a new live guard using an earlier stale read. Remove abandoned guards after the stale main generation is gone. Recover an abandoned original `.reap` file under the generation guard and refuse if its owner is live or unverifiable. A final token and owner check protects a different main-lock generation.
+
+This coordinates participating Copperhead commands. KiCad GUI saves and other external edits do not take the lock. Restricting commits to files authored by the run and guarding rollback against external edits are separate follow-up work for #468.
+
 ## Risks / Trade-offs
 
 - [kicad-cli version drift — JSON report shape differs across KiCad 8/9] → Pin a minimum version, detect via `kicad-cli version` at startup, and keep the report normalizer tolerant of missing fields.

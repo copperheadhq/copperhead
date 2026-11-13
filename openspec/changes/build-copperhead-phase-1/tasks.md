@@ -33,6 +33,8 @@
 - [x] 3.4 Implement git guard: dirty-tree refusal, `--allow-dirty` with `git stash create` snapshot, restore-to-snapshot helper; unit tests (AC-3.8, AC-3.6 precondition)
 - [x] 3.5 Implement human-readable run summary: write `summary.md` beside transcript.jsonl on every run end (request, change id, plan, files touched, ERC/DRC results, decisions, token usage), same redaction pass as the transcript
 
+- [x] 3.6 Serialize CLI/MCP mutating runs, including standalone draft, before startup writes; publish complete lock metadata atomically; recover exited run and cleanup owners safely; verify host/namespace ownership and Linux process identity; add regression tests and troubleshooting docs (AC-3.8, D15)
+
 ## 4. Agent core
 
 - [x] 4.1 Define Provider interface + internal Msg/Turn/ToolSchema types; implement providers/openai.ts and providers/anthropic.ts with format mapping

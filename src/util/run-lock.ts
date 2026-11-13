@@ -1,8 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
-import { open, mkdir, readFile, realpath, unlink } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { setTimeout as delay } from 'node:timers/promises';
+import { open, link, mkdir, readFile, readlink, realpath, unlink } from 'node:fs/promises';
+import { hostname, tmpdir } from 'node:os';
 import path from 'node:path';
 import { execa } from 'execa';
 
@@ -11,6 +10,9 @@ interface LockMetadata {
   startedAt: string;
   request: string;
   token: string;
+  hostname: string;
+  pidNamespace: string | null;
+  processStart: string | null;
 }
 
 interface LockLocation {
@@ -19,6 +21,8 @@ interface LockLocation {
 }
 
 type LockInspection = { kind: 'missing' } | { kind: 'invalid' } | { kind: 'valid'; metadata: LockMetadata };
+type OwnerState = 'alive' | 'dead' | 'unknown';
+interface CleanupLock { file: string; metadata: LockMetadata }
 
 const heldLocks = new AsyncLocalStorage<Set<string>>();
 
@@ -29,12 +33,7 @@ export class RunLockError extends Error {
   }
 }
 
-/**
- * Run serialization shared by the CLI and MCP server. The lock lives in the
- * worktree's git directory, outside the files a run stages, commits, or rolls
- * back. The temp-dir fallback exists only so invalid repositories can reach
- * their normal preflight error without writing a lock into the project tree.
- */
+/** The Git directory is outside the files a run commits or rolls back. */
 async function lockLocation(repoRoot: string): Promise<LockLocation> {
   const root = path.resolve(repoRoot);
   const canonicalRoot = await realpath(root).catch(() => root);
@@ -43,6 +42,7 @@ async function lockLocation(repoRoot: string): Promise<LockLocation> {
     const gitDir = await realpath(stdout.trim());
     return { key: gitDir, file: path.join(gitDir, 'copperhead-run.lock') };
   } catch {
+    // Invalid repositories must reach preflight without startup writes in the tree.
     const id = createHash('sha256').update(canonicalRoot).digest('hex');
     const dir = path.join(tmpdir(), 'copperhead-run-locks');
     await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -50,8 +50,30 @@ async function lockLocation(repoRoot: string): Promise<LockLocation> {
   }
 }
 
-function makeMetadata(request: string): LockMetadata {
-  return { pid: process.pid, startedAt: new Date().toISOString(), request, token: randomUUID() };
+async function pidNamespace(): Promise<string | null> {
+  return process.platform === 'linux' ? readlink('/proc/self/ns/pid').catch(() => null) : null;
+}
+
+async function processStart(pid: number): Promise<string | null> {
+  if (process.platform !== 'linux') return null;
+  try {
+    const [boot, stat] = await Promise.all([
+      readFile('/proc/sys/kernel/random/boot_id', 'utf8'),
+      readFile(`/proc/${pid}/stat`, 'utf8'),
+    ]);
+    // comm can contain spaces and parentheses. Field 22 follows the closing ')'.
+    const ticks = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+    return ticks && /^\d+$/.test(ticks) ? `${boot.trim()}:${ticks}` : null;
+  } catch {
+    return null;
+  }
+}
+
+async function makeMetadata(request: string): Promise<LockMetadata> {
+  return {
+    pid: process.pid, startedAt: new Date().toISOString(), request, token: randomUUID(),
+    hostname: hostname(), pidNamespace: await pidNamespace(), processStart: await processStart(process.pid),
+  };
 }
 
 async function inspect(file: string): Promise<LockInspection> {
@@ -65,11 +87,11 @@ async function inspect(file: string): Promise<LockInspection> {
   try {
     const value = JSON.parse(raw) as Partial<LockMetadata>;
     if (
-      !Number.isSafeInteger(value.pid) ||
-      (value.pid ?? 0) < 1 ||
-      typeof value.startedAt !== 'string' ||
-      typeof value.request !== 'string' ||
-      typeof value.token !== 'string'
+      !Number.isSafeInteger(value.pid) || (value.pid ?? 0) < 1 ||
+      typeof value.startedAt !== 'string' || typeof value.request !== 'string' ||
+      typeof value.token !== 'string' || typeof value.hostname !== 'string' ||
+      !(value.pidNamespace === null || typeof value.pidNamespace === 'string') ||
+      !(value.processStart === null || typeof value.processStart === 'string')
     ) return { kind: 'invalid' };
     return { kind: 'valid', metadata: value as LockMetadata };
   } catch {
@@ -77,37 +99,35 @@ async function inspect(file: string): Promise<LockInspection> {
   }
 }
 
-async function inspectStable(file: string): Promise<LockInspection> {
-  let current = await inspect(file);
-  // O_EXCL creates the file before its owner writes the metadata. Give that
-  // short creation window time to finish before treating an empty file as a
-  // damaged lock that needs manual inspection.
-  for (let attempt = 0; current.kind === 'invalid' && attempt < 4; attempt++) {
-    await delay(10);
-    current = await inspect(file);
-  }
-  return current;
-}
-
-function processIsAlive(pid: number): boolean {
+async function ownerState(owner: LockMetadata): Promise<OwnerState> {
+  if (owner.hostname !== hostname() || owner.pidNamespace !== await pidNamespace()) return 'unknown';
+  // An unavailable namespace must not make a live container owner look dead.
+  if (process.platform === 'linux' && owner.pidNamespace === null) return 'unknown';
   try {
-    process.kill(pid, 0);
-    return true;
+    process.kill(owner.pid, 0);
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+    return (error as NodeJS.ErrnoException).code === 'ESRCH' ? 'dead' : 'unknown';
   }
+  if (owner.processStart !== null) {
+    const actual = await processStart(owner.pid);
+    if (actual === null) return 'unknown';
+    if (actual !== owner.processStart) return 'dead';
+  }
+  return 'alive';
 }
 
 async function createExclusive(file: string, metadata: LockMetadata): Promise<void> {
-  const handle = await open(file, 'wx', 0o600);
+  const temporary = `${file}.${metadata.token}.tmp`;
+  const handle = await open(temporary, 'wx', 0o600);
   try {
     await handle.writeFile(`${JSON.stringify(metadata)}\n`, 'utf8');
     await handle.sync();
     await handle.close();
-  } catch (error) {
+    // Hard-link publication is atomic and never overwrites an existing owner.
+    await link(temporary, file);
+  } finally {
     await handle.close().catch(() => {});
-    await unlink(file).catch(() => {});
-    throw error;
+    await unlink(temporary).catch(() => {});
   }
 }
 
@@ -124,10 +144,44 @@ function activeMessage(metadata: LockMetadata, file: string): RunLockError {
   );
 }
 
-async function acquire(file: string, request: string): Promise<LockMetadata> {
-  const metadata = makeMetadata(request);
-  const reaperFile = `${file}.reap`;
+function unknownOwner(metadata: LockMetadata, file: string): RunLockError {
+  return new RunLockError(
+    `cannot establish run-lock ownership on host ${metadata.hostname} or its PID namespace (PID ${metadata.pid}, started ${metadata.startedAt}, lock: ${file}); verify the owner has exited on that host before manually removing the lock`,
+  );
+}
 
+/**
+ * Scope cleanup guards to the stale main lock's token. A dead cleaner's guard
+ * stays in place while recovery uses its own successor guard. Unlinking and
+ * reusing one shared .reap path would let two recovering processes remove a
+ * newly acquired live guard based on the same stale read.
+ */
+async function acquireCleanup(file: string, token: string): Promise<{ held: CleanupLock; abandoned: CleanupLock[] }> {
+  const metadata = await makeMetadata('copperhead stale-lock cleanup');
+  const abandoned: CleanupLock[] = [];
+  let generation = token;
+  for (;;) {
+    const digest = createHash('sha256').update(generation).digest('hex');
+    const guard = `${file}.reap.${digest}`;
+    try {
+      await createExclusive(guard, metadata);
+      return { held: { file: guard, metadata }, abandoned };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    const current = await inspect(guard);
+    if (current.kind === 'missing') continue;
+    if (current.kind === 'invalid') throw new RunLockError(`cleanup lock owner details cannot be read; inspect ${guard} before removing it`);
+    const state = await ownerState(current.metadata);
+    if (state === 'unknown') throw unknownOwner(current.metadata, guard);
+    if (state === 'alive') throw activeMessage(current.metadata, guard);
+    abandoned.push({ file: guard, metadata: current.metadata });
+    generation = `${digest}:${current.metadata.token}`;
+  }
+}
+
+async function acquire(file: string, request: string): Promise<LockMetadata> {
+  const metadata = await makeMetadata(request);
   for (;;) {
     try {
       await createExclusive(file, metadata);
@@ -135,44 +189,42 @@ async function acquire(file: string, request: string): Promise<LockMetadata> {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     }
-
-    const existing = await inspectStable(file);
+    const existing = await inspect(file);
     if (existing.kind === 'missing') continue;
     if (existing.kind === 'invalid') {
       throw new RunLockError(
         `a copperhead run lock exists but its owner details cannot be read (lock: ${file}); verify no copperhead run is active, then remove the stale lock to continue`,
       );
     }
-    if (processIsAlive(existing.metadata.pid)) throw activeMessage(existing.metadata, file);
+    const state = await ownerState(existing.metadata);
+    if (state === 'unknown') throw unknownOwner(existing.metadata, file);
+    if (state === 'alive') throw activeMessage(existing.metadata, file);
 
-    // Only one process may reclaim a dead owner's lock at a time. Re-read it
-    // while holding this small cleanup lock so a newly acquired live lock can
-    // never be removed based on an earlier stale read.
-    const reaper = makeMetadata('copperhead stale-lock cleanup');
+    const { held, abandoned } = await acquireCleanup(file, existing.metadata.token);
     try {
-      await createExclusive(reaperFile, reaper);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      const cleanup = await inspectStable(reaperFile);
-      const detail = cleanup.kind === 'valid'
-        ? `PID ${cleanup.metadata.pid}, started ${cleanup.metadata.startedAt}`
-        : 'unknown owner';
-      throw new RunLockError(
-        `stale run-lock cleanup is already active (${detail}); retry shortly, or inspect and remove ${reaperFile} if its owner has exited`,
-      );
-    }
-
-    try {
-      const current = await inspectStable(file);
-      if (
-        current.kind === 'valid' &&
-        current.metadata.token === existing.metadata.token &&
-        !processIsAlive(current.metadata.pid)
-      ) {
+      // Recover the .reap path left by the original implementation, under the
+      // generation guard. Never remove a live or unverifiable cleanup owner.
+      const legacyFile = `${file}.reap`;
+      const legacy = await inspect(legacyFile);
+      if (legacy.kind === 'invalid') throw new RunLockError(`cleanup lock owner details cannot be read; inspect ${legacyFile} before removing it`);
+      if (legacy.kind === 'valid') {
+        const legacyState = await ownerState(legacy.metadata);
+        if (legacyState === 'unknown') throw unknownOwner(legacy.metadata, legacyFile);
+        if (legacyState === 'alive') throw activeMessage(legacy.metadata, legacyFile);
+        await releaseIfOwned(legacyFile, legacy.metadata.token);
+      }
+      const current = await inspect(file);
+      if (current.kind === 'valid' && current.metadata.token === existing.metadata.token &&
+          await ownerState(current.metadata) === 'dead') {
         await unlink(file);
       }
     } finally {
-      await releaseIfOwned(reaperFile, reaper.token);
+      // Ancestors must stay present until this main-lock generation is gone.
+      const current = await inspect(file);
+      if (current.kind === 'missing' || (current.kind === 'valid' && current.metadata.token !== existing.metadata.token)) {
+        for (const guard of abandoned) await releaseIfOwned(guard.file, guard.metadata.token);
+      }
+      await releaseIfOwned(held.file, held.metadata.token);
     }
   }
 }
@@ -182,7 +234,6 @@ export async function withRunLock<T>(repoRoot: string, request: string, run: () 
   const location = await lockLocation(repoRoot);
   const inherited = heldLocks.getStore() ?? new Set<string>();
   if (inherited.has(location.key)) return run();
-
   const metadata = await acquire(location.file, request);
   try {
     return await heldLocks.run(new Set([...inherited, location.key]), run);

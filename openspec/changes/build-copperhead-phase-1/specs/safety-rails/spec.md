@@ -29,15 +29,44 @@ All file tools SHALL resolve paths relative to the repo root and reject any path
 - **THEN** `git status` is clean and all files are byte-identical to the pre-run state
 
 ### Requirement: Exclusive per-working-tree run lock
-Every mutating `do`, `create`, `init`, or sync-resolve run SHALL acquire an exclusive lock for its working tree before preflight or startup writes, and SHALL hold it through commit or rollback. CLI and MCP entry points SHALL use the same lock. The lock records the owner PID, start time, and operation; an exited owner SHALL not leave the working tree permanently locked.
+Every mutating `do`, `create`, `init`, `draft schematic`, or sync-resolve run SHALL acquire an exclusive lock for its working tree before repository preflight or startup writes and hold it through completion, commit, or rollback. CLI and MCP entry points SHALL use the same lock. The lock coordinates participating commands; edits made by external programs require separate commit and rollback protections.
 
 #### Scenario: Concurrent run is refused
-- **WHEN** a second `do`, `create`, `init`, or sync-resolve starts while a run holds the working-tree lock
+- **WHEN** a second `do`, `create`, `init`, `draft schematic`, or sync-resolve starts while a run holds the working-tree lock
 - **THEN** it refuses before preflight or mutation and names the active process and start time
 
+#### Scenario: Standalone draft respects an active run
+- **WHEN** `copperhead draft schematic` runs while another process owns the working-tree lock
+- **THEN** it refuses with the owner PID and start time before writing the schematic, project, or symbol library table
+
+### Requirement: Recover abandoned local run and cleanup locks
+An exited run or cleanup owner with verifiable local identity SHALL not permanently block the working tree. Recovery SHALL preserve any newer live owner.
+
 #### Scenario: Stale run lock is reclaimed
-- **WHEN** the lock owner process has exited
+- **WHEN** a valid local lock owner process has exited
 - **THEN** the next run safely reclaims the stale lock and proceeds
+
+#### Scenario: Cleaner crashed during recovery
+- **WHEN** a valid local run lock and its cleanup lock both belong to exited owners
+- **THEN** the next run safely recovers both, and simultaneous recovery attempts cannot remove a newly acquired live lock
+
+### Requirement: Publish complete lock metadata atomically
+The lock SHALL publish complete metadata atomically and record the owner PID, lock start time, operation, hostname, PID namespace, and process start identity where available.
+
+#### Scenario: Acquisition interrupted before publication
+- **WHEN** a process exits while writing its temporary metadata file
+- **THEN** no incomplete lock is visible and the next run can acquire the lock
+
+### Requirement: Verify lock ownership before reclamation
+Automatic reclamation SHALL require matching hostname and PID namespace. Process start identity SHALL be compared where available. Unreadable metadata or unverifiable ownership SHALL refuse reclamation and name the lock for manual inspection. On platforms without start identity, a reused live PID SHALL require manual inspection.
+
+#### Scenario: Owner belongs to another host or PID namespace
+- **WHEN** the recorded hostname or PID namespace differs from the current process
+- **THEN** the command refuses, leaves the lock intact, and explains how to inspect ownership manually
+
+#### Scenario: PID reused after exit or reboot
+- **WHEN** a lock names a live PID whose process start identity differs from its recorded identity on a platform exposing that identity
+- **THEN** the stale lock is reclaimed rather than attributed to the unrelated process
 
 ### Requirement: Secret hygiene
 API keys SHALL exist only in environment variables; `.env` and `.copperhead/runs/` SHALL be in `.gitignore` from the first commit; transcripts SHALL redact anything matching `sk-[A-Za-z0-9_-]+` at write time.

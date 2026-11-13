@@ -132,6 +132,14 @@ Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable o
 
 `--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), and `codex` / `codex:<id>` (Codex CLI, saved login). Routing is by prefix; `claude-code` is matched before the `claude` prefix. `compat:<id>` targets any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, or a local Ollama) via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV` - worked examples for each in [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
 
+### Concurrent runs and stale locks
+
+Mutating `do`, `create`, `init`, `draft schematic`, and sync-resolve commands share a per-working-tree lock across CLI and MCP. A second run refuses with the active operation, PID, start time, and lock path. Wait for that run to finish, or use a separate Git worktree.
+
+The lock is normally `.git/copperhead-run.lock`; for linked worktrees, locate it under `git rev-parse --absolute-git-dir`. Valid locks from exited owners in the same host and PID namespace are reclaimed automatically, including abandoned cleanup guards. Linux verifies process start identity as well as PID liveness. On other platforms, a reused live PID may require manual inspection.
+
+If ownership cannot be verified (another hostname or PID namespace, unreadable metadata, or a lock created by an older version), confirm that no run or cleaner is active in any environment sharing the tree before manually removing the reported lock or cleanup guard. Never remove a live owner's lock. An acquisition crash can leave unused `.tmp` siblings, which do not block runs. Locking coordinates Copperhead commands; avoid simultaneous KiCad GUI saves or manual edits because scoped commits and guarded rollback remain follow-up work.
+
 ### Saved login (Cursor Agent)
 
 `--model cursor` drives the Cursor Agent CLI with your saved login from `agent login`, so you can run copperhead with **no `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`**. Cursor is used purely as a reasoning backend in plan mode: the agent loop, safety gates, and every file edit stay inside copperhead.

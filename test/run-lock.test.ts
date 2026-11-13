@@ -1,17 +1,17 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { setTimeout as delay } from 'node:timers/promises';
-import { fileURLToPath } from 'node:url';
+import { hostname, tmpdir } from 'node:os';
+import { readlink } from 'node:fs/promises';
 import path from 'node:path';
 import { execa } from 'execa';
 import { describe, expect, it } from 'vitest';
 import { runAgentLoop } from '../src/agent/loop.js';
 import { runCreate } from '../src/commands/create.js';
+import { runInit } from '../src/memory/scaffold.js';
 import { RunLockError, withRunLock } from '../src/util/run-lock.js';
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { holdRunLock } from './run-lock-holder.js';
 
 async function tempRepo(): Promise<{ repo: string; cleanup: () => Promise<void> }> {
   const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-run-lock-'));
@@ -22,54 +22,10 @@ async function tempRepo(): Promise<{ repo: string; cleanup: () => Promise<void> 
 describe('cross-process run lock', () => {
   it('refuses concurrent do and create runs with the active process details', async () => {
     const { repo, cleanup } = await tempRepo();
-    const readyFile = path.join(repo, 'lock-holder-ready');
-    const releaseFile = path.join(repo, 'lock-holder-release');
-    const script = [
-      "const { writeFile, access } = await import('node:fs/promises');",
-      "const { setTimeout: delay } = await import('node:timers/promises');",
-      `const { withRunLock } = await import(${JSON.stringify(path.join(REPO_ROOT, 'src/util/run-lock.ts'))});`,
-      "await withRunLock(process.env.COPPERHEAD_LOCK_TEST_REPO, 'copperhead do', async () => {",
-      `  await writeFile(${JSON.stringify(readyFile)}, String(process.pid));`,
-      '  for (;;) {',
-      `    try { await access(${JSON.stringify(releaseFile)}); break; } catch { await delay(10); }`,
-      '  }',
-      '});',
-    ].join('\n');
-    const child = spawn(
-      process.execPath,
-      ['--import', 'tsx', '--input-type=module', '-e', script],
-      {
-        cwd: REPO_ROOT,
-        env: { ...process.env, COPPERHEAD_LOCK_TEST_REPO: repo },
-        stdio: ['ignore', 'ignore', 'pipe'],
-      },
-    );
-    let stderr = '';
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
-    const exited = once(child, 'exit').then(([code, signal]) => {
-      if (code !== 0) throw new Error(`lock-holder exited with ${String(code ?? signal)}: ${stderr}`);
-      return code;
-    });
-    void exited.catch(() => {});
-
+    const holder = await holdRunLock(repo);
     try {
-      const deadline = Date.now() + 10_000;
-      while (Date.now() < deadline) {
-        if (child.exitCode !== null || child.signalCode !== null) {
-          throw new Error(`lock-holder exited with ${String(child.exitCode ?? child.signalCode)}: ${stderr}`);
-        }
-        try {
-          await access(readyFile);
-          break;
-        } catch {
-          await delay(10);
-        }
-      }
-      await expect(access(readyFile)).resolves.toBeUndefined();
-      const activePid = Number(await readFile(readyFile, 'utf8'));
-      expect(activePid).toBe(child.pid);
-
+      const activePid = holder.owner.pid;
+      expect(activePid).toBe(holder.pid);
       const loopError = await runAgentLoop({
         repoRoot: repo,
         request: 'this must not start',
@@ -79,6 +35,10 @@ describe('cross-process run lock', () => {
       expect(loopError).toBeInstanceOf(RunLockError);
       expect(loopError!.message).toContain(`PID ${activePid}`);
       expect(loopError!.message).toMatch(/in progress/);
+      const owner = JSON.parse(await readFile(path.join(repo, '.git', 'copperhead-run.lock'), 'utf8'));
+      expect(loopError!.message).toContain(owner.startedAt);
+      await expect(runInit({ repoRoot: repo })).rejects.toBeInstanceOf(RunLockError);
+      await expect(access(path.join(repo, '.copperhead'))).rejects.toMatchObject({ code: 'ENOENT' });
 
       const createError = await runCreate({
         repoRoot: repo,
@@ -89,12 +49,7 @@ describe('cross-process run lock', () => {
       expect(createError).toBeInstanceOf(RunLockError);
       expect(createError!.message).toContain(`PID ${activePid}`);
     } finally {
-      if (child.exitCode === null && child.signalCode === null) {
-        await writeFile(releaseFile, 'release');
-        const killTimer = setTimeout(() => child.kill('SIGKILL'), 1000);
-        await exited.catch(() => {});
-        clearTimeout(killTimer);
-      }
+      await holder.release();
       await cleanup();
     }
   }, 20_000);
@@ -110,6 +65,9 @@ describe('cross-process run lock', () => {
       const { stdout } = await execa('git', ['rev-parse', '--absolute-git-dir'], { cwd: repo });
       const lockPath = path.join(stdout.trim(), 'copperhead-run.lock');
       await writeFile(lockPath, JSON.stringify({
+        hostname: hostname(),
+        pidNamespace: process.platform === 'linux' ? await readlink('/proc/self/ns/pid') : null,
+        processStart: null,
         pid: deadPid,
         startedAt: '2026-01-01T00:00:00.000Z',
         request: 'copperhead do',
@@ -120,6 +78,27 @@ describe('cross-process run lock', () => {
       await withRunLock(repo, 'copperhead create', async () => { entered = true; });
       expect(entered).toBe(true);
       await expect(access(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('recovers when both the run and its cleanup owner have exited', async () => {
+    const { repo, cleanup } = await tempRepo();
+    try {
+      let metadata: Record<string, unknown> = {};
+      const lockPath = path.join(repo, '.git', 'copperhead-run.lock');
+      await withRunLock(repo, 'capture owner', async () => {
+        metadata = JSON.parse(await readFile(lockPath, 'utf8'));
+      });
+      const child = spawn(process.execPath, ['-e', 'process.exit(0)']);
+      await once(child, 'exit');
+      const dead = { ...metadata, pid: child.pid, token: 'dead-owner' };
+      await writeFile(lockPath, JSON.stringify(dead));
+      await writeFile(`${lockPath}.reap`, JSON.stringify({ ...dead, token: 'dead-cleaner' }));
+      await expect(withRunLock(repo, 'recovered run', async () => 'ran')).resolves.toBe('ran');
+      await expect(access(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(access(`${lockPath}.reap`)).rejects.toMatchObject({ code: 'ENOENT' });
     } finally {
       await cleanup();
     }

@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { holdRunLock } from './run-lock-holder.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import {
@@ -219,6 +221,49 @@ describe('run status mapping (design D6)', () => {
 });
 
 describe('mutating tools are serialized per repo (spec: serialization)', () => {
+  it('maps a separate process lock to unavailable for init, do and sync-resolve', async () => {
+    const repo = await fixture();
+    await runInit({ repoRoot: repo, installHooks: false });
+    await rm(path.join(repo, 'docs', 'CHANGELOG.md'));
+    const { client, close } = await connect(repo);
+    cleanups.push(close);
+    const holder = await holdRunLock(repo);
+    vi.stubEnv('COPPERHEAD_MODEL', 'gpt-5');
+    vi.stubEnv('OPENAI_API_KEY', 'offline-lock-test-key');
+    try {
+      for (const [name, args] of [
+        ['copperhead_init', {}],
+        ['copperhead_do', { request: 'must not start' }],
+        ['copperhead_sync', { resolve: true }],
+      ] as const) {
+        const result = await client.callTool({ name, arguments: args });
+        const env = envelopeOf(result);
+        expect(env.ok, name).toBe(false);
+        expect(env.error?.kind, name).toBe('unavailable');
+        expect(env.error?.message, name).toContain(`PID ${holder.owner.pid}`);
+        expect(env.error?.message, name).toContain(holder.owner.startedAt);
+      }
+      expect(existsSync(path.join(repo, '.copperhead', 'runs'))).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+      await holder.release();
+    }
+    const after = envelopeOf(await client.callTool({ name: 'copperhead_init', arguments: {} }));
+    expect(after.ok).toBe(true);
+  });
+
+  it('identifies the in-process busy owner and removes its details on release', () => {
+    const locks = new RepoLocks();
+    expect(locks.tryAcquire('/a', 'copperhead sync --resolve')).toBe(true);
+    expect(locks.busyMessage('/a')).toContain('copperhead sync --resolve');
+    expect(locks.busyMessage('/a')).toContain(`PID ${process.pid}`);
+    expect(locks.busyMessage('/a')).toMatch(/started \d{4}-\d{2}-\d{2}T/);
+    locks.release('/a');
+    expect(locks.isBusy('/a')).toBe(false);
+    expect(locks.tryAcquire('/a', 'copperhead init')).toBe(true);
+    expect(locks.busyMessage('/a')).toContain('copperhead init');
+  });
+
   it('admits one holder at a time and releases on the way out', () => {
     const locks = new RepoLocks();
     expect(locks.tryAcquire('/a')).toBe(true);
