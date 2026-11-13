@@ -1,4 +1,5 @@
-import { readFile, writeFile, mkdir, readdir, chmod } from 'node:fs/promises';
+import { mkdir, writeFile } from '../util/worktree-ownership.js';
+import { readFile, readdir, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';

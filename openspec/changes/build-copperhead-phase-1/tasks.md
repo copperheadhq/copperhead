@@ -35,6 +35,8 @@
 
 - [x] 3.6 Serialize CLI/MCP mutating runs, including standalone draft, before startup writes; publish complete lock metadata atomically; recover exited run and cleanup owners safely; verify host/namespace ownership and Linux process identity; add regression tests and troubleshooting docs (AC-3.8, D15)
 
+- [x] 3.7 Track run-owned bytes across deterministic and tool writes; scope commits and preserve the real index; guard rollback and create cleanup against external changes; isolate subprocess outputs; add regression tests and validate the full suite (AC-3.6, AC-3.8, D16)
+
 ## 4. Agent core
 
 - [x] 4.1 Define Provider interface + internal Msg/Turn/ToolSchema types; implement providers/openai.ts and providers/anthropic.ts with format mapping

@@ -122,7 +122,15 @@ Record hostname and PID namespace and only consider automatic reclamation in the
 
 Serialize stale-lock removal with guards scoped to the stale run token. If a guard owner exited, keep its guard in place and acquire a deterministic successor; removing and recreating the same guard path would allow concurrent reclaimers to unlink a new live guard using an earlier stale read. Remove abandoned guards after the stale main generation is gone. Recover an abandoned original `.reap` file under the generation guard and refuse if its owner is live or unverifiable. A final token and owner check protects a different main-lock generation.
 
-This coordinates participating Copperhead commands. KiCad GUI saves and other external edits do not take the lock. Restricting commits to files authored by the run and guarding rollback against external edits are separate follow-up work for #468.
+### D16: Run ownership, scoped commits, and guarded rollback (AC-3.6, AC-3.8)
+
+The lock also establishes an `AsyncLocalStorage` ownership record shared by nested stages. It captures HEAD, branch, index, file bytes' hashes, and modes. Persistent tool and deterministic writers compare a target against its expected state before writing and record the intended payload afterward. Ignored caches and the audit trail do not participate. KiCad local history and untracked `.kicad_prl` preferences are excluded through Git's local exclude file; tracked paths remain protected.
+
+Commit builds a temporary index from the expected HEAD, adding only recorded run-authored blobs. A path with pre-existing changes cannot be attributed to this run and refuses commit; completed create stages leave such work uncommitted for manual review. Unrelated staged and unstaged work stays untouched. Run normal commit hooks against the temporary index, reject a hook that changes its tree, honor signing configuration, create the commit object, and atomically update the original branch with the expected old HEAD. A moved HEAD, branch, index, or edited run-owned file refuses publication. Reconcile only the committed paths in the real index.
+
+Each snapshot keeps an ownership checkpoint. Before rollback, compare the whole non-ignored project tree, HEAD, branch, and index with the run's expected state. Any external change leaves the tree intact and ends the run with an `external-change` outcome and a summary. Otherwise restore only run-owned paths to their checkpoint bytes, without `reset --hard` or `clean`; newly arriving unrelated files are never swept away. Failed-run preservation uses a temporary index, and retry drafts return through guarded writes without replacing the real index. Create stops retries on external-change outcomes and preserves files when its own stage cleanup refuses.
+
+KiCad exports and mutating OpenSpec subprocesses generate in temporary directories; changed outputs are published through guarded writes. The shared lock coordinates Copperhead processes, while ownership checks detect external changes at mutation, commit, and rollback boundaries. They do not lock out programs that ignore the run lock; users should avoid simultaneous edits to an actively generated file.
 
 ## Risks / Trade-offs
 

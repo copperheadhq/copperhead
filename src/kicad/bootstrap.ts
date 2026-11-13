@@ -1,5 +1,6 @@
+import { mkdir, writeFile } from '../util/worktree-ownership.js';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import {  } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { configPath, loadConfig, type CopperheadConfig } from '../config.js';

@@ -1,6 +1,7 @@
+import { writeFile, mkdir } from '../src/util/worktree-ownership.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { RunOptions, RunResult } from '../src/agent/loop.js';
 import { tempFixtureRepo } from './helpers.js';
@@ -173,7 +174,7 @@ describe('create pipeline resilience (review F3)', () => {
     }
   });
 
-  it('commitResumedStage commits an already-complete, managed-only dirty tree so a later rollback cannot wipe it', async () => {
+  it('commitResumedStage leaves pre-existing managed files uncommitted because this run cannot attribute them', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       const briefPath = await seedRepo(repo);
@@ -197,9 +198,10 @@ describe('create pipeline resilience (review F3)', () => {
       const lines: string[] = [];
       await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (s) => lines.push(s) });
 
-      expect(lines.join('\n')).toContain('committed already-complete work');
+      expect(lines.join('\n')).toContain('pre-existing changes that this run cannot attribute');
+      expect(await readFile(path.join(docs, 'SPEC.md'), 'utf8')).toBe('# s\n\n## Budgets\n\n- sleep_current_uA: 25\n');
       const { stdout } = await execa('git', ['log', '--oneline'], { cwd: repo });
-      expect(stdout).toMatch(/resume — commit completed stage/);
+      expect(stdout).not.toMatch(/resume — commit completed stage/);
     } finally {
       await cleanup();
     }

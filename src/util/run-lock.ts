@@ -1,3 +1,4 @@
+import { withWorktreeOwnership } from './worktree-ownership.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
 import { open, link, mkdir, readFile, readlink, realpath, unlink } from 'node:fs/promises';
@@ -236,7 +237,7 @@ export async function withRunLock<T>(repoRoot: string, request: string, run: () 
   if (inherited.has(location.key)) return run();
   const metadata = await acquire(location.file, request);
   try {
-    return await heldLocks.run(new Set([...inherited, location.key]), run);
+    return await heldLocks.run(new Set([...inherited, location.key]), () => withWorktreeOwnership(repoRoot, run));
   } finally {
     await releaseIfOwned(location.file, metadata.token);
   }

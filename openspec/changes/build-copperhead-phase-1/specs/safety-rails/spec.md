@@ -26,10 +26,10 @@ All file tools SHALL resolve paths relative to the repo root and reject any path
 
 #### Scenario: Snapshot restore
 - **WHEN** a run fails unrecoverably
-- **THEN** `git status` is clean and all files are byte-identical to the pre-run state
+- **THEN** if no external changes were made, `git status` and file bytes match the pre-run state; otherwise rollback refuses and preserves the tree for manual review
 
 ### Requirement: Exclusive per-working-tree run lock
-Every mutating `do`, `create`, `init`, `draft schematic`, or sync-resolve run SHALL acquire an exclusive lock for its working tree before repository preflight or startup writes and hold it through completion, commit, or rollback. CLI and MCP entry points SHALL use the same lock. The lock coordinates participating commands; edits made by external programs require separate commit and rollback protections.
+Every mutating `do`, `create`, `init`, `draft schematic`, or sync-resolve run SHALL acquire an exclusive lock for its working tree before repository preflight or startup writes and hold it through completion, commit, or rollback. CLI and MCP entry points SHALL use the same lock. The lock coordinates participating commands. Run ownership checks SHALL also protect changes made by programs that do not take the lock.
 
 #### Scenario: Concurrent run is refused
 - **WHEN** a second `do`, `create`, `init`, `draft schematic`, or sync-resolve starts while a run holds the working-tree lock
@@ -67,6 +67,36 @@ Automatic reclamation SHALL require matching hostname and PID namespace. Process
 #### Scenario: PID reused after exit or reboot
 - **WHEN** a lock names a live PID whose process start identity differs from its recorded identity on a platform exposing that identity
 - **THEN** the stale lock is reclaimed rather than attributed to the unrelated process
+
+### Requirement: Commit only run-owned bytes
+A run SHALL commit only paths whose recorded bytes belong to that run, SHALL preserve unrelated staged and unstaged changes, and SHALL refuse to attribute pre-existing changes to itself. A changed owned file, HEAD, checked-out branch, or index SHALL refuse commit. Commit publication SHALL compare the expected old HEAD atomically. Commit hooks and configured signing SHALL remain enabled.
+
+#### Scenario: An unrelated writer edits another path
+- **WHEN** an external writer creates or edits a file the run did not write
+- **THEN** the run's commit excludes that file and leaves its contents and staging state intact
+
+#### Scenario: An external writer edits a run-owned file
+- **WHEN** an owned file no longer matches the run's last recorded bytes or mode
+- **THEN** further writes and commit refuse without overwriting those external changes
+
+#### Scenario: Create resumes pre-existing uncommitted work
+- **WHEN** an already-complete stage has uncommitted files that the current run cannot attribute to itself
+- **THEN** create leaves those files uncommitted and reports that manual review is required
+
+### Requirement: Guard rollback against external changes
+Rollback SHALL compare the tracked and untracked project state, HEAD, branch, and index against the run's expected state. External changes SHALL stop rollback and create retries, preserve files and commits, and produce an `external-change` summary. A normal rollback SHALL restore only run-owned paths to their checkpoint bytes without resetting HEAD or cleaning unrelated files. Failed-run preservation SHALL not change the real index.
+
+#### Scenario: An external file arrives or changes during a failing run
+- **WHEN** rollback detects an external addition, deletion, content edit, or mode change
+- **THEN** it refuses and leaves both the run's and external writer's changes available for manual inspection
+
+#### Scenario: Another writer commits or stages work
+- **WHEN** HEAD, branch, or index differs from the run's expected state
+- **THEN** commit and rollback refuse without discarding that commit or staged work
+
+#### Scenario: No external changes during failure
+- **WHEN** a failed run's tree still matches its recorded state
+- **THEN** rollback restores its snapshot, including pre-existing dirty files, and the failed draft remains recoverable
 
 ### Requirement: Secret hygiene
 API keys SHALL exist only in environment variables; `.env` and `.copperhead/runs/` SHALL be in `.gitignore` from the first commit; transcripts SHALL redact anything matching `sk-[A-Za-z0-9_-]+` at write time.

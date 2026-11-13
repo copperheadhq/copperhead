@@ -1,6 +1,7 @@
+import { mkdir, writeFile } from '../util/worktree-ownership.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
 import { buildExport, parseBom, SUPPLIERS, isSupplier, type Supplier, type ExportResult } from '../kicad/bom-export.js';

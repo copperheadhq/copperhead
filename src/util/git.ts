@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
+import { writeFile, unlink as ownedUnlink, ownershipFor, assertOwnedTree, ExternalChangeError, ownershipCheckpoint, restoreOwnershipCheckpoint, type OwnershipCheckpoint } from './worktree-ownership.js';
 import { execa } from 'execa';
-import { access, constants, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, constants, cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -40,6 +42,7 @@ export async function ensureIgnored(repo: string, entries: string[]): Promise<vo
 }
 
 export interface GitSnapshot {
+  ownership?: OwnershipCheckpoint;
   head: string;
   stash: string | null;
   /**
@@ -51,7 +54,7 @@ export interface GitSnapshot {
 }
 
 async function git(repo: string, args: string[]): Promise<string> {
-  const { stdout } = await execa('git', args, { cwd: repo });
+  const { stdout } = await execa('git', args, { cwd: repo, env: { GIT_LITERAL_PATHSPECS: '1' } });
   return stdout.trim();
 }
 
@@ -59,7 +62,7 @@ async function git(repo: string, args: string[]): Promise<string> {
 async function gitWithIndex(repo: string, indexFile: string, args: string[]): Promise<string> {
   const { stdout } = await execa('git', args, {
     cwd: repo,
-    env: { GIT_INDEX_FILE: indexFile },
+    env: { GIT_INDEX_FILE: indexFile, GIT_LITERAL_PATHSPECS: '1' },
   });
   return stdout.trim();
 }
@@ -103,7 +106,7 @@ async function snapshotUntracked(repo: string): Promise<string | null> {
   try {
     await execa('git', ['update-index', '-z', '--add', '--stdin'], {
       cwd: repo,
-      env: { GIT_INDEX_FILE: indexFile },
+      env: { GIT_INDEX_FILE: indexFile, GIT_LITERAL_PATHSPECS: '1' },
       input: usable.join('\0') + '\0',
     });
     return (await gitWithIndex(repo, indexFile, ['write-tree'])) || null;
@@ -241,7 +244,8 @@ export async function snapshot(repo: string): Promise<GitSnapshot> {
     stash = (await git(repo, ['stash', 'create'])) || null;
     untracked = await snapshotUntracked(repo);
   }
-  return { head, stash, untracked };
+  const ownership = await ownershipCheckpoint(repo);
+  return { head, stash, untracked, ...(ownership ? { ownership } : {}) };
 }
 
 /**
@@ -249,6 +253,10 @@ export async function snapshot(repo: string): Promise<GitSnapshot> {
  * (.copperhead/runs/) survives rollback: it is the evidence of what failed.
  */
 export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
+  if (ownershipFor(repo)) {
+    if (!snap.ownership) throw new ExternalChangeError('rollback snapshot has no ownership checkpoint');
+    return restoreOwnershipCheckpoint(repo, snap.ownership);
+  }
   // `git clean -e` only protects untracked paths. A run directory can become
   // staged (for example while preserving failed work), and `reset --hard`
   // deletes such paths before clean runs. Copy it outside the repository so
@@ -317,6 +325,7 @@ export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
 export async function preserveFailedRun(repo: string, runId: string): Promise<string | null> {
   try {
     if (!(await isDirty(repo))) return null;
+    await assertOwnedTree(repo);
     await ensureIgnored(repo, GIT_ADD_EXCLUDES);
     // Never leave the audit trail staged: a staged-but-not-in-HEAD path is
     // deleted by restore()'s `reset --hard`, which silently defeats its
@@ -325,9 +334,18 @@ export async function preserveFailedRun(repo: string, runId: string): Promise<st
     // then unstaging (rather than an exclude pathspec) because `git add`
     // errors outright when a pathspec touches gitignored paths, and runs/ is
     // gitignored in some target repos but tracked in others.
-    await git(repo, ['add', '-A']);
-    await git(repo, ['reset', '-q', '--', '.copperhead/runs']);
-    const sha = await git(repo, ['stash', 'create']);
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-preserve-index-'));
+    let sha: string;
+    try {
+      const index = path.join(dir, 'index');
+      await gitWithIndex(repo, index, ['read-tree', 'HEAD']);
+      await gitWithIndex(repo, index, ['add', '-A']);
+      await gitWithIndex(repo, index, ['reset', '-q', '--', '.copperhead/runs']);
+      await assertOwnedTree(repo);
+      sha = await gitWithIndex(repo, index, ['stash', 'create']);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
     if (!sha) return null;
     await git(repo, ['stash', 'store', '-m', `copperhead failed run ${runId}`, sha]);
     return sha;
@@ -384,6 +402,8 @@ export async function applyFailedRun(repo: string, runId: string): Promise<Appli
       error: `stash entry "${marker}" was taken on ${base.slice(0, 10)} and HEAD is now ${head.slice(0, 10)}; not applied`,
     };
   }
+  if (ownershipFor(repo)) return applyOwnedFailedRun(repo, ref, marker);
+  await assertOwnedTree(repo);
   const snap = await snapshot(repo);
   let files: string[] = [];
   try {
@@ -446,6 +466,7 @@ export async function uncommittedCount(repo: string): Promise<number> {
 }
 
 export async function commitAll(repo: string, message: string): Promise<string> {
+  if (ownershipFor(repo)) return commitOwned(repo, message);
   await ensureIgnored(repo, GIT_ADD_EXCLUDES);
   await git(repo, ['add', '-A']);
   await git(repo, ['commit', '-m', message]);
@@ -456,4 +477,104 @@ export async function changedFiles(repo: string, sinceHead: string): Promise<str
   const tracked = await git(repo, ['diff', '--name-only', sinceHead]);
   const untracked = await git(repo, ['ls-files', '--others', '--exclude-standard']);
   return [...new Set([...tracked.split('\n'), ...untracked.split('\n')])].filter(Boolean);
+}
+
+/** Commit only bytes authored by the active run; retain the caller's index. */
+async function commitOwned(repo: string, message: string): Promise<string> {
+  const run = ownershipFor(repo)!;
+  await assertOwnedTree(repo, false);
+  await ensureIgnored(repo, GIT_ADD_EXCLUDES);
+  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-commit-index-'));
+  const index = path.join(dir, 'index');
+  try {
+    await gitWithIndex(repo, index, ['read-tree', run.head]);
+    for (const rel of run.owned) {
+      if (run.dirtyAtStart.has(rel)) throw new ExternalChangeError(rel + ' had pre-existing changes');
+      const expected = run.expected.get(rel);
+      if (!expected) {
+        await gitWithIndex(repo, index, ['update-index', '--force-remove', '--', rel]);
+        continue;
+      }
+      const data = await readFile(path.join(repo, rel));
+      if (createHash('sha256').update(data).digest('hex') !== expected.hash) throw new ExternalChangeError(rel);
+      const { stdout: blob } = await execa('git', ['hash-object', '-w', `--path=${rel}`, '--stdin'], { cwd: repo, input: data });
+      await gitWithIndex(repo, index, ['update-index', '--add', '--cacheinfo', String(expected.mode.toString(8)), blob.trim(), rel]);
+    }
+    await assertOwnedTree(repo, false);
+    const staged = await gitWithIndex(repo, index, ['diff', '--cached', '--name-only', '-z']);
+    if (!staged) return run.head;
+    // Build the commit without moving HEAD, then publish it with an expected
+    // parent. A normal `git commit` could adopt an external HEAD that moved
+    // after our check and commit the old tree over that person's new commit.
+    const messageFile = path.join(dir, 'message');
+    await writeFile(messageFile, message + '\n', 'utf8');
+    const hook = async (name: string, args: string[] = []): Promise<void> => {
+      await gitWithIndex(repo, index, ['hook', 'run', '--ignore-missing', name, ...(args.length ? ['--', ...args] : [])]);
+    };
+    const tree = await gitWithIndex(repo, index, ['write-tree']);
+    await hook('pre-commit');
+    await hook('prepare-commit-msg', [messageFile, 'message']);
+    await hook('commit-msg', [messageFile]);
+    await assertOwnedTree(repo, false);
+    if (await gitWithIndex(repo, index, ['write-tree']) !== tree) {
+      throw new ExternalChangeError('a commit hook changed the staged tree');
+    }
+    const sign = await execa('git', ['config', '--bool', 'commit.gpgsign'], { cwd: repo, reject: false });
+    const head = await gitWithIndex(repo, index, ['commit-tree', tree, '-p', run.head, ...(sign.stdout.trim() === 'true' ? ['-S'] : []), '-F', messageFile]);
+    await assertOwnedTree(repo, false);
+    await git(repo, ['update-ref', '-m', `commit: ${message.split('\n')[0]}`, run.headRef, head, run.head]);
+    if ((await git(repo, ['rev-parse', '--symbolic-full-name', 'HEAD'])) !== run.headRef || await headCommit(repo) !== head) {
+      throw new ExternalChangeError('HEAD changed during commit; run commit retained');
+    }
+    // Do not refresh/adopt unrelated external file changes after committing.
+    // Reset only committed paths in the real index, retaining pre-existing stages.
+    if (await git(repo, ['ls-files', '--stage', '-z']) !== run.index.trim()) {
+      throw new ExternalChangeError('Git index changed during commit; commit retained');
+    }
+    const paths = staged.split('\0').filter(Boolean);
+    await git(repo, ['reset', '-q', head, '--', ...paths]);
+    run.head = head;
+    run.index = (await execa('git', ['ls-files', '--stage', '-z'], { cwd: repo, stripFinalNewline: false })).stdout;
+    try { await hook('post-commit'); } catch (err) {
+      console.warn(`warning: post-commit hook failed after ${head}: ${(err as Error).message}`);
+    }
+    return head;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function applyOwnedFailedRun(repo: string, ref: string, marker: string): Promise<AppliedRun> {
+  const snap = await snapshot(repo);
+  const files: string[] = [];
+  try {
+    await assertOwnedTree(repo);
+    const { stdout: changed } = await execa('git', ['diff', '--name-only', '-z', `${ref}^`, ref], { cwd: repo, stripFinalNewline: false });
+    for (const rel of changed.split('\0').filter(Boolean)) {
+      if (rel === '.copperhead/runs' || rel.startsWith('.copperhead/runs/')) continue;
+      const owner = ownershipFor(repo)!;
+      if (owner.dirtyAtStart.has(rel) && !owner.owned.has(rel)) throw new ExternalChangeError(rel + ' has pre-existing changes');
+      const { stdout: entry } = await execa('git', ['ls-tree', ref, '--', rel], { cwd: repo, env: { GIT_LITERAL_PATHSPECS: '1' } });
+      if (entry) {
+        if (!entry.startsWith('100644 ') && !entry.startsWith('100755 ')) throw new ExternalChangeError(rel + ' is not a regular file');
+        const { stdout: bytes } = await execa('git', ['show', `${ref}:${rel}`], { cwd: repo, encoding: 'buffer', stripFinalNewline: false });
+        const file = path.join(repo, rel);
+        const existing = await readFile(file).catch((err: NodeJS.ErrnoException) => {
+          if (err.code === 'ENOENT') return null;
+          throw err;
+        });
+        if (existing?.equals(bytes)) continue;
+        await mkdir(path.dirname(file), { recursive: true });
+        await writeFile(file, bytes);
+      } else if (owner.expected.has(rel)) {
+        await ownedUnlink(path.join(repo, rel));
+      } else continue;
+      files.push(rel);
+    }
+    await git(repo, ['stash', 'drop', ref]);
+    return { ok: true, files };
+  } catch (err) {
+    try { await restore(repo, snap); } catch { /* leave external work for inspection */ }
+    return { ok: false, files, error: `stash entry "${marker}" could not be applied: ${(err as Error).message}` };
+  }
 }

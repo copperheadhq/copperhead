@@ -1,5 +1,6 @@
+import { writeFile, assertOwnedTree, ExternalChangeError } from '../util/worktree-ownership.js';
 import path from 'node:path';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { Msg, Provider, Turn } from './types.js';
 import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
@@ -470,6 +471,10 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       await restore(repoRoot, snap);
     } catch (err) {
       restoreError = (err as Error).message;
+      if (err instanceof ExternalChangeError) {
+        exitPath = 'external-change';
+        reason += `; ${restoreError}`;
+      }
       await transcript.event('restore-failed', { error: restoreError });
     }
     const runStats = stats(exitPath);
@@ -726,6 +731,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           continue;
         }
       }
+      try { await assertOwnedTree(repoRoot, false); }
+      catch (err) { return fail((err as Error).message, 'external-change'); }
       const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
       const result = flatten(envelope);
       await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
@@ -778,7 +785,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         // tree that was already dirty must not stash the user's own changes.
         const preserved = ctx.filesTouched.size ? await preserveFailedRun(repoRoot, ctx.runId) : null;
         if (preserved) await transcript.event('work-preserved', { stash: preserved });
-        await restore(repoRoot, snap);
+        try { await restore(repoRoot, snap); }
+        catch (err) { return fail((err as Error).message, 'external-change'); }
         const runStats = stats('refused');
         await transcript.event('run-end', runStats);
         const blockerLines = listed.map(
@@ -837,7 +845,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         log('--- dry run: proposed diff ---');
         log(diff || '(no diff)');
         if (untracked) log(`new files:\n${untracked}`);
-        await restore(repoRoot, snap);
+        try { await restore(repoRoot, snap); }
+        catch (err) { return fail((err as Error).message, 'external-change'); }
         const runStats = stats('done');
         await transcript.event('run-end', runStats);
         await transcript.writeSummary({
