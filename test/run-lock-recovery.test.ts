@@ -10,7 +10,7 @@ import { RunLockError, withRunLock } from '../src/util/run-lock.js';
 
 vi.mock('node:fs/promises', async (original) => {
   const actual = await original<typeof import('node:fs/promises')>();
-  return { ...actual, open: vi.fn(actual.open), link: vi.fn(actual.link) };
+  return { ...actual, open: vi.fn(actual.open), link: vi.fn(actual.link), readlink: vi.fn(actual.readlink) };
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -34,6 +34,46 @@ async function exitedPid() {
 const guardPath = (file: string, token: string) => `${file}.reap.${createHash('sha256').update(token).digest('hex')}`;
 
 describe('crash recovery and ownership', () => {
+  it('refuses atomically when the filesystem cannot publish hard links', async () => {
+    const f = await fixture();
+    try {
+      vi.mocked(fs.link).mockRejectedValueOnce(Object.assign(new Error('unsupported'), { code: 'EOPNOTSUPP' }));
+      await expect(withRunLock(f.repo, 'unsupported', async () => 'unreachable')).rejects.toThrow(/does not support hard links/);
+      await expect(fs.access(f.file)).rejects.toMatchObject({ code: 'ENOENT' });
+      expect((await fs.readdir(path.dirname(f.file))).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+    } finally { await f.cleanup(); }
+  });
+  it('does not reclaim an owner whose PID probe returns EPERM', async () => {
+    const f = await fixture();
+    try {
+      await fs.writeFile(f.file, JSON.stringify(f.owner));
+      vi.spyOn(process, 'kill').mockImplementation(() => { throw Object.assign(new Error('denied'), { code: 'EPERM' }); });
+      await expect(withRunLock(f.repo, 'blocked', async () => 'unreachable')).rejects.toThrow(/cannot establish/);
+      expect(JSON.parse(await fs.readFile(f.file, 'utf8')).token).toBe(f.owner.token);
+    } finally { vi.restoreAllMocks(); await f.cleanup(); }
+  });
+  it.skipIf(process.platform !== 'linux')('refuses recovery when the Linux PID namespace is unavailable', async () => {
+    const f = await fixture();
+    try {
+      await fs.writeFile(f.file, JSON.stringify({ ...f.owner, pidNamespace: null }));
+      vi.mocked(fs.readlink).mockRejectedValue(Object.assign(new Error('denied'), { code: 'EACCES' }));
+      await expect(withRunLock(f.repo, 'blocked', async () => 'unreachable')).rejects.toThrow(/cannot establish/);
+      expect(JSON.parse(await fs.readFile(f.file, 'utf8')).token).toBe(f.owner.token);
+    } finally { vi.restoreAllMocks(); await f.cleanup(); }
+  });
+  it('preserves invalid legacy cleanup metadata and recovers a verifiably dead legacy cleaner', async () => {
+    const f = await fixture();
+    try {
+      const dead = { ...f.owner, pid: await exitedPid(), token: 'dead-legacy' };
+      await fs.writeFile(f.file, JSON.stringify(dead));
+      await fs.writeFile(f.file + '.reap', '{partial');
+      await expect(withRunLock(f.repo, 'blocked', async () => 'unreachable')).rejects.toThrow(/cleanup lock owner details cannot be read/);
+      expect(await fs.readFile(f.file + '.reap', 'utf8')).toBe('{partial');
+      await fs.writeFile(f.file + '.reap', JSON.stringify(dead));
+      await expect(withRunLock(f.repo, 'recovered', async () => 'entered')).resolves.toBe('entered');
+      await expect(fs.access(f.file + '.reap')).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally { await f.cleanup(); }
+  });
   it('publishes complete metadata atomically, and can retry an interrupted write', async () => {
     const f = await fixture();
     const real = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');

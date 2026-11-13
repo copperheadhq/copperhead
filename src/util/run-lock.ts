@@ -125,7 +125,13 @@ async function createExclusive(file: string, metadata: LockMetadata): Promise<vo
     await handle.sync();
     await handle.close();
     // Hard-link publication is atomic and never overwrites an existing owner.
-    await link(temporary, file);
+    try { await link(temporary, file); }
+    catch (err) {
+      if (['ENOTSUP', 'EOPNOTSUPP', 'EXDEV'].includes((err as NodeJS.ErrnoException).code ?? '')) {
+        throw new RunLockError(`cannot atomically publish the run lock at ${file}: this filesystem does not support hard links`);
+      }
+      throw err;
+    }
   } finally {
     await handle.close().catch(() => {});
     await unlink(temporary).catch(() => {});

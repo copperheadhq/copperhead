@@ -1,3 +1,4 @@
+import { withRunLock } from '../util/run-lock.js';
 import { mkdir, writeFile } from '../util/worktree-ownership.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
@@ -38,7 +39,11 @@ export function outFileFor(supplier: Supplier): string {
  * outputs/<supplier>-bom.csv. Throws ExportError with an actionable message for
  * the caller to print and exit non-zero.
  */
-export async function runExportBom(opts: ExportBomOptions): Promise<ExportBomResult> {
+export function runExportBom(opts: ExportBomOptions): Promise<ExportBomResult> {
+  return withRunLock(opts.repoRoot, 'copperhead export bom', () => runExportBomUnlocked(opts));
+}
+
+async function runExportBomUnlocked(opts: ExportBomOptions): Promise<ExportBomResult> {
   const config = await loadConfig(opts.repoRoot);
   const bomPath = path.join(opts.repoRoot, config.docs, 'BOM.md');
   if (!existsSync(bomPath)) {

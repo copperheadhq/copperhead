@@ -18,14 +18,14 @@ describe('run ownership (#468)', () => {
       await withWorktreeOwnership(repo, async () => {
         await writeFile(path.join(repo, 'owned.txt'), 'run');
         await externalWrite(path.join(repo, 'foreign.txt'), 'human');
-        await externalWrite(path.join(repo, 'open-key.kicad_sch'), 'human schematic');
+        await externalWrite(path.join(repo, 'README.md'), 'human notes');
         const sha = await commitAll(repo, 'owned only');
         const names = (await git(repo, ['show', '--format=', '--name-only', sha])).split('\n');
         expect(names).toContain('owned.txt');
         expect(names).not.toContain('foreign.txt');
-        expect(names).not.toContain('open-key.kicad_sch');
+        expect(names).not.toContain('README.md');
         expect(await readFile(path.join(repo, 'foreign.txt'), 'utf8')).toBe('human');
-        expect(await readFile(path.join(repo, 'open-key.kicad_sch'), 'utf8')).toBe('human schematic');
+        expect(await readFile(path.join(repo, 'README.md'), 'utf8')).toBe('human notes');
       });
     } finally { await cleanup(); }
   });
@@ -49,7 +49,7 @@ describe('run ownership (#468)', () => {
   }
 
   for (const kind of ['untracked', 'deleted', 'mode', 'head', 'index'] as const) {
-    it(`refuses rollback after an external ${kind} change, preserving that work`, async () => {
+    it.skipIf(kind === 'mode' && process.platform === 'win32')(`refuses rollback after an external ${kind} change, preserving that work`, async () => {
       const { repo, cleanup } = await tempFixtureRepo();
       try {
         await externalWrite(path.join(repo, 'existing.txt'), 'baseline');
@@ -134,8 +134,7 @@ describe('run ownership (#468)', () => {
       await externalWrite(path.join(repo, 'human.txt'), 'human');
       await withWorktreeOwnership(repo, async () => {
         const snap = await snapshot(repo);
-        await writeFile(path.join(repo, 'human.txt'), 'human plus run edit');
-        await expect(commitAll(repo, 'bad')).rejects.toThrow(/pre-existing changes/);
+        await expect(writeFile(path.join(repo, 'human.txt'), 'human plus run edit')).rejects.toThrow(/pre-existing changes/);
         await restore(repo, snap);
         expect(await readFile(path.join(repo, 'human.txt'), 'utf8')).toBe('human');
       });
@@ -191,6 +190,23 @@ describe('run ownership (#468)', () => {
     });
   }
 
+  it('stops before dispatching a tool when an owned file changes during a provider turn', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const result = await runAgentLoop({
+        repoRoot: repo, request: 'offline dispatch boundary', model: 'gpt-5', maxTurns: 1, log: () => {},
+        provider: { name: 'scripted', async chat() {
+          await writeFile(path.join(repo, 'owned.txt'), 'run');
+          await externalWrite(path.join(repo, 'owned.txt'), 'human');
+          return { text: null, toolCalls: [{ id: 'read-1', name: 'read_file', args: { path: 'owned.txt' } }], usage: { inputTokens: 1, outputTokens: 1 } };
+        } },
+      });
+      expect(result.exitPath).toBe('external-change');
+      expect(await readFile(path.join(repo, 'owned.txt'), 'utf8')).toBe('human');
+      const events = (await readFile(path.join(result.transcriptDir, 'transcript.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line));
+      expect(events.some((event) => event.type === 'tool')).toBe(false);
+    } finally { await cleanup(); }
+  });
   it('nested stages share the ownership record', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

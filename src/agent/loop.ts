@@ -786,7 +786,10 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         const preserved = ctx.filesTouched.size ? await preserveFailedRun(repoRoot, ctx.runId) : null;
         if (preserved) await transcript.event('work-preserved', { stash: preserved });
         try { await restore(repoRoot, snap); }
-        catch (err) { return fail((err as Error).message, 'external-change'); }
+        catch (err) {
+          if (!(err instanceof ExternalChangeError)) throw err;
+          return fail((err as Error).message, 'external-change');
+        }
         const runStats = stats('refused');
         await transcript.event('run-end', runStats);
         const blockerLines = listed.map(
@@ -846,7 +849,10 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         log(diff || '(no diff)');
         if (untracked) log(`new files:\n${untracked}`);
         try { await restore(repoRoot, snap); }
-        catch (err) { return fail((err as Error).message, 'external-change'); }
+        catch (err) {
+          if (!(err instanceof ExternalChangeError)) throw err;
+          return fail((err as Error).message, 'external-change');
+        }
         const runStats = stats('done');
         await transcript.event('run-end', runStats);
         await transcript.writeSummary({
@@ -904,7 +910,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       // A git failure here (e.g. `git add -A` exiting 128 on an embedded repo)
       // must land in summary.md as an outcome, not escape as a stack trace
       // (AC-8.6): roll back per the snapshot contract and report commit-failed.
-      let commit: string;
+      let commit: string | null;
       try {
         commit = await commitAll(repoRoot, commitMsg);
       } catch (err) {
@@ -925,7 +931,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           await transcript.event('openspec-archive-failed', { changeId: ctx.changeId, error: message });
         }
       }
-      await transcript.event('run-committed', { commit, files });
+      await transcript.event(commit ? 'run-committed' : 'run-unchanged', { commit, files });
       const runStats = stats('done');
       await transcript.event('run-end', runStats);
       await transcript.writeSummary({
@@ -945,8 +951,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         env: meta,
         stats: runStats,
       });
-      log(`committed ${commit.slice(0, 10)} (${files.length} file(s))`);
-      r.finish(outcomeLine(runStats, `committed ${commit.slice(0, 10)}`));
+      log(commit ? `committed ${commit.slice(0, 10)} (${files.length} file(s))` : 'no changes to commit');
+      r.finish(outcomeLine(runStats, commit ? `committed ${commit.slice(0, 10)}` : 'no changes to commit'));
       return {
         outcome: 'success',
         exitPath: 'done',

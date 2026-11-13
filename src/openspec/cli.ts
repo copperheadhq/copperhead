@@ -1,5 +1,5 @@
 import { mkdir, ownershipFor, assertOwnedTree, writeFile, unlink } from '../util/worktree-ownership.js';
-import { cp, mkdtemp, rm, readdir, readFile } from 'node:fs/promises';
+import { cp, mkdtemp, rm, readdir, readFile, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { execa } from 'execa';
 import { existsSync } from 'node:fs';
@@ -53,7 +53,10 @@ export function openspecArchive(repo: string, changeId: string): Promise<OpenSpe
 
 async function treeFiles(root: string, prefix = ''): Promise<Map<string, Buffer>> {
   const files = new Map<string, Buffer>();
-  for (const entry of await readdir(path.join(root, prefix), { withFileTypes: true })) {
+  const entries = await readdir(path.join(root, prefix), { withFileTypes: true }).catch((err: NodeJS.ErrnoException) => {
+    if (err.code === 'ENOENT') return []; throw err;
+  });
+  for (const entry of entries) {
     const rel = path.join(prefix, entry.name);
     if (entry.isDirectory()) {
       for (const [name, bytes] of await treeFiles(root, rel)) files.set(name, bytes);
@@ -68,15 +71,11 @@ async function isolatedOpenSpec(repo: string, args: string[]): Promise<OpenSpecR
   await assertOwnedTree(repo);
   const scratch = await mkdtemp(path.join(tmpdir(), 'copperhead-openspec-'));
   try {
-    await cp(repo, scratch, { recursive: true, filter: (source) => {
-      const rel = path.relative(repo, source).split(path.sep).join('/');
-      return !rel.split('/').some((part) => ['.git', 'node_modules', '.history', 'dist'].includes(part))
-        && !rel.startsWith('.copperhead/runs') && !rel.startsWith('.copperhead/cache') && !rel.startsWith('.copperhead/llm-cache');
-    } });
-    const before = await treeFiles(scratch);
+    if (existsSync(path.join(repo, 'openspec'))) await cp(path.join(repo, 'openspec'), path.join(scratch, 'openspec'), { recursive: true });
+    const before = await treeFiles(scratch, 'openspec');
     const result = await invokeOpenSpec(scratch, args);
     if (!result.ok) return result;
-    const after = await treeFiles(scratch);
+    const after = await treeFiles(scratch, 'openspec');
     await assertOwnedTree(repo);
     for (const [rel, bytes] of after) {
       if (before.get(rel)?.equals(bytes)) continue;
@@ -84,7 +83,19 @@ async function isolatedOpenSpec(repo: string, args: string[]): Promise<OpenSpecR
       await mkdir(path.dirname(file), { recursive: true });
       await writeFile(file, bytes);
     }
-    for (const rel of before.keys()) if (!after.has(rel)) await unlink(path.join(repo, rel));
+    const removed = [...before.keys()].filter((rel) => !after.has(rel));
+    for (const rel of removed) await unlink(path.join(repo, rel));
+    for (const rel of removed) {
+      let dir = path.dirname(path.join(repo, rel));
+      while (dir !== path.resolve(repo)) {
+        try { await rmdir(dir); }
+        catch (err) {
+          if (['ENOTEMPTY', 'EEXIST', 'ENOENT'].includes((err as NodeJS.ErrnoException).code ?? '')) break;
+          throw err;
+        }
+        dir = path.dirname(dir);
+      }
+    }
     return result;
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }

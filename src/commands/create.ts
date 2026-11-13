@@ -1,4 +1,4 @@
-import { mkdir, writeFile, ExternalChangeError, assertOwnedTree, ownershipFor } from '../util/worktree-ownership.js';
+import { mkdir, writeFile, ExternalChangeError, assertOwnedTree, ownershipFor, adoptOwnedPaths } from '../util/worktree-ownership.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
@@ -707,6 +707,7 @@ async function commitResumedStage(opts: CreateOptions, config: CopperheadConfig,
   }
   try {
     const sha = await commitAll(opts.repoRoot, `copperhead: resume — commit completed stage ${stageName}`);
+    if (!sha) return;
     opts.log(
       stageLine(
         stageName,
@@ -1072,6 +1073,9 @@ async function runCreateUnlocked(opts: CreateOptions): Promise<CreateResult> {
     sha256: createHash('sha256').update(brief).digest('hex'),
   };
   const config = await loadConfig(opts.repoRoot);
+  const owner = ownershipFor(opts.repoRoot);
+  const resumedPaths = owner ? [...owner.dirtyAtStart].filter((rel) => rel !== '.gitignore' && isManagedPath(rel, config)) : [];
+  await adoptOwnedPaths(opts.repoRoot, resumedPaths);
   // Fail fast on a nearly-full disk (4.1): a create run writes fab outputs and
   // KiCad local history and can otherwise fill the disk mid-stage, failing with
   // an opaque ENOSPC only after doing expensive work. Threshold overridable via
@@ -1295,7 +1299,7 @@ async function runCreateUnlocked(opts: CreateOptions): Promise<CreateResult> {
           // passing DRC on it even when the agent never edits the board
           // An inherited draft counts as this attempt's own edits: its drift (and ERC,
           // should a KiCad file ride along) obligations must clear before finish.
-          ...(layoutBoard ? { preTouched: [layoutBoard] } : carried.length ? { preTouched: carried } : {}),
+          ...((layoutBoard || carried.length || resumedPaths.length) ? { preTouched: [...new Set([...(layoutBoard ? [layoutBoard] : []), ...carried, ...resumedPaths])] } : {}),
           // #310: in layout-draft, finish checks the stage's own contract, so the agent
           // hears what is missing while its board still exists, not after the rollback.
           // Other stages keep ending at the post-run check: their gaps have no specific

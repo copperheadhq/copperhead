@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { writeFile, unlink as ownedUnlink, ownershipFor, assertOwnedTree, ExternalChangeError, ownershipCheckpoint, restoreOwnershipCheckpoint, type OwnershipCheckpoint } from './worktree-ownership.js';
+import { writeFile, unlink as ownedUnlink, ownershipFor, assertOwnedTree, ExternalChangeError, ownershipCheckpoint, restoreOwnershipCheckpoint, type OwnershipCheckpoint, ensureOwnershipExcludes, assertWorktreeRoot } from './worktree-ownership.js';
 import { execa } from 'execa';
-import { access, constants, cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, constants, cp, mkdir, mkdtemp, readFile, rm, writeFile as rawWriteFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -28,6 +28,7 @@ const GIT_ADD_EXCLUDES = ['.history/'];
  * aborting the add.
  */
 export async function ensureIgnored(repo: string, entries: string[]): Promise<void> {
+  if (ownershipFor(repo)) return ensureOwnershipExcludes(repo, entries);
   try {
     const p = path.join(repo, '.gitignore');
     const text = existsSync(p) ? await readFile(p, 'utf8') : '';
@@ -210,6 +211,7 @@ export async function gitPreflight(repo: string, opts: { allowDirty?: boolean } 
       ['git init', 'git add -A && git commit -m "initial commit"', 'rerun the same copperhead command'],
     );
   }
+  await assertWorktreeRoot(repo);
   if (!(await hasCommits(repo))) {
     throw new PreflightError(
       'repository has no commits; copperhead requires at least one commit for snapshots and rollback',
@@ -465,7 +467,7 @@ export async function uncommittedCount(repo: string): Promise<number> {
   return status ? status.split('\n').length : 0;
 }
 
-export async function commitAll(repo: string, message: string): Promise<string> {
+export async function commitAll(repo: string, message: string): Promise<string | null> {
   if (ownershipFor(repo)) return commitOwned(repo, message);
   await ensureIgnored(repo, GIT_ADD_EXCLUDES);
   await git(repo, ['add', '-A']);
@@ -480,16 +482,16 @@ export async function changedFiles(repo: string, sinceHead: string): Promise<str
 }
 
 /** Commit only bytes authored by the active run; retain the caller's index. */
-async function commitOwned(repo: string, message: string): Promise<string> {
+async function commitOwned(repo: string, message: string): Promise<string | null> {
   const run = ownershipFor(repo)!;
   await assertOwnedTree(repo, false);
+  await assertVerificationInputs(repo);
   await ensureIgnored(repo, GIT_ADD_EXCLUDES);
   const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-commit-index-'));
   const index = path.join(dir, 'index');
   try {
     await gitWithIndex(repo, index, ['read-tree', run.head]);
     for (const rel of run.owned) {
-      if (run.dirtyAtStart.has(rel)) throw new ExternalChangeError(rel + ' had pre-existing changes');
       const expected = run.expected.get(rel);
       if (!expected) {
         await gitWithIndex(repo, index, ['update-index', '--force-remove', '--', rel]);
@@ -502,12 +504,12 @@ async function commitOwned(repo: string, message: string): Promise<string> {
     }
     await assertOwnedTree(repo, false);
     const staged = await gitWithIndex(repo, index, ['diff', '--cached', '--name-only', '-z']);
-    if (!staged) return run.head;
+    if (!staged) return null;
     // Build the commit without moving HEAD, then publish it with an expected
     // parent. A normal `git commit` could adopt an external HEAD that moved
     // after our check and commit the old tree over that person's new commit.
     const messageFile = path.join(dir, 'message');
-    await writeFile(messageFile, message + '\n', 'utf8');
+    await rawWriteFile(messageFile, message + '\n', 'utf8');
     const hook = async (name: string, args: string[] = []): Promise<void> => {
       await gitWithIndex(repo, index, ['hook', 'run', '--ignore-missing', name, ...(args.length ? ['--', ...args] : [])]);
     };
@@ -522,6 +524,7 @@ async function commitOwned(repo: string, message: string): Promise<string> {
     const sign = await execa('git', ['config', '--bool', 'commit.gpgsign'], { cwd: repo, reject: false });
     const head = await gitWithIndex(repo, index, ['commit-tree', tree, '-p', run.head, ...(sign.stdout.trim() === 'true' ? ['-S'] : []), '-F', messageFile]);
     await assertOwnedTree(repo, false);
+    await assertVerificationInputs(repo);
     await git(repo, ['update-ref', '-m', `commit: ${message.split('\n')[0]}`, run.headRef, head, run.head]);
     if ((await git(repo, ['rev-parse', '--symbolic-full-name', 'HEAD'])) !== run.headRef || await headCommit(repo) !== head) {
       throw new ExternalChangeError('HEAD changed during commit; run commit retained');
@@ -534,6 +537,7 @@ async function commitOwned(repo: string, message: string): Promise<string> {
     const paths = staged.split('\0').filter(Boolean);
     await git(repo, ['reset', '-q', head, '--', ...paths]);
     run.head = head;
+    run.checkpoints.clear();
     run.index = (await execa('git', ['ls-files', '--stage', '-z'], { cwd: repo, stripFinalNewline: false })).stdout;
     try { await hook('post-commit'); } catch (err) {
       console.warn(`warning: post-commit hook failed after ${head}: ${(err as Error).message}`);
@@ -576,5 +580,24 @@ async function applyOwnedFailedRun(repo: string, ref: string, marker: string): P
   } catch (err) {
     try { await restore(repo, snap); } catch { /* leave external work for inspection */ }
     return { ok: false, files, error: `stash entry "${marker}" could not be applied: ${(err as Error).message}` };
+  }
+}
+
+
+/** The committed tree must contain every changed input used by verification. */
+async function assertVerificationInputs(repo: string): Promise<void> {
+  const run = ownershipFor(repo)!;
+  const changed = [
+    ...(await git(repo, ['diff', '--name-only', '-z', run.head])).split('\0'),
+    ...(await git(repo, ['ls-files', '--others', '--exclude-standard', '-z'])).split('\0'),
+  ];
+  for (const rel of new Set(changed.filter(Boolean))) {
+    if (run.owned.has(rel)) continue;
+    const name = path.basename(rel);
+    const entry = await git(repo, ['ls-tree', run.head, '--', rel]);
+    const input = /\.(kicad_sch|kicad_pcb|kicad_pro|kicad_sym|kicad_mod|kicad_dru|kicad_wks)$/.test(rel)
+      || /^(sym-lib-table|fp-lib-table|schematic.intent.json|parts.intent.json|constraints.json|config.json)$/.test(name)
+      || /^(SPEC|BOM|PINOUT|SUBSYSTEMS|LAYOUT)\.md$/.test(name) || entry.startsWith('160000 ');
+    if (input) throw new ExternalChangeError(`verification input ${rel} differs from HEAD and is not owned by this run`);
   }
 }

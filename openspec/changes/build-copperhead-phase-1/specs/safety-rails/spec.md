@@ -29,15 +29,26 @@ All file tools SHALL resolve paths relative to the repo root and reject any path
 - **THEN** if no external changes were made, `git status` and file bytes match the pre-run state; otherwise rollback refuses and preserves the tree for manual review
 
 ### Requirement: Exclusive per-working-tree run lock
-Every mutating `do`, `create`, `init`, `draft schematic`, or sync-resolve run SHALL acquire an exclusive lock for its working tree before repository preflight or startup writes and hold it through completion, commit, or rollback. CLI and MCP entry points SHALL use the same lock. The lock coordinates participating commands. Run ownership checks SHALL also protect changes made by programs that do not take the lock.
+Every mutating `do`, `create`, `init`, `draft schematic`, sync-resolve, `export bom`, `skill run`, or demo scaffolding run SHALL acquire an exclusive lock for its working tree before repository preflight or startup writes and hold it through completion, commit, or rollback. CLI and MCP entry points SHALL use the same lock. Run ownership checks SHALL also protect external changes.
 
 #### Scenario: Concurrent run is refused
-- **WHEN** a second `do`, `create`, `init`, `draft schematic`, or sync-resolve starts while a run holds the working-tree lock
+- **WHEN** a second `do`, `create`, `init`, `draft schematic`, sync-resolve, `export bom`, `skill run`, or demo scaffolding starts while a run holds the working-tree lock
 - **THEN** it refuses before preflight or mutation and names the active process and start time
 
 #### Scenario: Standalone draft respects an active run
 - **WHEN** `copperhead draft schematic` runs while another process owns the working-tree lock
 - **THEN** it refuses with the owner PID and start time before writing the schematic, project, or symbol library table
+
+### Requirement: Ownership scope preconditions
+Mutating ownership scopes SHALL require the Git working-tree root and Git 2.36 or newer before startup writes. Read-only review SHALL remain unlocked and SHALL keep its output outside the design and all inputs.
+
+#### Scenario: Git lacks hook execution support
+- **WHEN** the installed Git version is older than 2.36
+- **THEN** a mutating ownership scope refuses before entering its mutation callback and asks for an upgrade
+
+#### Scenario: Subdirectory repo root is refused
+- **WHEN** a mutating command names a directory below the Git working-tree root
+- **THEN** preflight refuses before startup writes, names the correct root, and preserves file paths, the top-level ignore file, index, and HEAD
 
 ### Requirement: Recover abandoned local run and cleanup locks
 An exited run or cleanup owner with verifiable local identity SHALL not permanently block the working tree. Recovery SHALL preserve any newer live owner.
@@ -69,22 +80,48 @@ Automatic reclamation SHALL require matching hostname and PID namespace. Process
 - **THEN** the stale lock is reclaimed rather than attributed to the unrelated process
 
 ### Requirement: Commit only run-owned bytes
-A run SHALL commit only paths whose recorded bytes belong to that run, SHALL preserve unrelated staged and unstaged changes, and SHALL refuse to attribute pre-existing changes to itself. A changed owned file, HEAD, checked-out branch, or index SHALL refuse commit. Commit publication SHALL compare the expected old HEAD atomically. Commit hooks and configured signing SHALL remain enabled.
+A run SHALL commit only recorded owned bytes, preserve unrelated staged and unstaged work, refuse changed owned paths, HEAD, branch, or index, and publish against the expected old HEAD atomically. Non-owned KiCad and verification inputs SHALL match HEAD so the committed tree contains the verified inputs. Commit hooks and signing SHALL remain enabled.
 
 #### Scenario: An unrelated writer edits another path
-- **WHEN** an external writer creates or edits a file the run did not write
+- **WHEN** an external writer creates or edits a non-verification file the run did not write
 - **THEN** the run's commit excludes that file and leaves its contents and staging state intact
 
 #### Scenario: An external writer edits a run-owned file
 - **WHEN** an owned file no longer matches the run's last recorded bytes or mode
 - **THEN** further writes and commit refuse without overwriting those external changes
 
-#### Scenario: Create resumes pre-existing uncommitted work
+#### Scenario: A verification input is outside the run's commit
+- **WHEN** a non-owned schematic, board, library table, or other verification input differs from the expected HEAD
+- **THEN** commit refuses and leaves those inputs intact rather than publishing a tree that was never verified
+
+### Requirement: Adopt managed create leftovers explicitly
+A writer SHALL refuse pre-existing dirty paths at first write unless create explicitly adopts managed leftovers for a resumed stage and verifies them, or init refreshes generated metadata or a doc authorized by its saved hash or explicit `--force`. Identical generated init files SHALL remain unwritten and unowned.
+
+#### Scenario: Reinitialize uncommitted generated files
+- **WHEN** init runs again on its unchanged generated files before they are committed
+- **THEN** it skips identical writes without adopting those bytes; hand-edited docs still refuse without explicit `--force`
+
+#### Scenario: Create resumes an already-complete stage
 - **WHEN** an already-complete stage has uncommitted files that the current run cannot attribute to itself
 - **THEN** create leaves those files uncommitted and reports that manual review is required
 
+#### Scenario: Create edits managed leftovers after interruption
+- **WHEN** create resumes an interrupted stage with uncommitted managed artifacts
+- **THEN** it explicitly adopts their recorded bytes, includes those paths in verification and drift checks, and can commit the completed stage without adopting unrelated work
+
+### Requirement: Preserve scoped commit modes and no-op results
+Tracked modes SHALL be preserved when `core.fileMode=false`. An empty scoped diff SHALL return no commit hash and SHALL NOT claim a new commit.
+
+#### Scenario: Tracked executable on a filesystem without mode tracking
+- **WHEN** a run edits a tracked executable with `core.fileMode=false`
+- **THEN** its scoped commit retains the HEAD executable mode
+
+#### Scenario: Scoped commit has no changes
+- **WHEN** the run's scoped index equals HEAD
+- **THEN** no commit is created, no commit hash is reported, and the run records that nothing changed
+
 ### Requirement: Guard rollback against external changes
-Rollback SHALL compare the tracked and untracked project state, HEAD, branch, and index against the run's expected state. External changes SHALL stop rollback and create retries, preserve files and commits, and produce an `external-change` summary. A normal rollback SHALL restore only run-owned paths to their checkpoint bytes without resetting HEAD or cleaning unrelated files. Failed-run preservation SHALL not change the real index.
+Rollback SHALL compare project files, HEAD, branch, and index with the run's expected state. External changes SHALL stop rollback and create retries, preserve work, and produce an `external-change` summary. Otherwise restore only owned checkpoint paths without resetting HEAD or cleaning unrelated files. Failed-run preservation SHALL leave the real index intact. Checkpoints SHALL capture original bytes lazily and restore their owned-path set.
 
 #### Scenario: An external file arrives or changes during a failing run
 - **WHEN** rollback detects an external addition, deletion, content edit, or mode change
@@ -97,6 +134,24 @@ Rollback SHALL compare the tracked and untracked project state, HEAD, branch, an
 #### Scenario: No external changes during failure
 - **WHEN** a failed run's tree still matches its recorded state
 - **THEN** rollback restores its snapshot, including pre-existing dirty files, and the failed draft remains recoverable
+
+### Requirement: Exclude transient and independent trees from file ownership
+Gitlinks and nested Git directories SHALL not be read as regular files. Untracked KiCad transient files SHALL be excluded locally without editing the versioned ignore file; tracked paths SHALL remain protected.
+
+#### Scenario: Nested repositories do not prevent setup
+- **WHEN** the working tree contains a committed gitlink and an untracked nested repository
+- **THEN** ownership setup skips directory entries and enters the run
+
+#### Scenario: KiCad leaves a transient lock during failure
+- **WHEN** a subprocess or GUI leaves an untracked KiCad lock, preferences, cache, backup, or autosave file
+- **THEN** rollback restores owned files and preserves the excluded transient without classifying it as external project work
+
+### Requirement: Publish isolated OpenSpec outputs
+Mutating OpenSpec commands SHALL stage only `openspec/`, publish through guarded writes, and remove emptied archived-change directories bottom-up.
+
+#### Scenario: OpenSpec archive removes the active change
+- **WHEN** an owned OpenSpec archive publishes its moved files
+- **THEN** emptied source directories are removed and the archived change no longer appears active; unrelated directories remain intact
 
 ### Requirement: Secret hygiene
 API keys SHALL exist only in environment variables; `.env` and `.copperhead/runs/` SHALL be in `.gitignore` from the first commit; transcripts SHALL redact anything matching `sk-[A-Za-z0-9_-]+` at write time.
