@@ -3,10 +3,11 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
+import { manifestDrift } from '../kicad/parts/render.js';
 import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
-import { runAgentLoop } from '../agent/loop.js';
+import { runAgentLoop, type RunResult } from '../agent/loop.js';
 import type { RunMetaInput } from '../agent/runmeta.js';
 import type { ProgressRenderer } from '../agent/render.js';
 
@@ -48,6 +49,17 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
         claim: m.claim,
         actual: m.actual,
         resolution: `update ${m.doc} to match the as-built schematic (KiCad files are truth for as-built facts)`,
+      });
+    }
+  } else {
+    // no schematic: the parts manifest against its render is still checkable
+    for (const m of await manifestDrift(path.join(repoRoot, config.docs))) {
+      resolvable.push({
+        kind: 'drift',
+        doc: m.doc,
+        claim: m.claim,
+        actual: m.actual,
+        resolution: 'fix docs/parts.intent.json if it is invalid, then render BOM.md from it with draft_bom',
       });
     }
   }
@@ -172,7 +184,7 @@ export async function syncResolve(
   model: string,
   log: (s: string) => void,
   extras?: { renderer?: ProgressRenderer; meta?: RunMetaInput },
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; run: RunResult }> {
   const reportText = formatSyncReport(report);
   const res = await runAgentLoop({
     repoRoot,
@@ -183,5 +195,7 @@ export async function syncResolve(
     ...(extras?.renderer ? { renderer: extras.renderer } : {}),
     ...(extras?.meta ? { meta: extras.meta } : {}),
   });
-  return { ok: res.outcome === 'success' };
+  // The full RunResult travels with the verdict so a non-CLI caller (the MCP
+  // server) can report the transcript path and files touched the way `do` does.
+  return { ok: res.outcome === 'success', run: res };
 }

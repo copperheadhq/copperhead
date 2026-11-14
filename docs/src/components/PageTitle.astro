@@ -1,0 +1,61 @@
+---
+/**
+ * Page title override: a small section eyebrow (the sidebar group the page
+ * lives in), the title, and the page description as a lead paragraph.
+ */
+import type { StarlightRouteData } from '@astrojs/starlight/route-data';
+
+type SidebarEntry = StarlightRouteData['sidebar'][number];
+
+const { entry, sidebar } = Astro.locals.starlightRoute;
+const { title, description } = entry.data;
+
+/** Walk the sidebar tree and return the labels of the groups that contain the current page. */
+function groupTrail(entries: SidebarEntry[], trail: string[] = []): string[] | undefined {
+	for (const item of entries) {
+		if (item.type === 'link') {
+			if (item.isCurrent) return trail;
+		} else {
+			const found = groupTrail(item.entries, [...trail, item.label]);
+			if (found) return found;
+		}
+	}
+	return undefined;
+}
+
+const eyebrow = (groupTrail(sidebar) ?? []).join(' / ');
+---
+
+<div class="page-title">
+	{eyebrow && <p class="eyebrow">{eyebrow}</p>}
+	<h1 id="_top">{title}</h1>
+	{description && <p class="lead">{description}</p>}
+</div>
+
+<style>
+	.page-title {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		margin-top: 0.5rem;
+	}
+	.eyebrow {
+		font-size: var(--sl-text-xs);
+		font-weight: 500;
+		color: var(--sl-color-text-accent);
+	}
+	h1 {
+		font-size: var(--sl-text-h1);
+		font-weight: 700;
+		line-height: 1.15;
+		letter-spacing: -0.025em;
+		color: var(--sl-color-white);
+		text-wrap: balance;
+	}
+	.lead {
+		font-size: var(--sl-text-lg);
+		line-height: 1.55;
+		color: var(--sl-color-gray-2);
+		text-wrap: pretty;
+	}
+</style>

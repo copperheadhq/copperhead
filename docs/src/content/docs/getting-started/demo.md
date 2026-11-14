@@ -17,11 +17,13 @@ copperhead demo --model cursor
 npm run demo:simple
 ```
 
-Both create or resume a git repo at `demo-runs/usb-c-breakout/`, initialize it if needed, create a baseline commit for copperhead's rollback snapshots, and run the create pipeline against:
+Both create or resume a git repo at `demo-runs/usb-c-breakout/` relative to the directory you run the command from, initialize it if needed, create a baseline commit for copperhead's rollback snapshots, and run the create pipeline against:
 
 ```text
 examples/simple/usb-c-breakout.md
 ```
+
+Run it somewhere you don't mind a nested git repo appearing, or set `COPPERHEAD_DEMO_DIR` to point elsewhere.
 
 You can pass normal `create` flags after `--`:
 

@@ -2,7 +2,7 @@
 
 ## Why
 
-A run's context is mostly invisible today: the `run-start` transcript event records only `request`/`model`/`provider` (`src/agent/loop.ts:168`), `summary.md` shows request/outcome/change/tokens, and the live CLI shows nothing about the environment at all. Every debugging session so far (issues #19, #21 in copperhead-test) began by reverse-engineering which copperhead build ran, what config was resolved, and what the repo looked like at run start — from transcripts, `which copperhead`, and `git status`. Runs are long, non-deterministic, and cost real tokens; a cheap deterministic metadata header makes each run self-describing and comparable across model/config changes. This implements GitHub issue #22 (chouhanindustries/copperhead).
+A run's context is mostly invisible today: the `run-start` transcript event records only `request`/`model`/`provider` (`src/agent/loop.ts:168`), `summary.md` shows request/outcome/change/tokens, and the live CLI shows nothing about the environment at all. Every debugging session so far (issues #19, #21 in copperhead-test) began by reverse-engineering which copperhead build ran, what config was resolved, and what the repo looked like at run start — from transcripts, `which copperhead`, and `git status`. Runs are long, non-deterministic, and cost real tokens; a cheap deterministic metadata header makes each run self-describing and comparable across model/config changes. This implements GitHub issue #22 (copperheadhq/copperhead).
 
 ## What Changes
 

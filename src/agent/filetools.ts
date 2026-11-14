@@ -12,7 +12,7 @@ export async function toolReadFile(
   const abs = resolveInRepo(repoRoot, p);
   const text = await readFile(abs, 'utf8');
   if (startLine === undefined) return text;
-  const lines = text.split('\n');
+  const lines = text.split(/\r\n|\r|\n/);
   const from = Math.max(1, startLine);
   const to = Math.min(lines.length, endLine ?? lines.length);
   return lines
@@ -47,46 +47,113 @@ export async function toolEditFile(
   newString: string,
   replaceAll = false,
 ): Promise<string> {
+  if (oldString === '') throw new Error('edit_file: old_string must not be empty');
+
   const abs = resolveInRepo(repoRoot, p);
   const text = await readFile(abs, 'utf8');
-  const first = text.indexOf(oldString);
-  if (first === -1) {
-    // A retry of an edit that already landed is indistinguishable from a genuinely
-    // bad anchor under the plain message, and "re-read and use an exact excerpt"
-    // is the wrong steer for it: the model re-reads, derives the same anchor, and
-    // fails again. Observed live on a local model, which completed a net rename
-    // and then burned its whole turn budget re-attempting it while the work sat
-    // finished on disk.
-    //
-    // The presence of new_string is a HINT, never proof. It scans the whole file,
-    // so a partly-done propagating rename plus a mistyped anchor looks identical:
-    // "KEY_DASH" is already there from the first occurrence while a second
-    // "KEY_DAH" still needs renaming. Telling the model to move on there would
-    // land an incomplete rename and report it as done (AC-3.1). So this states
-    // both possibilities and refuses to pick one — enough to break the loop,
-    // never enough to skip real work.
-    const applied = newString ? text.split(newString).length - 1 : 0;
+
+  const l0 = oldString.split(/\r\n|\n|\r/);
+  // A ranged read_file shows each CRLF line with its CR, so a copied line ends in a bare CR
+  // that is the file's line break, not something the model meant to delete.
+  if (oldString.endsWith('\r') && !/[\r\n]$/.test(newString)) newString += '\r';
+  const l1 = newString.split(/\r\n|\n|\r/);
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const runAnchorRegex = <T>(run: () => T): T => {
+    try {
+      return run();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(`edit_file: anchor too long (${l0.length} lines) in ${p}; use a shorter unique excerpt`);
+      }
+      throw error;
+    }
+  };
+  const normalizedRe = runAnchorRegex(() => new RegExp(l0.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g'));
+  const re = normalizedRe;
+  let lastBreak: string | undefined;
+  let nextBreakAt = -1;
+  let nextBreakValue: string | undefined;
+  let noBreakFrom = Infinity;
+  const breakAtOrAfter = (at: number) => {
+    if (nextBreakValue !== undefined && at <= nextBreakAt) return nextBreakValue;
+    if (at >= noBreakFrom) {
+      return (lastBreak ??= text.match(/(\r\n|\n|\r)[^\r\n]*$/)?.[1] ?? '\n');
+    }
+    const nextBreak = text.slice(at).match(/\r\n|\r(?!\n)|\n/);
+    if (nextBreak) {
+      nextBreakAt = at + nextBreak.index!;
+      nextBreakValue = nextBreak[0];
+      return nextBreakValue;
+    }
+    noBreakFrom = at;
+    return (lastBreak ??= text.match(/(\r\n|\n|\r)[^\r\n]*$/)?.[1] ?? '\n');
+  };
+  const replacementFor = (match: string, at: number) => {
+    if (l1.length === 1) return newString;
+    const localEol = l0.length === 1 ? breakAtOrAfter(at) : match.match(/\r\n|\r(?!\n)|\n/)![0];
+    return l1.join(localEol);
+  };
+
+  // A retry of an edit that already landed is indistinguishable from a genuinely
+  // bad anchor under the plain message, and "re-read and use an exact excerpt"
+  // is the wrong steer for it: the model re-reads, derives the same anchor, and
+  // fails again. Observed live on a local model, which completed a net rename
+  // and then burned its whole turn budget re-attempting it while the work sat
+  // finished on disk.
+  //
+  // The presence of new_string is a HINT, never proof. It scans the whole file,
+  // so a partly-done propagating rename plus a mistyped anchor looks identical:
+  // "KEY_DASH" is already there from the first occurrence while a second
+  // "KEY_DAH" still needs renaming. Telling the model to move on there would
+  // land an incomplete rename and report it as done (AC-3.1). So this states
+  // both possibilities and refuses to pick one — enough to break the loop,
+  // never enough to skip real work. new_string is matched line-ending-tolerantly,
+  // like the anchor, so an LF new_string is still found in a CRLF file.
+  const anchorNotFound = (): Error => {
+    let applied = 0;
+    if (newString) {
+      try {
+        applied = text.match(new RegExp(l1.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g'))?.length ?? 0;
+      } catch {
+        applied = 0; // too long to compile: no hint, plain message
+      }
+    }
     if (applied > 0) {
-      throw new Error(
+      return new Error(
         `edit_file: anchor not found in ${p}. new_string is already present ${applied} time(s), so ` +
           'either this edit already landed or the anchor is wrong; those are indistinguishable from ' +
           'here. Re-read the file and check whether the change you intended is actually in place. ' +
           'If it is, this edit is done. If it is not, retry with an exact excerpt. Do not assume it is done',
       );
     }
-    throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
-  }
-  const count = text.split(oldString).length - 1;
+    return new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+  };
+
   if (replaceAll) {
-    await writeFile(abs, text.split(oldString).join(newString), 'utf8');
+    let count = 0;
+    const out = runAnchorRegex(() => text.replace(normalizedRe, (match, at: number) => {
+      count++;
+      return replacementFor(match, at);
+    }));
+    if (count === 0) {
+      throw anchorNotFound();
+    }
+    await writeFile(abs, out, 'utf8');
     return `edited ${p} (${count} occurrence(s) replaced)`;
   }
-  if (count > 1) {
-    throw new Error(
-      `edit_file: anchor matched ${count} times in ${p}; widen the anchor with surrounding lines until it is unique, or pass replace_all: true to replace every occurrence`,
-    );
+
+  const matches = runAnchorRegex(() => [...text.matchAll(re)]);
+  if (matches.length === 0) {
+    throw anchorNotFound();
   }
-  await writeFile(abs, text.slice(0, first) + newString + text.slice(first + oldString.length), 'utf8');
+  if (matches.length > 1) {
+    throw new Error(`edit_file: anchor matched ${matches.length} times in ${p}; widen the anchor with surrounding lines until it is unique, or pass replace_all: true to replace every occurrence`);
+  }
+
+  const match = matches[0]!;
+  const first = match.index!;
+  const replacement = replacementFor(match[0], first);
+  await writeFile(abs, text.slice(0, first) + replacement + text.slice(first + match[0].length), 'utf8');
   return `edited ${p}`;
 }
 
@@ -97,6 +164,31 @@ export interface SearchMatch {
 }
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'dist', '.copperhead']);
+
+/**
+ * Longest match line returned to the model, in characters.
+ *
+ * The file-size bound in `toolSearch` (5 MB) bounds the file, not the line, and
+ * on a one-object-per-line document those are very different limits. A
+ * `transcript.jsonl` line is an entire `{ts, type, data}` record with tool
+ * output inline, so a few matches inside one file can be hundreds of thousands
+ * of tokens. A live run died on exactly that — `Prompt is too long · the
+ * request is ~1003121 tokens (limit 1000000) but this conversation is only
+ * ~403383 tokens`, the balance being search results — and it cost a stage
+ * attempt. The agent had done nothing wrong: it searched the repo it was told
+ * to work in, and a `run-logs/` directory happened to be sitting in it.
+ *
+ * A match is a pointer, not a payload — enough to see the hit and decide
+ * whether to read the file. Truncation is marked so a clipped line is
+ * distinguishable from a short one.
+ */
+const MAX_MATCH_CHARS = 400;
+
+/** Clip one match line to `MAX_MATCH_CHARS`, marking it when clipped. */
+function clipMatch(line: string): string {
+  const t = line.trim();
+  return t.length <= MAX_MATCH_CHARS ? t : `${t.slice(0, MAX_MATCH_CHARS)}… [+${t.length - MAX_MATCH_CHARS} chars]`;
+}
 
 export function globToRegex(glob: string): RegExp {
   let out = '';
@@ -146,9 +238,9 @@ export async function toolSearch(
           continue;
         }
         if (text.includes('\u0000')) continue; // binary
-        const lines = text.split('\n');
+        const lines = text.split(/\r\n|\r|\n/);
         for (let i = 0; i < lines.length && matches.length < maxMatches; i++) {
-          if (re.test(lines[i]!)) matches.push({ file: rel, line: i + 1, text: lines[i]!.trim() });
+          if (re.test(lines[i]!)) matches.push({ file: rel, line: i + 1, text: clipMatch(lines[i]!) });
         }
       }
       if (matches.length >= maxMatches) return;

@@ -25,7 +25,7 @@ export interface ChatRequestLike {
  * `CodexProviderOptions.client` gives the Codex path.
  */
 export interface ChatClientLike {
-  chat: { completions: { create(body: ChatRequestLike): Promise<ChatCompletionLike> } };
+  chat: { completions: { create(body: ChatRequestLike, options?: { signal?: AbortSignal }): Promise<ChatCompletionLike> } };
   models: { list(): Promise<{ data: Array<{ id: string }> }> };
 }
 
@@ -127,7 +127,7 @@ export class OpenAIProvider implements Provider {
             })),
           }
         : {}),
-    });
+    }, opts.signal ? { signal: opts.signal } : undefined);
     const choice = res.choices[0];
     // Capture any non-standard properties returned by the API (e.g. Gemini thought
     // signatures) so they can be echoed back on subsequent turns. Dropping them

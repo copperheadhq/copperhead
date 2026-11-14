@@ -5,16 +5,19 @@ The metrics block is produced by `scripts/metrics.mjs`. This file defines what e
 ## Running the script
 
 ```bash
-node .claude/skills/pr-review/scripts/metrics.mjs <pr-number>          # normal case
-node .claude/skills/pr-review/scripts/metrics.mjs <pr-number> --base-tests   # also run the suite at the merge base
-node .claude/skills/pr-review/scripts/metrics.mjs --base <ref>         # no PR yet: current branch vs a base ref
+WT=$(node .claude/skills/pr-review/scripts/worktree.mjs setup <pr-number> | tail -1 | cut -d' ' -f2)
+node .claude/skills/pr-review/scripts/metrics.mjs <pr-number> --dir "$WT"                # normal case
+node .claude/skills/pr-review/scripts/metrics.mjs <pr-number> --dir "$WT" --base-tests   # also run the suite at the merge base
+node .claude/skills/pr-review/scripts/metrics.mjs --base <ref>                           # no PR yet: current branch vs a base ref
+node .claude/skills/pr-review/scripts/worktree.mjs cleanup <pr-number>                   # afterwards
 ```
 
 Requirements and behavior:
 
-- The PR head must be checked out (`gh pr checkout <n>`) for the suite and coverage to run; otherwise the script still emits diff metrics and marks the rest "not measured".
+- The PR head must be checked out somewhere for the suite and coverage to run, and that somewhere is the review worktree from `worktree.mjs setup`, passed as `--dir`. The user's checkout is never switched: no `gh pr checkout`, no branch move. Without `--dir` the script measures the current directory, and if the PR head is not the commit checked out there it still emits diff metrics and marks the rest "not measured".
+- Head detection compares commits, not branch names, so the detached review worktree counts as being on the head.
 - Everything is computed against the merge base (`git merge-base origin/<base> <head>`), so a stale branch is never scored against the wrong point.
-- The base suite runs in a throwaway `git worktree` with a symlinked `node_modules`; the working tree is never switched. If base CI already reports the suite result, reading CI is cheaper than `--base-tests`.
+- The base suite runs in its own throwaway `git worktree` with a symlinked `node_modules`; no working tree is switched. If base CI already reports the suite result, reading CI is cheaper than `--base-tests`.
 - If `@vitest/coverage-v8` is missing, the script installs it with `npm i -D --no-save` so `package.json` and the lockfile stay clean.
 - Generated files (`package-lock.json`, `dist/`, `*.snap`, `node_modules/`, `docs/.astro/`) are excluded from area splits and coverage, and reported on their own line.
 
@@ -30,7 +33,7 @@ Requirements and behavior:
 ## Manual fallback (script cannot run)
 
 - Change size and new-vs-net: `BASE=$(git merge-base origin/<baseRef> <headRef>)`, then `git diff --numstat $BASE...<head>` and `--diff-filter=A`.
-- Suite: `npm test` on the head branch; base result from CI.
+- Suite: `npm test` inside the review worktree (never after checking the PR out in the user's tree); base result from CI.
 - Coverage: map every new exported symbol, new branch (`if`/`else`/`catch`/`case`/`? :`), and new error path in the diff to the test that exercises it; the covered fraction is `mapped / total`. Cite the test names.
 - Never emit a percentage you did not actually derive. If neither path is possible, write "diff coverage: not measured" and say why: a silent omission reads as "clean".
 

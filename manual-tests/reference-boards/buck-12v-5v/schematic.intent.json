@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "parts": [
+    { "ref": "J1", "libId": "Connector_Generic:Conn_01x02", "value": "Conn_01x02", "footprint": "TerminalBlock_Phoenix:TerminalBlock_Phoenix_MKDS-1,5-2-5.08_1x02_P5.08mm_Horizontal", "group": "Input" },
+    { "ref": "CP1", "libId": "Device:C_Polarized", "value": "100u/25V", "footprint": "Capacitor_SMD:CP_Elec_8x10.5", "group": "Input" },
+    { "ref": "C1", "libId": "Device:C", "value": "10u/50V", "footprint": "Capacitor_SMD:C_1210_3225Metric", "group": "Input" },
+    { "ref": "C2", "libId": "Device:C", "value": "10u/50V", "footprint": "Capacitor_SMD:C_1210_3225Metric", "group": "Input" },
+    { "ref": "C3", "libId": "Device:C", "value": "100n/50V", "footprint": "Capacitor_SMD:C_0603_1608Metric", "group": "Input" },
+    { "ref": "R1", "libId": "Device:R", "value": "402k", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Input" },
+    { "ref": "R2", "libId": "Device:R", "value": "54k9", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Input" },
+
+    { "ref": "U1", "libId": "Regulator_Switching:TPS54560BDDA", "value": "TPS54560BDDA", "footprint": "Package_SO:Texas_R-PDSO-G8_EP2.95x4.9mm_Mask2.4x3.1mm_ThermalVias", "group": "Converter" },
+    { "ref": "C4", "libId": "Device:C", "value": "100n/25V", "footprint": "Capacitor_SMD:C_0603_1608Metric", "group": "Converter" },
+    { "ref": "R3", "libId": "Device:R", "value": "301k", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Converter" },
+    { "ref": "R4", "libId": "Device:R", "value": "4k99", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Converter" },
+    { "ref": "C5", "libId": "Device:C", "value": "3n3", "footprint": "Capacitor_SMD:C_0603_1608Metric", "group": "Converter" },
+    { "ref": "C6", "libId": "Device:C", "value": "47p", "footprint": "Capacitor_SMD:C_0603_1608Metric", "group": "Converter" },
+    { "ref": "D1", "libId": "Device:D_Schottky", "value": "B560C", "footprint": "Diode_SMD:D_SMC", "group": "Converter" },
+    { "ref": "L1", "libId": "Device:L", "value": "6u8", "footprint": "Inductor_SMD:L_Bourns_SRP1245A", "group": "Converter" },
+
+    { "ref": "C7", "libId": "Device:C", "value": "47u/16V", "footprint": "Capacitor_SMD:C_1210_3225Metric", "group": "Output" },
+    { "ref": "C8", "libId": "Device:C", "value": "47u/16V", "footprint": "Capacitor_SMD:C_1210_3225Metric", "group": "Output" },
+    { "ref": "C9", "libId": "Device:C", "value": "100n/16V", "footprint": "Capacitor_SMD:C_0603_1608Metric", "group": "Output" },
+    { "ref": "R5", "libId": "Device:R", "value": "52k3", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Output" },
+    { "ref": "R6", "libId": "Device:R", "value": "10k", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Output" },
+    { "ref": "C10", "libId": "Device:C", "value": "47p", "footprint": "Capacitor_SMD:C_0603_1608Metric", "group": "Output" },
+    { "ref": "R7", "libId": "Device:R", "value": "1k", "footprint": "Resistor_SMD:R_0603_1608Metric", "group": "Output" },
+    { "ref": "D2", "libId": "Device:LED", "value": "green", "footprint": "LED_SMD:LED_0603_1608Metric", "group": "Output" },
+    { "ref": "J2", "libId": "Connector_Generic:Conn_01x02", "value": "Conn_01x02", "footprint": "TerminalBlock_Phoenix:TerminalBlock_Phoenix_MKDS-1,5-2-5.08_1x02_P5.08mm_Horizontal", "group": "Output" }
+  ],
+  "nets": [
+    { "name": "+12V", "pins": ["J1.1", "CP1.1", "C1.1", "C2.1", "C3.1", "U1.2", "R1.1"] },
+    { "name": "GND", "pins": ["J1.2", "CP1.2", "C1.2", "C2.2", "C3.2", "R2.2", "U1.7", "U1.9", "R3.2", "C5.2", "C6.2", "D1.2", "C7.2", "C8.2", "C9.2", "R6.2", "D2.1", "J2.2"] },
+    { "name": "+5V", "kind": "power", "pins": ["L1.2", "C7.1", "C8.1", "C9.1", "R5.1", "C10.1", "R7.1", "J2.1"] },
+    { "name": "EN", "pins": ["R1.2", "R2.1", "U1.3"] },
+    { "name": "BOOT", "pins": ["U1.1", "C4.1"] },
+    { "name": "SW", "kind": "signal", "pins": ["U1.8", "C4.2", "D1.1", "L1.1"] },
+    { "name": "RT", "pins": ["U1.4", "R3.1"] },
+    { "name": "COMP", "pins": ["U1.6", "R4.1", "C6.1"] },
+    { "name": "COMP_Z", "pins": ["R4.2", "C5.1"] },
+    { "name": "FB", "pins": ["U1.5", "R5.2", "R6.1", "C10.2"] },
+    { "name": "LED_A", "pins": ["R7.2", "D2.2"] }
+  ],
+  "hints": { "date": "2026-07-31" }
+}

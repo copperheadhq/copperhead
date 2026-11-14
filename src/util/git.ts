@@ -336,6 +336,94 @@ export async function preserveFailedRun(repo: string, runId: string): Promise<st
   }
 }
 
+/** Whether `preserveFailedRun` left an entry for `runId`. */
+export async function hasFailedRun(repo: string, runId: string): Promise<boolean> {
+  try {
+    const marker = `copperhead failed run ${runId}`;
+    return (await git(repo, ['stash', 'list'])).split('\n').some((l) => l.endsWith(marker));
+  } catch {
+    return false;
+  }
+}
+
+export type AppliedRun = { ok: true; files: string[] } | { ok: false; files: string[]; error: string };
+
+/**
+ * Put a preserved run's work back on the tree (design D5): find the stash entry
+ * `preserveFailedRun` left for `runId`, apply it, and drop it on success so the
+ * list does not grow with every retry. `files` names what the entry touched. An
+ * entry that does not apply cleanly is kept, the tree is put back as it was, and
+ * the conflict is reported, so a retry never starts from a half-applied draft.
+ * No entry for the run is not an error: nothing to restore, no files.
+ */
+export async function applyFailedRun(repo: string, runId: string): Promise<AppliedRun> {
+  const marker = `copperhead failed run ${runId}`;
+  let ref: string | undefined;
+  try {
+    const list = await git(repo, ['stash', 'list']);
+    const line = list.split('\n').find((l) => l.endsWith(marker));
+    if (!line) return { ok: true, files: [] };
+    ref = line.slice(0, line.indexOf(':'));
+  } catch (err) {
+    return { ok: false, files: [], error: (err as Error).message };
+  }
+  // The entry was taken against a commit; on any other HEAD its files could
+  // overwrite work that was committed since, so it is kept and reported.
+  let base: string;
+  let head: string;
+  try {
+    base = await git(repo, ['rev-parse', `${ref}^`]);
+    head = await git(repo, ['rev-parse', 'HEAD']);
+  } catch (err) {
+    return { ok: false, files: [], error: (err as Error).message };
+  }
+  if (base !== head) {
+    return {
+      ok: false,
+      files: [],
+      error: `stash entry "${marker}" was taken on ${base.slice(0, 10)} and HEAD is now ${head.slice(0, 10)}; not applied`,
+    };
+  }
+  const snap = await snapshot(repo);
+  let files: string[] = [];
+  try {
+    // The entry's tree is the whole draft as it stood, newer than anything on the
+    // tree from an earlier attempt (the rollback puts the previous draft back as
+    // an untracked file). A three-way `stash apply` would see that earlier draft
+    // as "ours" and stop on an add/add conflict, so the entry's files are checked
+    // out of its tree directly: each path takes the entry's bytes, a path the
+    // entry dropped is removed. Staging first lets `git diff` name exactly the
+    // paths that change, so untouched files earlier stages left uncommitted are
+    // not reported as restored; the index is emptied again at the end, and the
+    // audit trail stays out of it, as in preservation.
+    await ensureIgnored(repo, GIT_ADD_EXCLUDES);
+    await git(repo, ['add', '-A']);
+    await git(repo, ['reset', '-q', '--', '.copperhead/runs']);
+    files = (await git(repo, ['diff', '--name-only', ref])).split('\n').filter(Boolean);
+    if (files.length) {
+      const inEntry = new Set((await git(repo, ['ls-tree', '-r', '--name-only', ref])).split('\n').filter(Boolean));
+      const take = files.filter((f) => inEntry.has(f));
+      const drop = files.filter((f) => !inEntry.has(f));
+      if (take.length) await git(repo, ['checkout', ref, '--', ...take]);
+      for (const f of drop) await rm(path.join(repo, f), { force: true });
+    }
+    await git(repo, ['reset', '-q']);
+  } catch (err) {
+    try {
+      await restore(repo, snap);
+    } catch {
+      // the failure is reported either way; the entry is kept
+    }
+    return { ok: false, files, error: `stash entry "${marker}" could not be applied: ${(err as Error).message.split('\n')[0]}` };
+  }
+  try {
+    await git(repo, ['stash', 'drop', ref]);
+  } catch {
+    // a stale entry is harmless; the work is on the tree
+  }
+  return { ok: true, files };
+}
+
 /** Current branch name, or "HEAD" when detached. Read-only metadata probe. */
 export async function branchName(repo: string): Promise<string> {
   return git(repo, ['rev-parse', '--abbrev-ref', 'HEAD']);
@@ -343,6 +431,12 @@ export async function branchName(repo: string): Promise<string> {
 
 export async function headCommit(repo: string): Promise<string> {
   return git(repo, ['rev-parse', 'HEAD']);
+}
+
+/** A file's exact bytes at a commit (no trimming), or null when it is not there. */
+export async function fileAtCommit(repo: string, commit: string, rel: string): Promise<string | null> {
+  const res = await execa('git', ['show', `${commit}:${rel.split(path.sep).join('/')}`], { cwd: repo, reject: false, stripFinalNewline: false });
+  return res.exitCode === 0 ? String(res.stdout) : null;
 }
 
 /** Count of uncommitted paths (staged, unstaged, and untracked). */

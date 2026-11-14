@@ -1,8 +1,9 @@
 .env
 .env.backup
 .copperhead/runs/
+.copperhead/cache/
 .DS_Store
-node_modules/
+node_modules
 dist/
 coverage/
 *.tsbuildinfo

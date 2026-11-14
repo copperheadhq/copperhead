@@ -7,6 +7,8 @@
 
 import path from 'node:path';
 import type { BudgetExhaustedStats } from '../agent/loop.js';
+import type { Provider } from '../agent/types.js';
+import { type CompatSettings, type CopperheadConfig, resolveCompatSettings } from '../config.js';
 
 /** Resolve `--repo` against the working directory; absolute paths pass through. */
 export function repoOf(opts: { repo?: string }): string {
@@ -39,4 +41,18 @@ export function budgetPromptText(stats: BudgetExhaustedStats): string {
     `${stats.filesTouched.length} file(s) touched, ${stats.openObligations} open obligation(s)). ` +
     `Continue with ${budgetExtraTurns(stats)} more turns?`
   );
+}
+
+/**
+ * The provider factory `copperhead review` hands its passes: one resumed provider session per pass
+ * (only the new messages are sent each turn), and a `compat:<id>` model's endpoint and key variable
+ * resolved from the environment and the design's config, as every other entry point does.
+ */
+export function reviewProviderFactory(
+  config: CopperheadConfig,
+  make: (model: string, sessionResume: boolean, compat: CompatSettings) => Promise<Provider>,
+  env = process.env,
+): (model: string) => Promise<Provider> {
+  const compat = resolveCompatSettings(config, env);
+  return (model) => make(model, true, compat);
 }

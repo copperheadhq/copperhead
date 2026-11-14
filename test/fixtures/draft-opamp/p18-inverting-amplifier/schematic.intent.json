@@ -1,0 +1,106 @@
+{
+ "version": 1,
+ "parts": [
+  {
+   "ref": "TP1",
+   "libId": "Connector:TestPoint",
+   "value": "EI",
+   "group": "Inverting Amplifier"
+  },
+  {
+   "ref": "TP2",
+   "libId": "Connector:TestPoint",
+   "value": "COM",
+   "group": "Inverting Amplifier"
+  },
+  {
+   "ref": "TP3",
+   "libId": "Connector:TestPoint",
+   "value": "EO",
+   "group": "Inverting Amplifier"
+  },
+  {
+   "ref": "TP4",
+   "libId": "Connector:TestPoint",
+   "value": "EO_COM",
+   "group": "Inverting Amplifier"
+  },
+  {
+   "ref": "R1",
+   "libId": "Device:R",
+   "value": "RI",
+   "group": "Inverting Amplifier"
+  },
+  {
+   "ref": "R2",
+   "libId": "Device:R",
+   "value": "RO",
+   "group": "Inverting Amplifier"
+  },
+  {
+   "ref": "U1",
+   "libId": "Amplifier_Operational:LM321",
+   "value": "LM321",
+   "group": "Inverting Amplifier"
+  },
+  {
+   "ref": "J9",
+   "libId": "Connector_Generic:Conn_01x03",
+   "value": "\u00b115V",
+   "group": "Inverting Amplifier"
+  }
+ ],
+ "nets": [
+  {
+   "name": "EI",
+   "pins": [
+    "TP1.1",
+    "R1.1"
+   ]
+  },
+  {
+   "name": "SUM",
+   "pins": [
+    "R1.2",
+    "R2.1",
+    "U1.3"
+   ]
+  },
+  {
+   "name": "EO",
+   "pins": [
+    "U1.4",
+    "R2.2",
+    "TP3.1"
+   ]
+  },
+  {
+   "name": "GND",
+   "pins": [
+    "TP2.1",
+    "TP4.1",
+    "U1.1",
+    "J9.2"
+   ]
+  },
+  {
+   "name": "+15V",
+   "kind": "power",
+   "pins": [
+    "U1.5",
+    "J9.1"
+   ]
+  },
+  {
+   "name": "-15V",
+   "kind": "power",
+   "pins": [
+    "U1.2",
+    "J9.3"
+   ]
+  }
+ ],
+ "hints": {
+  "date": "2026-09-26"
+ }
+}

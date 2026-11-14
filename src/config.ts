@@ -2,9 +2,32 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
+/**
+ * Optional `legibility` block: checker thresholds and per-family severity
+ * overrides (`off` disables a family). Unknown keys and invalid values are
+ * ignored by the checker's own sanitizer, so a config typo cannot crash a run.
+ */
+export interface LegibilityUserConfig {
+  thresholds?: {
+    gridPitch?: number;
+    minPitch?: number;
+    utilization?: number;
+    maxWireLength?: number;
+    familyCap?: number;
+  };
+  severity?: Record<string, 'error' | 'advisory' | 'off'>;
+  /** Scorer tuning: per-metric weights and the known-good composite floor. */
+  score?: {
+    weights?: Record<string, number>;
+    floor?: number;
+  };
+}
+
 export interface CopperheadConfig {
   schematic: string | null;
   board: string | null;
+  /** Schematic legibility checker thresholds and severity overrides. */
+  legibility?: LegibilityUserConfig;
   docs: string;
   model: string | null;
   maxTurns: number;
@@ -12,9 +35,20 @@ export interface CopperheadConfig {
   stageMaxTurns?: Record<string, number>;
   maxRepairCycles: number;
   budgets: Record<string, number>;
-  /** Per-turn watchdog (ms). A provider turn exceeding this is aborted and
-   * retried, so a hung call can't stall the run forever. <=0 disables it. */
+  /** Per-turn inactivity watchdog (ms). A provider turn that goes this long
+   * without a response or any streamed progress is treated as hung: aborted and
+   * retried, so a hung call can't stall the run forever. A streaming provider
+   * restarts it on every progress event, so a long turn that keeps producing
+   * output is not killed; a provider that reports no progress gets it as a
+   * whole-turn deadline. <=0 disables it. */
   turnTimeoutMs: number;
+  /** Hard cap (ms) on one provider turn that is producing output, however much
+   * progress it reports. A turn that hits it is too large, not hung, so it fails
+   * without a retry: resending the identical request would only run into the cap
+   * again. It is never shorter than turnTimeoutMs, and a turn that has reported
+   * no progress is judged by turnTimeoutMs alone. <=0 disables it; when unset it
+   * defaults to 3600000, or to disabled when turnTimeoutMs is disabled. */
+  turnMaxMs: number;
   /** How often (ms) to emit a liveness heartbeat while a provider turn is in
    * flight, so a slow large-output turn is distinguishable from a hung one
    * (5.1). Fires only after the first interval, so quick turns stay silent.
@@ -56,13 +90,17 @@ export const DEFAULTS: Omit<CopperheadConfig, 'schematic' | 'board'> = {
   maxTurns: 40,
   maxRepairCycles: 5,
   budgets: {},
-  // 10 min. A single large capture turn (a full lib_symbols + instances edit,
-  // ~40k output tokens) on the claude-code provider legitimately runs several
-  // minutes; the old 5-min deadline killed those mid-flight and, because the
-  // watchdog budget is spent per stage, could fail a stage that was only slow,
-  // not hung. 10 min clears the largest observed turns while still catching a
-  // genuinely stuck subprocess.
+  // 10 min without a response or progress. A single large capture turn (a full
+  // lib_symbols + instances edit, ~40k output tokens) on the claude-code
+  // provider legitimately runs several minutes; the old 5-min whole-turn
+  // deadline killed those mid-flight. Some turns run past 10 min too, so the
+  // deadline restarts on every streamed progress event: it bounds a silent
+  // stretch, not the turn's length. A provider that cannot stream still gets it
+  // as a whole-turn deadline, so no turn that finished in time before times out now.
   turnTimeoutMs: 600000,
+  // 60 min: the backstop for a turn that keeps streaming. Far past the largest
+  // observed turns, while a runaway generation still ends in bounded time.
+  turnMaxMs: 3600000,
   // 30s: within one interval an operator knows a turn is alive, and a full
   // 10-min turn emits ~20 lines — enough to distinguish slow from hung without
   // flooding the log. Quick turns (< 30s) emit nothing.
@@ -96,6 +134,15 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     maxRepairCycles: raw.maxRepairCycles ?? DEFAULTS.maxRepairCycles,
     budgets: raw.budgets ?? {},
     turnTimeoutMs: typeof raw.turnTimeoutMs === 'number' ? raw.turnTimeoutMs : DEFAULTS.turnTimeoutMs,
+    // A repo that switched the turn watchdog off gets no default cap either:
+    // before the cap existed that meant no deadline at all, and a default must
+    // not quietly bring one back. An explicit turnMaxMs still applies.
+    turnMaxMs:
+      typeof raw.turnMaxMs === 'number'
+        ? raw.turnMaxMs
+        : typeof raw.turnTimeoutMs === 'number' && raw.turnTimeoutMs <= 0
+          ? 0
+          : DEFAULTS.turnMaxMs,
     heartbeatMs: typeof raw.heartbeatMs === 'number' ? raw.heartbeatMs : DEFAULTS.heartbeatMs,
     maxStageRetries:
       Number.isInteger(raw.maxStageRetries) && (raw.maxStageRetries as number) >= 0
@@ -106,6 +153,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(typeof raw.apiKeyEnv === 'string' && raw.apiKeyEnv.trim() ? { apiKeyEnv: raw.apiKeyEnv.trim() } : {}),
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
+    ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
   };
 }
 

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { withTimeout, TurnTimeoutError, parseDiagnosis, diagnoseStageFailure } from '../src/agent/recovery.js';
+import { withTimeout, withWatchdog, TurnTimeoutError, parseDiagnosis, diagnoseStageFailure } from '../src/agent/recovery.js';
 import { CachingProvider } from '../src/agent/response-cache.js';
 import type { Msg, Provider, ToolSchema, Turn } from '../src/agent/types.js';
 
@@ -39,6 +39,120 @@ describe('withTimeout (turn watchdog)', () => {
 
   it('disables the watchdog when ms <= 0 (awaits the call)', async () => {
     expect(await withTimeout(() => Promise.resolve('ok'), 0)).toBe('ok');
+  });
+});
+
+describe('withWatchdog (inactivity deadline + hard cap)', () => {
+  const hang = () => new Promise<never>(() => {});
+
+  it('keeps a call alive past idleMs while it reports activity', async () => {
+    const slow = (activity: () => void) =>
+      new Promise<string>((resolve) => {
+        const tick = setInterval(activity, 20);
+        setTimeout(() => {
+          clearInterval(tick);
+          resolve('done');
+        }, 300);
+      });
+    expect(await withWatchdog(slow, { idleMs: 100 })).toBe('done');
+  });
+
+  it('gives a call that reports no activity idleMs as a plain deadline', async () => {
+    let cleaned = false;
+    const err = await withWatchdog(hang, { idleMs: 50, onTimeout: () => { cleaned = true; } }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TurnTimeoutError);
+    expect((err as TurnTimeoutError).kind).toBe('idle');
+    expect(cleaned).toBe(true);
+  });
+
+  it('fires the idle deadline once progress stops', async () => {
+    const start = Date.now();
+    let tick: ReturnType<typeof setInterval> | undefined;
+    const stalls = (activity: () => void) => {
+      tick = setInterval(activity, 20);
+      setTimeout(() => clearInterval(tick), 150); // progress, then silence
+      return hang();
+    };
+    const err = await withWatchdog(stalls, { idleMs: 80 }).catch((e: unknown) => e);
+    clearInterval(tick);
+    expect((err as TurnTimeoutError).kind).toBe('idle');
+    expect(Date.now() - start).toBeGreaterThanOrEqual(200);
+  });
+
+  it('stops a call at the hard cap however much activity it reports', async () => {
+    let cleaned = false;
+    let tick: ReturnType<typeof setInterval> | undefined;
+    const streamsForever = (activity: () => void) => {
+      tick = setInterval(activity, 10);
+      return hang();
+    };
+    const err = await withWatchdog(streamsForever, {
+      idleMs: 60,
+      maxMs: 150,
+      onTimeout: () => {
+        cleaned = true;
+      },
+    }).catch((e: unknown) => e);
+    clearInterval(tick);
+    expect(err).toBeInstanceOf(TurnTimeoutError);
+    expect((err as TurnTimeoutError).kind).toBe('max');
+    expect((err as TurnTimeoutError).ms).toBe(150);
+    expect(cleaned).toBe(true);
+  });
+
+  it('settles on the timeout even when onTimeout rejects the call synchronously', async () => {
+    // A provider whose close() rejects its in-flight call at once (a plain,
+    // non-async chat) must still surface TurnTimeoutError, not the teardown error.
+    let rejectCall!: (e: Error) => void;
+    const call = () =>
+      new Promise<never>((_, reject) => {
+        rejectCall = reject;
+      });
+    const err = await withWatchdog(call, { idleMs: 30, onTimeout: () => rejectCall(new Error('closed')) }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(TurnTimeoutError);
+  });
+
+  it('never caps a call that has reported no progress: its idle deadline alone applies', async () => {
+    const err = await withWatchdog(hang, { idleMs: 200, maxMs: 100 }).catch((e: unknown) => e);
+    expect((err as TurnTimeoutError).kind).toBe('idle');
+    expect((err as TurnTimeoutError).ms).toBe(200);
+  });
+
+  it('with the idle deadline off, does not cap a call that stays silent', async () => {
+    const quiet = () => new Promise<string>((resolve) => setTimeout(() => resolve('done'), 250));
+    expect(await withWatchdog(quiet, { idleMs: 0, maxMs: 100 })).toBe('done');
+  });
+
+  it('trips the cap as soon as progress arrives after the cap has come due', async () => {
+    let progressed = false;
+    const lateStarter = (activity: () => void) => {
+      setTimeout(() => {
+        progressed = true;
+        activity();
+      }, 150);
+      return hang();
+    };
+    const err = await withWatchdog(lateStarter, { idleMs: 0, maxMs: 50 }).catch((e: unknown) => e);
+    expect((err as TurnTimeoutError).kind).toBe('max');
+    expect(progressed, 'the cap waited for the first progress rather than firing at 50 ms').toBe(true);
+  });
+
+  it('never caps a streaming call below its idle deadline', async () => {
+    let tick: ReturnType<typeof setInterval> | undefined;
+    const streams = (activity: () => void) => {
+      tick = setInterval(activity, 10);
+      return hang();
+    };
+    const err = await withWatchdog(streams, { idleMs: 150, maxMs: 50 }).catch((e: unknown) => e);
+    clearInterval(tick);
+    expect((err as TurnTimeoutError).kind).toBe('max');
+    expect((err as TurnTimeoutError).ms).toBe(150);
+  });
+
+  it('disables both limits when <= 0', async () => {
+    expect(await withWatchdog(async () => 'ok', { idleMs: 0, maxMs: 0 })).toBe('ok');
   });
 });
 
@@ -125,6 +239,32 @@ describe('CachingProvider', () => {
       await cached.chat(msgs, tools);
       await cached.chat([{ role: 'user', content: 'different' }], tools);
       expect(inner.calls).toBe(2);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not replay entries cached before the fabricated-result cut for text-protocol providers (#320)', async () => {
+    // A turn cached before #320 can hold tool calls planned after a result the model
+    // invented. The key for claude-code and cursor now carries the protocol version, so
+    // such an entry is never found; an openai entry keeps its old key and still replays.
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-cache-'));
+    try {
+      const legacyKey = (name: string) =>
+        createHash('sha256').update(JSON.stringify({ model: name, messages: msgs, tools: tools.map((t) => t.name) })).digest('hex');
+      for (const name of ['claude-code', 'openai']) {
+        await writeFile(path.join(dir, `${legacyKey(name)}.json`), JSON.stringify({ ...turn('legacy'), toolCalls: [{ id: 'x', name: 'edit_file', args: {} }] }), 'utf8');
+      }
+      let ccCalls = 0;
+      let oaCalls = 0;
+      const cc = new CachingProvider({ name: 'claude-code', chat: async () => (ccCalls++, turn('fresh')) }, dir);
+      const oa = new CachingProvider({ name: 'openai', chat: async () => (oaCalls++, turn('fresh')) }, dir);
+      const ccTurn = await cc.chat(msgs, tools);
+      const oaTurn = await oa.chat(msgs, tools);
+      expect(ccCalls).toBe(1); // the legacy entry is not found: the model is called
+      expect(ccTurn.text).toBe('fresh');
+      expect(oaCalls).toBe(0); // an openai entry keeps its key and replays as before
+      expect(oaTurn.text).toBe('legacy');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

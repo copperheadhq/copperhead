@@ -18,7 +18,6 @@ import { runCreate } from './create.js';
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DEFAULT_BRIEF = path.join(PKG_ROOT, 'examples/simple/usb-c-breakout.md');
-const DEFAULT_DEMO_DIR = path.join(PKG_ROOT, 'demo-runs/usb-c-breakout');
 
 export interface DemoOptions {
   model: string;
@@ -45,7 +44,14 @@ export function defaultBriefPath(): string {
 }
 
 export function defaultDemoDir(): string {
-  return process.env.COPPERHEAD_DEMO_DIR ?? DEFAULT_DEMO_DIR;
+  // `?.trim()` also catches an empty-but-set override (`COPPERHEAD_DEMO_DIR=`,
+  // easy to produce from a shell script or a CI env block): `??` alone only
+  // catches null/undefined, so an empty string would fall through to
+  // `path.resolve('')` at the call site and scaffold into the user's cwd.
+  const override = process.env.COPPERHEAD_DEMO_DIR?.trim();
+  return override
+    ? path.resolve(process.cwd(), override)
+    : path.resolve(process.cwd(), 'demo-runs/usb-c-breakout');
 }
 
 /** Marker identifying a directory scaffolded by `copperhead demo`. */

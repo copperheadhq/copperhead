@@ -1,0 +1,39 @@
+(kicad_sch
+  (version 20231120)
+  (generator "copperhead-fixture")
+  (uuid "u91y5000-0000-4000-8000-000000000001")
+  (paper "A4")
+  (lib_symbols
+    (symbol "Device:R"
+      (property "Reference" "R" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (property "Value" "R" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (symbol "R_0_1"
+        (rectangle (start -1.016 -2.54) (end 1.016 2.54)
+          (stroke (width 0.254) (type default))
+          (fill (type none))
+        )
+      )
+      (symbol "R_1_1"
+        (pin passive line (at 0 3.81 270) (length 1.27)
+          (name "~" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin passive line (at 0 -3.81 90) (length 1.27)
+          (name "~" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+      )
+    )
+  )
+  (symbol
+    (lib_id "Device:R")
+    (at 284.48 195.58 0)
+    (uuid "u91y5000-0000-4000-8000-00000000s001")
+    (property "Reference" "R7" (at 284.48 189.23 0) (effects (font (size 1.27 1.27))))
+    (pin "1" (uuid "u91y5000-0000-4000-8000-00000000p001"))
+    (pin "2" (uuid "u91y5000-0000-4000-8000-00000000p002"))
+  )
+  (sheet_instances
+    (path "/" (page "2"))
+  )
+)

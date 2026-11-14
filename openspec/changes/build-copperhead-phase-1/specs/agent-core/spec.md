@@ -25,11 +25,27 @@ Each `do` run SHALL follow the sequence: load memory (all `docs/*.md` + schemati
 - **THEN** the net is renamed in every sheet, PINOUT.md and SUBSYSTEMS.md are updated, ERC exits 0, exactly one commit exists, and no unrelated net or doc line changed
 
 ### Requirement: Turn and repair budgets
-The loop SHALL enforce `maxTurns` (default 40) and `maxRepairCycles` (default 5), log per-run token usage, and on unrecoverable failure restore the pre-run snapshot, print the transcript path, and exit 1.
+The loop SHALL enforce `maxTurns` (default 40) and `maxRepairCycles` (default 5), log per-run token usage, and on unrecoverable failure restore the pre-run snapshot, print the transcript path, and exit 1. A repair cycle SHALL be counted only for a fix that did not work: after an edit, a failing ERC/DRC whose electrical findings did not go down, or, when only silkscreen findings remain, whose total and whose unrouted count both did not go down (unrouted connections are a count beside the findings, so routing is progress). The first failure after a clean check, a re-run with no edit in between, and a check that makes progress SHALL NOT count. An accepted `finish` SHALL end the run on the checks it passed: a tool call after it in the same reply SHALL be answered as not run, and SHALL NOT be dispatched. A `finish` in a reply that left tool calls undispatched (a call the text protocol could not parse, or a tool outside the turn's catalog) SHALL be answered as not run and SHALL NOT end the run, so a run cannot commit on work that never happened.
 
 #### Scenario: Repair loop converges (AC-3.5)
 - **WHEN** an edit first produces an ERC violation
 - **THEN** the transcript shows the violation parsed, a targeted fix, a re-run, and a pass within `maxRepairCycles`
+
+#### Scenario: Routine checks do not spend the repair budget (#331)
+- **WHEN** a layout agent runs DRC after each batch of moves and each check has fewer electrical findings than the last, or only silkscreen findings that shrink, or the same silkscreen findings and fewer unrouted connections
+- **THEN** no repair cycle is counted, and the run is not rolled back for exhausting `maxRepairCycles`
+
+#### Scenario: A turn that finishes verified is not rolled back for its budget
+- **WHEN** one batched turn spends the last repair cycle, then edits, passes the check and calls `finish`
+- **THEN** the run finishes, since `finish` is approved only after the checks passed and no violation persists
+
+#### Scenario: A call after an accepted finish is not run
+- **WHEN** one reply calls `finish` with its checks passing, then a tool that would edit the board
+- **THEN** that tool is not dispatched, its result says the run already finished, and the run commits on the checks `finish` passed
+
+#### Scenario: A finish in a reply that left calls undispatched is held back (AC-3.23)
+- **WHEN** one reply calls `propose_change`, `validate_change`, `write_file` and `finish`, and `write_file` was not in the catalog the turn began with
+- **THEN** `finish` is not dispatched, its result names `write_file` as a call that did not run, and the run goes on to the next reply instead of committing no files
 
 #### Scenario: Rollback on exhaustion (AC-3.6)
 - **WHEN** violations persist after `maxRepairCycles`

@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdtemp, mkdir, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { bootstrapKicadProject, projectSlug } from '../src/kicad/bootstrap.js';
+import { bootstrapKicadProject, markCreateOrigin, projectSlug } from '../src/kicad/bootstrap.js';
 import { loadConfig } from '../src/config.js';
+import { isCreateProducedRepo } from '../src/kicad/fab.js';
 import { listSymbols } from '../src/kicad/sexp.js';
 import { kicadLoadError } from '../src/kicad/cli.js';
 
@@ -54,6 +55,45 @@ describe('KiCad project bootstrap (create schematic-stage gap #19)', () => {
       expect(second).toBeNull();
       const after = await readFile(path.join(repo, 'usb-c-power-breakout.kicad_sch'), 'utf8');
       expect(after).toBe(before); // untouched
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('create-origin marker (legibility and fab gate scoping)', () => {
+  // The gates scoped by isCreateProducedRepo were hung on a config marker that
+  // no code path wrote, so they were silently inert in every real repo: the
+  // legibility obligation never opened and finish("done") sailed through on an
+  // illegible sheet.
+  it('bootstrapKicadProject stamps origin: create into the persisted config', async () => {
+    const { repo, cleanup } = await emptyRepo();
+    try {
+      await bootstrapKicadProject(repo, BRIEF);
+      expect(isCreateProducedRepo(await loadConfig(repo))).toBe(true);
+      const raw = JSON.parse(await readFile(path.join(repo, '.copperhead', 'config.json'), 'utf8'));
+      expect(raw.origin).toBe('create');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('markCreateOrigin stamps a resumed repo whose project predates the marker', async () => {
+    const { repo, cleanup } = await emptyRepo();
+    try {
+      // Scaffold, then strip the marker to simulate a pre-marker create repo.
+      await bootstrapKicadProject(repo, BRIEF);
+      const cfgPath = path.join(repo, '.copperhead', 'config.json');
+      const raw = JSON.parse(await readFile(cfgPath, 'utf8'));
+      delete raw.origin;
+      await writeFile(cfgPath, JSON.stringify(raw, null, 2), 'utf8');
+      expect(isCreateProducedRepo(await loadConfig(repo))).toBe(false);
+
+      await markCreateOrigin(repo);
+      expect(isCreateProducedRepo(await loadConfig(repo))).toBe(true);
+      // bootstrap stays a no-op on the resumed repo (schematic already wired),
+      // so markCreateOrigin has to be the writer here.
+      expect(await bootstrapKicadProject(repo, BRIEF)).toBeNull();
     } finally {
       await cleanup();
     }

@@ -2,11 +2,37 @@ import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { execa } from 'execa';
 import type { Msg, Provider, Turn } from './types.js';
-import { availableTools, dispatchTool, type RunContext } from './tools.js';
+import { availableTools, dispatchToolResult, type RunContext } from './tools.js';
+import type { RefusalBlocker } from './context.js';
+export type { RefusalBlocker } from './context.js';
+import { flatten } from './envelope.js';
 import { CachingProvider } from './response-cache.js';
-import { withTimeout, TurnTimeoutError } from './recovery.js';
+import { withTimeout, withWatchdog, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js';
 import { buildSystemPrompt } from './prompts.js';
-import { loadConstraints, reopenDeferredAffects } from '../memory/constraints.js';
+import { loadConstraints, reopenDeferredAffects, type ConstraintRegistry } from '../memory/constraints.js';
+
+const constraintsRel = '.copperhead/constraints.json';
+
+/** Constraints the registry on disk holds beyond HEAD's, with the affects items that are not deferred. */
+async function inheritedConstraints(repoRoot: string): Promise<Array<{ key: string; openNow: string[] }>> {
+  const headText = await fileAtCommit(repoRoot, 'HEAD', constraintsRel).catch(() => null);
+  let base: ConstraintRegistry = {};
+  try {
+    base = headText ? (JSON.parse(headText) as ConstraintRegistry) : {};
+  } catch {
+    base = {};
+  }
+  const now = await loadConstraints(repoRoot);
+  const out: Array<{ key: string; openNow: string[] }> = [];
+  for (const [key, c] of Object.entries(now)) {
+    const same = Object.hasOwn(base, key) && JSON.stringify(base[key]) === JSON.stringify(c);
+    if (same) continue;
+    const deferred = new Set(c.deferred ?? []);
+    out.push({ key, openNow: (c.affects ?? []).filter((a) => !deferred.has(a)) });
+  }
+  return out;
+}
+import { isCreateProducedRepo, isEngineAuthoredSchematic } from '../kicad/fab.js';
 import {
   loadConfig,
   CONFIG_DIR,
@@ -21,7 +47,8 @@ import { collectRunMeta, renderCliHeader, type RunMeta, type RunMetaInput } from
 import { plainRenderer, fmtDuration, fmtTokens, type ProgressRenderer } from './render.js';
 import { styleHeaderLines } from './theme.js';
 import { ObligationsLedger } from './ledger.js';
-import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun } from '../util/git.js';
+import { markTouched } from '../capabilities/helpers.js';
+import { gitPreflight, isDirty, snapshot, restore, commitAll, changedFiles, preserveFailedRun, fileAtCommit } from '../util/git.js';
 import { withRetry, isRateLimit, sessionLimit } from '../util/retry.js';
 import { openspecArchive } from '../openspec/cli.js';
 import { existsSync } from 'node:fs';
@@ -31,6 +58,7 @@ import { CodexProvider } from './providers/codex.js';
 import { ClaudeCodeProvider } from './providers/claude-code.js';
 import { CursorProvider } from './providers/cursor.js';
 import { LMStudioProvider } from './providers/lmstudio.js';
+import { renderUndispatched } from './providers/tool-protocol.js';
 
 /** What the user sees at the moment they decide whether to keep going. */
 export interface BudgetExhaustedStats {
@@ -66,6 +94,19 @@ export interface RunOptions {
   renderer?: ProgressRenderer;
   /** Caller-known run identity for the metadata block (design D2). */
   meta?: RunMetaInput;
+  /**
+   * Repo-relative files a caller changed just before the run (the create
+   * pipeline's board populate). They count as touched by the run, so its
+   * verification and sync obligations apply to them too.
+   */
+  preTouched?: string[];
+  /**
+   * The caller's own completion check for this run (a `create` stage's contract).
+   * `finish` consults it before answering "all gates satisfied", so a run is never
+   * told it is done by the tool and not done by the gate (#310). Returns null when
+   * met, else what is missing.
+   */
+  stageGate?: () => Promise<string | null>;
 }
 
 export interface RunResult {
@@ -80,6 +121,8 @@ export interface RunResult {
   stats: RunStats;
   /** Number of turns served from the on-disk response cache (5.2). */
   cacheHits: number;
+  /** A refusal's verified constraint-conflict blockers (AC-18.1); empty or absent otherwise. */
+  blockers?: RefusalBlocker[];
 }
 
 export async function makeProvider(model: string, sessionResume = false, compat?: CompatSettings): Promise<Provider> {
@@ -190,6 +233,15 @@ async function appendChangelog(
   await writeFile(p, lines.join('\n'), 'utf8');
 }
 
+/**
+ * True once `max` repairs have failed. A cycle is counted only for a failed repair
+ * (`countRepairCycle`), so the limit is reached on the `max`-th failure, not one
+ * after it; a limit of 0 allows no failed repair at all.
+ */
+export function repairBudgetExhausted(used: number, max: number): boolean {
+  return used >= Math.max(max, 1);
+}
+
 export async function runAgentLoop(opts: RunOptions): Promise<RunResult> {
   const providers = new Set<Provider>();
   try {
@@ -217,11 +269,28 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
 
   const transcript = new Transcript(repoRoot);
   await transcript.init();
+  // Legibility gates finish only where copperhead authored the sheet; a
+  // hand-drawn repo gets findings as information, never as a wedge (C6).
+  // Both conditions matter: the create-origin marker scopes the gate to repos
+  // this tool produced, and the generator stamp scopes it to sheets copperhead
+  // still owns. A human taking the sheet over in KiCad re-saves it under
+  // KiCad's generator, and from then on the gate must not defend a drawing
+  // the engine can no longer regenerate. A create repo whose schematic is not
+  // yet scaffolded keeps the gate: the sheet stage 4 will produce is
+  // copperhead-authored by construction.
+  let gateLegibility = isCreateProducedRepo(config);
+  if (gateLegibility && config.schematic) {
+    try {
+      gateLegibility = isEngineAuthoredSchematic(await readFile(path.join(repoRoot, config.schematic), 'utf8'));
+    } catch {
+      // schematic configured but absent (pre-scaffold): keep the gate
+    }
+  }
   const ctx: RunContext = {
     repoRoot,
     config,
     transcript,
-    ledger: new ObligationsLedger(),
+    ledger: new ObligationsLedger(gateLegibility),
     runId: path.basename(transcript.dir),
     interactive: opts.interactive ?? false,
     confirm: opts.confirm ?? (async () => true),
@@ -231,10 +300,37 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     filesTouched: new Set(),
     decisions: [],
     lastErc: null,
+    lastLegibility: null,
+    lastScore: null,
     lastDrc: null,
+    boardAtStart: null,
     repairCycles: 0,
     finishRequest: null,
+    ...(opts.stageGate ? { stageGate: opts.stageGate } : {}),
   };
+  if (config.board) {
+    try {
+      ctx.boardAtStart = await readFile(path.join(repoRoot, config.board), 'utf8');
+    } catch {
+      // no board yet: nothing to compare unrouted connections against
+    }
+  }
+  for (const f of opts.preTouched ?? []) markTouched(ctx, f);
+  // A restored constraint registry (a create retry resuming a draft, AC-18.14)
+  // holds constraints an earlier attempt recorded, whose revisit obligations died
+  // with that attempt's ledger. Reopen them from the registry's diff against HEAD,
+  // as record_constraint would have, so finish cannot pass over them unchecked.
+  if ((opts.preTouched ?? []).includes(constraintsRel)) {
+    const inherited = await inheritedConstraints(repoRoot);
+    for (const { key, openNow } of inherited) {
+      ctx.ledger.onConstraintChange(key, openNow);
+      ctx.ledger.clear('constraint-dual-write', key);
+    }
+    if (inherited.length) {
+      await transcript.event('inherited-constraints', { keys: inherited.map((c) => c.key) });
+      log(`re-opened revisit obligations for ${inherited.length} inherited constraint(s): ${inherited.map((c) => c.key).join(', ')}`);
+    }
+  }
 
   // Session resume for claude-code / cursor is only correct when the response
   // cache is off: the cache replays turns a resumed session never saw. So enable
@@ -352,12 +448,14 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
   let plan: string | null = null;
   let nudges = 0;
   let turnTimeouts = 0;
-  const maxTurnTimeouts = 3;
+  const maxTurnTimeouts = MAX_TURN_TIMEOUTS;
 
+  let budget = maxTurns;
   const stats = (exitPath: ExitPath): RunStats => ({
     exitPath,
     turnsUsed,
     maxTurns,
+    budget,
     repairCyclesUsed: ctx.repairCycles,
     maxRepairCycles: config.maxRepairCycles,
     tokensIn,
@@ -402,6 +500,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       filesTouched: [...ctx.filesTouched],
       ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : `${ctx.lastErc.violations.length} violations`) : null,
       drcResult: ctx.lastDrc ? (ctx.lastDrc.ok ? 'clean' : `${ctx.lastDrc.violations.length} violations`) : null,
+      legibilityResult: ctx.lastLegibility ? `${ctx.lastLegibility.error} error, ${ctx.lastLegibility.advisory} advisory` : null,
+      scoreResult: ctx.lastScore !== null ? `${ctx.lastScore}/100` : null,
       decisions: ctx.decisions,
       tokensIn,
       tokensOut,
@@ -437,7 +537,6 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     };
   };
 
-  let budget = maxTurns;
   for (let turn = 0; ; turn++) {
     if (turn >= budget) {
       // Budget exhausted. In an attended run this is a user decision made with
@@ -466,13 +565,6 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
       await transcript.event('budget-extended', { extraTurns: extra, budget, ...exhaustStats });
       log(`turn budget extended by ${extra} (now ${budget})`);
     }
-    // Advertise EVERY tool each turn; dispatchTool enforces the edit-unlock gate
-    // live at call time. Hiding locked edit tools from the turn catalog meant a
-    // model that unlocked (validate_change) and edited in the SAME reply had its
-    // edit silently dropped in parsing — the call named a tool the turn had not
-    // advertised, so it was treated as prose, executed nothing, and returned no
-    // error. The model then "verified" against an unchanged file (an empty
-    // schematic even passes ERC) and finished believing it had succeeded.
     // Structural lock (SPEC.md §1.3 invariant 1): the edit tools stay OUT of the
     // advertised list until a proposal validates (`editsUnlocked`), so the model
     // is gated by omission, not by prompt text. `dispatchTool` re-checks the same
@@ -481,6 +573,11 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     // the edit tools. (Earlier this advertised every tool to let a same-turn
     // propose→validate→edit batch through, but that traded the spec's structural
     // guarantee for one saved turn — not worth it.)
+    // The cost lands on the text-protocol providers: the catalog is fixed for the
+    // whole reply, so a write after validate_change in that reply cannot parse as a
+    // call. It is not silent: the reply's undispatched calls are named to the model
+    // after the results (#306), and a finish in that reply is held back (#296), so a
+    // run cannot finish on a write that never happened.
     const tools = availableTools(ctx).map((t) => t.schema);
     r.turnStart(turn + 1, maxTurns, tokensIn, tokensOut);
     r.status('thinking');
@@ -501,28 +598,54 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         : null;
     heartbeat?.unref?.();
     try {
+      // Inactivity watchdog plus hard cap: every onStream call is progress and
+      // restarts the idle deadline, so a turn that legitimately runs past
+      // turnTimeoutMs survives while it keeps producing output. A provider that
+      // never streams gets turnTimeoutMs as a whole-turn deadline, as before.
       res = await withRetry(
         () =>
-          withTimeout(
-            () => provider.chat(messages, tools, { onStream: (chars) => (streamedChars = chars) }),
-            config.turnTimeoutMs,
-            () => provider.close?.(),
+          withWatchdog(
+            (activity) =>
+              provider.chat(messages, tools, {
+                onStream: (chars) => {
+                  streamedChars = chars;
+                  activity();
+                },
+              }),
+            { idleMs: config.turnTimeoutMs, maxMs: config.turnMaxMs, onTimeout: () => provider.close?.() },
           ),
         { onRetry: (attempt) => log(`rate limited; retry ${attempt}`) },
       );
     } catch (err) {
+      if (err instanceof TurnTimeoutError && err.kind === 'max') {
+        // Still producing output at the hard cap: the turn is too large, not
+        // hung. Resending the identical request would stream just as long and
+        // hit the cap again, so fail now with a reason that says so; the create
+        // pipeline hands it to the diagnosis, which can split the work.
+        await transcript.event('turn-timeout', { kind: 'max', ms: err.ms, streamedChars });
+        return fail(
+          `a single provider turn was still producing output after ${fmtDuration(err.ms)} (turnMaxMs) and was stopped — ` +
+            'the turn is too large, not hung; split the work into smaller steps, or raise turnMaxMs',
+          'provider-error',
+        );
+      }
       if (err instanceof TurnTimeoutError) {
-        // A hung provider turn: the watchdog aborted the in-flight call and tore
-        // down its subprocess. Retry the same turn a bounded number of times
-        // before giving up, so a transient hang self-heals instead of stalling
-        // the run forever.
+        // A hung provider turn: no response or progress for turnTimeoutMs. The
+        // watchdog aborted the in-flight call and tore down its subprocess.
+        // Retry the same turn a bounded number of times before giving up, so a
+        // transient hang self-heals instead of stalling the run forever.
         if (turnTimeouts++ < maxTurnTimeouts) {
-          log(`turn exceeded ${config.turnTimeoutMs}ms; aborted the hung call and retrying (${turnTimeouts}/${maxTurnTimeouts})`);
-          await transcript.event('turn-timeout', { ms: config.turnTimeoutMs, attempt: turnTimeouts });
+          log(
+            `turn went ${fmtDuration(err.ms)} without a response or progress (turnTimeoutMs); aborted the hung call and retrying (${turnTimeouts}/${maxTurnTimeouts})`,
+          );
+          await transcript.event('turn-timeout', { kind: 'idle', ms: err.ms, attempt: turnTimeouts });
           turn--;
           continue;
         }
-        return fail(`provider turns timed out ${turnTimeouts}× (>${config.turnTimeoutMs}ms each)`, 'provider-error');
+        return fail(
+          `provider turns timed out ${turnTimeouts}× (no response or progress for ${fmtDuration(err.ms)} each)`,
+          'provider-error',
+        );
       }
       if (isRateLimit(err)) {
         const fallback = otherProvider(provider);
@@ -567,6 +690,9 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     tokensOut += res.usage.outputTokens;
     perTurn.push({ turn: turn + 1, in: res.usage.inputTokens, out: res.usage.outputTokens });
     await transcript.event('assistant', { text: res.text, toolCalls: res.toolCalls });
+    // #320: the provider cut a reply that invented its own tool results. Keep the cut
+    // text: it is the evidence a reader needs to see what the model believed.
+    if (res.notice) await transcript.event('fabricated-results', { notice: res.notice, discarded: res.discarded ?? null });
 
     if (res.text) {
       if (!plan) plan = res.text;
@@ -591,13 +717,58 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     nudges = 0;
 
     for (const call of res.toolCalls) {
-      const result = await dispatchTool(ctx, call.name, call.args);
-      await transcript.event('tool', { name: call.name, args: call.args, result });
-      r.toolResult(call.name, result.split('\n')[0] ?? '');
+      // An accepted finish ends the run on the checks it just passed: a call
+      // after it in the same reply would change the board or sheet those checks
+      // saw, and nothing re-checks before the commit, so it is answered, not run.
+      if (ctx.finishRequest) {
+        const result = 'not run: finish was already accepted earlier in this reply, so the run ended there';
+        await transcript.event('tool-not-run', { name: call.name, args: call.args, result });
+        messages.push({ role: 'tool', toolCallId: call.id, content: result });
+        continue;
+      }
+      // #296: a finish in a reply that left calls undispatched (a write_file still
+      // locked when the turn began, a call a brace short) would end the run on work
+      // that never happened: the gates pass vacuously over an unchanged tree and the
+      // run commits "done", while the note naming those calls would only reach a
+      // model that has already stopped. So that finish is answered, not run, and
+      // the model reads the note first. Nothing new is dispatched; the lock stands.
+      if (call.name === 'finish' && res.undispatched) {
+        const names = [...new Set([...res.undispatched.unavailable, ...res.undispatched.malformed])];
+        if (names.length) {
+          const result =
+            `not run: finish was held back because ${names.map((n) => `"${n}"`).join(', ')} in this reply did not run, ` +
+            'so the run would have ended on work that never happened. Read the note after these results, send those calls ' +
+            'again if they are still needed, then call finish in a later reply.';
+          await transcript.event('tool-not-run', { name: call.name, args: call.args, result });
+          r.toolResult(call.name, `held back: ${names.join(', ')} did not run in this reply`, false);
+          messages.push({ role: 'tool', toolCallId: call.id, content: result });
+          continue;
+        }
+      }
+      const envelope = await dispatchToolResult(ctx, call.name, call.args, { provider });
+      const result = flatten(envelope);
+      await transcript.event('tool', { name: call.name, args: call.args, result, envelope });
+      r.toolResult(call.name, envelope.summary, envelope.ok, envelope.viewHint);
       messages.push({ role: 'tool', toolCallId: call.id, content: result });
     }
+    // After the real results, so the model reads them first and then learns which
+    // of its own "results" to disregard (a tool-less turn got this as its nudge).
+    if (res.notice) messages.push({ role: 'user', content: res.notice });
+    // #306: calls written next to the ones that ran but never dispatched (a locked
+    // edit tool, a brace short). Checked against the catalog as it is NOW, since a
+    // validate_change in this same reply may have just unlocked them.
+    if (res.undispatched) {
+      const available = new Set(availableTools(ctx).map((t) => t.name));
+      await transcript.event('undispatched-calls', { ...res.undispatched });
+      messages.push({ role: 'user', content: renderUndispatched(res.undispatched, available, ctx.editsUnlocked) });
+    }
 
-    if (ctx.repairCycles > config.maxRepairCycles) {
+    // Not when this same turn went on to finish: a finish done is approved only
+    // after the checks passed, and nothing after it in the turn runs, so its
+    // violations do not persist, whatever the count reached on the way (a
+    // batched turn: a failed repair, a fix, a clean check, finish). A refusal
+    // restores the snapshot either way, and keeps the budget it cites (AC-3.4).
+    if (!ctx.finishRequest && repairBudgetExhausted(ctx.repairCycles, config.maxRepairCycles)) {
       return fail(`repair cycles exhausted (${config.maxRepairCycles}); violations persist`, 'repair-cycles-exhausted');
     }
 
@@ -611,14 +782,28 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
     }
 
     if (ctx.finishRequest) {
-      const { outcome, summary } = ctx.finishRequest;
+      const { outcome, summary, blockers = [], unverifiedBlockers = [] } = ctx.finishRequest;
       const files = [...ctx.filesTouched];
       if (outcome === 'refuse') {
+        const listed = [
+          ...blockers.map((b) => ({ ...b, verified: true })),
+          ...unverifiedBlockers.map((b) => ({ ...b, verified: false })),
+        ];
+        await transcript.event('run-refused', { summary, blockers: listed });
+        // A refusal that already drafted something (a BOM, a spec) keeps that work
+        // exactly as a failed run does (AC-18.3), so a retry can continue the draft
+        // instead of re-deriving it; a run that touched nothing leaves no entry.
+        // Keyed on what this run touched, not on a dirty tree: a clean refusal on a
+        // tree that was already dirty must not stash the user's own changes.
+        const preserved = ctx.filesTouched.size ? await preserveFailedRun(repoRoot, ctx.runId) : null;
+        if (preserved) await transcript.event('work-preserved', { stash: preserved });
         await restore(repoRoot, snap);
-        await transcript.event('run-refused', { summary });
         const runStats = stats('refused');
         await transcript.event('run-end', runStats);
-        await transcript.writeSummary({
+        const blockerLines = listed.map(
+          (b) => `- [${b.verified ? 'verified' : 'unverified claim'}] ${b.kind} \`${b.constraint}\`: required ${b.required}; found ${b.found}`,
+        );
+        const summaryPath = await transcript.writeSummary({
           request: opts.request,
           changeId: ctx.changeId,
           plan,
@@ -630,11 +815,18 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           tokensOut,
           outcome: 'aborted',
           openObligations: null,
-          detail: `REFUSED: ${summary}`,
+          detail: blockerLines.length ? `REFUSED: ${summary}\n\nBlockers:\n${blockerLines.join('\n')}` : `REFUSED: ${summary}`,
           env: meta,
           stats: runStats,
         });
         log(`refused: ${summary}`);
+        if (preserved) {
+          log(
+            `refused work preserved: git stash entry "copperhead failed run ${ctx.runId}" (${preserved.slice(0, 10)}); recover with \`git stash apply\`, discard with \`git stash drop\``,
+          );
+        }
+        log(`transcript: ${transcript.jsonlPath}`);
+        log(`summary: ${summaryPath}`);
         r.finish(outcomeLine(runStats));
         return {
           outcome: 'refused',
@@ -645,6 +837,7 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
           commit: null,
           stats: runStats,
           cacheHits: cacheHits(),
+          blockers,
         };
       }
 
@@ -752,6 +945,8 @@ async function runWithProviders(opts: RunOptions, providers: Set<Provider>): Pro
         filesTouched: files,
         ercResult: ctx.lastErc ? (ctx.lastErc.ok ? 'clean' : 'FAILING') : 'not run',
         drcResult: ctx.lastDrc ? (ctx.lastDrc.ok ? 'clean' : 'FAILING') : 'not run',
+        legibilityResult: ctx.lastLegibility ? `${ctx.lastLegibility.error} error, ${ctx.lastLegibility.advisory} advisory` : null,
+        scoreResult: ctx.lastScore !== null ? `${ctx.lastScore}/100` : null,
         decisions: ctx.decisions,
         tokensIn,
         tokensOut,

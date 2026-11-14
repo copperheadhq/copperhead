@@ -3,6 +3,7 @@ import {
   CREATE_ORIGIN,
   checkDocumentationPresence,
   draftQualitySection,
+  isDraftQualityHeading,
   isCreateProducedRepo,
   isFilledDraftQuality,
 } from '../src/kicad/fab.js';
@@ -39,6 +40,18 @@ describe('isCreateProducedRepo', () => {
 });
 
 describe('draftQualitySection / isFilledDraftQuality', () => {
+  it('accepts a numbered Draft quality heading, as the sibling headings are numbered (#327)', () => {
+    const body = '\nPower routed, 6 connections unrouted.\n';
+    for (const h of ['## Draft quality', '## 4. Draft quality', '## 4) Draft quality', '##  12.  Draft quality  ', '## 4.1 Draft quality', '## 4.1. Draft quality', '## Draft Quality']) {
+      expect(draftQualitySection(`# Layout\n\n## 1. Placement\n\ntext\n\n${h}\n${body}\n## 5. Next\n`), h).toBe(body);
+      expect(isDraftQualityHeading(h), h).toBe(true);
+    }
+    for (const h of ['### Draft quality', '## Draft quality notes', '## 4 Draft quality', 'Draft quality', '## Draft']) {
+      expect(isDraftQualityHeading(h), h).toBe(false);
+    }
+    expect(draftQualitySection('# Layout\n\n## Draft quality notes\n\ntext\n')).toBeNull();
+  });
+
   it('returns null when the heading is absent', () => {
     expect(draftQualitySection(NO_SECTION_LAYOUT)).toBeNull();
   });

@@ -36,6 +36,8 @@ async function makeCtx(repo: string): Promise<RunContext> {
     decisions: [],
     lastErc: null,
     lastDrc: null,
+    lastLegibility: null,
+    lastScore: null,
     repairCycles: 0,
     finishRequest: null,
   };

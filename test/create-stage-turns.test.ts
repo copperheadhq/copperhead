@@ -27,7 +27,7 @@ const mockRunAgentLoop = vi.hoisted(() =>
     if (opts.request.includes('part-selection'))
       await writeFileFs(
         pathMod.join(docs, 'BOM.md'),
-        '# bom\n\n| Refdes | Value | Footprint | MPN | Rationale |\n|---|---|---|---|---|\n| R1 | 10k | R_0603 | RC0603FR-0710KL | bias resistor |\n',
+        '# bom\n\n| Refdes | Value | Footprint | MPN | Rationale |\n|---|---|---|---|---|\n| R1 | 10k | Resistor_SMD:R_0603_1608Metric | RC0603FR-0710KL | bias resistor |\n',
         'utf8',
       );
     return {
@@ -119,7 +119,8 @@ describe('create pipeline per-stage turn budgets (AC-15.18, AC-15.19)', () => {
 
       // 5.2: a cost table with a row per stage that ran and a TOTAL.
       expect(out).toContain('Per-stage cost summary');
-      expect(out).toMatch(/Stage\s+Wall\s+Turns\s+Out tok\s+Cache/);
+      expect(out).toMatch(/Stage\s+Wall\s+Turns\s+Out tok\s+Replayed/); // AC-18.13: copperhead's response cache, not provider cache hits
+      expect(out).toMatch(/\d+% turns replayed/); // the mocked runs report one replayed turn each
       expect(out).toMatch(/spec-seed\s+\S+\s+3\s+/); // turns from the mock's stats
       expect(out).toContain('TOTAL');
     } finally {

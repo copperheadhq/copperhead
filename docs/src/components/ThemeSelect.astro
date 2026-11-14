@@ -1,0 +1,109 @@
+---
+/**
+ * Theme toggle override: a compact three-way segmented control
+ * (light / system / dark) instead of Starlight's native <select>.
+ *
+ * It reads and writes the same `starlight-theme` localStorage key that
+ * Starlight's inline ThemeProvider script uses, so the choice is applied
+ * before first paint on the next page load and there is no flash.
+ */
+import { Icon } from '@astrojs/starlight/components';
+
+const options = [
+	{ value: 'light', label: 'Light theme', icon: 'sun' },
+	{ value: 'auto', label: 'System theme', icon: 'laptop' },
+	{ value: 'dark', label: 'Dark theme', icon: 'moon' },
+] as const;
+---
+
+<ch-theme-toggle>
+	<div class="seg" role="group" aria-label="Color theme">
+		{
+			options.map(({ value, label, icon }) => (
+				<button type="button" data-value={value} aria-label={label} title={label} aria-pressed="false">
+					<Icon name={icon} size="0.9rem" />
+				</button>
+			))
+		}
+	</div>
+</ch-theme-toggle>
+
+<script>
+	type Theme = 'auto' | 'dark' | 'light';
+	const storageKey = 'starlight-theme';
+
+	const parseTheme = (theme: unknown): Theme =>
+		theme === 'auto' || theme === 'dark' || theme === 'light' ? theme : 'auto';
+
+	const loadTheme = (): Theme =>
+		parseTheme(typeof localStorage !== 'undefined' && (localStorage.getItem(storageKey) || 'auto'));
+
+	const systemTheme = (): Theme =>
+		matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+
+	function paintButtons(theme: Theme) {
+		document.querySelectorAll<HTMLButtonElement>('ch-theme-toggle button').forEach((button) => {
+			button.setAttribute('aria-pressed', String(button.dataset.value === theme));
+		});
+	}
+
+	function applyTheme(theme: Theme) {
+		document.documentElement.dataset.theme = theme === 'auto' ? systemTheme() : theme;
+		if (typeof localStorage !== 'undefined') {
+			// Starlight stores an empty string for "auto"; keep that convention.
+			localStorage.setItem(storageKey, theme === 'auto' ? '' : theme);
+		}
+		paintButtons(theme);
+	}
+
+	matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+		if (loadTheme() === 'auto') applyTheme('auto');
+	});
+
+	class ChThemeToggle extends HTMLElement {
+		constructor() {
+			super();
+			paintButtons(loadTheme());
+			this.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
+				button.addEventListener('click', () => applyTheme(parseTheme(button.dataset.value)));
+			});
+		}
+	}
+	customElements.define('ch-theme-toggle', ChThemeToggle);
+</script>
+
+<style>
+	ch-theme-toggle {
+		display: inline-flex;
+	}
+	.seg {
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+		padding: 2px;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 999px;
+		background-color: var(--sl-color-black);
+	}
+	button {
+		display: grid;
+		place-items: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--sl-color-gray-3);
+		cursor: pointer;
+		transition:
+			background-color 0.12s,
+			color 0.12s;
+	}
+	button:hover {
+		color: var(--sl-color-white);
+	}
+	button[aria-pressed='true'] {
+		background-color: var(--sl-color-gray-5);
+		color: var(--sl-color-white);
+	}
+</style>

@@ -1,0 +1,68 @@
+---
+/**
+ * Footer override.
+ *
+ * Identical to Starlight's default except that the pagination cards come
+ * before the edit/last-updated meta row in the DOM. The theme shows the cards
+ * first; doing that with CSS `order` alone would leave keyboard focus running
+ * in the old DOM order, so tabbing past the content would jump to the
+ * bottom-most element and then back up the page (WCAG 2.4.3, Focus Order).
+ *
+ * The layout rules Starlight scopes to its own Footer.astro come with it,
+ * since that component no longer renders.
+ */
+import EditLink from 'virtual:starlight/components/EditLink';
+import LastUpdated from 'virtual:starlight/components/LastUpdated';
+import Pagination from 'virtual:starlight/components/Pagination';
+import config from 'virtual:starlight/user-config';
+import { Icon } from '@astrojs/starlight/components';
+---
+
+<footer class="sl-flex">
+	<Pagination />
+	<div class="meta sl-flex">
+		<EditLink />
+		<LastUpdated />
+	</div>
+
+	{
+		config.credits && (
+			<a class="kudos sl-flex" href="https://starlight.astro.build">
+				<Icon name="starlight" /> {Astro.locals.t('builtWithStarlight.label')}
+			</a>
+		)
+	}
+</footer>
+
+<style>
+	footer {
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+
+	.meta {
+		gap: 0.75rem 3rem;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+	.meta > :global(p:only-child) {
+		margin-inline-start: auto;
+	}
+
+	.kudos {
+		align-items: center;
+		gap: 0.5em;
+		margin: 1.5rem auto;
+		font-size: var(--sl-text-xs);
+		text-decoration: none;
+		color: var(--sl-color-gray-3);
+	}
+	.kudos:hover {
+		color: var(--sl-color-white);
+	}
+	.kudos :global(svg) {
+		color: var(--sl-color-orange);
+	}
+</style>

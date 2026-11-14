@@ -10,7 +10,12 @@ import {
   completeSlash,
   SLASH_COMMANDS,
 } from '../src/commands/repl.js';
-import { demoTourText, scaffoldDemoRepo, defaultBriefPath } from '../src/commands/demo.js';
+import {
+  demoTourText,
+  scaffoldDemoRepo,
+  defaultBriefPath,
+  defaultDemoDir,
+} from '../src/commands/demo.js';
 import { pickModel, selectMenu } from '../src/util/select.js';
 import {
   keySequence,
@@ -68,6 +73,7 @@ describe('parseSlash', () => {
     expect(parseSlash('/')).toEqual({ cmd: '/', args: '' });
     expect(parseSlash('/quit')).toEqual({ cmd: '/quit', args: '' });
     expect(parseSlash('/help me')).toEqual({ cmd: '/help', args: 'me' });
+    expect(parseSlash('/explain U1')).toEqual({ cmd: '/explain', args: 'U1' });
   });
 
   it('maps bare quit/clear/help so they never start an agent run', () => {
@@ -97,6 +103,7 @@ describe('parseSlash', () => {
       '/runs',
       '/parts',
       '/nets',
+      '/explain',
       '/bom',
       '/openspec',
       '/last',
@@ -557,6 +564,32 @@ describe('session log file', () => {
 });
 
 describe('demo scaffold', () => {
+  it('defaults to the working directory and honors COPPERHEAD_DEMO_DIR', async () => {
+    const originalCwd = process.cwd();
+    const originalOverride = process.env.COPPERHEAD_DEMO_DIR;
+    const cwd = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-cwd-'));
+    const override = path.join(tmpdir(), 'custom-copperhead-demo');
+
+    try {
+      delete process.env.COPPERHEAD_DEMO_DIR;
+      process.chdir(cwd);
+      expect(defaultDemoDir()).toBe(path.join(process.cwd(), 'demo-runs/usb-c-breakout'));
+
+      process.env.COPPERHEAD_DEMO_DIR = override;
+      expect(defaultDemoDir()).toBe(override);
+
+      // An empty-but-set override (easy to produce from a shell script or a
+      // CI env block) must fall back to the default, not resolve to cwd.
+      process.env.COPPERHEAD_DEMO_DIR = '';
+      expect(defaultDemoDir()).toBe(path.join(process.cwd(), 'demo-runs/usb-c-breakout'));
+    } finally {
+      process.chdir(originalCwd);
+      if (originalOverride === undefined) delete process.env.COPPERHEAD_DEMO_DIR;
+      else process.env.COPPERHEAD_DEMO_DIR = originalOverride;
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('creates a git repo with config ready for create', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-demo-'));
     try {

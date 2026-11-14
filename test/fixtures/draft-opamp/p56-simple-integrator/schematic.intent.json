@@ -1,0 +1,114 @@
+{
+ "version": 1,
+ "parts": [
+  {
+   "ref": "TP1",
+   "libId": "Connector:TestPoint",
+   "value": "EI",
+   "group": "Simple Integrator"
+  },
+  {
+   "ref": "TP2",
+   "libId": "Connector:TestPoint",
+   "value": "COM",
+   "group": "Simple Integrator"
+  },
+  {
+   "ref": "TP3",
+   "libId": "Connector:TestPoint",
+   "value": "EO",
+   "group": "Simple Integrator"
+  },
+  {
+   "ref": "TP4",
+   "libId": "Connector:TestPoint",
+   "value": "EO_COM",
+   "group": "Simple Integrator"
+  },
+  {
+   "ref": "R1",
+   "libId": "Device:R",
+   "value": "100k",
+   "group": "Simple Integrator"
+  },
+  {
+   "ref": "C1",
+   "libId": "Device:C",
+   "value": "1u",
+   "group": "Simple Integrator"
+  },
+  {
+   "ref": "SW1",
+   "libId": "Switch:SW_SPST",
+   "value": "RESET",
+   "group": "Simple Integrator"
+  },
+  {
+   "ref": "U1",
+   "libId": "Amplifier_Operational:LM321",
+   "value": "LM321",
+   "group": "Simple Integrator"
+  },
+  {
+   "ref": "J9",
+   "libId": "Connector_Generic:Conn_01x03",
+   "value": "\u00b115V",
+   "group": "Simple Integrator"
+  }
+ ],
+ "nets": [
+  {
+   "name": "EI",
+   "pins": [
+    "TP1.1",
+    "R1.1"
+   ]
+  },
+  {
+   "name": "SUM",
+   "pins": [
+    "R1.2",
+    "C1.1",
+    "SW1.1",
+    "U1.3"
+   ]
+  },
+  {
+   "name": "EO",
+   "pins": [
+    "C1.2",
+    "SW1.2",
+    "U1.4",
+    "TP3.1"
+   ]
+  },
+  {
+   "name": "GND",
+   "pins": [
+    "U1.1",
+    "TP2.1",
+    "TP4.1",
+    "J9.2"
+   ]
+  },
+  {
+   "name": "+15V",
+   "pins": [
+    "U1.5",
+    "J9.1"
+   ],
+   "kind": "power"
+  },
+  {
+   "name": "-15V",
+   "pins": [
+    "U1.2",
+    "J9.3"
+   ],
+   "kind": "power"
+  }
+ ],
+ "hints": {
+  "date": "2026-09-26"
+ }
+}

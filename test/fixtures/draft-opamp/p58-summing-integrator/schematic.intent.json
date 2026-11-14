@@ -1,0 +1,154 @@
+{
+ "version": 1,
+ "parts": [
+  {
+   "ref": "TP1",
+   "libId": "Connector:TestPoint",
+   "value": "E1",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "TP2",
+   "libId": "Connector:TestPoint",
+   "value": "E2",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "TP3",
+   "libId": "Connector:TestPoint",
+   "value": "E3",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "TP4",
+   "libId": "Connector:TestPoint",
+   "value": "COM",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "TP5",
+   "libId": "Connector:TestPoint",
+   "value": "EO",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "TP6",
+   "libId": "Connector:TestPoint",
+   "value": "EO_COM",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "R1",
+   "libId": "Device:R",
+   "value": "100k",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "R2",
+   "libId": "Device:R",
+   "value": "100k",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "R3",
+   "libId": "Device:R",
+   "value": "100k",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "C1",
+   "libId": "Device:C",
+   "value": "1u",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "SW1",
+   "libId": "Switch:SW_SPST",
+   "value": "RESET",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "U1",
+   "libId": "Amplifier_Operational:LM321",
+   "value": "LM321",
+   "group": "Summing Integrator"
+  },
+  {
+   "ref": "J1",
+   "libId": "Connector_Generic:Conn_01x03",
+   "value": "\u00b115V",
+   "group": "Summing Integrator"
+  }
+ ],
+ "nets": [
+  {
+   "name": "E1",
+   "pins": [
+    "TP1.1",
+    "R1.1"
+   ]
+  },
+  {
+   "name": "E2",
+   "pins": [
+    "TP2.1",
+    "R2.1"
+   ]
+  },
+  {
+   "name": "E3",
+   "pins": [
+    "TP3.1",
+    "R3.1"
+   ]
+  },
+  {
+   "name": "SUM",
+   "pins": [
+    "R1.2",
+    "R2.2",
+    "R3.2",
+    "C1.1",
+    "SW1.1",
+    "U1.3"
+   ]
+  },
+  {
+   "name": "EO",
+   "pins": [
+    "U1.4",
+    "C1.2",
+    "SW1.2",
+    "TP5.1"
+   ]
+  },
+  {
+   "name": "GND",
+   "pins": [
+    "U1.1",
+    "TP4.1",
+    "TP6.1",
+    "J1.2"
+   ]
+  },
+  {
+   "name": "+15V",
+   "pins": [
+    "U1.5",
+    "J1.1"
+   ],
+   "kind": "power"
+  },
+  {
+   "name": "-15V",
+   "pins": [
+    "U1.2",
+    "J1.3"
+   ],
+   "kind": "power"
+  }
+ ],
+ "hints": {
+  "date": "2026-09-26"
+ }
+}

@@ -14,7 +14,8 @@ copperhead has no hidden database. Its memory is the markdown in your repo, whic
 | File | What it holds |
 | --- | --- |
 | `SPEC.md` | What the device is, plus top-level constraints and budgets |
-| `BOM.md` | Bill of materials |
+| `parts.intent.json` | Parts manifest written by `create` (refdes, verified symbol, footprint, MPN, group, rationale); `BOM.md` is rendered from it |
+| `BOM.md` | Bill of materials (rendered from the manifest when one exists; otherwise hand-written) |
 | `PINOUT.md` | Pin assignments |
 | `SUBSYSTEMS.md` | The design broken into functional blocks |
 | `LAYOUT.md` | Layout intent: what has to be near what, and why |
@@ -41,6 +42,8 @@ Docs that disagree with the schematic are the failure mode this whole tool exist
 
 Hand edits that desync the docs, the constraint registry, or the schematic fail at commit time. See [Verify and sync](/workflows/verify-and-sync/).
 
-## `.copperhead/README.md`
+<a id="copperheadreadmemd"></a>
+
+## `README.md` in `.copperhead/`
 
 The config directory describes itself. `init` writes a README into `.copperhead/` documenting every key in `config.json` and what `constraints.json` is for, so someone who clones the repo and has never used copperhead can still tell what these files are.

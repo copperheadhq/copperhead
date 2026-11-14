@@ -1,17 +1,17 @@
 <p align="center">
-  <a href="https://copperhead.sh"><img src="https://raw.githubusercontent.com/chouhanindustries/copperhead/main/docs/branding/lockup-transparent.png" alt="copperhead" width="440"></a>
+  <a href="https://copperhead.sh"><img src="https://raw.githubusercontent.com/copperheadhq/copperhead/main/docs/branding/lockup-transparent.png" alt="copperhead" width="440"></a>
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/copperhead"><img src="https://img.shields.io/npm/v/copperhead?color=b87333" alt="npm"></a>
-  <a href="https://github.com/chouhanindustries/copperhead/actions/workflows/ci.yml"><img src="https://github.com/chouhanindustries/copperhead/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/copperheadhq/copperhead/actions/workflows/ci.yml"><img src="https://github.com/copperheadhq/copperhead/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/copperhead?color=15181c" alt="license"></a>
 </p>
 
 **Cursor for circuit boards.** An AI agent that designs, documents, and validates real PCBs from a prompt, working directly on existing KiCad repositories.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/chouhanindustries/copperhead/main/assets/copperhead.gif" alt="copperhead agent shell demo" width="720">
+  <img src="https://raw.githubusercontent.com/copperheadhq/copperhead/main/assets/copperhead.gif" alt="copperhead agent shell demo" width="720">
 </p>
 
 > **Status: early.** Phase 1 is implemented and the CLI runs. The [technical specification](openspec/specs/SPEC.md) is the source of truth; expect the surface to move before 1.0.
@@ -32,7 +32,7 @@ It reads and edits real `.kicad_sch` / `.kicad_pcb` files (s-expression text), m
 > [!TIP]
 > **Most users should not install copperhead by hand.** If you are working inside an AI coding assistant (like Claude Code, Cursor, or Codex), you can install and configure copperhead automatically for your repository by pasting this single line:
 > ```text
-> Install copperhead for this repo using https://raw.githubusercontent.com/chouhanindustries/copperhead/main/agent-install-prompt.md
+> Install copperhead for this repo using https://raw.githubusercontent.com/copperheadhq/copperhead/main/agent-install-prompt.md
 > ```
 
 If you prefer to install manually:
@@ -56,7 +56,7 @@ The script is conservative by design: it never runs `sudo` and never edits shell
 ### Requirements
 
 - Node.js ≥ 20
-- [KiCad](https://www.kicad.org/) ≥ 8 with `kicad-cli` on PATH
+- [KiCad](https://www.kicad.org/) ≥ 8 with `kicad-cli` on PATH (on Windows and macOS, copperhead also searches standard installation directories automatically; override with `COPPERHEAD_KICAD_CLI`)
 - One model backend: a locally installed, ChatGPT-authenticated [Codex CLI](https://learn.chatgpt.com/docs/codex/cli), a logged-in [Cursor Agent CLI](#saved-login-cursor-agent) (`agent login`), logged-in Claude Code (see [Saved login](#saved-login-claude-code)), or `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` in the environment. `check` never calls an LLM.
 
 ## Quick start
@@ -115,14 +115,20 @@ Spec-gated in, verification-gated out: the design can't drift from its requireme
 ```text
 copperhead init [--path hardware/]   # scaffold docs/ from an existing schematic; idempotent
 copperhead do "<change request>"     # the core loop: propose, edit, verify, propagate, commit
+copperhead skill list                # registered skills (no LLM)
+copperhead skill run generate-report # read-only design report (needs a model)
 copperhead check                     # ERC + DRC + doc-drift + spec validation; no LLM calls (alias: verify)
-copperhead doctor                    # env preflight: kicad-cli, git, node, provider credential; no LLM/network
+copperhead explain U1                # look up a refdes, net, or pin from the schematic and docs; no LLM
+copperhead doctor                    # env preflight: node, kicad-cli, git, openspec, provider credential; no LLM/network
 copperhead sync [--dry-run]          # verify the whole design state, resolve drift
 copperhead create --brief brief.md   # brief → full output package
 copperhead export bom --supplier jlcpcb   # supplier-ready ordering file from docs/BOM.md
+copperhead mcp                       # EXPERIMENTAL: serve the gated pipeline to MCP hosts over stdio
 ```
 
-Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
+Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, `skill run`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.
+
+`copperhead create` still uses its own hardcoded stages; those are not yet skills.
 
 `--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), `codex` / `codex:<id>` (Codex CLI, saved login), `lmstudio` / `lmstudio:<id>` (LM Studio, no cloud key), and `compat:<id>` (an OpenAI-compatible endpoint via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV`). Routing is by prefix; `compat` and `lmstudio` are matched before the OpenAI catch-all. `lmstudio` sends prompts to `LMSTUDIO_BASE_URL`: it stays on your machine at the default localhost endpoint, while a remote endpoint receives that content. Bare `lmstudio` discovers a model from `/v1/models`; use `lmstudio:<id>` to pin one or bypass discovery. See [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
 
@@ -169,6 +175,39 @@ copperhead export bom --supplier mouser --spares 15     # Mouser cart CSV, 15% s
 
 Nothing is a black box: decisions land in an append-only `docs/DECISIONS.md`, every run writes a human-readable summary next to its transcript, and a per-run `docs/CHANGELOG.md` narrates the design history.
 
+## MCP server (experimental)
+
+Coding agents are already pointed at KiCad repos through generic file tools, which
+means a host agent can rewrite a `.kicad_sch` with no spec gate, no verification,
+and no rollback. `copperhead mcp` closes that: it serves the gated pipeline to any
+MCP host as five opaque, outcome-level tools — `copperhead_check`, `copperhead_do`,
+`copperhead_sync`, `copperhead_init`, `copperhead_doctor` — and nothing finer. There is no file-edit
+tool, no raw KiCad tool, and no partial-loop tool to reach around, so a host agent
+cannot skip spec-gating or verification by any sequence of calls.
+
+```jsonc
+// .mcp.json
+{
+  "mcpServers": {
+    "copperhead": {
+      "command": "copperhead",
+      "args": ["mcp", "--repo", "/absolute/path/to/your/kicad/project"]
+    }
+  }
+}
+```
+
+> **The surface is experimental and unstable.** It declares a `0.` protocol major:
+> tool names, inputs, and result shapes may change in any release, and there is no
+> registry listing until the stabilization criteria are met. Host configuration for
+> Claude Code and generic stdio hosts, the companion skill, the Codex gap, and those
+> criteria are all in [`integrations/`](integrations/README.md).
+
+`copperhead_check`, `copperhead_init` and `copperhead_doctor` need no credential; `copperhead_do` and
+`copperhead_sync` with `resolve: true` refuse with a typed error naming the missing
+environment variable. The server opens no network transport of its own — stdio only,
+and LLM calls happen exactly where the CLI already makes them.
+
 ## What it is not
 
 - **Not an autorouter.** Routing stays human or delegated; copperhead produces the DRC-clean draft that layout tools optimize from.
@@ -214,6 +253,7 @@ Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and 
 
 - [`AGENTS.md`](AGENTS.md): repository instructions loaded automatically by Codex and compatible coding agents; [`CLAUDE.md`](CLAUDE.md) provides the corresponding Claude Code guidance
 - [`src/`](src/): CLI ([`cli.ts`](src/cli.ts), [`commands/`](src/commands/)), the provider-agnostic agent loop ([`agent/`](src/agent/)), the `kicad-cli` wrapper and s-expression reader ([`kicad/`](src/kicad/)), and doc/constraint memory ([`memory/`](src/memory/))
+- [`integrations/`](integrations/README.md): MCP host configuration and the companion Claude Code skill
 - [`test/`](test/): offline suite plus [`fixtures/`](test/fixtures/), a tiny known-good KiCad project
 - [`openspec/specs/SPEC.md`](openspec/specs/SPEC.md): the full technical specification, including binary acceptance criteria
 - [`openspec/changes/build-copperhead-phase-1/`](openspec/changes/build-copperhead-phase-1/): the implementation plan with proposal, design decisions, capability specs, and task checklist

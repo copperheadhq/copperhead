@@ -56,6 +56,48 @@ function assistantToolUse(name: string, input: Record<string, unknown>): QueryMe
 function result(input = 0, output = 0): QueryMessage {
   return { type: 'result', subtype: 'success', usage: { input_tokens: input, output_tokens: output } };
 }
+function cachedResult(input: number, cacheRead: number, cacheCreation: number, output = 0): QueryMessage {
+  return {
+    type: 'result',
+    subtype: 'success',
+    usage: { input_tokens: input, output_tokens: output, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheCreation },
+  };
+}
+
+/** A partial-message event, as the SDK emits with includePartialMessages. */
+function streamEvent(type: string, delta?: { type: string; text?: string }): QueryMessage {
+  return { type: 'stream_event', event: { type, ...(delta ? { delta } : {}) } };
+}
+
+describe('ClaudeCodeProvider — progress streaming (turn watchdog)', () => {
+  it('turns on partial messages and reports every stream event as progress', async () => {
+    let options: Record<string, unknown> = {};
+    const provider = new ClaudeCodeProvider(
+      undefined,
+      fakeQuery(
+        [
+          streamEvent('message_start'),
+          streamEvent('content_block_delta', { type: 'thinking_delta' }),
+          streamEvent('content_block_delta', { type: 'text_delta', text: 'hel' }),
+          streamEvent('content_block_delta', { type: 'text_delta', text: 'lo' }),
+          assistant('hello'),
+          result(),
+        ],
+        (a) => {
+          options = a.options ?? {};
+        },
+      ),
+    );
+    const progress: number[] = [];
+    const turn = await provider.chat(messages, tools, { onStream: (chars) => progress.push(chars) });
+    expect(options.includePartialMessages).toBe(true);
+    // Thinking and block boundaries are progress with an unchanged count; only
+    // text deltas grow it. The complete message still supplies the reply.
+    expect(progress).toEqual([0, 0, 3, 5, 5]);
+    expect(turn.text).toBe('hello');
+    await provider.close();
+  });
+});
 
 describe('ClaudeCodeProvider — routing', () => {
   it('makeProvider routes claude-code and claude-code:<id> to ClaudeCodeProvider (no API key needed)', async () => {
@@ -108,6 +150,10 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(sys).toContain('read_file');
     expect(sys).toContain('finish');
     expect(sys).toContain('"properties"'); // the JSON Schema is included
+    // #192: the protocol invites batching and must not contradict the WORKFLOW rule
+    expect(sys).toMatch(/one or more JSON objects/);
+    expect(sys).toMatch(/same turn/);
+    expect(sys).not.toMatch(/EXACTLY ONE/i);
     // reasoning-only: the SDK is given no tools and built-ins are denied
     expect(opts.tools).toEqual([]);
     expect(Array.isArray(opts.disallowedTools) && (opts.disallowedTools as string[]).includes('Bash')).toBe(true);
@@ -133,7 +179,7 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(prompt).toContain('the file contents');
   });
 
-  it('parses multiple fenced tool blocks into multiple tool calls (accepts >1 even though the protocol asks for one)', async () => {
+  it('parses multiple fenced tool blocks into multiple tool calls (#192)', async () => {
     const reply = '```json\n{"tool":"read_file","args":{"path":"a"}}\n```\nthen\n```json\n{"tool":"finish","args":{"outcome":"done"}}\n```';
     const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
     const turn = await provider.chat(messages, tools);
@@ -165,6 +211,14 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(turn.toolCalls[0]!.args).toEqual({ path: 'docs/SUBSYSTEMS.md', content: doc });
   });
 
+  it('forwards the calls a mixed reply left undispatched (#306)', async () => {
+    const reply = '{"tool":"read_file","args":{"path":"docs/SPEC.md"}}\n{"tool":"write_file","args":{"path":"a.md","content":"x"}}';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools); // catalog = read_file, finish
+    expect(turn.toolCalls.map((c) => c.name)).toEqual(['read_file']);
+    expect(turn.undispatched).toEqual({ unavailable: ['write_file'], malformed: [] });
+  });
+
   it('nudges on a malformed near-miss tool call instead of silently dropping it (#I10)', async () => {
     // One closing brace short: scanJsonObject never balances the outer object,
     // so zero calls dispatch. The old parser returned no signal; now it detects
@@ -174,6 +228,56 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     const turn = await provider.chat(messages, tools);
     expect(turn.toolCalls).toHaveLength(0);
     expect(turn.nudge).toMatch(/read_file/);
+    expect(turn.nudge).toMatch(/malformed|re-emit/i);
+  });
+
+  // I18: the mirror of the near-miss above. A WELL-FORMED call naming a tool the
+  // turn withheld (the edit lock) parsed fine and was correctly not dispatched —
+  // and said nothing. The model filled the silence by inventing a "Tool not found.
+  // Available tools: …" error, concluded the drafting engine was absent from the
+  // build, and refused stage 4. The lock still withholds; it just says so now.
+  it('nudges with the real catalog when a well-formed call names a withheld tool (#I18)', async () => {
+    const reply = '```json\n{"tool":"draft_schematic","args":{"intent_json":"schematic.intent.json"}}\n```';
+    const propose: ToolSchema = { name: 'propose_change', description: 'Propose a change', parameters: { type: 'object', properties: {} } };
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, [...tools, propose]); // the main loop's catalog always offers propose_change
+    expect(turn.toolCalls).toHaveLength(0); // still not dispatched — the lock is structural
+    expect(turn.nudge).toMatch(/draft_schematic/);
+    expect(turn.nudge).toMatch(/propose_change/);
+    expect(turn.nudge).toMatch(/validate_change/);
+    // The real catalog, so the model cannot invent one.
+    expect(turn.nudge).toMatch(/read_file/);
+    expect(turn.nudge).toMatch(/finish/);
+  });
+
+  it('names the catalog, without proposal advice, where the turn offers no propose_change (a skill)', async () => {
+    const reply = '```json\n{"tool":"finish","args":{}}\n```';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools.filter((t) => t.name !== 'finish'));
+    expect(turn.toolCalls).toHaveLength(0);
+    expect(turn.nudge).toMatch(/"finish" is not in this turn's tool catalog/);
+    expect(turn.nudge).toMatch(/Available this turn: read_file\./);
+    expect(turn.nudge).not.toMatch(/propose_change/);
+  });
+
+  it('names every withheld tool when a turn calls more than one (#I18)', async () => {
+    const reply =
+      '```json\n{"tool":"write_file","args":{"path":"a","content":"x"}}\n```\n' +
+      '```json\n{"tool":"draft_schematic","args":{}}\n```';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.toolCalls).toHaveLength(0);
+    expect(turn.nudge).toMatch(/write_file/);
+    expect(turn.nudge).toMatch(/draft_schematic/);
+  });
+
+  it('prefers the malformed steer when one named tool is in the catalog and another is not (#I18)', async () => {
+    // A near-miss on a catalog tool is the more actionable defect: fix the JSON.
+    const reply =
+      '```json\n{"tool":"read_file","args":{"path":"a"}\n```\n' +
+      '```json\n{"tool":"draft_schematic","args":{}}\n```';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools);
     expect(turn.nudge).toMatch(/malformed|re-emit/i);
   });
 
@@ -338,6 +442,27 @@ describe('ClaudeCodeProvider — session resume (1.1)', () => {
     expect(seen[1]!.prompt).not.toContain('[assistant tool call]'); // our own reply isn't re-sent
   });
 
+  it('starts a new session after close(), so a retried turn cannot duplicate a torn-down turn', async () => {
+    const seen: Array<{ prompt: string; options?: Record<string, unknown> }> = [];
+    const q: QueryLike = (args) => {
+      seen.push(args);
+      return (async function* () {
+        for (const m of withSession('sess-123', [assistant('ok'), result()])) yield m;
+      })();
+    };
+    const provider = new ClaudeCodeProvider(undefined, q, undefined, true);
+    const first: Msg[] = [
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'do it' },
+    ];
+    await provider.chat(first, tools);
+    // The watchdog closes the provider on a hung turn, then the turn is retried.
+    await provider.close();
+    await provider.chat([...first, { role: 'assistant', content: 'ok' }, { role: 'user', content: 'next' }], tools);
+    expect((seen[1]!.options ?? {}).resume).toBeUndefined();
+    expect(seen[1]!.prompt).toContain('do it'); // the whole conversation, in a new session
+  });
+
   it('is off by default: every turn re-sends the full flattened history, never resume', async () => {
     const seen: Array<{ prompt: string; options?: Record<string, unknown> }> = [];
     const q: QueryLike = (args) => {
@@ -447,5 +572,19 @@ describe('ClaudeCodeProvider — missing optional dependency', () => {
     const provider = new ClaudeCodeProvider(undefined, undefined, () => Promise.resolve({}));
     const caught = await provider.chat(messages, tools).catch((e: Error) => e);
     expect(caught.message).toContain('did not export `query`');
+  });
+});
+
+describe('ClaudeCodeProvider — cached input tokens (AC-18.4, AC-18.5)', () => {
+  it('counts cache reads and cache creation as input, like the Anthropic provider', async () => {
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('ok'), cachedResult(2, 41000, 1500, 7)]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.usage).toEqual({ inputTokens: 42502, outputTokens: 7 });
+  });
+
+  it('a result with no cache fields counts its uncached input alone', async () => {
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('ok'), result(900, 3)]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.usage).toEqual({ inputTokens: 900, outputTokens: 3 });
   });
 });

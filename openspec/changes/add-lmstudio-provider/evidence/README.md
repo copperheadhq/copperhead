@@ -1,7 +1,7 @@
-# Live-run evidence — `--model lmstudio` (AC-3.21, AC-3.1, AC-3.7)
+# Live-run evidence — `--model lmstudio` (AC-3.24, AC-3.1, AC-3.7)
 
 A real `copperhead do` run driven entirely by a local model, with **no cloud API key
-in the environment**. This is the acceptance evidence for AC-3.21 and a live pass of
+in the environment**. This is the acceptance evidence for AC-3.24 and a live pass of
 AC-3.1 (propagating rename) and AC-3.7 (surgical diff) on the local provider.
 
 ## Environment
@@ -36,7 +36,7 @@ done · ERC clean · committed caa4d069a7 · 42s · 31.4k in / 788 out
 
 ## What the run demonstrates
 
-**No cloud key, no cloud call (AC-3.21).** The run completed with `OPENAI_API_KEY` and
+**No cloud key, no cloud call (AC-3.24).** The run completed with `OPENAI_API_KEY` and
 `ANTHROPIC_API_KEY` removed from the environment. Nothing but `localhost:1234` was
 contacted.
 

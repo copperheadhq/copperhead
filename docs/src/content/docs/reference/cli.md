@@ -19,9 +19,12 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `demo` | [Simple demo](/getting-started/demo/) | Tour no / pipeline yes | Tour of what copperhead does, or run the USB-C breakout create pipeline. |
 | `init` | Setup | No | Scaffolds `docs/` from an existing schematic. |
 | `check` (`verify`) | Either | No | ERC, DRC, drift, constraints, spec validation. CI-safe. |
+| `explain` | Either | No | Look up a refdes, net, or pin in the schematic and docs. |
 | `do` | [Edit an existing board](/workflows/edit-existing-board/) | Yes | One change: propose, edit, verify, propagate, commit. |
 | `create` | [Design from a brief](/workflows/create-from-brief/) | Yes | Full pipeline from a markdown brief to an output package. |
 | `sync` | Either | Verify phase no, resolve phase yes | Reconciles docs, files, and constraints. |
+| `draft` | [Design from a brief](/workflows/create-from-brief/) | No | Deterministically draws the schematic from `schematic.intent.json`. |
+| `score` | Either | No | Quantitative legibility score for the schematic (0-100, advisory). |
 
 ## Global options
 
@@ -50,7 +53,7 @@ copperhead repl --model claude-code
 | `--allow-dirty` | Permit a dirty working tree, same meaning and same default (off) as on `do`. |
 | `--interactive` | Pause for approval after each proposal validates. |
 
-Slash commands inside the shell: `/help`, `/demo`, `/examples`, `/status`, `/check`, `/parts`, `/nets`, `/bom`, `/sync`, `/drift`, `/constraints`, `/openspec`, `/config`, `/git`, `/runs`, `/last`, `/model`, `/version`, `/clear`, `/quit` (`/exit`, `/q`). Type `/` to see live filtered suggestions immediately; ↑/↓ + Enter picks one, Tab completes. `/model` opens an arrow-key picker and switches the session model in place. Requires a TTY (or a seed request for a one-shot non-TTY run). `--json` is refused; use `copperhead do … --json` instead.
+Slash commands inside the shell: `/help`, `/demo`, `/examples`, `/status`, `/check`, `/parts`, `/nets`, `/explain`, `/bom`, `/sync`, `/drift`, `/constraints`, `/openspec`, `/config`, `/git`, `/runs`, `/last`, `/model`, `/version`, `/clear`, `/quit` (`/exit`, `/q`). Type `/` to see live filtered suggestions immediately; ↑/↓ + Enter picks one, Tab completes. `/model` opens an arrow-key picker and switches the session model in place. Requires a TTY (or a seed request for a one-shot non-TTY run). `--json` is refused; use `copperhead do … --json` instead.
 
 ## `copperhead demo`
 
@@ -120,7 +123,52 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `0` | Everything agrees. |
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, and `constraints`.
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+
+## `copperhead explain`
+
+```bash
+copperhead explain U1
+copperhead explain GND
+copperhead explain U1.GPIO14
+copperhead --json explain R2.1
+```
+
+Looks up a refdes, net, or pin in the schematic and the design docs. A refdes prints value, footprint, library id, sheet, and every pin with its net. A net prints the pins attached to it. A pin (`U1.GPIO14` or `R2.1`) prints the connected net. Unique pin names (`GPIO14`) resolve without a refdes. Matching BOM.md / PINOUT.md rows and other doc mentions are included when those files exist.
+
+Makes **no LLM calls and no network requests**. Does not require `kicad-cli` (it reads the schematic the same way `init` does).
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | The query resolved. |
+| `1` | Unknown query, missing schematic, or a read error. Nearby names are suggested when they exist. |
+
+With `--json`, prints `{ ok: true, hit }` or `{ ok: false, error, suggestions }`. `hit.kind` is `part`, `net`, or `pin`.
+
+## `copperhead draft schematic`
+
+```bash
+copperhead draft schematic
+copperhead draft schematic --intent hardware/schematic.intent.json
+```
+
+Regenerates the configured schematic deterministically from the netlist-intent IR. The verb takes the artifact as a noun (`draft pcb` is reserved for layout drafting), so `draft` alone never has to guess what it applies to: parts, nets, groups, and no-connects in; placement, wires, labels, power symbols, and captioned group boxes out. Same intent, same bytes, every run. Makes no LLM calls and no network requests. See [How schematics are drafted](/reference/schematic-drafting/).
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Drafted and written (also writes the vendored `sym-lib-cache/`, `sym-lib-table`, and a minimal `.kicad_pro` when absent). |
+| `1` | Intent validation failed; the numbered findings are printed and the previous schematic is untouched. |
+
+## `copperhead score schematic`
+
+```bash
+copperhead score schematic
+copperhead score schematic --file path/to/any.kicad_sch
+```
+
+`--file <path>` scores any `.kicad_sch` instead of the configured schematic, without a repo. The report carries two composites: the gated one, capped by error-severity legibility findings, and the convention-free wiring-style one, which is never capped.
+
+Prints the quantitative legibility score: a 0-100 composite with the per-metric breakdown (crossings, bends, wire length, alignment, spacing uniformity, symmetry, balance, and more). Error-severity legibility findings cap the composite. Advisory by design: the exit code never depends on the score. Makes no LLM calls and no network requests.
 
 ## `copperhead doctor`
 
@@ -199,7 +247,7 @@ Each stage is a full `do` loop with its own prompt and gate. Stage completion is
 | 4 | `schematic` | The `.kicad_sch`, ERC clean after each sheet |
 | 5 | `layout` | Draft placement and critical routing, DRC clean, plus a `## Draft quality` section in `LAYOUT.md` |
 | 6 | `outputs` | `outputs/`: gerbers, drill, DXF, STEP, SVG, `BOM.csv` |
-| 7 | `firmware` | `firmware/` scaffold, `pins.h` generated from `PINOUT.md` |
+| 7 | `firmware` | `firmware/` scaffold, `pins.h` generated from `PINOUT.md`; on a board with nothing programmable, a `firmware/README.md` that opens `# No firmware` and says why |
 | 8 | `devplan` | `docs/DEVPLAN.md` |
 
 Stages build on each other's uncommitted state, so `create` runs them as if `--allow-dirty` were set.

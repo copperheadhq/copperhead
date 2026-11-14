@@ -75,7 +75,7 @@ export class AnthropicProvider implements Provider {
       ...(system ? { system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }] } : {}),
       messages: conv as never,
       ...(tools.length ? { tools: toolDefs as never } : {}),
-    });
+    }, opts.signal ? { signal: opts.signal } : undefined);
 
     let text: string | null = null;
     const toolCalls = [];

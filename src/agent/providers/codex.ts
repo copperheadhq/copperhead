@@ -15,7 +15,7 @@ type CodexThreadOptions = Pick<
   | 'networkAccessEnabled'
   | 'webSearchMode'
 >;
-type CodexTurnOptions = Pick<TurnOptions, 'outputSchema'>;
+type CodexTurnOptions = Pick<TurnOptions, 'outputSchema' | 'signal'>;
 
 interface CodexTurnLike {
   finalResponse: string;
@@ -58,6 +58,13 @@ export class CodexProvider implements Provider {
   private readonly client: CodexClientLike;
   private thread: CodexThreadLike | null = null;
   private messageCursor = 0;
+  /** In-flight turn aborters, so close() (called by the turn watchdog on a hung
+   * turn) kills the `codex exec` subprocess instead of orphaning it. */
+  private readonly inFlight = new Set<AbortController>();
+  /** Bumped by close(). A turn begun under an earlier generation was abandoned;
+   * if it settles late it must not touch the thread or cursor that replaced it,
+   * or it would mark messages seen that the fresh thread never received. */
+  private generation = 0;
 
   constructor(options: CodexProviderOptions) {
     this.model = options.model;
@@ -67,53 +74,88 @@ export class CodexProvider implements Provider {
   }
 
   async chat(messages: Msg[], tools: ToolSchema[], _opts: ChatOpts = {}): Promise<Turn> {
-    const workingDirectory = await this.ensureWorkingDirectory();
-    if (!this.thread) {
-      this.thread = this.client.startThread({
-        ...(this.model ? { model: this.model } : {}),
-        workingDirectory,
-        skipGitRepoCheck: true,
-        sandboxMode: 'read-only',
-        approvalPolicy: 'never',
-        networkAccessEnabled: false,
-        webSearchMode: 'disabled',
-      });
-    }
-
-    const cursor = this.messageCursor;
-    const schema = turnSchema(tools);
-    const toolCatalog = new Map(tools.map((tool) => [tool.name, tool]));
-    const attempts: CodexTurnLike[] = [];
-    let result = await this.runThread(renderTurnPrompt(messages, cursor, tools), schema);
-    attempts.push(result);
-
-    let parsed: ReturnType<typeof parseStructuredTurn>;
+    const generation = this.generation;
+    const aborter = new AbortController();
+    this.inFlight.add(aborter);
     try {
-      parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
-    } catch (err) {
-      const validationError = (err as Error).message;
-      result = await this.runThread(renderCorrectionPrompt(tools, validationError), schema);
-      attempts.push(result);
-      parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
-    }
+      const workingDirectory = await this.ensureWorkingDirectory();
+      this.assertCurrent(generation);
+      if (!this.thread) {
+        this.thread = this.client.startThread({
+          ...(this.model ? { model: this.model } : {}),
+          workingDirectory,
+          skipGitRepoCheck: true,
+          sandboxMode: 'read-only',
+          approvalPolicy: 'never',
+          networkAccessEnabled: false,
+          webSearchMode: 'disabled',
+        });
+      }
+      const thread = this.thread;
 
-    // The input remains unseen until Copperhead accepts a structured turn.
-    this.messageCursor = messages.length;
-    return {
-      text: parsed.text.trim() || null,
-      toolCalls: parsed.toolCalls,
-      usage: {
-        inputTokens: attempts.reduce((sum, attempt) => sum + (attempt.usage?.input_tokens ?? 0), 0),
-        outputTokens: attempts.reduce((sum, attempt) => sum + (attempt.usage?.output_tokens ?? 0), 0),
-      },
-    };
+      const cursor = this.messageCursor;
+      const schema = turnSchema(tools);
+      const toolCatalog = new Map(tools.map((tool) => [tool.name, tool]));
+      const attempts: CodexTurnLike[] = [];
+      let result = await this.runThread(thread, renderTurnPrompt(messages, cursor, tools), schema, aborter.signal);
+      this.assertCurrent(generation);
+      attempts.push(result);
+
+      let parsed: ReturnType<typeof parseStructuredTurn>;
+      try {
+        parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
+      } catch (err) {
+        const validationError = (err as Error).message;
+        result = await this.runThread(thread, renderCorrectionPrompt(tools, validationError), schema, aborter.signal);
+        this.assertCurrent(generation);
+        attempts.push(result);
+        parsed = parseStructuredTurn(result.finalResponse, toolCatalog);
+      }
+
+      // The input remains unseen until Copperhead accepts a structured turn.
+      this.messageCursor = messages.length;
+      return {
+        text: parsed.text.trim() || null,
+        toolCalls: parsed.toolCalls,
+        usage: {
+          inputTokens: attempts.reduce((sum, attempt) => sum + (attempt.usage?.input_tokens ?? 0), 0),
+          outputTokens: attempts.reduce((sum, attempt) => sum + (attempt.usage?.output_tokens ?? 0), 0),
+        },
+      };
+    } finally {
+      this.inFlight.delete(aborter);
+    }
   }
 
   async close(): Promise<void> {
+    this.generation++;
+    for (const aborter of this.inFlight) {
+      try {
+        aborter.abort();
+      } catch {
+        // best effort: a turn that already settled has nothing to tear down
+      }
+    }
+    this.inFlight.clear();
+    // A fresh thread has seen nothing, so the next turn must send the full
+    // history (system prompt and request included), not the delta meant for the
+    // thread being discarded; otherwise a retried turn runs without context.
     this.thread = null;
-    if (this.ownsWorkingDirectory && this.workingDirectory) {
-      await rm(this.workingDirectory, { recursive: true, force: true });
+    this.messageCursor = 0;
+    // Forget the directory before deleting it: the watchdog does not await
+    // close(), so a retried turn can start while rm is still running, and it must
+    // create a fresh directory rather than reuse the one being deleted.
+    const dir = this.workingDirectory;
+    if (this.ownsWorkingDirectory && dir) {
       this.workingDirectory = null;
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  /** Throw if close() ran since the turn began (see `generation`). */
+  private assertCurrent(generation: number): void {
+    if (generation !== this.generation) {
+      throw new Error('codex: turn abandoned because the provider was closed while it ran');
     }
   }
 
@@ -126,9 +168,16 @@ export class CodexProvider implements Provider {
     return this.workingDirectory;
   }
 
-  private async runThread(prompt: string, outputSchema: Record<string, unknown>): Promise<CodexTurnLike> {
+  private async runThread(
+    thread: CodexThreadLike,
+    prompt: string,
+    outputSchema: Record<string, unknown>,
+    signal: AbortSignal,
+  ): Promise<CodexTurnLike> {
     try {
-      return await this.thread!.run(prompt, { outputSchema });
+      // The turn's own thread, not `this.thread`, which close() may have
+      // replaced; the signal lets close() kill the `codex exec` subprocess.
+      return await thread.run(prompt, { outputSchema, signal });
     } catch (err) {
       const original = err as Error & { status?: number; statusCode?: number };
       const setupHint = isCliSetupError(original)

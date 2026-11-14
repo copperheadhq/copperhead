@@ -1,0 +1,357 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "J1",
+      "libId": "Connector:USB_B_Micro",
+      "value": "USB_B_Micro",
+      "footprint": "Connector_USB:USB_Micro-B_Amphenol_10118193-0001LF_Horizontal",
+      "group": "Power Input"
+    },
+    {
+      "ref": "F1",
+      "libId": "Device:Polyfuse",
+      "value": "500mA",
+      "footprint": "Fuse:Fuse_1206_3216Metric",
+      "group": "Power Input"
+    },
+    {
+      "ref": "CP1",
+      "libId": "Device:C_Polarized",
+      "value": "47u/16V",
+      "footprint": "Capacitor_SMD:CP_Elec_6.3x7.7",
+      "group": "Power Input"
+    },
+    {
+      "ref": "U2",
+      "libId": "Regulator_Linear:AMS1117-3.3",
+      "value": "AMS1117-3.3",
+      "footprint": "Package_TO_SOT_SMD:SOT-223-3_TabPin2",
+      "group": "Regulation"
+    },
+    {
+      "ref": "C1",
+      "libId": "Device:C",
+      "value": "10u/16V",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Regulation"
+    },
+    {
+      "ref": "C2",
+      "libId": "Device:C",
+      "value": "10u/16V",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Regulation"
+    },
+    {
+      "ref": "U1",
+      "libId": "MCU_Microchip_ATmega:ATmega328P-A",
+      "value": "ATmega328P-A",
+      "footprint": "Package_QFP:TQFP-32_7x7mm_P0.8mm",
+      "group": "MCU"
+    },
+    {
+      "ref": "C3",
+      "libId": "Device:C",
+      "value": "100n",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "MCU"
+    },
+    {
+      "ref": "C4",
+      "libId": "Device:C",
+      "value": "100n",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "MCU"
+    },
+    {
+      "ref": "C6",
+      "libId": "Device:C",
+      "value": "100n",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "MCU"
+    },
+    {
+      "ref": "R1",
+      "libId": "Device:R",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "MCU"
+    },
+    {
+      "ref": "R4",
+      "libId": "Device:R",
+      "value": "100k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "MCU"
+    },
+    {
+      "ref": "R5",
+      "libId": "Device:R",
+      "value": "47k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "MCU"
+    },
+    {
+      "ref": "Y1",
+      "libId": "Device:Crystal",
+      "value": "16MHz",
+      "footprint": "Crystal:Crystal_SMD_HC49-SD",
+      "group": "Clock"
+    },
+    {
+      "ref": "C7",
+      "libId": "Device:C",
+      "value": "22p",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Clock"
+    },
+    {
+      "ref": "C8",
+      "libId": "Device:C",
+      "value": "22p",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Clock"
+    },
+    {
+      "ref": "J2",
+      "libId": "Connector_Generic:Conn_01x04",
+      "value": "Conn_01x04",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "group": "IO Headers"
+    },
+    {
+      "ref": "R2",
+      "libId": "Device:R",
+      "value": "4k7",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "IO Headers"
+    },
+    {
+      "ref": "R6",
+      "libId": "Device:R",
+      "value": "4k7",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "IO Headers"
+    },
+    {
+      "ref": "J3",
+      "libId": "Connector_Generic:Conn_01x06",
+      "value": "Conn_01x06",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
+      "group": "IO Headers"
+    },
+    {
+      "ref": "J4",
+      "libId": "Connector_Generic:Conn_02x03_Odd_Even",
+      "value": "Conn_02x03_Odd_Even",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_2x03_P2.54mm_Vertical",
+      "group": "IO Headers"
+    },
+    {
+      "ref": "R3",
+      "libId": "Device:R",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "Status"
+    },
+    {
+      "ref": "D1",
+      "libId": "Device:LED",
+      "value": "green",
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "group": "Status"
+    }
+  ],
+  "nets": [
+    {
+      "name": "VBUS",
+      "pins": [
+        "J1.1",
+        "F1.1"
+      ]
+    },
+    {
+      "name": "VBUS_F",
+      "pins": [
+        "F1.2",
+        "CP1.1",
+        "C1.1",
+        "U2.3",
+        "R4.1"
+      ]
+    },
+    {
+      "name": "+3V3",
+      "pins": [
+        "U2.2",
+        "C2.1",
+        "U1.4",
+        "U1.6",
+        "U1.18",
+        "C3.1",
+        "C4.1",
+        "R1.1",
+        "R2.1",
+        "R6.1",
+        "R3.1",
+        "J2.1",
+        "J3.3",
+        "J4.2"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "J1.5",
+        "J1.SH",
+        "CP1.2",
+        "C1.2",
+        "C2.2",
+        "C3.2",
+        "C4.2",
+        "C6.2",
+        "C7.2",
+        "C8.2",
+        "U1.3",
+        "U1.5",
+        "U1.21",
+        "U2.1",
+        "R5.2",
+        "D1.1",
+        "J2.2",
+        "J3.1",
+        "J4.6"
+      ]
+    },
+    {
+      "name": "nRESET",
+      "pins": [
+        "U1.29",
+        "R1.2",
+        "J4.5"
+      ]
+    },
+    {
+      "name": "XTAL1",
+      "pins": [
+        "U1.7",
+        "Y1.1",
+        "C7.1"
+      ]
+    },
+    {
+      "name": "XTAL2",
+      "pins": [
+        "U1.8",
+        "Y1.2",
+        "C8.1"
+      ]
+    },
+    {
+      "name": "AREF",
+      "pins": [
+        "U1.20",
+        "C6.1"
+      ]
+    },
+    {
+      "name": "VSENSE",
+      "pins": [
+        "R4.2",
+        "R5.1",
+        "U1.19"
+      ]
+    },
+    {
+      "name": "SDA",
+      "pins": [
+        "U1.27",
+        "R2.2",
+        "J2.3"
+      ]
+    },
+    {
+      "name": "SCL",
+      "pins": [
+        "U1.28",
+        "R6.2",
+        "J2.4"
+      ]
+    },
+    {
+      "name": "UART_RX",
+      "pins": [
+        "U1.30",
+        "J3.4"
+      ]
+    },
+    {
+      "name": "UART_TX",
+      "pins": [
+        "U1.31",
+        "J3.5"
+      ]
+    },
+    {
+      "name": "ISP_MISO",
+      "pins": [
+        "U1.16",
+        "J4.1"
+      ]
+    },
+    {
+      "name": "ISP_SCK",
+      "pins": [
+        "U1.17",
+        "J4.3"
+      ]
+    },
+    {
+      "name": "ISP_MOSI",
+      "pins": [
+        "U1.15",
+        "J4.4"
+      ]
+    },
+    {
+      "name": "LED_A",
+      "pins": [
+        "R3.2",
+        "D1.2"
+      ]
+    }
+  ],
+  "noConnect": [
+    "J1.2",
+    "J1.3",
+    "J1.4",
+    "J3.2",
+    "J3.6",
+    "U1.1",
+    "U1.2",
+    "U1.9",
+    "U1.10",
+    "U1.11",
+    "U1.12",
+    "U1.13",
+    "U1.14",
+    "U1.22",
+    "U1.23",
+    "U1.24",
+    "U1.25",
+    "U1.26",
+    "U1.32"
+  ],
+  "hints": {
+    "groupOrder": [
+      "Power Input",
+      "Regulation",
+      "MCU",
+      "Clock",
+      "IO Headers",
+      "Status"
+    ],
+    "date": "2026-08-04"
+  }
+}

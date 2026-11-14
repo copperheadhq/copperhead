@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for filing a bug. Please do not report security issues here: use
-        [private vulnerability reporting](https://github.com/chouhanindustries/copperhead/security/advisories/new) instead.
+        [private vulnerability reporting](https://github.com/copperheadhq/copperhead/security/advisories/new) instead.
 
         Scrub API keys from any logs you paste.
 

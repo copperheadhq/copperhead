@@ -13,7 +13,7 @@ The agent cannot touch a KiCad file until a validated OpenSpec proposal for the 
 
 ## Verification-gated out
 
-No file mutation counts as done until `kicad-cli` ERC passes, plus DRC if the board changed. On failure the agent reads the normalized report back and repairs, up to `maxRepairCycles` attempts. If it still cannot get clean, the run rolls back to the git snapshot taken before the first edit.
+No file mutation counts as done until `kicad-cli` ERC passes, plus DRC if the board changed. On failure the agent reads the normalized report back and repairs, up to `maxRepairCycles` repairs that did not help (a failing check no better than the one before). If it still cannot get clean, the run rolls back to the git snapshot taken before the first edit.
 
 Spec-gated in, verification-gated out: the design cannot drift from its requirements, because drift is a build failure.
 

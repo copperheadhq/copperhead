@@ -7,6 +7,9 @@
 //   node .claude/skills/pr-review/scripts/metrics.mjs --base <ref> [flags]
 //
 // Flags:
+//   --dir <path>    measure in this checkout (the review worktree from
+//                   worktree.mjs setup) instead of the current directory, so
+//                   the user's working tree is never switched or touched
 //   --no-tests      skip the test suite (and therefore coverage)
 //   --no-coverage   run the suite but skip diff coverage
 //   --base-tests    also run the suite at the merge base, in a temp worktree
@@ -17,7 +20,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -55,6 +58,7 @@ let baseRefArg = null;
 let runTests = true;
 let runCoverage = true;
 let runBaseTests = false;
+let dirArg = null;
 
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -62,6 +66,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--no-coverage') runCoverage = false;
   else if (a === '--base-tests') runBaseTests = true;
   else if (a === '--base') baseRefArg = argv[++i];
+  else if (a === '--dir') dirArg = argv[++i];
   else if (/^\d+$/.test(a)) prNumber = a;
   else {
     console.error(`unknown argument: ${a}`);
@@ -69,8 +74,18 @@ for (let i = 0; i < argv.length; i++) {
   }
 }
 if (!prNumber && !baseRefArg) {
-  console.error('usage: metrics.mjs <pr-number> | --base <ref>  [--no-tests] [--no-coverage] [--base-tests]');
+  console.error('usage: metrics.mjs <pr-number> | --base <ref>  [--dir <path>] [--no-tests] [--no-coverage] [--base-tests]');
   process.exit(2);
+}
+
+// --dir points at the review worktree, so every git command, the suite, and
+// coverage run there and the user's own checkout is never entered.
+if (dirArg) {
+  if (!existsSync(dirArg)) {
+    console.error(`--dir ${dirArg} does not exist (run: worktree.mjs setup ${prNumber ?? ''})`);
+    process.exit(2);
+  }
+  process.chdir(dirArg);
 }
 
 const repoRoot = run('git', ['rev-parse', '--show-toplevel']).trim();
@@ -95,10 +110,10 @@ if (prNumber) {
 
 tryRun('git', ['fetch', '--quiet', 'origin', baseRef]);
 
-const currentBranch = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
+const checkedOutSha = run('git', ['rev-parse', 'HEAD']).trim();
 let headSpec; // rev to diff/measure against
-let onHead; // is the head actually checked out (tests/coverage need this)
-if (!headRefName || currentBranch === headRefName) {
+let onHead; // is the head actually checked out here (tests/coverage need this)
+if (!headRefName) {
   headSpec = 'HEAD';
   onHead = true;
 } else {
@@ -109,12 +124,16 @@ if (!headRefName || currentBranch === headRefName) {
     (tryRun('git', ['rev-parse', '--verify', prRef]) && prRef) ||
     (tryRun('git', ['rev-parse', '--verify', `origin/${headRefName}`]) && `origin/${headRefName}`) ||
     (tryRun('git', ['rev-parse', '--verify', headRefName]) && headRefName);
-  onHead = false;
   if (!headSpec) {
-    console.error(`cannot resolve PR head "${headRefName}" locally; run: gh pr checkout ${prNumber}`);
+    console.error(`cannot resolve PR head "${headRefName}" locally; run: node .claude/skills/pr-review/scripts/worktree.mjs setup ${prNumber}`);
     process.exit(1);
   }
-  notes.push(`head branch not checked out: diff metrics use ${headSpec}; tests and coverage not run (gh pr checkout ${prNumber} to enable)`);
+  // Compare commits, not branch names: the review worktree sits at the PR head
+  // detached, so a name comparison would wrongly report it as not checked out.
+  const headSha = run('git', ['rev-parse', '--verify', `${headSpec}^{commit}`]).trim();
+  onHead = headSha === checkedOutSha;
+  if (onHead) headSpec = 'HEAD';
+  else notes.push(`PR head not checked out here: diff metrics use ${headSpec}; tests and coverage not run (node .claude/skills/pr-review/scripts/worktree.mjs setup ${prNumber}, then pass --dir <worktree>)`);
 }
 
 const baseSpec = tryRun('git', ['rev-parse', '--verify', `origin/${baseRef}`]) ? `origin/${baseRef}` : baseRef;
@@ -343,7 +362,7 @@ if (runTests && onHead) {
     }
   }
 } else if (runTests && !onHead) {
-  notes.push('head suite and coverage: not measured (head branch not checked out)');
+  notes.push('head suite and coverage: not measured (PR head not checked out here; set up the review worktree and pass --dir)');
 } else {
   notes.push('head suite and coverage: skipped (--no-tests)');
 }
@@ -352,7 +371,10 @@ if (runBaseTests && onHead) {
   const wt = mkdtempSync(join(tmpdir(), 'pr-base-'));
   try {
     run('git', ['worktree', 'add', '--detach', wt, mergeBase], { stdio: 'ignore' });
-    symlinkSync(join(repoRoot, 'node_modules'), join(wt, 'node_modules'));
+    // repoRoot may itself be the review worktree, whose node_modules is a
+    // symlink into the main checkout: linking to a link resolves the same way
+    if (existsSync(join(repoRoot, 'node_modules'))) symlinkSync(join(repoRoot, 'node_modules'), join(wt, 'node_modules'), 'dir');
+    else notes.push('base suite: no node_modules to link into the base worktree');
     baseSuite = runSuite(wt, false, null);
     if (!baseSuite) notes.push('base suite: not measured (vitest produced no JSON results in the worktree)');
     if (baseSuite && pkgJsonChanged)
@@ -361,10 +383,13 @@ if (runBaseTests && onHead) {
     notes.push(`base suite: not measured (worktree run failed: ${e.message?.split('\n')[0]})`);
   } finally {
     tryRun('git', ['worktree', 'remove', '--force', wt], { stdio: 'ignore' });
+    // never recurse into the symlinked node_modules while deleting the worktree
+    const linked = join(wt, 'node_modules');
+    if (existsSync(linked) && lstatSync(linked).isSymbolicLink()) rmSync(linked, { force: true });
     rmSync(wt, { recursive: true, force: true });
   }
 } else if (runBaseTests) {
-  notes.push('base suite: not run (head branch not checked out)');
+  notes.push('base suite: not run (PR head not checked out here)');
 } else {
   notes.push('base suite: not run (pass --base-tests to run it in a temp worktree, or read base CI)');
 }
@@ -415,6 +440,7 @@ console.log('== metrics block ==');
 console.log(block.join('\n'));
 
 console.log('\n== method ==');
+console.log(`measured in: ${repoRoot}${dirArg ? ' (review worktree; the user\'s checkout was not entered)' : ''}`);
 console.log(`merge base: ${mergeBase} (git merge-base ${baseSpec} ${headSpec})`);
 console.log('areas: git diff --numstat against the merge base, classified src/ test/ openspec/ docs+*.md/ other; generated files excluded');
 console.log('suite: npx vitest run --reporter=json; coverage: vitest --coverage.provider=v8 intersected with the changed src lines from git diff -U0');

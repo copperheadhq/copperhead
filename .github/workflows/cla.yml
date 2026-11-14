@@ -23,6 +23,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: 'signatures/cla.json'
-          path-to-document: 'https://github.com/chouhanindustries/copperhead/blob/main/.github/cla/CLA.md'
+          path-to-document: 'https://github.com/copperheadhq/copperhead/blob/main/.github/cla/CLA.md'
           branch: 'cla-signatures'
           allowlist: 'animesh-chouhan,claude,dependabot[bot],*[bot]'

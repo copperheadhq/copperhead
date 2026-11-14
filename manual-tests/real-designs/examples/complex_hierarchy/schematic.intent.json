@@ -1,0 +1,895 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "C101",
+      "libId": "complex_hierarchy:CP",
+      "value": "47uF/63V",
+      "footprint": "Capacitor_THT:CP_Axial_L11.0mm_D6.0mm_P18.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C102",
+      "libId": "complex_hierarchy:CP",
+      "value": "47uF",
+      "footprint": "Capacitor_THT:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C103",
+      "libId": "complex_hierarchy:CP",
+      "value": "10uF",
+      "footprint": "Capacitor_THT:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C104",
+      "libId": "complex_hierarchy:CP",
+      "value": "47uF/20V",
+      "footprint": "Capacitor_THT:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "C105",
+      "libId": "complex_hierarchy:CP",
+      "value": "10uF",
+      "footprint": "Capacitor_THT:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "D101",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4007",
+      "footprint": "Diode_THT:D_DO-41_SOD81_P12.70mm_Horizontal",
+      "group": "Main"
+    },
+    {
+      "ref": "P101",
+      "libId": "complex_hierarchy:CONN_2",
+      "value": "CONN_2",
+      "footprint": "TerminalBlock_Altech:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "Main"
+    },
+    {
+      "ref": "P102",
+      "libId": "complex_hierarchy:CONN_2",
+      "value": "CONN_2",
+      "footprint": "TerminalBlock_Altech:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "Main"
+    },
+    {
+      "ref": "U101",
+      "libId": "complex_hierarchy:7805",
+      "value": "78L05",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "Main"
+    },
+    {
+      "ref": "U102",
+      "libId": "complex_hierarchy:ICL7660",
+      "value": "ICL7660",
+      "footprint": "Package_DIP:DIP-8_W7.62mm_LongPads",
+      "group": "Main"
+    },
+    {
+      "ref": "C201",
+      "libId": "complex_hierarchy:C",
+      "value": "15nF",
+      "footprint": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "C202",
+      "libId": "complex_hierarchy:C",
+      "value": "150nF",
+      "footprint": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "C203",
+      "libId": "complex_hierarchy:C",
+      "value": "4.7nF",
+      "footprint": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "C204",
+      "libId": "complex_hierarchy:C",
+      "value": "820pF",
+      "footprint": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "D201",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4148",
+      "footprint": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "D202",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4148",
+      "footprint": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "D203",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4148",
+      "footprint": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "D204",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4148",
+      "footprint": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "P201",
+      "libId": "complex_hierarchy:CONN_2",
+      "value": "CONN_2",
+      "footprint": "TerminalBlock_Altech:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "P202",
+      "libId": "complex_hierarchy:CONN_2",
+      "value": "CONN_2",
+      "footprint": "TerminalBlock_Altech:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "Q201",
+      "libId": "complex_hierarchy:MPSA92",
+      "value": "MPSA92",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "Q202",
+      "libId": "complex_hierarchy:MPSA42",
+      "value": "MPSA42",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "Q203",
+      "libId": "complex_hierarchy:MPSA92",
+      "value": "MPSA92",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "Q204",
+      "libId": "complex_hierarchy:MPSA42",
+      "value": "MPSA42",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R201",
+      "libId": "complex_hierarchy:R",
+      "value": "1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R202",
+      "libId": "complex_hierarchy:R",
+      "value": "22K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R203",
+      "libId": "complex_hierarchy:R",
+      "value": "22K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R204",
+      "libId": "complex_hierarchy:R",
+      "value": "470",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R205",
+      "libId": "complex_hierarchy:R",
+      "value": "220K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R206",
+      "libId": "complex_hierarchy:R",
+      "value": "47",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R207",
+      "libId": "complex_hierarchy:R",
+      "value": "47",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R208",
+      "libId": "complex_hierarchy:R",
+      "value": "1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R209",
+      "libId": "complex_hierarchy:R",
+      "value": "220K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R210",
+      "libId": "complex_hierarchy:R",
+      "value": "220K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R211",
+      "libId": "complex_hierarchy:R",
+      "value": "5,6K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R212",
+      "libId": "complex_hierarchy:R",
+      "value": "1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "R213",
+      "libId": "complex_hierarchy:R",
+      "value": "4,7K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "RV201",
+      "libId": "complex_hierarchy:POT",
+      "value": "4,7K",
+      "footprint": "Potentiometer_THT:Potentiometer_Bourns_3266W_Vertical",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "U201",
+      "libId": "complex_hierarchy:LM358N",
+      "value": "LM358N",
+      "footprint": "Package_DIP:DIP-8_W7.62mm_LongPads",
+      "group": "ampli_ht_vertical"
+    },
+    {
+      "ref": "C301",
+      "libId": "complex_hierarchy:C",
+      "value": "15nF",
+      "footprint": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "C302",
+      "libId": "complex_hierarchy:C",
+      "value": "150nF",
+      "footprint": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "C303",
+      "libId": "complex_hierarchy:C",
+      "value": "4.7nF",
+      "footprint": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "C304",
+      "libId": "complex_hierarchy:C",
+      "value": "820pF",
+      "footprint": "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "D301",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4148",
+      "footprint": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "D302",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4148",
+      "footprint": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "D303",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4148",
+      "footprint": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "D304",
+      "libId": "complex_hierarchy:D_Small",
+      "value": "1N4148",
+      "footprint": "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "P301",
+      "libId": "complex_hierarchy:CONN_2",
+      "value": "CONN_2",
+      "footprint": "TerminalBlock_Altech:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "P302",
+      "libId": "complex_hierarchy:CONN_2",
+      "value": "CONN_2",
+      "footprint": "TerminalBlock_Altech:Altech_AK300_1x02_P5.00mm_45-Degree",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "Q301",
+      "libId": "complex_hierarchy:MPSA92",
+      "value": "MPSA92",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "Q302",
+      "libId": "complex_hierarchy:MPSA42",
+      "value": "MPSA42",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "Q303",
+      "libId": "complex_hierarchy:MPSA92",
+      "value": "MPSA92",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "Q304",
+      "libId": "complex_hierarchy:MPSA42",
+      "value": "MPSA42",
+      "footprint": "Package_TO_SOT_THT:TO-92_HandSolder",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R301",
+      "libId": "complex_hierarchy:R",
+      "value": "1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R302",
+      "libId": "complex_hierarchy:R",
+      "value": "22K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R303",
+      "libId": "complex_hierarchy:R",
+      "value": "22K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R304",
+      "libId": "complex_hierarchy:R",
+      "value": "470",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R305",
+      "libId": "complex_hierarchy:R",
+      "value": "220K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R306",
+      "libId": "complex_hierarchy:R",
+      "value": "47",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R307",
+      "libId": "complex_hierarchy:R",
+      "value": "47",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R308",
+      "libId": "complex_hierarchy:R",
+      "value": "1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R309",
+      "libId": "complex_hierarchy:R",
+      "value": "220K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R310",
+      "libId": "complex_hierarchy:R",
+      "value": "220K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R311",
+      "libId": "complex_hierarchy:R",
+      "value": "5,6K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R312",
+      "libId": "complex_hierarchy:R",
+      "value": "1K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "R313",
+      "libId": "complex_hierarchy:R",
+      "value": "4,7K",
+      "footprint": "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P7.62mm_Horizontal",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "RV301",
+      "libId": "complex_hierarchy:POT",
+      "value": "4,7K",
+      "footprint": "Potentiometer_THT:Potentiometer_Bourns_3266W_Vertical",
+      "group": "ampli_ht_horizontal"
+    },
+    {
+      "ref": "U301",
+      "libId": "complex_hierarchy:LM358N",
+      "value": "LM358N",
+      "footprint": "Package_DIP:DIP-8_W7.62mm_LongPads",
+      "group": "ampli_ht_horizontal"
+    }
+  ],
+  "nets": [
+    {
+      "name": "+12V",
+      "pins": [
+        "C104.1",
+        "D101.1",
+        "U101.3",
+        "U201.8",
+        "U301.8"
+      ]
+    },
+    {
+      "name": "-VAA",
+      "pins": [
+        "C103.2",
+        "U102.5",
+        "U201.4",
+        "U301.4"
+      ]
+    },
+    {
+      "name": "/12Vext",
+      "pins": [
+        "D101.2",
+        "P102.1"
+      ]
+    },
+    {
+      "name": "/ampli_ht_horizontal/PIEZO_IN",
+      "pins": [
+        "P301.1",
+        "R301.2"
+      ]
+    },
+    {
+      "name": "/ampli_ht_horizontal/PIEZO_OUT",
+      "pins": [
+        "P302.1",
+        "R306.1",
+        "R307.1"
+      ]
+    },
+    {
+      "name": "/ampli_ht_horizontal/S_OUT+",
+      "pins": [
+        "R309.1",
+        "R310.1",
+        "RV301.3"
+      ]
+    },
+    {
+      "name": "/ampli_ht_horizontal/Vpil_0_3,3V",
+      "pins": [
+        "C301.1",
+        "U301.3",
+        "U301.6",
+        "U301.7"
+      ]
+    },
+    {
+      "name": "/ampli_ht_vertical/PIEZO_IN",
+      "pins": [
+        "P201.1",
+        "R201.2"
+      ]
+    },
+    {
+      "name": "/ampli_ht_vertical/PIEZO_OUT",
+      "pins": [
+        "P202.1",
+        "R206.1",
+        "R207.1"
+      ]
+    },
+    {
+      "name": "/ampli_ht_vertical/S_OUT+",
+      "pins": [
+        "R209.1",
+        "R210.1",
+        "RV201.3"
+      ]
+    },
+    {
+      "name": "/ampli_ht_vertical/Vpil_0_3,3V",
+      "pins": [
+        "C201.1",
+        "U201.3",
+        "U201.6",
+        "U201.7"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C101.2",
+        "C102.2",
+        "C103.1",
+        "C104.2",
+        "C202.2",
+        "C203.2",
+        "C204.2",
+        "C302.2",
+        "C303.2",
+        "C304.2",
+        "P101.2",
+        "P102.2",
+        "P201.2",
+        "P202.2",
+        "P301.2",
+        "P302.2",
+        "Q203.3",
+        "Q303.3",
+        "R205.2",
+        "R208.2",
+        "R213.2",
+        "R305.2",
+        "R308.2",
+        "R313.2",
+        "U101.2",
+        "U102.3"
+      ]
+    },
+    {
+      "name": "HT",
+      "pins": [
+        "C101.1",
+        "D201.2",
+        "D301.2",
+        "P101.1",
+        "Q202.3",
+        "Q302.3",
+        "R204.1",
+        "R304.1"
+      ]
+    },
+    {
+      "name": "Net-(C201-Pad2)",
+      "pins": [
+        "C201.2",
+        "R202.1",
+        "R203.2"
+      ]
+    },
+    {
+      "name": "Net-(C202-Pad1)",
+      "pins": [
+        "C202.1",
+        "R201.1",
+        "R202.2"
+      ]
+    },
+    {
+      "name": "Net-(C204-Pad1)",
+      "pins": [
+        "C204.1",
+        "R211.2"
+      ]
+    },
+    {
+      "name": "Net-(C301-Pad2)",
+      "pins": [
+        "C301.2",
+        "R302.1",
+        "R303.2"
+      ]
+    },
+    {
+      "name": "Net-(C302-Pad1)",
+      "pins": [
+        "C302.1",
+        "R301.1",
+        "R302.2"
+      ]
+    },
+    {
+      "name": "Net-(C304-Pad1)",
+      "pins": [
+        "C304.1",
+        "R311.2"
+      ]
+    },
+    {
+      "name": "Net-(D201-K)",
+      "pins": [
+        "D201.1",
+        "D202.2"
+      ]
+    },
+    {
+      "name": "Net-(D202-K)",
+      "pins": [
+        "D202.1",
+        "Q201.2",
+        "R205.1"
+      ]
+    },
+    {
+      "name": "Net-(D203-A)",
+      "pins": [
+        "D203.2",
+        "Q201.3",
+        "Q202.2"
+      ]
+    },
+    {
+      "name": "Net-(D203-K)",
+      "pins": [
+        "D203.1",
+        "D204.2"
+      ]
+    },
+    {
+      "name": "Net-(D204-K)",
+      "pins": [
+        "D204.1",
+        "Q203.2",
+        "Q204.3",
+        "R211.1"
+      ]
+    },
+    {
+      "name": "Net-(D301-K)",
+      "pins": [
+        "D301.1",
+        "D302.2"
+      ]
+    },
+    {
+      "name": "Net-(D302-K)",
+      "pins": [
+        "D302.1",
+        "Q301.2",
+        "R305.1"
+      ]
+    },
+    {
+      "name": "Net-(D303-A)",
+      "pins": [
+        "D303.2",
+        "Q301.3",
+        "Q302.2"
+      ]
+    },
+    {
+      "name": "Net-(D303-K)",
+      "pins": [
+        "D303.1",
+        "D304.2"
+      ]
+    },
+    {
+      "name": "Net-(D304-K)",
+      "pins": [
+        "D304.1",
+        "Q303.2",
+        "Q304.3",
+        "R311.1"
+      ]
+    },
+    {
+      "name": "Net-(Q201-E)",
+      "pins": [
+        "Q201.1",
+        "R204.2"
+      ]
+    },
+    {
+      "name": "Net-(Q202-E)",
+      "pins": [
+        "Q202.1",
+        "R206.2",
+        "R210.2"
+      ]
+    },
+    {
+      "name": "Net-(Q203-E)",
+      "pins": [
+        "Q203.1",
+        "R207.2",
+        "R209.2"
+      ]
+    },
+    {
+      "name": "Net-(Q204-B)",
+      "pins": [
+        "Q204.2",
+        "R208.1"
+      ]
+    },
+    {
+      "name": "Net-(Q204-E)",
+      "pins": [
+        "Q204.1",
+        "R212.1"
+      ]
+    },
+    {
+      "name": "Net-(Q301-E)",
+      "pins": [
+        "Q301.1",
+        "R304.2"
+      ]
+    },
+    {
+      "name": "Net-(Q302-E)",
+      "pins": [
+        "Q302.1",
+        "R306.2",
+        "R310.2"
+      ]
+    },
+    {
+      "name": "Net-(Q303-E)",
+      "pins": [
+        "Q303.1",
+        "R307.2",
+        "R309.2"
+      ]
+    },
+    {
+      "name": "Net-(Q304-B)",
+      "pins": [
+        "Q304.2",
+        "R308.1"
+      ]
+    },
+    {
+      "name": "Net-(Q304-E)",
+      "pins": [
+        "Q304.1",
+        "R312.1"
+      ]
+    },
+    {
+      "name": "Net-(R212-Pad2)",
+      "pins": [
+        "R212.2",
+        "U201.1"
+      ]
+    },
+    {
+      "name": "Net-(R213-Pad1)",
+      "pins": [
+        "R213.1",
+        "RV201.1"
+      ]
+    },
+    {
+      "name": "Net-(R312-Pad2)",
+      "pins": [
+        "R312.2",
+        "U301.1"
+      ]
+    },
+    {
+      "name": "Net-(R313-Pad1)",
+      "pins": [
+        "R313.1",
+        "RV301.1"
+      ]
+    },
+    {
+      "name": "Net-(U102-CAP+)",
+      "pins": [
+        "C105.1",
+        "U102.2"
+      ]
+    },
+    {
+      "name": "Net-(U102-CAP-)",
+      "pins": [
+        "C105.2",
+        "U102.4"
+      ]
+    },
+    {
+      "name": "Net-(U201A--)",
+      "pins": [
+        "RV201.2",
+        "U201.2"
+      ]
+    },
+    {
+      "name": "Net-(U201B-+)",
+      "pins": [
+        "C203.1",
+        "R203.1",
+        "U201.5"
+      ]
+    },
+    {
+      "name": "Net-(U301A--)",
+      "pins": [
+        "RV301.2",
+        "U301.2"
+      ]
+    },
+    {
+      "name": "Net-(U301B-+)",
+      "pins": [
+        "C303.1",
+        "R303.1",
+        "U301.5"
+      ]
+    },
+    {
+      "name": "VCC",
+      "pins": [
+        "C102.1",
+        "U101.1",
+        "U102.8"
+      ]
+    }
+  ]
+}

@@ -1,20 +1,35 @@
 import { execa, ExecaError } from 'execa';
-import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { existsSync, readdirSync } from 'node:fs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { normalizeReport, type CheckReport } from './report.js';
+import { duplicateFootprintRefs, normalizeReport, type CheckReport } from './report.js';
 import { PreflightError, isNotFoundError } from '../util/preflight.js';
 
 export class KicadCliMissingError extends PreflightError {
-  constructor() {
+  constructor(platform = process.platform) {
+    const isWin = platform === 'win32';
+    const isMac = platform === 'darwin';
+
+    const locationHint = isWin
+      ? 'ensure kicad-cli.exe is on PATH (typically in C:\\Program Files\\KiCad\\<version>\\bin)'
+      : isMac
+        ? 'ensure the kicad-cli binary is on PATH (on macOS it ships inside KiCad.app/Contents/MacOS)'
+        : 'ensure the kicad-cli binary is on PATH (typically /usr/bin/kicad-cli)';
+
+    const envHint = isWin
+      ? 'or set COPPERHEAD_KICAD_CLI="C:\\Program Files\\KiCad\\10.0\\bin\\kicad-cli.exe"'
+      : isMac
+        ? 'or set COPPERHEAD_KICAD_CLI=/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli'
+        : 'or set COPPERHEAD_KICAD_CLI=/usr/bin/kicad-cli';
+
     super(
       'kicad-cli not found on PATH',
       'copperhead verifies every mutation with kicad-cli ERC/DRC; without it no edit can be checked, so no run can start',
       [
         'install KiCad ≥ 8: https://www.kicad.org/download/',
-        'ensure the kicad-cli binary is on PATH (on macOS it ships inside KiCad.app/Contents/MacOS)',
-        'or set COPPERHEAD_KICAD_CLI=/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli',
+        locationHint,
+        envHint,
         'confirm with "kicad-cli version", then rerun',
       ],
     );
@@ -28,15 +43,32 @@ export class KicadCliMissingError extends PreflightError {
  * seen and rejected, so telling the user to set it would be nonsense.
  */
 export class KicadCliBadOverrideError extends PreflightError {
-  constructor(configured: string) {
+  constructor(configured: string, platform = process.platform) {
+    const isWin = platform === 'win32';
+    const isMac = platform === 'darwin';
+
+    const checkHint = isWin
+      ? `check the path in PowerShell: Test-Path "${configured}"`
+      : `check the path: ls -l "${configured}"`;
+
+    const locationHint = isWin
+      ? 'on Windows the binary typically lives at C:\\Program Files\\KiCad\\<version>\\bin\\kicad-cli.exe'
+      : isMac
+        ? 'on macOS the binary lives at /Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli'
+        : 'on Linux the binary typically lives at /usr/bin/kicad-cli';
+
+    const confirmHint = isWin
+      ? 'confirm with "& $env:COPPERHEAD_KICAD_CLI version", then rerun'
+      : 'confirm with "$COPPERHEAD_KICAD_CLI" version, then rerun';
+
     super(
       `COPPERHEAD_KICAD_CLI points to a path that does not exist: ${configured}`,
       'the override wins over PATH, so falling back silently would run a different binary than the one you named and make the failure impossible to diagnose',
       [
-        `check the path: ls -l "${configured}"`,
-        'on macOS the binary lives at /Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli',
+        checkHint,
+        locationHint,
         'or unset COPPERHEAD_KICAD_CLI to fall back to PATH',
-        'confirm with "$COPPERHEAD_KICAD_CLI version", then rerun',
+        confirmHint,
       ],
     );
     this.name = 'KicadCliBadOverrideError';
@@ -44,20 +76,89 @@ export class KicadCliBadOverrideError extends PreflightError {
 }
 
 /** Well-known install locations when `kicad-cli` is not on PATH (macOS app bundle). */
-const FALLBACK_BINARIES = [
+const MACOS_FALLBACK_BINARIES = [
   '/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli',
   '/Applications/KiCad-10.0/KiCad.app/Contents/MacOS/kicad-cli',
   '/Applications/KiCad-9.0/KiCad.app/Contents/MacOS/kicad-cli',
   '/Applications/KiCad-8.0/KiCad.app/Contents/MacOS/kicad-cli',
 ];
 
-let fallbackBinaries: readonly string[] = FALLBACK_BINARIES;
+/**
+ * Minimum KiCad major version accepted for ERC/DRC and candidate discovery.
+ * Re-used by doctor.ts to ensure CLI discovery and environment preflight
+ * enforce the same version floor.
+ */
+export const MIN_KICAD_MAJOR = 8;
+
+const DEFAULT_WIN_ROOTS = [
+  process.env.ProgramFiles ? path.join(process.env.ProgramFiles, 'KiCad') : 'C:/Program Files/KiCad',
+  'C:/Program Files/KiCad',
+  'C:/Program Files (x86)/KiCad',
+];
+
+/**
+ * Return default fallback candidate paths for macOS and Windows standard KiCad installations.
+ * On Windows, version-numbered directories (e.g. 10.0, 9.0, 8.0) under the KiCad root
+ * are probed in descending numerical order, mirroring symlib.ts.
+ */
+export function defaultFallbackBinaries(winRoots: readonly string[] = DEFAULT_WIN_ROOTS): string[] {
+  const candidates: string[] = [...MACOS_FALLBACK_BINARIES];
+  const seenRoots = new Set<string>();
+
+  for (const winRoot of winRoots) {
+    const normalized = path.normalize(winRoot).toLowerCase();
+    if (seenRoots.has(normalized)) continue;
+    seenRoots.add(normalized);
+
+    if (!existsSync(winRoot)) continue;
+    try {
+      const entries = readdirSync(winRoot, { withFileTypes: true });
+      const versions = entries
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        // Only include versions that meet the minimum supported KiCad major.
+        // This prevents a stale KiCad 7.x install from silently becoming the
+        // ERC/DRC binary while doctor correctly reports FAIL for it.
+        .filter((name) => {
+          const major = Number(name.split('.')[0]);
+          return Number.isFinite(major) && major >= MIN_KICAD_MAJOR;
+        })
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+      for (const version of versions) {
+        candidates.push(
+          path.join(winRoot, version, 'bin', 'kicad-cli.exe'),
+          path.join(winRoot, version, 'bin', 'kicad-cli.cmd'),
+          path.join(winRoot, version, 'bin', 'kicad-cli.bat'),
+          path.join(winRoot, version, 'bin', 'kicad-cli'),
+        );
+      }
+    } catch {
+      // not readable / not a directory; versioned candidates unavailable, but
+      // the unversioned bin/ fallback below is still worth probing.
+    }
+    // Unversioned fallback: pushed unconditionally so a readdirSync failure
+    // (e.g. ENOTDIR) on the root itself doesn't also suppress this probe.
+    candidates.push(
+      path.join(winRoot, 'bin', 'kicad-cli.exe'),
+      path.join(winRoot, 'bin', 'kicad-cli.cmd'),
+      path.join(winRoot, 'bin', 'kicad-cli.bat'),
+      path.join(winRoot, 'bin', 'kicad-cli'),
+    );
+  }
+
+  return candidates;
+}
+
+let fallbackBinariesOverride: readonly string[] | null = null;
+let fallbackWinRootsOverride: readonly string[] | null = null;
 
 let cachedBinary: string | null | undefined;
 
 /**
  * Resolve the kicad-cli executable: `COPPERHEAD_KICAD_CLI` > PATH name
- * (`kicad-cli`). On PATH miss, `runKicad` falls back to macOS KiCad.app paths.
+ * (`kicad-cli`). On PATH miss, `runKicad` falls back to macOS KiCad.app paths
+ * and Windows standard installation paths.
  */
 export function resolveKicadCli(): string {
   if (cachedBinary !== undefined) {
@@ -88,7 +189,7 @@ function envOverride(): string | null {
 }
 
 /**
- * After ENOENT on PATH, retry with a known macOS install path.
+ * After ENOENT on PATH, retry with known install paths (macOS app bundles, Windows standard paths).
  *
  * Deliberately does not re-read `COPPERHEAD_KICAD_CLI`: this is reached only
  * when resolveKicadCli() cached the bare PATH name, which in turn happens only
@@ -96,7 +197,9 @@ function envOverride(): string | null {
  * override re-check here could never fire.
  */
 function fallbackAfterMissing(): string {
-  for (const candidate of fallbackBinaries) {
+  const candidates =
+    fallbackBinariesOverride ?? defaultFallbackBinaries(fallbackWinRootsOverride ?? undefined);
+  for (const candidate of candidates) {
     if (existsSync(candidate)) {
       cachedBinary = candidate;
       return candidate;
@@ -130,21 +233,48 @@ async function runKicad(args: string[], opts?: { reject?: boolean }): Promise<Aw
 /** Test helper: clear the resolved-binary cache. */
 export function resetKicadCliCache(): void {
   cachedBinary = undefined;
+  cachedMajor = undefined;
 }
 
 /**
- * Test helper: point the app-bundle probe at fixture paths, or call with no
- * argument to restore the real list. Without this the fallback branch is only
- * exercisable on a macOS host that happens to have KiCad installed, which
- * makes the outcome depend on the developer's machine.
+ * Test helper: point the app-bundle / binary probe at fixture paths, or call with no
+ * argument to restore the default dynamic list.
  */
 export function setKicadFallbackBinaries(paths?: readonly string[]): void {
-  fallbackBinaries = paths ?? FALLBACK_BINARIES;
+  fallbackBinariesOverride = paths ?? null;
+  fallbackWinRootsOverride = null;
+}
+
+/**
+ * Test helper: point the Windows installation discovery probe at fixture roots, or call
+ * with no argument to restore the default search roots.
+ */
+export function setKicadFallbackWinRoots(roots?: readonly string[]): void {
+  fallbackWinRootsOverride = roots ?? null;
+  fallbackBinariesOverride = null;
 }
 
 export async function kicadCliVersion(): Promise<string> {
   const res = await runKicad(['version']);
   return String(res.stdout ?? '').trim();
+}
+
+let cachedMajor: Promise<number | null> | undefined;
+
+/**
+ * The running kicad-cli's major version (10 for "10.0.4"), or null when it
+ * cannot be read. Library lookups use it to read the same KiCad's config and
+ * libraries that DRC will, not whichever install is newest. Cached per process.
+ */
+export function kicadMajorVersion(): Promise<number | null> {
+  cachedMajor ??= kicadCliVersion().then(
+    (v) => {
+      const major = Number(/(\d+)\.\d+/.exec(v)?.[1]);
+      return Number.isFinite(major) ? major : null;
+    },
+    () => null,
+  );
+  return cachedMajor;
 }
 
 async function runCheck(
@@ -155,6 +285,10 @@ async function runCheck(
   const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-'));
   const out = path.join(dir, `${kind}.json`);
   const sub = kind === 'erc' ? ['sch', 'erc'] : ['pcb', 'drc'];
+  // the board DRC reads, read first: a shared reference on it is never one
+  // footprint's own geometry (AC-15.41). A board this cannot read gets no
+  // finding excused, rather than every one that names a single reference.
+  const duplicateRefs = kind === 'drc' ? await readFile(filePath, 'utf8').then(duplicateFootprintRefs, () => null) : undefined;
   try {
     const res = await runKicad(
       [...sub, '--format', 'json', '--exit-code-violations', '--output', out, ...extraArgs, filePath],
@@ -173,7 +307,7 @@ async function runCheck(
         `kicad-cli ${kind} produced no report — the ${kind === 'erc' ? 'schematic' : 'board'} file likely fails to load in KiCad. kicad-cli output: ${detail || '(none)'}`,
       );
     }
-    return normalizeReport(raw, kind);
+    return normalizeReport(raw, kind, duplicateRefs === null ? { excuse: false } : duplicateRefs ? { duplicateRefs } : {});
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -217,6 +351,38 @@ export async function kicadLoadError(filePath: string): Promise<string | null> {
 
 export function runDrc(pcbPath: string): Promise<CheckReport> {
   return runCheck('drc', pcbPath);
+}
+
+/**
+ * Unrouted connections on a board given as text (a run's starting board, say).
+ * Connectivity depends only on the board's own copper, so a lone temp copy
+ * gives the same count as the board in place.
+ */
+export async function unroutedCount(boardText: string): Promise<number> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-unrouted-'));
+  try {
+    const probe = path.join(dir, 'baseline.kicad_pcb');
+    await writeFile(probe, boardText, 'utf8');
+    return (await runDrc(probe)).unrouted ?? 0;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** The schematic's KiCad netlist (kicadsexpr), as text. Throws kicad-cli's own error. */
+export async function exportNetlist(schPath: string): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-netlist-'));
+  const out = path.join(dir, 'board.net');
+  try {
+    const res = await runKicad(['sch', 'export', 'netlist', '--output', out, schPath], { reject: false });
+    if (res.exitCode !== 0 || !existsSync(out)) {
+      const detail = [res.stderr, res.stdout].filter(Boolean).join('\n').trim();
+      throw new Error(`kicad-cli could not export the schematic netlist: ${detail || `exit ${res.exitCode}`}`);
+    }
+    return await readFile(out, 'utf8');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 }
 
 export interface FabExportResult {

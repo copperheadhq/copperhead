@@ -1,0 +1,204 @@
+[
+  {
+    "kind": "off-grid",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R6"
+    ]
+  },
+  {
+    "kind": "off-grid",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "BAD"
+    ]
+  },
+  {
+    "kind": "symbol-overlap",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R1",
+      "R2"
+    ]
+  },
+  {
+    "kind": "text-collision",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R1 Value",
+      "R2"
+    ]
+  },
+  {
+    "kind": "wire-through-symbol",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R1"
+    ]
+  },
+  {
+    "kind": "wire-through-symbol",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R2"
+    ]
+  },
+  {
+    "kind": "out-of-frame",
+    "severity": "error",
+    "sheet": "sub",
+    "refs": [
+      "R7"
+    ]
+  },
+  {
+    "kind": "out-of-frame",
+    "severity": "error",
+    "sheet": "sub",
+    "refs": [
+      "R7 Reference"
+    ]
+  },
+  {
+    "kind": "ungrouped-symbol",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R1"
+    ]
+  },
+  {
+    "kind": "ungrouped-symbol",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R2"
+    ]
+  },
+  {
+    "kind": "ungrouped-symbol",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R4"
+    ]
+  },
+  {
+    "kind": "ungrouped-symbol",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R5"
+    ]
+  },
+  {
+    "kind": "ungrouped-symbol",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "R6"
+    ]
+  },
+  {
+    "kind": "ungrouped-symbol",
+    "severity": "error",
+    "sheet": "sub",
+    "refs": [
+      "R7"
+    ]
+  },
+  {
+    "kind": "unlabeled-group",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "group#1"
+    ]
+  },
+  {
+    "kind": "unlabeled-group",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "group#2"
+    ]
+  },
+  {
+    "kind": "group-overlap",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "group#1",
+      "group#2"
+    ]
+  },
+  {
+    "kind": "empty-title-block",
+    "severity": "error",
+    "sheet": "/",
+    "refs": [
+      "title",
+      "revision",
+      "date"
+    ]
+  },
+  {
+    "kind": "empty-title-block",
+    "severity": "error",
+    "sheet": "sub",
+    "refs": [
+      "title",
+      "revision",
+      "date"
+    ]
+  },
+  {
+    "kind": "label-orientation",
+    "severity": "advisory",
+    "sheet": "/",
+    "refs": [
+      "SIG1"
+    ]
+  },
+  {
+    "kind": "low-utilization",
+    "severity": "advisory",
+    "sheet": "/",
+    "refs": [
+      "/"
+    ]
+  },
+  {
+    "kind": "low-utilization",
+    "severity": "advisory",
+    "sheet": "sub",
+    "refs": [
+      "sub"
+    ]
+  },
+  {
+    "kind": "crowding",
+    "severity": "advisory",
+    "sheet": "/",
+    "refs": [
+      "R4",
+      "R5"
+    ]
+  },
+  {
+    "kind": "cross-group-wire",
+    "severity": "advisory",
+    "sheet": "/",
+    "refs": [
+      "group#1",
+      "group#2",
+      "(unlabeled)"
+    ]
+  }
+]

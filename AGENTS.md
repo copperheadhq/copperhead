@@ -55,7 +55,7 @@ TypeScript source uses ESM imports with `.js` specifiers. Keep provider-specific
 1. **Spec-gated in:** `edit_file` and `write_file` must be absent from the provider's tool list until a valid OpenSpec change proposal exists. A prompt warning is not an acceptable substitute.
 2. **Verification-gated out:** every KiCad mutation must be followed by ERC, and board changes also require DRC, before success or commit. Persistent verification failure restores the git snapshot.
 3. `check`/`verify` remains deterministic, LLM-free, and network-free. Its module graph must not import a provider or model SDK.
-4. KiCad edits use anchored exact-match text replacement. The s-expression reader validates and extracts data; it must not serialize whole KiCad files.
+4. KiCad edits never serialize a parse tree. The agent edits with anchored exact-match text replacement; the deterministic writers (board populate, `move_footprint`, the sym-lib-table rewrite) splice the spans `src/kicad/spans.ts` locates and keep every byte they do not change. The s-expression reader validates and extracts data; it must not serialize whole KiCad files.
 5. Sync obligations must be cleared before commit: drift checks, constraint dual-writes, decisions, and changelog entries are gates, not suggestions.
 6. API keys stay in environment variables. `.env` and `.copperhead/runs/` stay ignored, and transcripts/summaries redact secret material at write time.
 7. Preserve user work in dirty trees. Do not weaken the snapshot, rollback, path-sandbox, or verification protections to make a test pass.

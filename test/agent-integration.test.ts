@@ -33,7 +33,7 @@ const providers: { model: string; key: string | undefined }[] = [
     model: process.env.COPPERHEAD_TEST_CURSOR_MODEL ?? 'cursor',
     key: process.env.COPPERHEAD_TEST_CURSOR === '1' ? 'saved-cursor-login' : undefined,
   },
-  // Local LM Studio (AC-3.10, AC-3.21): opt-in, because it needs a running local
+  // Local LM Studio (AC-3.10, AC-3.24): opt-in, because it needs a running local
   // server with a tool-capable model loaded and there is no credential whose
   // presence could imply that. Same shape as the COPPERHEAD_TEST_CODEX gate.
   {

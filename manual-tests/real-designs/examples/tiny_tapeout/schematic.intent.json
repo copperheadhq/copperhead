@@ -1,0 +1,2175 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "C1",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C2",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C3",
+      "libId": "TinyTapeout:C_Small",
+      "value": "6800pF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C4",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C5",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C6",
+      "libId": "TinyTapeout:C_Small",
+      "value": "10uF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C7",
+      "libId": "TinyTapeout:C_Small",
+      "value": "10uF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C8",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C9",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C10",
+      "libId": "TinyTapeout:C_Small",
+      "value": "22uF",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C11",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C12",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C13",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C14",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C15",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C16",
+      "libId": "TinyTapeout:C_Small",
+      "value": "10uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C17",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C18",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C19",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C20",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C21",
+      "libId": "TinyTapeout:C_Small",
+      "value": "10uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C22",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C23",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C24",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C25",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C26",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C27",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C28",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C42",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C43",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C56",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C57",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C58",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C59",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C60",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "C61",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "D1",
+      "libId": "TinyTapeout:LED_Small",
+      "value": "Yellow",
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "D2",
+      "libId": "TinyTapeout:LED_Small",
+      "value": "Yellow",
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "D3",
+      "libId": "TinyTapeout:LED_Small",
+      "value": "Yellow",
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "D4",
+      "libId": "TinyTapeout:LED_Small",
+      "value": "Yellow",
+      "footprint": "LED_SMD:LED_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "F1",
+      "libId": "TinyTapeout:Polyfuse",
+      "value": "350mA",
+      "footprint": "Fuse:Fuse_0805_2012Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "FID1",
+      "libId": "TinyTapeout:Fiducial",
+      "value": "Fiducial",
+      "footprint": "Fiducial:Fiducial_1mm_Mask2mm",
+      "group": "Main"
+    },
+    {
+      "ref": "FID2",
+      "libId": "TinyTapeout:Fiducial",
+      "value": "Fiducial",
+      "footprint": "Fiducial:Fiducial_1mm_Mask2mm",
+      "group": "Main"
+    },
+    {
+      "ref": "FID3",
+      "libId": "TinyTapeout:Fiducial",
+      "value": "Fiducial",
+      "footprint": "Fiducial:Fiducial_1mm_Mask2mm",
+      "group": "Main"
+    },
+    {
+      "ref": "J1",
+      "libId": "TinyTapeout:Conn_01x06",
+      "value": "Conn_01x06",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "J2",
+      "libId": "TinyTapeout:Conn_01x04",
+      "value": "Conn_01x04",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "J3",
+      "libId": "TinyTapeout:PMOD_HOST_2x6",
+      "value": "613012243121",
+      "footprint": "TinyTapeout:PinSocket_2x06_P2.54mm_PMODHost1A",
+      "group": "Main"
+    },
+    {
+      "ref": "J4",
+      "libId": "TinyTapeout:CARAVEL_TT04_BREAKOUT_REVB",
+      "value": "TT04_BREAKOUT_REVB",
+      "footprint": "TinyTapeout:TT04_BREAKOUT_SMB",
+      "group": "Main"
+    },
+    {
+      "ref": "J5",
+      "libId": "TinyTapeout:PMOD_HOST_2x6",
+      "value": "613012243121",
+      "footprint": "TinyTapeout:PinSocket_2x06_P2.54mm_PMODHost1A",
+      "group": "Main"
+    },
+    {
+      "ref": "J6",
+      "libId": "TinyTapeout:PMOD_HOST_2x6",
+      "value": "613012243121",
+      "footprint": "TinyTapeout:PinSocket_2x06_P2.54mm_PMODHost1A",
+      "group": "Main"
+    },
+    {
+      "ref": "J7",
+      "libId": "TinyTapeout:Conn_01x02",
+      "value": "Conn_01x02",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical_SMD_Pin1Right",
+      "group": "Main"
+    },
+    {
+      "ref": "J8",
+      "libId": "TinyTapeout:Conn_01x03",
+      "value": "Conn_01x03",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "J9",
+      "libId": "TinyTapeout:Conn_01x24",
+      "value": "Conn_01x24",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x24_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "J12",
+      "libId": "TinyTapeout:PMOD_HOST_2x6",
+      "value": "613012243121",
+      "footprint": "TinyTapeout:PinSocket_2x06_P2.54mm_PMODHost1A",
+      "group": "Main"
+    },
+    {
+      "ref": "J13",
+      "libId": "TinyTapeout:PMOD_HOST_2x6",
+      "value": "613012243121",
+      "footprint": "TinyTapeout:PinSocket_2x06_P2.54mm_PMODHost1A",
+      "group": "Main"
+    },
+    {
+      "ref": "J14",
+      "libId": "TinyTapeout:PMOD_HOST_2x6",
+      "value": "613012243121",
+      "footprint": "TinyTapeout:PinSocket_2x06_P2.54mm_PMODHost1A",
+      "group": "Main"
+    },
+    {
+      "ref": "J15",
+      "libId": "TinyTapeout:USB4500-03-0-A_REVA",
+      "value": "USB4500-03-0-A_REVA",
+      "footprint": "TinyTapeout:GCT_USB4500-03-0-A_REVA",
+      "group": "Main"
+    },
+    {
+      "ref": "J16",
+      "libId": "TinyTapeout:TestPoint_Small",
+      "value": "2x20_P2.54mm_Pinheader",
+      "footprint": "TinyTapeout:TT_BREAKOUT_PINHEADER_PLACEHOLDER_WITHPAD",
+      "group": "Main"
+    },
+    {
+      "ref": "J17",
+      "libId": "TinyTapeout:Conn_01x03",
+      "value": "Conn_01x03",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+      "group": "Main"
+    },
+    {
+      "ref": "J18",
+      "libId": "TinyTapeout:TestPoint_Small",
+      "value": "2x20_P2.54mm_Pinheader",
+      "footprint": "TinyTapeout:TT_BREAKOUT_PINHEADER_PLACEHOLDER_WITHPAD",
+      "group": "Main"
+    },
+    {
+      "ref": "JP1",
+      "libId": "TinyTapeout:SolderJumper_2_Bridged",
+      "value": "SolderJumper_2_Bridged",
+      "footprint": "TinyTapeout:SolderJumper-2_Bridged_Throughole1",
+      "group": "Main"
+    },
+    {
+      "ref": "JP2",
+      "libId": "TinyTapeout:SolderJumper_2_Bridged",
+      "value": "SolderJumper_2_Bridged",
+      "footprint": "TinyTapeout:SolderJumper-2_Bridged_Throughole1",
+      "group": "Main"
+    },
+    {
+      "ref": "JP3",
+      "libId": "TinyTapeout:SolderJumper_2_Bridged",
+      "value": "SolderJumper_2_Bridged",
+      "footprint": "TinyTapeout:SolderJumper-2_Bridged_Throughole1",
+      "group": "Main"
+    },
+    {
+      "ref": "JP4",
+      "libId": "TinyTapeout:SolderJumper_2_Bridged",
+      "value": "SolderJumper_2_Bridged",
+      "footprint": "TinyTapeout:SolderJumper-2_Bridged_Throughole1",
+      "group": "Main"
+    },
+    {
+      "ref": "JP5",
+      "libId": "TinyTapeout:SolderJumper_2_Bridged",
+      "value": "SolderJumper_2_Bridged",
+      "footprint": "TinyTapeout:SolderJumper-2_Bridged_Throughole1",
+      "group": "Main"
+    },
+    {
+      "ref": "JP6",
+      "libId": "TinyTapeout:SolderJumper_2_Bridged",
+      "value": "SolderJumper_2_Bridged",
+      "footprint": "TinyTapeout:SolderJumper-2_Bridged_Throughole1",
+      "group": "Main"
+    },
+    {
+      "ref": "JP7",
+      "libId": "TinyTapeout:SolderJumper_2_Bridged",
+      "value": "SolderJumper_2_Bridged",
+      "footprint": "TinyTapeout:SolderJumper-2_Bridged_Throughole1",
+      "group": "Main"
+    },
+    {
+      "ref": "JP8",
+      "libId": "TinyTapeout:SolderJumper_2_Bridged",
+      "value": "SolderJumper_2_Bridged",
+      "footprint": "TinyTapeout:SolderJumper-2_Bridged_Throughole1",
+      "group": "Main"
+    },
+    {
+      "ref": "MT1",
+      "libId": "TinyTapeout:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "MountingHole:MountingHole_3.2mm_M3_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "MT2",
+      "libId": "TinyTapeout:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "MountingHole:MountingHole_3.2mm_M3_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "MT3",
+      "libId": "TinyTapeout:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "MountingHole:MountingHole_3.2mm_M3_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "MT4",
+      "libId": "TinyTapeout:MountingHole_Pad",
+      "value": "MountingHole_Pad",
+      "footprint": "MountingHole:MountingHole_3.2mm_M3_Pad",
+      "group": "Main"
+    },
+    {
+      "ref": "NT1",
+      "libId": "TinyTapeout:NetTie_2",
+      "value": "NetTie_2",
+      "footprint": "NetTie:NetTie-2_SMD_Pad0.5mm",
+      "group": "Main"
+    },
+    {
+      "ref": "R1",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R2",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R3",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R4",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R5",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R6",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R7",
+      "libId": "TinyTapeout:R_Small",
+      "value": "47k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R8",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R9",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R10",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R11",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R12",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R13",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R14",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R15",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1.2K",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R16",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1M",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R17",
+      "libId": "TinyTapeout:R_Small",
+      "value": "510",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R18",
+      "libId": "TinyTapeout:R_Small",
+      "value": "0R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R19",
+      "libId": "TinyTapeout:R_Small",
+      "value": "510",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R20",
+      "libId": "TinyTapeout:R_Small",
+      "value": "5.1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R21",
+      "libId": "TinyTapeout:R_Small",
+      "value": "5.1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R22",
+      "libId": "TinyTapeout:R_Small",
+      "value": "68R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R23",
+      "libId": "TinyTapeout:R_Small",
+      "value": "68R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R24",
+      "libId": "TinyTapeout:R_Small",
+      "value": "68R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R25",
+      "libId": "TinyTapeout:R_Small",
+      "value": "68R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R26",
+      "libId": "TinyTapeout:R_Small",
+      "value": "68R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R27",
+      "libId": "TinyTapeout:R_Small",
+      "value": "68R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R28",
+      "libId": "TinyTapeout:R_Small",
+      "value": "68R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R29",
+      "libId": "TinyTapeout:R_Small",
+      "value": "68R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R30",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R31",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R32",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R33",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R41",
+      "libId": "TinyTapeout:R_Small",
+      "value": "47R",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R42",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R43",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R44",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R45",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R46",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R47",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "R48",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "Main"
+    },
+    {
+      "ref": "SW1",
+      "libId": "TinyTapeout:SW_Push",
+      "value": "434121025816",
+      "footprint": "TinyTapeout:434121025816",
+      "group": "Main"
+    },
+    {
+      "ref": "SW2",
+      "libId": "TinyTapeout:SW_Push",
+      "value": "434121025816",
+      "footprint": "TinyTapeout:434121025816",
+      "group": "Main"
+    },
+    {
+      "ref": "SW3",
+      "libId": "TinyTapeout:SW_Push",
+      "value": "434121025816",
+      "footprint": "TinyTapeout:434121025816",
+      "group": "Main"
+    },
+    {
+      "ref": "SW4",
+      "libId": "TinyTapeout:SW_DIP_x08",
+      "value": "418121270808",
+      "footprint": "TinyTapeout:418121270808",
+      "group": "Main"
+    },
+    {
+      "ref": "TP1",
+      "libId": "TinyTapeout:TestPoint",
+      "value": "TestPoint",
+      "footprint": "TestPoint:TestPoint_Pad_D1.5mm",
+      "group": "Main"
+    },
+    {
+      "ref": "U1",
+      "libId": "TinyTapeout:KCSC02-106",
+      "value": "157112V12700",
+      "footprint": "TinyTapeout:WL_S7DS-157112V12700",
+      "group": "Main"
+    },
+    {
+      "ref": "U2",
+      "libId": "TinyTapeout:AZ1117-3.3",
+      "value": "TLV1117LV33",
+      "footprint": "Package_TO_SOT_SMD:SOT-223-3_TabPin2",
+      "group": "Main"
+    },
+    {
+      "ref": "U3",
+      "libId": "TinyTapeout:AP2112K-1.8",
+      "value": "AP2112K-1.8",
+      "footprint": "Package_TO_SOT_SMD:SOT-23-5",
+      "group": "Main"
+    },
+    {
+      "ref": "U4",
+      "libId": "TinyTapeout:74CBTLV3257",
+      "value": "74CBTLV3257",
+      "footprint": "Package_SO:TSSOP-16_4.4x5mm_P0.65mm",
+      "group": "Main"
+    },
+    {
+      "ref": "U7",
+      "libId": "TinyTapeout:W25Q32JVSS",
+      "value": "W25Q32JVSS",
+      "footprint": "Package_SO:SOIC-8_5.23x5.23mm_P1.27mm",
+      "group": "Main"
+    },
+    {
+      "ref": "X1",
+      "libId": "TinyTapeout:ECS-2520MV-xxx-xx",
+      "value": "20MHz",
+      "footprint": "Oscillator:Oscillator_SMD_ECS_2520MV-xxx-xx-4Pin_2.5x2.0mm",
+      "group": "Main"
+    },
+    {
+      "ref": "C29",
+      "libId": "TinyTapeout:C_Small",
+      "value": "6pF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C30",
+      "libId": "TinyTapeout:C_Small",
+      "value": "6pF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C31",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C32",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C33",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C34",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C35",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C36",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C37",
+      "libId": "TinyTapeout:C_Small",
+      "value": "1uF",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C38",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C39",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C40",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "C41",
+      "libId": "TinyTapeout:C_Small",
+      "value": "100nF",
+      "footprint": "Capacitor_SMD:C_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "J10",
+      "libId": "TinyTapeout:Conn_01x02",
+      "value": "Conn_01x02",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical",
+      "group": "RP2040"
+    },
+    {
+      "ref": "J11",
+      "libId": "TinyTapeout:Conn_01x06",
+      "value": "Conn_01x06",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical_SMD_Pin1Right",
+      "group": "RP2040"
+    },
+    {
+      "ref": "R34",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "R35",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "R36",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "R37",
+      "libId": "TinyTapeout:R_Small",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "R38",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "R39",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "R40",
+      "libId": "TinyTapeout:R_Small",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0402_1005Metric",
+      "group": "RP2040"
+    },
+    {
+      "ref": "U5",
+      "libId": "TinyTapeout:W25Q32JVSS",
+      "value": "W25Q32JVSS",
+      "footprint": "Package_SO:SOIC-8_5.23x5.23mm_P1.27mm",
+      "group": "RP2040"
+    },
+    {
+      "ref": "U6",
+      "libId": "TinyTapeout:RP2040",
+      "value": "RP2040",
+      "footprint": "Package_DFN_QFN:QFN-56-1EP_7x7mm_P0.4mm_EP3.2x3.2mm",
+      "group": "RP2040"
+    },
+    {
+      "ref": "Y1",
+      "libId": "TinyTapeout:Crystal_GND24",
+      "value": "12.0MHz",
+      "footprint": "Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm",
+      "group": "RP2040"
+    }
+  ],
+  "nets": [
+    {
+      "name": "+1V8",
+      "pins": [
+        "C11.1",
+        "C13.1",
+        "C20.2",
+        "C21.2",
+        "C22.2",
+        "C24.2",
+        "C25.2",
+        "J4.A7",
+        "J4.B14",
+        "J4.B16",
+        "J4.B33",
+        "J4.B35",
+        "J9.2",
+        "R18.1",
+        "U3.5"
+      ]
+    },
+    {
+      "name": "+3V3",
+      "pins": [
+        "C1.1",
+        "C10.1",
+        "C12.1",
+        "C14.1",
+        "C15.2",
+        "C16.2",
+        "C17.2",
+        "C18.1",
+        "C19.2",
+        "C23.2",
+        "C26.2",
+        "C27.1",
+        "C28.2",
+        "C31.2",
+        "C33.1",
+        "C34.1",
+        "C35.1",
+        "C36.1",
+        "C37.1",
+        "C38.1",
+        "C39.1",
+        "C4.1",
+        "C43.2",
+        "C5.2",
+        "C56.1",
+        "C57.2",
+        "C58.1",
+        "C59.2",
+        "C60.1",
+        "C61.2",
+        "C7.1",
+        "C8.1",
+        "C9.2",
+        "J11.1",
+        "J12.12",
+        "J12.6",
+        "J13.12",
+        "J13.6",
+        "J14.12",
+        "J14.6",
+        "J3.12",
+        "J3.6",
+        "J4.A19",
+        "J4.B1",
+        "J4.B15",
+        "J4.B17",
+        "J4.B3",
+        "J4.B37",
+        "J4.B39",
+        "J5.12",
+        "J5.6",
+        "J6.12",
+        "J6.6",
+        "J9.21",
+        "J9.3",
+        "R1.1",
+        "R10.1",
+        "R11.1",
+        "R17.1",
+        "R19.1",
+        "R2.1",
+        "R3.1",
+        "R32.1",
+        "R33.1",
+        "R34.1",
+        "R35.1",
+        "R36.1",
+        "R38.1",
+        "R39.1",
+        "R4.1",
+        "R40.1",
+        "R42.1",
+        "R43.1",
+        "R44.1",
+        "R45.1",
+        "R46.1",
+        "R47.1",
+        "R48.1",
+        "R5.1",
+        "R6.1",
+        "R8.1",
+        "R9.1",
+        "SW1.2",
+        "U2.2",
+        "U3.1",
+        "U3.3",
+        "U4.16",
+        "U5.8",
+        "U6.1",
+        "U6.10",
+        "U6.22",
+        "U6.33",
+        "U6.42",
+        "U6.43",
+        "U6.44",
+        "U6.48",
+        "U6.49",
+        "U7.8",
+        "X1.4"
+      ]
+    },
+    {
+      "name": "+5V",
+      "pins": [
+        "C6.1",
+        "F1.2",
+        "J1.2",
+        "J9.23",
+        "R15.1",
+        "U2.3"
+      ]
+    },
+    {
+      "name": "/CC1",
+      "pins": [
+        "J15.A5",
+        "R21.1"
+      ]
+    },
+    {
+      "name": "/CC2",
+      "pins": [
+        "J15.B5",
+        "R20.1"
+      ]
+    },
+    {
+      "name": "/RP2040/DVDD",
+      "pins": [
+        "C32.2",
+        "C40.1",
+        "C41.1",
+        "U6.23",
+        "U6.45",
+        "U6.50"
+      ]
+    },
+    {
+      "name": "/RP2040/QSPI_CLK",
+      "pins": [
+        "J11.3",
+        "R34.2",
+        "U5.6",
+        "U6.52"
+      ]
+    },
+    {
+      "name": "/RP2040/QSPI_SD0",
+      "pins": [
+        "J11.4",
+        "R39.2",
+        "U5.5",
+        "U6.53"
+      ]
+    },
+    {
+      "name": "/RP2040/QSPI_SD1",
+      "pins": [
+        "J11.5",
+        "R40.2",
+        "U5.2",
+        "U6.55"
+      ]
+    },
+    {
+      "name": "/RP2040/QSPI_SD2",
+      "pins": [
+        "R35.2",
+        "U5.3",
+        "U6.54"
+      ]
+    },
+    {
+      "name": "/RP2040/QSPI_SD3",
+      "pins": [
+        "R38.2",
+        "U5.7",
+        "U6.51"
+      ]
+    },
+    {
+      "name": "/RP2040/RUN",
+      "pins": [
+        "J10.2",
+        "R36.2",
+        "U6.26"
+      ]
+    },
+    {
+      "name": "/RP2040/SWCLK",
+      "pins": [
+        "J7.2",
+        "U6.24"
+      ]
+    },
+    {
+      "name": "/RP2040/SWDIO",
+      "pins": [
+        "J7.1",
+        "U6.25"
+      ]
+    },
+    {
+      "name": "/~{CRVRST}",
+      "pins": [
+        "C42.2",
+        "J4.A12",
+        "R42.2",
+        "TP1.1"
+      ]
+    },
+    {
+      "name": "Caravel_CSB",
+      "pins": [
+        "J4.A14",
+        "R43.2",
+        "U7.1"
+      ]
+    },
+    {
+      "name": "Caravel_D0",
+      "pins": [
+        "J4.A16",
+        "R46.2",
+        "U7.5"
+      ]
+    },
+    {
+      "name": "Caravel_D1",
+      "pins": [
+        "J4.A17",
+        "R47.2",
+        "U7.2"
+      ]
+    },
+    {
+      "name": "Caravel_SCK",
+      "pins": [
+        "J4.A13",
+        "R48.2",
+        "U7.6"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "C10.2",
+        "C11.2",
+        "C12.2",
+        "C13.2",
+        "C14.2",
+        "C15.1",
+        "C16.1",
+        "C17.1",
+        "C18.2",
+        "C19.1",
+        "C2.2",
+        "C20.1",
+        "C21.1",
+        "C22.1",
+        "C23.1",
+        "C24.1",
+        "C25.1",
+        "C26.1",
+        "C27.2",
+        "C28.1",
+        "C29.2",
+        "C3.2",
+        "C30.2",
+        "C31.1",
+        "C32.1",
+        "C33.2",
+        "C34.2",
+        "C35.2",
+        "C36.2",
+        "C37.2",
+        "C38.2",
+        "C39.2",
+        "C4.2",
+        "C40.2",
+        "C41.2",
+        "C42.1",
+        "C43.1",
+        "C5.1",
+        "C56.2",
+        "C57.1",
+        "C58.2",
+        "C59.1",
+        "C6.2",
+        "C60.2",
+        "C61.1",
+        "C7.2",
+        "C8.2",
+        "C9.1",
+        "D1.1",
+        "D2.1",
+        "D3.1",
+        "J1.1",
+        "J10.1",
+        "J11.6",
+        "J12.11",
+        "J12.5",
+        "J13.11",
+        "J13.5",
+        "J14.11",
+        "J14.5",
+        "J15.A1_B12",
+        "J15.B1_A12",
+        "J3.11",
+        "J3.5",
+        "J4.A10",
+        "J4.A15",
+        "J4.A2",
+        "J4.A20",
+        "J4.A25",
+        "J4.A29",
+        "J4.A30",
+        "J4.A40",
+        "J4.A9",
+        "J4.B12",
+        "J4.B13",
+        "J4.B18",
+        "J4.B19",
+        "J4.B2",
+        "J4.B20",
+        "J4.B24",
+        "J4.B25",
+        "J4.B31",
+        "J4.B34",
+        "J4.B36",
+        "J4.B38",
+        "J4.B4",
+        "J4.B40",
+        "J5.11",
+        "J5.5",
+        "J6.11",
+        "J6.5",
+        "J9.1",
+        "J9.15",
+        "J9.19",
+        "J9.22",
+        "J9.24",
+        "J9.4",
+        "J9.8",
+        "MT1.1",
+        "MT2.1",
+        "MT3.1",
+        "MT4.1",
+        "R14.2",
+        "R16.2",
+        "R20.2",
+        "R21.2",
+        "R30.2",
+        "R31.2",
+        "R7.2",
+        "SW2.1",
+        "U1.3",
+        "U1.8",
+        "U2.1",
+        "U3.2",
+        "U4.15",
+        "U4.8",
+        "U5.4",
+        "U6.19",
+        "U6.57",
+        "U7.4",
+        "X1.2",
+        "Y1.2",
+        "Y1.4"
+      ]
+    },
+    {
+      "name": "HK_CSB",
+      "pins": [
+        "J4.A23",
+        "J9.7",
+        "NT1.1",
+        "R33.2",
+        "U6.3"
+      ]
+    },
+    {
+      "name": "HK_SCK",
+      "pins": [
+        "J4.A26",
+        "J9.6",
+        "U6.4"
+      ]
+    },
+    {
+      "name": "HK_SDI",
+      "pins": [
+        "J4.A24",
+        "J9.9",
+        "U4.5"
+      ]
+    },
+    {
+      "name": "HK_SDO",
+      "pins": [
+        "J4.A21",
+        "J9.10",
+        "U4.14"
+      ]
+    },
+    {
+      "name": "MUX_SEL",
+      "pins": [
+        "NT1.2",
+        "U4.1"
+      ]
+    },
+    {
+      "name": "Net-(C1-Pad2)",
+      "pins": [
+        "C1.2",
+        "R12.2",
+        "R7.1",
+        "SW1.1"
+      ]
+    },
+    {
+      "name": "Net-(C3-Pad1)",
+      "pins": [
+        "C3.1",
+        "J15.S1",
+        "J15.S2",
+        "J15.S3",
+        "J15.S4",
+        "R16.1"
+      ]
+    },
+    {
+      "name": "Net-(C30-Pad1)",
+      "pins": [
+        "C30.1",
+        "R37.1",
+        "Y1.3"
+      ]
+    },
+    {
+      "name": "Net-(D1-A)",
+      "pins": [
+        "D1.2",
+        "R15.2"
+      ]
+    },
+    {
+      "name": "Net-(D2-A)",
+      "pins": [
+        "D2.2",
+        "R17.2"
+      ]
+    },
+    {
+      "name": "Net-(D3-A)",
+      "pins": [
+        "D3.2",
+        "R18.2"
+      ]
+    },
+    {
+      "name": "Net-(D4-A)",
+      "pins": [
+        "D4.2",
+        "R19.2"
+      ]
+    },
+    {
+      "name": "Net-(JP1-B)",
+      "pins": [
+        "JP1.2",
+        "R22.1"
+      ]
+    },
+    {
+      "name": "Net-(JP2-B)",
+      "pins": [
+        "JP2.2",
+        "R23.1"
+      ]
+    },
+    {
+      "name": "Net-(JP3-B)",
+      "pins": [
+        "JP3.2",
+        "R24.1"
+      ]
+    },
+    {
+      "name": "Net-(JP4-B)",
+      "pins": [
+        "JP4.2",
+        "R25.1"
+      ]
+    },
+    {
+      "name": "Net-(JP5-B)",
+      "pins": [
+        "JP5.2",
+        "R26.1"
+      ]
+    },
+    {
+      "name": "Net-(JP6-B)",
+      "pins": [
+        "JP6.2",
+        "R27.1"
+      ]
+    },
+    {
+      "name": "Net-(JP7-B)",
+      "pins": [
+        "JP7.2",
+        "R28.1"
+      ]
+    },
+    {
+      "name": "Net-(JP8-B)",
+      "pins": [
+        "JP8.2",
+        "R29.1"
+      ]
+    },
+    {
+      "name": "Net-(R1-Pad2)",
+      "pins": [
+        "R1.2",
+        "SW4.8"
+      ]
+    },
+    {
+      "name": "Net-(R2-Pad2)",
+      "pins": [
+        "R2.2",
+        "SW4.7"
+      ]
+    },
+    {
+      "name": "Net-(R3-Pad2)",
+      "pins": [
+        "R3.2",
+        "SW4.6"
+      ]
+    },
+    {
+      "name": "Net-(R4-Pad2)",
+      "pins": [
+        "R4.2",
+        "SW4.5"
+      ]
+    },
+    {
+      "name": "Net-(R5-Pad2)",
+      "pins": [
+        "R5.2",
+        "SW4.4"
+      ]
+    },
+    {
+      "name": "Net-(R6-Pad2)",
+      "pins": [
+        "R6.2",
+        "SW4.3"
+      ]
+    },
+    {
+      "name": "Net-(R10-Pad2)",
+      "pins": [
+        "R10.2",
+        "SW4.2"
+      ]
+    },
+    {
+      "name": "Net-(R11-Pad2)",
+      "pins": [
+        "R11.2",
+        "SW4.1"
+      ]
+    },
+    {
+      "name": "Net-(R13-Pad1)",
+      "pins": [
+        "R13.1",
+        "R8.2",
+        "SW2.2"
+      ]
+    },
+    {
+      "name": "Net-(R14-Pad1)",
+      "pins": [
+        "R14.1",
+        "SW3.1"
+      ]
+    },
+    {
+      "name": "Net-(U1-A)",
+      "pins": [
+        "R22.2",
+        "U1.7"
+      ]
+    },
+    {
+      "name": "Net-(U1-B)",
+      "pins": [
+        "R23.2",
+        "U1.6"
+      ]
+    },
+    {
+      "name": "Net-(U1-C)",
+      "pins": [
+        "R24.2",
+        "U1.4"
+      ]
+    },
+    {
+      "name": "Net-(U1-D)",
+      "pins": [
+        "R25.2",
+        "U1.2"
+      ]
+    },
+    {
+      "name": "Net-(U1-DP)",
+      "pins": [
+        "R29.2",
+        "U1.5"
+      ]
+    },
+    {
+      "name": "Net-(U1-E)",
+      "pins": [
+        "R26.2",
+        "U1.1"
+      ]
+    },
+    {
+      "name": "Net-(U1-F)",
+      "pins": [
+        "R27.2",
+        "U1.9"
+      ]
+    },
+    {
+      "name": "Net-(U1-G)",
+      "pins": [
+        "R28.2",
+        "U1.10"
+      ]
+    },
+    {
+      "name": "Net-(U6-XIN)",
+      "pins": [
+        "C29.1",
+        "U6.20",
+        "Y1.1"
+      ]
+    },
+    {
+      "name": "Net-(U6-XOUT)",
+      "pins": [
+        "R37.2",
+        "U6.21"
+      ]
+    },
+    {
+      "name": "Net-(U7-IO2)",
+      "pins": [
+        "R44.2",
+        "U7.3"
+      ]
+    },
+    {
+      "name": "Net-(U7-IO3)",
+      "pins": [
+        "R45.2",
+        "U7.7"
+      ]
+    },
+    {
+      "name": "RPIO29",
+      "pins": [
+        "J9.20",
+        "U6.41"
+      ]
+    },
+    {
+      "name": "RP_proj_clk",
+      "pins": [
+        "R41.1",
+        "U6.2"
+      ]
+    },
+    {
+      "name": "SDI{slash}out0",
+      "pins": [
+        "U4.7",
+        "U6.5"
+      ]
+    },
+    {
+      "name": "SDO{slash}out1",
+      "pins": [
+        "U4.12",
+        "U6.6"
+      ]
+    },
+    {
+      "name": "VBUS",
+      "pins": [
+        "F1.1",
+        "J15.A4_B9",
+        "J15.B4_A9"
+      ]
+    },
+    {
+      "name": "boot_mode",
+      "pins": [
+        "J11.2",
+        "R9.2",
+        "SW3.2",
+        "U5.1",
+        "U6.56"
+      ]
+    },
+    {
+      "name": "cinc{slash}out3",
+      "pins": [
+        "U4.9",
+        "U6.11"
+      ]
+    },
+    {
+      "name": "ctrl_ena",
+      "pins": [
+        "J4.A1",
+        "J9.17",
+        "R31.1",
+        "U6.8"
+      ]
+    },
+    {
+      "name": "ctrl_sel_inc",
+      "pins": [
+        "J4.A3",
+        "J9.14",
+        "R30.1",
+        "U4.11"
+      ]
+    },
+    {
+      "name": "gpio",
+      "pins": [
+        "D4.1",
+        "J4.A18"
+      ]
+    },
+    {
+      "name": "in0",
+      "pins": [
+        "J13.1",
+        "J2.1",
+        "J3.1",
+        "J4.A32",
+        "SW4.16",
+        "U6.12"
+      ]
+    },
+    {
+      "name": "in1",
+      "pins": [
+        "J13.4",
+        "J2.2",
+        "J3.2",
+        "J4.A33",
+        "SW4.15",
+        "U6.13"
+      ]
+    },
+    {
+      "name": "in2",
+      "pins": [
+        "J12.3",
+        "J13.2",
+        "J2.3",
+        "J3.3",
+        "J4.A34",
+        "SW4.14",
+        "U6.14"
+      ]
+    },
+    {
+      "name": "in3",
+      "pins": [
+        "J14.9",
+        "J2.4",
+        "J3.4",
+        "J4.A35",
+        "SW4.13",
+        "U6.15"
+      ]
+    },
+    {
+      "name": "in4",
+      "pins": [
+        "J13.7",
+        "J3.7",
+        "J4.A36",
+        "SW4.12",
+        "U6.28"
+      ]
+    },
+    {
+      "name": "in5",
+      "pins": [
+        "J13.10",
+        "J14.7",
+        "J3.8",
+        "J4.A37",
+        "SW4.11",
+        "U6.29"
+      ]
+    },
+    {
+      "name": "in6",
+      "pins": [
+        "J13.8",
+        "J3.9",
+        "J4.A38",
+        "SW4.10",
+        "U6.30"
+      ]
+    },
+    {
+      "name": "in7",
+      "pins": [
+        "J3.10",
+        "J4.A39",
+        "SW4.9",
+        "U6.31"
+      ]
+    },
+    {
+      "name": "mio33",
+      "pins": [
+        "J4.A4",
+        "J9.18"
+      ]
+    },
+    {
+      "name": "mio35",
+      "pins": [
+        "J4.A6",
+        "J9.16"
+      ]
+    },
+    {
+      "name": "mio37",
+      "pins": [
+        "J4.A5",
+        "J9.13"
+      ]
+    },
+    {
+      "name": "mprj_io0",
+      "pins": [
+        "J4.A22",
+        "J9.11"
+      ]
+    },
+    {
+      "name": "out0",
+      "pins": [
+        "J1.3",
+        "J4.B32",
+        "J6.1",
+        "JP1.1",
+        "U4.6"
+      ]
+    },
+    {
+      "name": "out1",
+      "pins": [
+        "J1.4",
+        "J4.B29",
+        "J6.2",
+        "JP2.1",
+        "U4.13"
+      ]
+    },
+    {
+      "name": "out2",
+      "pins": [
+        "J1.5",
+        "J4.B30",
+        "J6.3",
+        "JP3.1",
+        "U4.3"
+      ]
+    },
+    {
+      "name": "out3",
+      "pins": [
+        "J1.6",
+        "J12.2",
+        "J13.3",
+        "J4.B27",
+        "J6.4",
+        "JP4.1",
+        "U4.10"
+      ]
+    },
+    {
+      "name": "out4",
+      "pins": [
+        "J12.1",
+        "J14.8",
+        "J4.B28",
+        "J6.7",
+        "JP5.1",
+        "U6.16"
+      ]
+    },
+    {
+      "name": "out5",
+      "pins": [
+        "J12.4",
+        "J4.B23",
+        "J6.8",
+        "JP6.1",
+        "U6.17"
+      ]
+    },
+    {
+      "name": "out6",
+      "pins": [
+        "J14.10",
+        "J4.B26",
+        "J6.9",
+        "JP7.1",
+        "U6.18"
+      ]
+    },
+    {
+      "name": "out7",
+      "pins": [
+        "J12.8",
+        "J13.9",
+        "J4.B21",
+        "J6.10",
+        "JP8.1",
+        "U6.27"
+      ]
+    },
+    {
+      "name": "project_clk",
+      "pins": [
+        "J17.3",
+        "J4.A28",
+        "R12.1",
+        "R41.2"
+      ]
+    },
+    {
+      "name": "uio0",
+      "pins": [
+        "J12.7",
+        "J4.B22",
+        "J5.1",
+        "J8.1",
+        "U6.32"
+      ]
+    },
+    {
+      "name": "uio1",
+      "pins": [
+        "J12.10",
+        "J4.B11",
+        "J5.2",
+        "J8.2",
+        "U6.34"
+      ]
+    },
+    {
+      "name": "uio2",
+      "pins": [
+        "J12.9",
+        "J4.B9",
+        "J5.3",
+        "J8.3",
+        "U6.35"
+      ]
+    },
+    {
+      "name": "uio3",
+      "pins": [
+        "J14.3",
+        "J17.1",
+        "J4.B10",
+        "J5.4",
+        "U6.36"
+      ]
+    },
+    {
+      "name": "uio4",
+      "pins": [
+        "J14.1",
+        "J4.B7",
+        "J5.7",
+        "U6.37"
+      ]
+    },
+    {
+      "name": "uio5",
+      "pins": [
+        "J14.4",
+        "J4.B8",
+        "J5.8",
+        "U6.38"
+      ]
+    },
+    {
+      "name": "uio6",
+      "pins": [
+        "J14.2",
+        "J4.B5",
+        "J5.9",
+        "U6.39"
+      ]
+    },
+    {
+      "name": "uio7",
+      "pins": [
+        "J4.B6",
+        "J5.10",
+        "U6.40"
+      ]
+    },
+    {
+      "name": "usb_d+",
+      "pins": [
+        "J15.A6",
+        "J15.B6",
+        "U6.47"
+      ]
+    },
+    {
+      "name": "usb_d-",
+      "pins": [
+        "J15.A7",
+        "J15.B7",
+        "U6.46"
+      ]
+    },
+    {
+      "name": "usrclk2",
+      "pins": [
+        "J4.A27",
+        "J9.5"
+      ]
+    },
+    {
+      "name": "xclk",
+      "pins": [
+        "J4.A11",
+        "X1.3"
+      ]
+    },
+    {
+      "name": "~{crst}{slash}out2",
+      "pins": [
+        "U4.4",
+        "U6.9"
+      ]
+    },
+    {
+      "name": "~{ctrl_sel_rst}",
+      "pins": [
+        "J4.A8",
+        "J9.12",
+        "R32.2",
+        "U4.2"
+      ]
+    },
+    {
+      "name": "~{project_rst}",
+      "pins": [
+        "C2.1",
+        "J17.2",
+        "J4.A31",
+        "R13.2",
+        "U6.7"
+      ]
+    }
+  ]
+}

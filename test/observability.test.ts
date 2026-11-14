@@ -3,10 +3,11 @@ import { mkdir, readFile, writeFile, chmod, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { execa } from 'execa';
 import { runAgentLoop, type RunOptions } from '../src/agent/loop.js';
-import type { ChatOpts, Provider, Turn } from '../src/agent/types.js';
+import type { ChatOpts, Msg, Provider, Turn } from '../src/agent/types.js';
 import { InteractiveRenderer, makeRenderer, plainRenderer } from '../src/agent/render.js';
 import { isColorEnabled, setColorEnabled, stageLine, toolLine } from '../src/agent/theme.js';
 import { tempFixtureRepo } from './helpers.js';
+import { parseToolCalls } from '../src/agent/providers/tool-protocol.js';
 
 /** Replays a fixed script of turns; the last turn repeats forever. */
 class ScriptedProvider implements Provider {
@@ -148,7 +149,7 @@ describe('resolved model id reaches the run (F6 wiring)', () => {
   });
 
   it('a rate-limited local run fails instead of failing over to a billed provider', async () => {
-    // AC-3.21's no-fallback guarantee, driven through the real failover path
+    // AC-3.24's no-fallback guarantee, driven through the real failover path
     // rather than asserted by proxy on the provider name. Both cloud keys are
     // set, so a provider that did fail over would visibly switch here.
     const { repo, cleanup } = await tempFixtureRepo();
@@ -281,6 +282,252 @@ describe('exit paths and run-end addenda (task 4.6)', () => {
       await cleanup();
     }
   });
+});
+
+describe('a turn cut for fabricated tool results (#320)', () => {
+  it('sends the notice after the real results and records the cut in the transcript', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const notice = 'Your last reply went on past its tool call and wrote 1 "[result of …]" block itself.';
+      const seen: Msg[][] = [];
+      const turns: Turn[] = [
+        { ...spin('a'), notice, discarded: '[result of bogus_tool]\ninvented' },
+        finishTurn('refuse', 'stop after one turn'),
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          return turns[Math.min(seen.length - 1, turns.length - 1)]!;
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 3 }));
+      expect(res.outcome).toBe('refused');
+
+      const second = seen[1]!;
+      const toolAt = second.findIndex((m) => m.role === 'tool' && m.toolCallId === 'a');
+      const noticeAt = second.findIndex((m) => m.role === 'user' && m.content === notice);
+      expect(toolAt).toBeGreaterThanOrEqual(0);
+      expect(noticeAt).toBeGreaterThan(toolAt);
+
+      const events = await transcriptEvents(res.transcriptDir);
+      const cut = events.find((e) => e.type === 'fabricated-results')?.data;
+      expect(cut?.notice).toBe(notice);
+      expect(cut?.discarded).toBe('[result of bogus_tool]\ninvented');
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('a call after an accepted finish in the same reply', () => {
+  it('is answered, not run: the run ends on the checks finish passed', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const provider = new ScriptedProvider([
+        {
+          text: null,
+          toolCalls: [
+            { id: 'fin', name: 'finish', args: { outcome: 'done', summary: 'nothing to change' } },
+            { id: 'late', name: 'check_drift', args: {} },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1 },
+        },
+      ]);
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 2 }));
+      expect(res.outcome).toBe('success');
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.filter((e) => e.type === 'tool').map((e) => e.data.name)).toEqual(['finish']);
+      expect(events.find((e) => e.type === 'tool-not-run')?.data).toMatchObject({ name: 'check_drift' });
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('a turn that left tool calls undispatched (#306)', () => {
+  it('names them after the real results and records them in the transcript', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const seen: Msg[][] = [];
+      const turns: Turn[] = [
+        { ...spin('a'), undispatched: { unavailable: ['write_file'], malformed: [] } },
+        finishTurn('refuse', 'stop after one turn'),
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          return turns[Math.min(seen.length - 1, turns.length - 1)]!;
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 3 }));
+      expect(res.outcome).toBe('refused');
+
+      const second = seen[1]!;
+      const toolAt = second.findIndex((m) => m.role === 'tool' && m.toolCallId === 'a');
+      const steerAt = second.findIndex((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('did not run'));
+      expect(toolAt).toBeGreaterThanOrEqual(0);
+      expect(steerAt).toBeGreaterThan(toolAt);
+      // No proposal validated in this run, so write_file is still locked.
+      expect(second[steerAt]!.content).toMatch(/"write_file": not in the tool catalog\. .*propose_change, then validate_change/);
+
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.find((e) => e.type === 'undispatched-calls')?.data).toEqual({ unavailable: ['write_file'], malformed: [] });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('follows the edit lock: re-send after a same-reply unlock, unknown name after that', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const seen: Msg[][] = [];
+      const usage = { inputTokens: 100, outputTokens: 10 };
+      const turns: Turn[] = [
+        {
+          // The #306 reply: propose, validate and the write in one go. The write
+          // was not in the turn's catalog, so the provider left it undispatched.
+          text: null,
+          toolCalls: [
+            { id: 'p', name: 'propose_change', args: { id: 'c1', why: 'w', what_changes: '- x', tasks: '- [ ] t' } },
+            { id: 'v', name: 'validate_change', args: {} },
+          ],
+          usage,
+          undispatched: { unavailable: ['write_file'], malformed: [] },
+        },
+        { ...spin('b'), undispatched: { unavailable: ['edit_files'], malformed: [] } },
+        finishTurn('refuse', 'stop here'),
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          return turns[Math.min(seen.length - 1, turns.length - 1)]!;
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 4 }));
+      expect(res.outcome).toBe('refused');
+
+      const steers = (msgs: Msg[]) =>
+        msgs.filter((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('did not run')).map((m) => m.content as string);
+
+      // validate_change ran in that same reply, so write_file is in the catalog now.
+      expect(steers(seen[1]!)).toHaveLength(1);
+      expect(steers(seen[1]!)[0]).toMatch(/"write_file": not in the tool catalog when you replied\. It is available now/);
+      expect(steers(seen[1]!)[0]).not.toMatch(/propose_change/);
+
+      // Edits are unlocked, so a name still absent is unknown, not locked.
+      const later = steers(seen[2]!);
+      expect(later).toHaveLength(2);
+      expect(later[1]).toMatch(/"edit_files": not a tool in the catalog\. Use one of the available tools: .*write_file/);
+      expect(later[1]).not.toMatch(/withheld until a proposal validates/);
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
+});
+
+describe('a finish in a reply that left calls undispatched (#296)', () => {
+  it('is answered, not run, and the note names the calls; a later finish ends the run', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const seen: Msg[][] = [];
+      const lines: string[] = [];
+      const turns: Turn[] = [
+        {
+          text: null,
+          toolCalls: [{ id: 'early', name: 'finish', args: { outcome: 'done', summary: 'wrote the spec' } }],
+          usage: { inputTokens: 1, outputTokens: 1 },
+          undispatched: { unavailable: ['write_file', 'write_file'], malformed: ['edit_file'] },
+        },
+        finishTurn('done', 'nothing to change after all'),
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          return turns[Math.min(seen.length - 1, turns.length - 1)]!;
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, lines, { maxTurns: 3 }));
+      expect(res.outcome).toBe('success');
+      expect(seen).toHaveLength(2);
+
+      const events = await transcriptEvents(res.transcriptDir);
+      const held = events.find((e) => e.type === 'tool-not-run');
+      expect(held?.data).toMatchObject({ name: 'finish' });
+      expect(held?.data.result).toMatch(/^not run: finish was held back because "write_file", "edit_file" in this reply did not run/);
+      // Only the second reply's finish ran.
+      expect(events.filter((e) => e.type === 'tool').map((e) => e.data.name)).toEqual(['finish']);
+
+      // The model reads the held-back result, then the #306 note naming the calls.
+      const second = seen[1]!;
+      const resultAt = second.findIndex((m) => m.role === 'tool' && m.toolCallId === 'early');
+      const noteAt = second.findIndex((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('did not run'));
+      expect(second[resultAt]!.content).toMatch(/held back/);
+      expect(noteAt).toBeGreaterThan(resultAt);
+      expect(lines.some((l) => l.includes('held back: write_file, edit_file did not run in this reply'))).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('holds back a refusal the same way', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const provider = new ScriptedProvider([
+        { ...finishTurn('refuse', 'cannot do it'), undispatched: { unavailable: [], malformed: ['record_constraint'] } },
+        finishTurn('refuse', 'cannot do it'),
+      ]);
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 3 }));
+      expect(res.outcome).toBe('refused');
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.filter((e) => e.type === 'tool-not-run').map((e) => e.data.name)).toEqual(['finish']);
+      expect(events.filter((e) => e.type === 'tool').map((e) => e.data.name)).toEqual(['finish']);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('the #296 reply through the real parser: the write is not lost to a same-reply finish', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const call = (tool: string, args: Record<string, unknown>) => '```json\n' + JSON.stringify({ tool, args }) + '\n```';
+      const write = call('write_file', { path: 'docs/NOTES.md', content: '# Notes\n\nSeeded by the spec stage.\n' });
+      const replies = [
+        // propose, validate, write and finish in one reply: write_file is not in the
+        // catalog this turn was given, so the parser cannot dispatch it.
+        [
+          call('propose_change', { id: 'seed-notes', why: 'w', what_changes: '- docs/NOTES.md', tasks: '- [ ] write it' }),
+          call('validate_change', {}),
+          write,
+          call('finish', { outcome: 'done', summary: 'notes written' }),
+        ].join('\n'),
+        [write, call('check_drift', {}), call('finish', { outcome: 'done', summary: 'notes written' })].join('\n'),
+      ];
+      let turn = 0;
+      let seq = 0;
+      const provider: Provider = {
+        name: 'scripted-text-protocol',
+        chat: async (_messages, tools) => {
+          const catalog = new Set(tools.map((t) => t.name));
+          const parsed = parseToolCalls(replies[Math.min(turn++, replies.length - 1)]!, () => `cc-${++seq}`, catalog);
+          return { ...parsed, usage: { inputTokens: 1, outputTokens: 1 } };
+        },
+      };
+      const res = await runAgentLoop(loopOpts(repo, provider, [], { maxTurns: 4 }));
+      expect(res.outcome).toBe('success');
+      expect(turn).toBe(2);
+      const committed = (await execa('git', ['show', '--name-only', '--format=', 'HEAD'], { cwd: repo })).stdout.split('\n');
+      expect(committed).toContain('docs/NOTES.md');
+      const events = await transcriptEvents(res.transcriptDir);
+      expect(events.find((e) => e.type === 'undispatched-calls')?.data).toEqual({ unavailable: ['write_file'], malformed: [] });
+      expect(events.find((e) => e.type === 'tool-not-run')?.data).toMatchObject({ name: 'finish' });
+    } finally {
+      await cleanup();
+    }
+  }, 60_000);
 });
 
 describe('redaction of metadata surfaces (task 6.1)', () => {
@@ -420,6 +667,84 @@ describe('liveness heartbeat distinguishes slow from hung (5.1)', () => {
   });
 });
 
+describe('turn watchdog: inactivity deadline + hard cap', () => {
+  /** Reports progress every 20ms (unless `silent`) and finishes after `runMs`,
+   *  or keeps going until closed when `runMs` is null. */
+  class StreamingProvider implements Provider {
+    readonly name = 'scripted';
+    calls = 0;
+    private stops: Array<() => void> = [];
+    constructor(private readonly plan: (call: number) => { runMs: number | null; silent?: boolean }) {}
+    async chat(_m: unknown, _t: unknown, opts?: ChatOpts): Promise<Turn> {
+      const { runMs, silent } = this.plan(++this.calls);
+      return new Promise<Turn>((resolve, reject) => {
+        let chars = 0;
+        const tick = silent ? undefined : setInterval(() => opts?.onStream?.((chars += 100)), 20);
+        const timer =
+          runMs === null
+            ? undefined
+            : setTimeout(() => {
+                clearInterval(tick);
+                resolve(spin('a'));
+              }, runMs);
+        this.stops.push(() => {
+          clearInterval(tick);
+          clearTimeout(timer);
+          reject(new Error('closed'));
+        });
+      });
+    }
+    async close(): Promise<void> {
+      for (const stop of this.stops.splice(0)) stop();
+    }
+  }
+
+  async function runWithConfig(provider: Provider, config: Record<string, number>) {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      await writeFile(path.join(repo, '.copperhead', 'config.json'), JSON.stringify({ heartbeatMs: 0, ...config }), 'utf8');
+      const lines: string[] = [];
+      const res = await runAgentLoop(loopOpts(repo, provider, lines, { maxTurns: 1, allowDirty: true }));
+      return { res, lines };
+    } finally {
+      await cleanup();
+    }
+  }
+
+  it('lets a turn run past turnTimeoutMs while it keeps streaming progress', async () => {
+    const provider = new StreamingProvider(() => ({ runMs: 300 }));
+    const { lines } = await runWithConfig(provider, { turnTimeoutMs: 100, turnMaxMs: 5000 });
+    expect(provider.calls).toBe(1);
+    expect(lines.some((l) => l.includes('turnTimeoutMs'))).toBe(false);
+  });
+
+  it('still aborts and retries a turn that reports no progress for turnTimeoutMs', async () => {
+    const provider = new StreamingProvider((call) => (call === 1 ? { runMs: null, silent: true } : { runMs: 10 }));
+    const { lines } = await runWithConfig(provider, { turnTimeoutMs: 100, turnMaxMs: 5000 });
+    expect(provider.calls).toBe(2);
+    expect(lines.some((l) => l.includes('retrying (1/3)'))).toBe(true);
+  });
+
+  it('stops a turn still streaming at turnMaxMs and fails without resending it', async () => {
+    const provider = new StreamingProvider(() => ({ runMs: null }));
+    const { res } = await runWithConfig(provider, { turnTimeoutMs: 100, turnMaxMs: 300 });
+    expect(provider.calls).toBe(1);
+    expect(res.outcome).toBe('failure');
+    expect(res.exitPath).toBe('provider-error');
+    expect(res.summary).toContain('too large, not hung');
+  });
+
+  it('fails as provider-error once a silent turn has timed out on every retry', async () => {
+    const provider = new StreamingProvider(() => ({ runMs: null, silent: true }));
+    const { res } = await runWithConfig(provider, { turnTimeoutMs: 50, turnMaxMs: 5000 });
+    expect(provider.calls).toBe(4); // the turn, then MAX_TURN_TIMEOUTS (3) retries
+    expect(res.outcome).toBe('failure');
+    expect(res.exitPath).toBe('provider-error');
+    expect(res.summary).toContain('timed out 4×');
+  });
+});
+
 describe('--json routes progress to stderr (AC-2.4/8.9)', () => {
   it('a --json renderer never writes progress to stdout', () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -442,22 +767,38 @@ describe('--json routes progress to stderr (AC-2.4/8.9)', () => {
 describe('interactive chrome theme (AC-8.8/8.9)', () => {
   it('plain helpers emit zero SGR when color is off', () => {
     setColorEnabled(false);
-    expect(toolLine('run_erc', 'clean')).toBe('  ✓ run_erc  clean');
-    expect(toolLine('edit_file', 'replaced 1 region')).toBe('  ▸ edit_file  replaced 1 region');
+    expect(toolLine('run_erc', 'clean', true)).toBe('  ✓ run_erc  clean');
+    expect(toolLine('edit_file', 'replaced 1 region', false)).toBe('  ▸ edit_file  replaced 1 region');
     expect(stageLine('spec-seed', 'running')).toBe('stage spec-seed: running');
-    expect(toolLine('run_erc', 'clean')).not.toContain('\x1b');
+    expect(toolLine('run_erc', 'clean', true)).not.toContain('\x1b');
   });
 
   it('interactive tool lines pick ✓ for clean results when color is on', () => {
     setColorEnabled(true);
     try {
-      const line = toolLine('run_erc', 'ERC clean');
+      const line = toolLine('run_erc', 'ERC clean', true);
       expect(line).toContain('run_erc');
       expect(line).toContain('✓');
       expect(line).toContain('\x1b');
     } finally {
       setColorEnabled(false);
     }
+  });
+
+  it('viewHint styles the tool name: mutation reads differently from query (issue #246 Phase 0)', () => {
+    setColorEnabled(true);
+    try {
+      const mutation = toolLine('edit_file', 'replaced 1 region', true, 'mutation');
+      const query = toolLine('edit_file', 'replaced 1 region', true, 'query');
+      expect(mutation).not.toBe(query);
+      expect(mutation).toContain('edit_file');
+    } finally {
+      setColorEnabled(false);
+    }
+    // plain mode: hint changes nothing, the string contract stays byte-stable
+    expect(toolLine('edit_file', 'replaced 1 region', true, 'mutation')).toBe(
+      toolLine('edit_file', 'replaced 1 region', true, 'query'),
+    );
   });
 
   it('makeRenderer(--plain) disables color so later stage lines stay zero-ANSI', () => {

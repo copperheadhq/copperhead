@@ -40,5 +40,5 @@
 
 ## 6. SPEC & verification
 
-- [x] 6.1 Update `openspec/specs/SPEC.md`: extend AC-3.10 to include `--model lmstudio`; tighten AC-2.1 from "no network to api.* hosts" to zero requests to any host and add AC-2.6 (offline by construction, covering `check` and `export bom`); add AC-3.21 (local model, no key, no cloud call, no fallback, actionable local failures); add `lmstudio.ts` to the §2 tree and §4.4 provider list; add `LMSTUDIO_BASE_URL` to the `.env.example` reference
+- [x] 6.1 Update `openspec/specs/SPEC.md`: extend AC-3.10 to include `--model lmstudio`; tighten AC-2.1 from "no network to api.* hosts" to zero requests to any host and add AC-2.6 (offline by construction, covering `check` and `export bom`); add AC-3.24 (local model, no key, no cloud call, no fallback, actionable local failures); add `lmstudio.ts` to the §2 tree and §4.4 provider list; add `LMSTUDIO_BASE_URL` to the `.env.example` reference
 - [x] 6.2 Run `npm run build`, `npm run typecheck`, and `npm test` (full offline suite green, including the new provider tests); if the `openspec` CLI is available, run `openspec validate add-lmstudio-provider` and fix fallout

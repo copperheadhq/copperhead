@@ -20,6 +20,21 @@ export const DRAFT_QUALITY_HEADING = '## Draft quality';
 /** Config marker: repos produced by `copperhead create` set `origin` to `"create"`. */
 export const CREATE_ORIGIN = 'create';
 
+/** Generator stamp carried by every schematic copperhead authors (the
+ * bootstrap scaffold and every emitter draft). */
+export const DRAFT_GENERATOR_MARKER = '(generator "copperhead-draft")';
+
+/**
+ * Is the schematic still copperhead-authored? True while the file carries the
+ * generator stamp. A human taking the sheet over in KiCad re-saves it with
+ * KiCad's own generator string, which is the deliberate one-way door out of
+ * drafting mode: the edit guard lifts and the legibility finish gate stops
+ * applying, because the drawing is no longer the engine's to defend.
+ */
+export function isEngineAuthoredSchematic(text: string): boolean {
+  return text.slice(0, 400).includes(DRAFT_GENERATOR_MARKER);
+}
+
 /**
  * True when `.copperhead/config.json` marks the repo as create-produced.
  * Accepts the raw parsed object (or a loaded config that retained `origin`).
@@ -34,11 +49,22 @@ export function isCreateProducedRepo(config: unknown): boolean {
  * heading is absent. HTML comments and whitespace alone do not count as filled
  * (init scaffolds the empty heading + a placeholder comment).
  */
+/**
+ * The Draft quality heading, with or without the numbering a LAYOUT.md whose
+ * other headings are numbered carries (`## 4. Draft quality`, `## 4) Draft
+ * quality`, `## 4.1 Draft quality`), in any letter case (#327). One matcher
+ * for the fab gate and the create stage gate.
+ */
+const DRAFT_QUALITY_HEADING_RE = /^##\s+(?:(?:\d+[.)]|\d+(?:\.\d+)+[.)]?)\s+)?Draft quality\s*$/i;
+export function isDraftQualityHeading(line: string): boolean {
+  return DRAFT_QUALITY_HEADING_RE.test(line.trim());
+}
+
 export function draftQualitySection(layoutMd: string): string | null {
   const lines = layoutMd.split(/\r?\n/);
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i]!.trim() === DRAFT_QUALITY_HEADING) {
+    if (isDraftQualityHeading(lines[i]!)) {
       start = i + 1;
       break;
     }

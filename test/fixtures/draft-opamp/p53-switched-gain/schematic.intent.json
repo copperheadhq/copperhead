@@ -1,0 +1,138 @@
+{
+ "version": 1,
+ "parts": [
+  {
+   "ref": "TP1",
+   "libId": "Connector:TestPoint",
+   "value": "EI",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "TP2",
+   "libId": "Connector:TestPoint",
+   "value": "COM",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "TP3",
+   "libId": "Connector:TestPoint",
+   "value": "EO",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "TP4",
+   "libId": "Connector:TestPoint",
+   "value": "EO_COM",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "R1",
+   "libId": "Device:R",
+   "value": "RI",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "R2",
+   "libId": "Device:R",
+   "value": "RO",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "U1",
+   "libId": "Amplifier_Operational:LM321",
+   "value": "LM321",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "TP5",
+   "libId": "Connector:TestPoint",
+   "value": "GAIN",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "U2",
+   "libId": "Analog_Switch:ADG417BR",
+   "value": "ADG417",
+   "group": "Switched-Gain Amplifier"
+  },
+  {
+   "ref": "J9",
+   "libId": "Connector_Generic:Conn_01x04",
+   "value": "\u00b115V/5V",
+   "group": "Switched-Gain Amplifier"
+  }
+ ],
+ "nets": [
+  {
+   "name": "EI",
+   "pins": [
+    "TP1.1",
+    "U1.1"
+   ]
+  },
+  {
+   "name": "E-",
+   "pins": [
+    "U1.3",
+    "R1.1",
+    "R2.1",
+    "U2.8"
+   ]
+  },
+  {
+   "name": "EO",
+   "pins": [
+    "R2.2",
+    "U1.4",
+    "TP3.1",
+    "U2.1"
+   ]
+  },
+  {
+   "name": "GND",
+   "pins": [
+    "R1.2",
+    "TP2.1",
+    "TP4.1",
+    "J9.2",
+    "U2.3"
+   ]
+  },
+  {
+   "name": "+15V",
+   "pins": [
+    "U1.5",
+    "J9.1",
+    "U2.4"
+   ],
+   "kind": "power"
+  },
+  {
+   "name": "-15V",
+   "pins": [
+    "U1.2",
+    "J9.3",
+    "U2.7"
+   ],
+   "kind": "power"
+  },
+  {
+   "name": "GAIN",
+   "pins": [
+    "TP5.1",
+    "U2.6"
+   ]
+  },
+  {
+   "name": "+5V",
+   "pins": [
+    "U2.5",
+    "J9.4"
+   ],
+   "kind": "power"
+  }
+ ],
+ "hints": {
+  "date": "2026-09-26"
+ }
+}

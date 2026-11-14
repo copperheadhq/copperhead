@@ -1,4 +1,4 @@
-import type { Msg, ToolCall, ToolSchema } from '../types.js';
+import type { Msg, ToolCall, ToolSchema, UndispatchedCalls } from '../types.js';
 
 export function renderToolProtocol(tools: ToolSchema[]): string {
   if (!tools.length) return '';
@@ -6,15 +6,17 @@ export function renderToolProtocol(tools: ToolSchema[]): string {
     '# Tool protocol',
     '',
     'You are the reasoning half of a tool-driven workflow; you cannot run anything yourself.',
-    'To take an action, reply with EXACTLY ONE JSON object and nothing else, wrapped in a',
+    'To take an action, reply with one or more JSON objects, one per tool call, each in its own',
     '```json fenced code block:',
     '',
     '```json',
     '{"tool": "<tool_name>", "args": { ... }}',
     '```',
     '',
-    'Use only the tools listed below, with `args` matching the tool\'s JSON Schema. If you have',
-    'no tool to call and only want to say something, reply with plain prose and no JSON block.',
+    'Every call in one reply runs in that same turn, in the order written, and the results come',
+    'back in that order, each labelled "call k of N" when the reply held more than one. Use only',
+    'the tools listed below, with `args` matching the tool\'s JSON Schema. If you have no tool to',
+    'call and only want to say something, reply with plain prose and no JSON block.',
     '',
     '## Available tools',
   ];
@@ -29,26 +31,61 @@ export function renderToolProtocol(tools: ToolSchema[]): string {
   return lines.join('\n');
 }
 
+/**
+ * "k of N" for a call that shared its reply with others, empty for a lone call. The
+ * text protocol has no tool-call ids the model can see (it never wrote `cc-3`; the harness
+ * assigned it), so a batched reply's results are told apart by their position in the reply
+ * (#192). A lone call keeps the bare label, so the marker shape that predates batching is
+ * unchanged for it.
+ */
+function ordinal(k: number, n: number): string {
+  return n > 1 ? `${k} of ${n}` : '';
+}
+
+type CallIndex = Map<string, { name: string; ordinal: string }>;
+
+/**
+ * Record one reply's calls by id: the tool name and the call's place in the reply.
+ * The index is filled as the history is walked, never from the whole history at
+ * once: ids repeat across a run when cached turns are replayed under their stored
+ * `cc-N` ids and a restarted provider then hands the same ids out live, and a
+ * later call must not relabel the results that came before it.
+ */
+function indexCalls(index: CallIndex, m: Extract<Msg, { role: 'assistant' }>): void {
+  const calls = m.toolCalls ?? [];
+  calls.forEach((call, i) => index.set(call.id, { name: call.name, ordinal: ordinal(i + 1, calls.length) }));
+}
+
+function resultLabel(index: CallIndex, id: string): string {
+  const call = index.get(id);
+  if (!call) return `[result of ${id}]`;
+  return call.ordinal ? `[result of ${call.name}, call ${call.ordinal}]` : `[result of ${call.name}]`;
+}
+
 /** Delta prompt for a resumed CLI session: new user lines and tool results only. */
 export function renderDelta(messages: Msg[], from: number): string {
-  const idToName = new Map<string, string>();
-  for (const m of messages) {
-    if (m.role === 'assistant') for (const call of m.toolCalls ?? []) idToName.set(call.id, call.name);
-  }
+  const index: CallIndex = new Map();
   const parts: string[] = [];
-  for (const m of messages.slice(Math.max(0, from))) {
+  const start = Math.max(0, from);
+  messages.forEach((m, i) => {
+    // Every reply feeds the index, sent or not, so a result after `from` is
+    // labelled by the call that preceded it, not by a later one with the same id.
+    if (m.role === 'assistant') {
+      indexCalls(index, m);
+      return;
+    }
+    if (i < start) return;
     if (m.role === 'user') {
       parts.push(`[user]\n${m.content}`);
     } else if (m.role === 'tool') {
-      const name = idToName.get(m.toolCallId) ?? m.toolCallId;
-      parts.push(`[result of ${name}]\n${m.content}`);
+      parts.push(`${resultLabel(index, m.toolCallId)}\n${m.content}`);
     }
-  }
+  });
   return parts.join('\n\n');
 }
 
 export function renderConversation(messages: Msg[]): string {
-  const idToName = new Map<string, string>();
+  const index: CallIndex = new Map();
   const parts: string[] = [];
   for (const m of messages) {
     if (m.role === 'system') continue;
@@ -56,15 +93,16 @@ export function renderConversation(messages: Msg[]): string {
       parts.push(`[user]\n${m.content}`);
     } else if (m.role === 'assistant') {
       if (m.content) parts.push(`[assistant]\n${m.content}`);
-      for (const call of m.toolCalls ?? []) {
-        idToName.set(call.id, call.name);
+      indexCalls(index, m);
+      const calls = m.toolCalls ?? [];
+      calls.forEach((call, i) => {
+        const o = ordinal(i + 1, calls.length);
         parts.push(
-          `[assistant tool call]\n\`\`\`json\n${JSON.stringify({ tool: call.name, args: call.args })}\n\`\`\``,
+          `[assistant tool call${o ? ` ${o}` : ''}]\n\`\`\`json\n${JSON.stringify({ tool: call.name, args: call.args })}\n\`\`\``,
         );
-      }
+      });
     } else {
-      const name = idToName.get(m.toolCallId) ?? m.toolCallId;
-      parts.push(`[result of ${name}]\n${m.content}`);
+      parts.push(`${resultLabel(index, m.toolCallId)}\n${m.content}`);
     }
   }
   return parts.join('\n\n');
@@ -74,7 +112,24 @@ export interface ParsedToolTurn {
   text: string | null;
   toolCalls: ToolCall[];
   nudge?: string;
+  /** Set when the reply wrote harness-only blocks and its tail was discarded (#320). */
+  notice?: string;
+  /** The discarded tail, verbatim, for the transcript only; never sent back to the model. */
+  discarded?: string;
+  /** Calls left in the prose of a reply whose other calls ran (#306). */
+  undispatched?: UndispatchedCalls;
 }
+
+/**
+ * A line the harness writes and the model never may: a tool result or a user turn, in the
+ * exact form `renderConversation` and `renderDelta` use. A model that continues past its
+ * own tool call in that form is inventing the result (#320, register I15), so the reply is
+ * cut at the first one.
+ */
+const HARNESS_MARKER = /^[ \t]*\[(?:result of [A-Za-z0-9_.:-]+(?:, call \d+ of \d+)?|user)\][ \t]*\r?$/m;
+const HARNESS_MARKER_ALL = new RegExp(HARNESS_MARKER.source, 'gm');
+/** History markers that are harmless to write but must not be replayed as the model's prose. */
+const ECHOED_MARKER_LINES = /^[ \t]*\[(?:assistant|assistant tool call(?: \d+ of \d+)?)\][ \t]*\r?$\n?/gm;
 
 /**
  * Detect a malformed-but-intended tool call in a turn that dispatched none
@@ -85,9 +140,14 @@ export interface ParsedToolTurn {
  * split so only an inner `{args}` with no `tool` key balanced), not the tool
  * being broken. Returns a one-line steer to re-emit it, or undefined when the
  * absence of a call is genuine (plain prose, no tool named).
+ *
+ * Also covers the mirror case (I18): well-formed JSON naming a tool that is NOT in
+ * the catalog — withheld by the edit lock, or invented. That call is correctly not
+ * dispatched, but it must not be silent either.
  */
 function detectMalformedCall(text: string, catalog: Set<string>): string | undefined {
   const re = /"tool"\s*:\s*"([^"]+)"/g;
+  const offCatalog: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const name = m[1]!;
@@ -95,11 +155,109 @@ function detectMalformedCall(text: string, catalog: Set<string>): string | undef
       return (
         `A tool call for "${name}" looks malformed — it named the tool but did not parse as ` +
         'valid JSON (likely unbalanced braces or a missing closing brace), so no call ran. ' +
-        'Re-emit it as exactly one complete JSON object: {"tool": "...", "args": { ... }}.'
+        'Re-emit it as one complete JSON object: {"tool": "...", "args": { ... }}.'
       );
     }
+    if (!offCatalog.includes(name)) offCatalog.push(name);
+  }
+  // A well-formed call naming a tool the turn did not advertise — a locked edit or
+  // drafting tool before propose_change/validate_change, or an invented name.
+  // `toToolCall` is right to refuse it (the lock is structural, D2), but dropping it
+  // to prose tells the model NOTHING, and it fills that silence: fabricating the
+  // result it never got (I15), or concluding the engine is absent from the build and
+  // refusing the stage outright (I18). Withholding the tool is the invariant; hiding
+  // the reason never was, so name it and print the real catalog.
+  // The proposal advice only where the turn offers propose_change (the main
+  // loop always does); a skill or review pass has a fixed catalog of its own.
+  if (offCatalog.length) {
+    const named = offCatalog.map((n) => `"${n}"`).join(', ');
+    const unlock = catalog.has('propose_change')
+      ? 'Edit and drafting tools are withheld until a proposal validates — call propose_change, then validate_change, and they appear. '
+      : '';
+    return (
+      `No call ran: ${named} ${offCatalog.length > 1 ? 'are' : 'is'} not in this turn's tool catalog. ${unlock}` +
+      `Do not conclude a tool is missing from the build. Available this turn: ${[...catalog].join(', ')}.`
+    );
+  }
+  // A native function-call block instead of the JSON protocol. Some models fall back to it from
+  // habit, turn after turn; a plain "call a tool" nudge gets one JSON call before the habit
+  // returns, so say what was wrong with the call.
+  const invoke = /<(?:[a-z]+:)?invoke\s+name="([^"]+)"/.exec(text);
+  if (invoke && catalog.has(invoke[1]!)) {
+    return (
+      `No call ran: the call to "${invoke[1]}" was written as an <invoke> block, which this ` +
+      'protocol does not read. Write each call as its own JSON object in a ```json block: ' +
+      `{"tool": "${invoke[1]}", "args": { ... }}.`
+    );
   }
   return undefined;
+}
+
+/**
+ * Find the tool calls left behind in a reply that also dispatched some (#306).
+ * `detectMalformedCall` only speaks when nothing parsed; in a mixed reply the
+ * off-catalog and near-miss calls were dropped to prose with no message, so the
+ * model assumed they ran. `prose` is the reply with the dispatched calls removed,
+ * so a call that did run is never reported. Only a `"tool"` object key that names
+ * an identifier counts: the key opens the object or follows a comma, since
+ * `toToolCall` reads the object through JSON.parse and an `{"args": …, "tool": …}`
+ * call runs like any other. Narration that quotes a call, or an echo of the
+ * protocol template (`"<tool_name>"`), is not a call that failed to run. A quote
+ * inside a JSON string is escaped, so a string value cannot match.
+ */
+function detectUndispatched(prose: string, catalog: Set<string>): UndispatchedCalls | undefined {
+  const re = /[{,]\s*"tool"\s*:\s*"([A-Za-z_][A-Za-z0-9_]*)"/g;
+  const unavailable: string[] = [];
+  const malformed: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(prose)) !== null) {
+    const name = m[1]!;
+    const bucket = catalog.has(name) ? malformed : unavailable;
+    if (!bucket.includes(name)) bucket.push(name);
+  }
+  return unavailable.length || malformed.length ? { unavailable, malformed } : undefined;
+}
+
+/**
+ * The message for the calls `detectUndispatched` found. `available` is the tool
+ * catalog AFTER the reply's calls ran: a `validate_change` in the same reply may
+ * have unlocked the edit tools, and then the steer is to re-send, not to propose.
+ * The edit lock is the only gate on the catalog, so once `editsUnlocked` a name
+ * that is still absent is not locked, it does not exist: say so and print the
+ * catalog, since a second propose_change would open a second change. A skill's
+ * sub-run has a fixed catalog without propose_change, so there the proposal advice
+ * would point at a tool it cannot call (the same rule `detectMalformedCall` keeps).
+ */
+export function renderUndispatched(calls: UndispatchedCalls, available: Set<string>, editsUnlocked: boolean): string {
+  const quote = (names: string[]) => names.map((n) => `"${n}"`).join(', ');
+  const unlocked = calls.unavailable.filter((n) => available.has(n));
+  const absent = calls.unavailable.filter((n) => !available.has(n));
+  const lines = ['Some tool calls in your last reply did not run, so nothing they describe happened:'];
+  if (unlocked.length) {
+    lines.push(
+      `- ${quote(unlocked)}: not in the tool catalog when you replied. ` +
+        `${unlocked.length > 1 ? 'They are' : 'It is'} available now, so send those calls again.`,
+    );
+  }
+  if (absent.length && (editsUnlocked || !available.has('propose_change'))) {
+    lines.push(
+      `- ${quote(absent)}: not ${absent.length > 1 ? 'tools' : 'a tool'} in the catalog. ` +
+        `Use one of the available tools: ${[...available].join(', ')}.`,
+    );
+  } else if (absent.length) {
+    lines.push(
+      `- ${quote(absent)}: not in the tool catalog. Edit and drafting tools are withheld until a ` +
+        'proposal validates: call propose_change, then validate_change, and send those calls in a later reply.',
+    );
+  }
+  if (calls.malformed.length) {
+    lines.push(
+      `- ${quote(calls.malformed)}: a call did not parse as valid JSON (likely unbalanced braces). ` +
+        'Re-emit it as one complete JSON object: {"tool": "...", "args": { ... }}.',
+    );
+  }
+  lines.push('Do not assume a result for any of them.');
+  return lines.join('\n');
 }
 
 /**
@@ -116,6 +274,77 @@ export function parseToolCalls(
   catalog: Set<string>,
 ): ParsedToolTurn {
   if (!text) return { text: null, toolCalls: [] };
+
+  // #320: the model sometimes writes past its tool call in the transcript format, inventing
+  // the `[result of …]` it never received, then more calls planned against that invention.
+  // Only what precedes the first harness-only line is the model's turn; the rest is dropped,
+  // not dispatched and not stored, and the notice tells the model so. On a resumed CLI
+  // session the provider keeps the raw reply, so the notice is also the only correction the
+  // model's own history gets.
+  let notice: string | undefined;
+  let discarded: string | undefined;
+  const cut = text.search(HARNESS_MARKER);
+  if (cut >= 0) {
+    const tail = text.slice(cut);
+    const fabricated = (tail.match(HARNESS_MARKER_ALL) ?? []).length;
+    const dropped = extractCalls(tail, () => 'dropped', catalog).toolCalls.length;
+    text = text.slice(0, cut);
+    discarded = tail;
+    notice =
+      `Your last reply contained ${fabricated} "[result of …]" or "[user]" block${fabricated === 1 ? '' : 's'} ` +
+      'that you wrote yourself. Only copperhead writes those: real tool results arrive in the next message. ' +
+      `Everything from the first such block on was discarded${dropped ? `, including ${dropped} tool call${dropped === 1 ? '' : 's'} that did not run` : ''}. ` +
+      'Treat any result you wrote yourself as unknown, and end each reply after your tool calls.';
+  }
+
+  const { toolCalls, matched } = extractCalls(text, nextId, catalog);
+
+  if (!toolCalls.length) {
+    // No call dispatched — but did the model clearly *intend* one? A fenced
+    // ```json block that names a catalog tool yet produced zero calls is a
+    // malformed near-miss (unbalanced braces, a missing `}`, or an inner object
+    // with no `tool` key). Silently dropping it gives the model no signal, so it
+    // misreads "no result" as "this tool is broken" and can bake that false
+    // conclusion into a committed summary (#I10). Surface a nudge instead. A
+    // discarded fabricated tail outranks it: that is what the model must fix first.
+    const clean = text.replace(ECHOED_MARKER_LINES, '');
+    return {
+      text: clean.trim() ? clean : null,
+      toolCalls,
+      nudge: notice ?? detectMalformedCall(text, catalog),
+      ...(notice ? { notice, discarded } : {}),
+    };
+  }
+
+  // Prose is whatever survives once the tool-call objects (and any now-empty
+  // ```json fences around them) are removed.
+  let prose = '';
+  let cursor = 0;
+  for (const [start, end] of matched) {
+    prose += text.slice(cursor, start);
+    cursor = end;
+  }
+  prose += text.slice(cursor);
+  const undispatched = detectUndispatched(prose, catalog);
+  prose = prose
+    .replace(ECHOED_MARKER_LINES, '')
+    .replace(/```(?:json)?\s*```/gi, '')
+    .replace(/```(?:json)?\s*$/gi, '')
+    .trim();
+  return {
+    text: prose.length ? prose : null,
+    toolCalls,
+    ...(notice ? { notice, discarded } : {}),
+    ...(undispatched ? { undispatched } : {}),
+  };
+}
+
+/** Every catalog tool call in `text`, with the spans it occupied. */
+function extractCalls(
+  text: string,
+  nextId: () => string,
+  catalog: Set<string>,
+): { toolCalls: ToolCall[]; matched: Array<[number, number]> } {
   const toolCalls: ToolCall[] = [];
   const matched: Array<[number, number]> = [];
 
@@ -143,28 +372,7 @@ export function parseToolCalls(
     }
     searchFrom = span.end;
   }
-
-  if (!toolCalls.length) {
-    // No call dispatched — but did the model clearly *intend* one? A fenced
-    // ```json block that names a catalog tool yet produced zero calls is a
-    // malformed near-miss (unbalanced braces, a missing `}`, or an inner object
-    // with no `tool` key). Silently dropping it gives the model no signal, so it
-    // misreads "no result" as "this tool is broken" and can bake that false
-    // conclusion into a committed summary (#I10). Surface a nudge instead.
-    return { text: text.trim() ? text : null, toolCalls, nudge: detectMalformedCall(text, catalog) };
-  }
-
-  // Prose is whatever survives once the tool-call objects (and any now-empty
-  // ```json fences around them) are removed.
-  let prose = '';
-  let cursor = 0;
-  for (const [start, end] of matched) {
-    prose += text.slice(cursor, start);
-    cursor = end;
-  }
-  prose += text.slice(cursor);
-  prose = prose.replace(/```(?:json)?\s*```/gi, '').replace(/```(?:json)?\s*$/gi, '').trim();
-  return { text: prose.length ? prose : null, toolCalls };
+  return { toolCalls, matched };
 }
 
 /**
@@ -207,6 +415,22 @@ function toToolCall(raw: string | undefined, nextId: () => string, catalog: Set<
   // Only accept names the turn actually advertised. An empty catalog means the
   // turn offered no tools, so nothing parses as a call.
   if (!catalog.has(rec.tool)) return null;
-  const args = rec.args && typeof rec.args === 'object' ? (rec.args as Record<string, unknown>) : {};
-  return { id: nextId(), name: rec.tool, args };
+  return { id: nextId(), name: rec.tool, args: argsOf(rec) };
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * The call's arguments. The protocol asks for `args`, but a model sometimes names the object
+ * `arguments`, `parameters` or `input`, or writes the arguments flat beside `tool`. Reading only
+ * `args` turned those calls into empty ones, and the model, told an argument was missing from a
+ * call it believed complete, concluded the tool was broken. Each shape is taken as written.
+ */
+function argsOf(rec: Record<string, unknown>): Record<string, unknown> {
+  for (const key of ['args', 'arguments', 'parameters', 'input']) {
+    const v = rec[key];
+    if (isObject(v)) return v;
+  }
+  const { tool: _tool, args: _args, arguments: _arguments, parameters: _parameters, input: _input, ...flat } = rec;
+  return flat;
 }

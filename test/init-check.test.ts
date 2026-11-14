@@ -81,12 +81,15 @@ describe('copperhead check (AC-2)', () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo });
+      const subs = await readFile(path.join(repo, 'docs', 'SUBSYSTEMS.md'), 'utf8');
+      await writeFile(path.join(repo, 'docs', 'SUBSYSTEMS.md'), subs + '\n## Keyer\n\nKey input block.\n', 'utf8');
       const res = await runCheck(repo, silent);
       expect(res.ok).toBe(true);
       expect(res.erc).toEqual({ ok: true, violations: 0 });
-      expect(res.drc).toEqual({ ok: true, violations: 0 });
+      expect(res.drc).toEqual({ ok: true, violations: 0, unrouted: 0, intrinsic: 0 });
       expect(res.drift.ok).toBe(true);
-      expect(Object.keys(res).sort()).toEqual(['constraints', 'drc', 'drift', 'erc', 'ok', 'openspec']);
+      expect(Object.keys(res).sort()).toEqual(['constraints', 'drc', 'drift', 'erc', 'legibility', 'ok', 'openspec']);
+      expect(res.legibility.counts.error).toBe(0);
     } finally {
       await cleanup();
     }
@@ -181,6 +184,8 @@ describe('the offline commands are LLM-free and network-free by construction (AC
         seen.add(file);
         const text = await readFile(file, 'utf8');
         expect(text, file).not.toMatch(FORBIDDEN);
+        // skill capabilities can reach a provider; the offline graph must never load them
+        expect(file, file).not.toMatch(/capabilities/);
         for (const m of text.matchAll(RELATIVE_IMPORT)) {
           queue.push(path.join(path.dirname(file), m[1]!) + '.ts');
         }
