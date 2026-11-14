@@ -94,6 +94,41 @@ export async function toolEditFile(
     return l1.join(localEol);
   };
 
+  // A retry of an edit that already landed is indistinguishable from a genuinely
+  // bad anchor under the plain message, and "re-read and use an exact excerpt"
+  // is the wrong steer for it: the model re-reads, derives the same anchor, and
+  // fails again. Observed live on a local model, which completed a net rename
+  // and then burned its whole turn budget re-attempting it while the work sat
+  // finished on disk.
+  //
+  // The presence of new_string is a HINT, never proof. It scans the whole file,
+  // so a partly-done propagating rename plus a mistyped anchor looks identical:
+  // "KEY_DASH" is already there from the first occurrence while a second
+  // "KEY_DAH" still needs renaming. Telling the model to move on there would
+  // land an incomplete rename and report it as done (AC-3.1). So this states
+  // both possibilities and refuses to pick one — enough to break the loop,
+  // never enough to skip real work. new_string is matched line-ending-tolerantly,
+  // like the anchor, so an LF new_string is still found in a CRLF file.
+  const anchorNotFound = (): Error => {
+    let applied = 0;
+    if (newString) {
+      try {
+        applied = text.match(new RegExp(l1.map(esc).join('(?:\\r\\n|\\r(?!\\n)|\\n)'), 'g'))?.length ?? 0;
+      } catch {
+        applied = 0; // too long to compile: no hint, plain message
+      }
+    }
+    if (applied > 0) {
+      return new Error(
+        `edit_file: anchor not found in ${p}. new_string is already present ${applied} time(s), so ` +
+          'either this edit already landed or the anchor is wrong; those are indistinguishable from ' +
+          'here. Re-read the file and check whether the change you intended is actually in place. ' +
+          'If it is, this edit is done. If it is not, retry with an exact excerpt. Do not assume it is done',
+      );
+    }
+    return new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+  };
+
   if (replaceAll) {
     let count = 0;
     const out = runAnchorRegex(() => text.replace(normalizedRe, (match, at: number) => {
@@ -101,7 +136,7 @@ export async function toolEditFile(
       return replacementFor(match, at);
     }));
     if (count === 0) {
-      throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+      throw anchorNotFound();
     }
     await writeFile(abs, out, 'utf8');
     return `edited ${p} (${count} occurrence(s) replaced)`;
@@ -109,7 +144,7 @@ export async function toolEditFile(
 
   const matches = runAnchorRegex(() => [...text.matchAll(re)]);
   if (matches.length === 0) {
-    throw new Error(`edit_file: anchor not found in ${p}; re-read the file and use an exact excerpt`);
+    throw anchorNotFound();
   }
   if (matches.length > 1) {
     throw new Error(`edit_file: anchor matched ${matches.length} times in ${p}; widen the anchor with surrounding lines until it is unique, or pass replace_all: true to replace every occurrence`);

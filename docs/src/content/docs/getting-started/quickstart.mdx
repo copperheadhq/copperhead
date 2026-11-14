@@ -64,6 +64,16 @@ kicad-cli version
 
    The Claude Agent SDK ships as an optional dependency, so a normal install includes it. See [Saved login (Claude Code)](/reference/configuration/#saved-login-claude-code).
 
+   To run against a model you host yourself, with no cloud account, load a **tool-capable** model in [LM Studio](https://lmstudio.ai/), start its server, and:
+
+   ```bash
+   export COPPERHEAD_MODEL=lmstudio
+   # optional: another OpenAI-compatible server instead of LM Studio's default
+   # export LMSTUDIO_BASE_URL=http://localhost:11434/v1   # Ollama
+   ```
+
+   No key is involved, and prompts go only to the endpoint you configure: at the default `http://localhost:1234/v1`, nothing leaves your machine. The model must support function/tool calling. See [Local models (LM Studio)](/reference/configuration/#local-models-lm-studio).
+
    Or set a direct model API key. Keys are read from the environment only, never written to a config file, and redacted from transcripts.
 
    ```bash
