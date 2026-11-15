@@ -1,3 +1,4 @@
+import { withRunLock } from '../util/run-lock.js';
 import { loadConfig, resolveModel } from '../config.js';
 import { flatten, type ToolResult } from '../agent/envelope.js';
 import { makeProvider } from '../agent/loop.js';
@@ -82,12 +83,12 @@ export async function runSkillCli(opts: {
   warn?: (line: string) => void;
 }): Promise<{ text: string; code: number }> {
   try {
-    const result = await runSkill({
+    const result = await withRunLock(opts.repoRoot, 'copperhead skill run', () => runSkill({
       repoRoot: opts.repoRoot,
       name: opts.name,
       ...(opts.args ? { args: opts.args } : {}),
       provider: opts.provider,
-    });
+    }));
     return { text: formatSkillEnvelope(result, opts.json), code: result.ok ? 0 : 1 };
   } finally {
     try {

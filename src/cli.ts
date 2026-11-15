@@ -4,6 +4,7 @@ import { setMaxListeners } from 'node:events';
 import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
 import { loadConfig, resolveModel, type ModelSource } from './config.js';
+import { withRunLock } from './util/run-lock.js';
 import { pickModel } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
@@ -222,12 +223,13 @@ draftGroup
         console.error('no schematic configured in .copperhead/config.json');
         process.exit(1);
       }
-      const res = await draftSchematic({
+      const schematic = config.schematic;
+      const res = await withRunLock(repo, 'copperhead draft schematic', () => draftSchematic({
         repoRoot: repo,
-        schematic: config.schematic,
-        intentPath: opts.intent ?? defaultIntentPath(config.schematic),
+        schematic,
+        intentPath: opts.intent ?? defaultIntentPath(schematic),
         docsDir: config.docs,
-      });
+      }));
       if (!res.ok) {
         if (json) console.log(JSON.stringify({ ok: false, findings: res.findings }, null, 2));
         else console.error(res.message);

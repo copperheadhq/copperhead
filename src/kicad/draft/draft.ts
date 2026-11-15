@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from '../../util/worktree-ownership.js';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { emitSchematic } from '../emit.js';

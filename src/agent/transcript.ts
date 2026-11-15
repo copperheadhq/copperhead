@@ -10,6 +10,7 @@ export type ExitPath =
   | 'refused'
   | 'turn-budget-exhausted'
   | 'repair-cycles-exhausted'
+  | 'external-change'
   | 'commit-failed'
   | 'provider-error'
   | 'session-limit'

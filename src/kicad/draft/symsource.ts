@@ -1,4 +1,5 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from '../../util/worktree-ownership.js';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseSexp, children, child, isList, type SexpNode, type Bounds } from '../sexp.js';

@@ -1,4 +1,5 @@
-import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { mkdir, writeFile } from '../util/worktree-ownership.js';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';

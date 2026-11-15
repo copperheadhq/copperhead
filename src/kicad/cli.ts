@@ -1,3 +1,4 @@
+import { publishDirectory } from '../util/worktree-ownership.js';
 import { execa, ExecaError } from 'execa';
 import { existsSync, readdirSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -396,6 +397,14 @@ export interface FabExportResult {
  * a missing STEP exporter never sinks the rest of the package.
  */
 export async function exportFab(pcbPath: string, schPath: string | null, outDir: string): Promise<FabExportResult> {
+  const staging = await mkdtemp(path.join(tmpdir(), 'copperhead-fab-'));
+  try {
+    const result = await exportFabInto(pcbPath, schPath, staging);
+    await publishDirectory(staging, outDir);
+    return result;
+  } finally { await rm(staging, { recursive: true, force: true }); }
+}
+async function exportFabInto(pcbPath: string, schPath: string | null, outDir: string): Promise<FabExportResult> {
   const result: FabExportResult = { produced: [], failed: [] };
   const jobs: { artifact: string; args: string[] }[] = [
     { artifact: 'gerbers', args: ['pcb', 'export', 'gerbers', '--output', path.join(outDir, 'gerbers'), pcbPath] },
@@ -420,7 +429,7 @@ export async function exportFab(pcbPath: string, schPath: string | null, outDir:
 }
 
 /** Export an SVG render of a schematic or board; returns the output directory. */
-export async function exportSvg(kind: 'sch' | 'pcb', filePath: string, outDir: string): Promise<string> {
+async function exportSvgInto(kind: 'sch' | 'pcb', filePath: string, outDir: string): Promise<string> {
   const args =
     kind === 'sch'
       ? ['sch', 'export', 'svg', '--output', outDir, filePath]
@@ -432,4 +441,13 @@ export async function exportSvg(kind: 'sch' | 'pcb', filePath: string, outDir: s
     throw err;
   }
   return outDir;
+}
+
+export async function exportSvg(kind: 'sch' | 'pcb', filePath: string, outDir: string): Promise<string> {
+  const staging = await mkdtemp(path.join(tmpdir(), 'copperhead-svg-'));
+  try {
+    await exportSvgInto(kind, filePath, staging);
+    await publishDirectory(staging, outDir);
+    return outDir;
+  } finally { await rm(staging, { recursive: true, force: true }); }
 }
