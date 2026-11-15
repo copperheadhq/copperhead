@@ -1,14 +1,73 @@
+import { runAgentLoop } from '../src/agent/loop.js';
+import { gitPreflight } from '../src/util/git.js';
 import { runInit } from '../src/memory/scaffold.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { chmod, mkdir, readFile, writeFile as rawWrite } from 'node:fs/promises';
 import path from 'node:path';
 import { execa } from 'execa';
 import { tempFixtureRepo } from './helpers.js';
-import { withWorktreeOwnership, writeFile, ownershipFor } from '../src/util/worktree-ownership.js';
+import { withWorktreeOwnership, writeFile, ownershipFor, adoptOwnedPaths } from '../src/util/worktree-ownership.js';
 import { commitAll, restore, snapshot } from '../src/util/git.js';
 const git = async (repo: string, ...args: string[]) => (await execa('git', args, { cwd: repo })).stdout;
 
 describe('second review regressions', () => {
+  for (const dirty of ['design/docs/BOM.md', 'hardware/open-key.kicad_sch', '.copperhead/config.json']) {
+    it(`refuses --allow-dirty with an unowned startup verification input before provider use: ${dirty}`, async () => {
+      const { repo, cleanup } = await tempFixtureRepo();
+      try {
+        const config = { docs: 'design/docs', schematic: 'hardware/open-key.kicad_sch', board: 'hardware/open-key.kicad_pcb' };
+        await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+        await mkdir(path.join(repo, 'design/docs'), { recursive: true });
+        await rawWrite(path.join(repo, '.copperhead/config.json'), JSON.stringify(config));
+        await rawWrite(path.join(repo, 'design/docs/BOM.md'), '# BOM baseline\n');
+        await git(repo, 'add', '-A'); await git(repo, 'commit', '-qm', 'configured project');
+        const file = path.join(repo, dirty);
+        await rawWrite(file, dirty.endsWith('config.json') ? JSON.stringify({ ...config, maxTurns: 2 }) : (await readFile(file, 'utf8')) + '\nhand edit\n');
+        const before = await readFile(file); const head = await git(repo, 'rev-parse', 'HEAD'); const index = await git(repo, 'ls-files', '--stage');
+        const chat = vi.fn(async () => { throw new Error('provider must not run'); });
+        const error = await runAgentLoop({ repoRoot: repo, request: 'edit only a.txt', model: 'gpt-5', allowDirty: true, maxTurns: 1, provider: { name: 'unused', chat }, log: () => {} }).catch((err: Error) => err);
+        expect(error).toMatchObject({ name: 'PreflightError', reason: expect.stringContaining(dirty) });
+        expect(chat).not.toHaveBeenCalled();
+        expect(await readFile(file)).toEqual(before);
+        expect(await git(repo, 'rev-parse', 'HEAD')).toBe(head);
+        expect(await git(repo, 'ls-files', '--stage')).toBe(index);
+        await expect(readFile(path.join(repo, 'a.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+        await expect(readFile(path.join(repo, '.copperhead/runs'))).rejects.toMatchObject({ code: 'ENOENT' });
+      } finally { await cleanup(); }
+    });
+  }
+  it('allows unrelated dirty names outside the configured verification paths through preflight and commit', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const unrelated = ['firmware/config.json', 'firmware/SPEC.md', 'notes/BOM.md', 'docs/BOM.md', 'notes/parts.intent.json', 'firmware/sym-lib-table', 'firmware/unused.kicad_pro'];
+    try {
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      await rawWrite(path.join(repo, '.copperhead/config.json'), JSON.stringify({ docs: 'design/docs', schematic: 'hardware/open-key.kicad_sch', board: 'hardware/open-key.kicad_pcb' }));
+      await git(repo, 'add', '-A'); await git(repo, 'commit', '-qm', 'configured project');
+      for (const rel of unrelated) { await mkdir(path.dirname(path.join(repo, rel)), { recursive: true }); await rawWrite(path.join(repo, rel), 'unrelated'); }
+      await withWorktreeOwnership(repo, async () => {
+        await expect(gitPreflight(repo, { allowDirty: true })).resolves.toBeUndefined();
+        await writeFile(path.join(repo, 'a.txt'), 'run');
+        const sha = await commitAll(repo, 'only a');
+        expect(await git(repo, 'show', '--format=', '--name-only', sha!)).toBe('a.txt');
+        for (const rel of unrelated) expect(await readFile(path.join(repo, rel), 'utf8')).toBe('unrelated');
+      });
+    } finally { await cleanup(); }
+  });
+  it('lets create-adopted verification inputs pass the startup check while retaining commit ownership', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await rawWrite(path.join(repo, 'docs/BOM.md'), '# resumed draft\n');
+      await withWorktreeOwnership(repo, async () => {
+        await adoptOwnedPaths(repo, ['docs/BOM.md']);
+        await expect(gitPreflight(repo, { allowDirty: true })).resolves.toBeUndefined();
+        await writeFile(path.join(repo, 'docs/BOM.md'), '# verified resumed draft\n');
+        expect(await commitAll(repo, 'resumed')).toBeTruthy();
+        expect(await git(repo, 'show', 'HEAD:docs/BOM.md')).toBe('# verified resumed draft');
+      });
+    } finally { await cleanup(); }
+  });
+
   it('refuses a subdirectory root before any mutating action', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
@@ -73,12 +132,16 @@ describe('second review regressions', () => {
   it('refuses a non-owned schematic different from the verified commit tree', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
+      await mkdir(path.join(repo, '.copperhead'), { recursive: true });
+      await rawWrite(path.join(repo, '.copperhead/config.json'), JSON.stringify({ schematic: 'hardware/open-key.kicad_sch', board: 'hardware/open-key.kicad_pcb' }));
+      await git(repo, 'add', '-A'); await git(repo, 'commit', '-qm', 'configured project');
       await withWorktreeOwnership(repo, async () => {
+        await gitPreflight(repo, { allowDirty: true });
         const sch = path.join(repo, 'hardware', 'open-key.kicad_sch');
         await rawWrite(sch, (await readFile(sch, 'utf8')) + '\n');
         await writeFile(path.join(repo, 'owned.txt'), 'board edit');
         await expect(commitAll(repo, 'verified')).rejects.toThrow(/verification input/);
-        expect(await git(repo, 'log', '-1', '--format=%s')).toBe('fixture');
+        expect(await git(repo, 'log', '-1', '--format=%s')).toBe('configured project');
       });
     } finally { await cleanup(); }
   });

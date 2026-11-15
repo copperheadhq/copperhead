@@ -39,6 +39,8 @@
 
 - [x] 3.8 Address follow-up ownership review: root and Git-version preflight, resumed-stage adoption, verification-input consistency, nested repositories, Windows paths and modes, KiCad transients, additional lock entry points, lazy checkpoints, OpenSpec archive cleanup, and deterministic branch coverage; validate specs, typecheck, build, and full suite (AC-3.6, AC-3.8, AC-8.5, D15-D16)
 
+- [x] 3.9 Refuse pre-existing non-owned verification inputs before model use, match configured project paths, preserve create adoption, and make rollback directory tracking independent of recursive mkdir return-path formatting; add regressions and validate specs, typecheck, build, and full suite (AC-3.8, D16)
+
 ## 4. Agent core
 
 - [x] 4.1 Define Provider interface + internal Msg/Turn/ToolSchema types; implement providers/openai.ts and providers/anthropic.ts with format mapping

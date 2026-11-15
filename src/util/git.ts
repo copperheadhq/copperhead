@@ -1,3 +1,4 @@
+import { loadConfig } from '../config.js';
 import { createHash } from 'node:crypto';
 import { writeFile, unlink as ownedUnlink, ownershipFor, assertOwnedTree, ExternalChangeError, ownershipCheckpoint, restoreOwnershipCheckpoint, type OwnershipCheckpoint, ensureOwnershipExcludes, assertWorktreeRoot } from './worktree-ownership.js';
 import { execa } from 'execa';
@@ -230,6 +231,7 @@ export async function gitPreflight(repo: string, opts: { allowDirty?: boolean } 
       ],
     );
   }
+  if (opts.allowDirty) await assertVerificationInputs(repo, true);
 }
 
 /**
@@ -584,20 +586,33 @@ async function applyOwnedFailedRun(repo: string, ref: string, marker: string): P
 }
 
 
-/** The committed tree must contain every changed input used by verification. */
-async function assertVerificationInputs(repo: string): Promise<void> {
-  const run = ownershipFor(repo)!;
-  const changed = [
-    ...(await git(repo, ['diff', '--name-only', '-z', run.head])).split('\0'),
+/** Use the same configured inputs before provider use and before commit publication. */
+async function assertVerificationInputs(repo: string, atStart = false): Promise<void> {
+  const run = ownershipFor(repo);
+  const head = run?.head ?? await headCommit(repo);
+  const changed = atStart && run ? [...run.dirtyAtStart] : [
+    ...(await git(repo, ['diff', '--name-only', '-z', head])).split('\0'),
     ...(await git(repo, ['ls-files', '--others', '--exclude-standard', '-z'])).split('\0'),
   ];
+  const config = await loadConfig(repo);
+  const relative = (file: string): string => path.relative(repo, path.resolve(repo, file)).split(path.sep).join('/');
+  const projectDirs = [...new Set([config.schematic, config.board].filter((file): file is string => !!file).map((file) => relative(path.dirname(file))))];
+  const inputs = new Set([
+    '.copperhead/config.json', '.copperhead/constraints.json', 'sym-lib-table', 'fp-lib-table',
+    ...['SPEC.md', 'BOM.md', 'PINOUT.md', 'SUBSYSTEMS.md', 'LAYOUT.md', 'parts.intent.json'].map((name) => relative(path.join(config.docs, name))),
+    ...projectDirs.flatMap((dir) => ['sym-lib-table', 'fp-lib-table', 'schematic.intent.json'].map((name) => path.posix.join(dir, name))),
+  ]);
   for (const rel of new Set(changed.filter(Boolean))) {
-    if (run.owned.has(rel)) continue;
-    const name = path.basename(rel);
-    const entry = await git(repo, ['ls-tree', run.head, '--', rel]);
-    const input = /\.(kicad_sch|kicad_pcb|kicad_pro|kicad_sym|kicad_mod|kicad_dru|kicad_wks)$/.test(rel)
-      || /^(sym-lib-table|fp-lib-table|schematic.intent.json|parts.intent.json|constraints.json|config.json)$/.test(name)
-      || /^(SPEC|BOM|PINOUT|SUBSYSTEMS|LAYOUT)\.md$/.test(name) || entry.startsWith('160000 ');
-    if (input) throw new ExternalChangeError(`verification input ${rel} differs from HEAD and is not owned by this run`);
+    if (run?.owned.has(rel)) continue;
+    const entry = await git(repo, ['ls-tree', head, '--', rel]);
+    const kicad = /\.(kicad_sch|kicad_pcb|kicad_pro|kicad_sym|kicad_mod|kicad_dru|kicad_wks)$/.test(rel)
+      && projectDirs.some((dir) => !dir || rel.startsWith(dir + '/'));
+    if (!inputs.has(rel) && !kicad && !entry.startsWith('160000 ')) continue;
+    if (atStart) throw new PreflightError(
+      `verification input ${rel} has pre-existing changes`,
+      '--allow-dirty preserves unrelated work, but a non-owned verification input would be excluded from the verified commit',
+      [`commit or stash ${rel}, then retry the same command`],
+    );
+    throw new ExternalChangeError(`verification input ${rel} differs from HEAD and is not owned by this run`);
   }
 }

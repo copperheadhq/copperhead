@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -6,9 +6,35 @@ import { execa } from 'execa';
 import { tempFixtureRepo } from './helpers.js';
 import { appendFile, mkdir, unlink, writeFile, publishDirectory, ownershipFor, relativeOwnedPath, supportsGitHookRun, withWorktreeOwnership } from '../src/util/worktree-ownership.js';
 import { commitAll, snapshot, restore, preserveFailedRun, applyFailedRun } from '../src/util/git.js';
+vi.mock('node:fs/promises', async (original) => {
+  const actual = await original<typeof import('node:fs/promises')>();
+  return { ...actual, mkdir: vi.fn(actual.mkdir) };
+});
+afterEach(() => vi.restoreAllMocks());
 const git = async (repo: string, ...args: string[]) => (await execa('git', args, { cwd: repo })).stdout;
 
 describe('ownership writer boundaries', () => {
+  it('removes only newly created directories when recursive mkdir returns a Windows namespace prefix', async () => {
+    const f = await tempFixtureRepo();
+    const real = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+    try {
+      await fs.mkdir(path.join(f.repo, 'openspec'));
+      await withWorktreeOwnership(f.repo, async () => {
+        const snap = await snapshot(f.repo);
+        const proposal = path.join(f.repo, 'openspec', 'changes', 'draft', 'specs', 'safety');
+        vi.mocked(fs.mkdir).mockImplementationOnce((async (file: string, options: { recursive: true }) => {
+          const first = await real.mkdir(file, options);
+          return '\\\\?\\' + first;
+        }) as typeof fs.mkdir);
+        await mkdir(proposal, { recursive: true });
+        await writeFile(path.join(proposal, 'spec.md'), '# draft\n');
+        await restore(f.repo, snap);
+        await expect(fs.access(path.join(f.repo, 'openspec', 'changes'))).rejects.toMatchObject({ code: 'ENOENT' });
+        expect((await fs.stat(path.join(f.repo, 'openspec'))).isDirectory()).toBe(true);
+      });
+    } finally { await f.cleanup(); }
+  });
+
   it('rejects other drives and UNC shares using Windows path semantics', () => {
     expect(relativeOwnedPath('D:\\repo', 'C:\\Temp\\message', path.win32)).toBeUndefined();
     expect(relativeOwnedPath('\\\\server\\share\\repo', 'C:\\Temp\\message', path.win32)).toBeUndefined();

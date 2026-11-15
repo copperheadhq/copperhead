@@ -80,7 +80,7 @@ Automatic reclamation SHALL require matching hostname and PID namespace. Process
 - **THEN** the stale lock is reclaimed rather than attributed to the unrelated process
 
 ### Requirement: Commit only run-owned bytes
-A run SHALL commit only recorded owned bytes, preserve unrelated staged and unstaged work, refuse changed owned paths, HEAD, branch, or index, and publish against the expected old HEAD atomically. Non-owned KiCad and verification inputs SHALL match HEAD so the committed tree contains the verified inputs. Commit hooks and signing SHALL remain enabled.
+A run SHALL commit only recorded owned bytes, preserve unrelated staged and unstaged work, refuse changed owned paths, HEAD, branch, or index, and publish against the expected old HEAD atomically. Pre-existing non-owned verification inputs SHALL refuse preflight before model use; later conflicts SHALL refuse commit. Input paths SHALL follow project configuration rather than repository-wide basenames, so committed inputs match verification. Commit hooks and signing SHALL remain enabled.
 
 #### Scenario: An unrelated writer edits another path
 - **WHEN** an external writer creates or edits a non-verification file the run did not write
@@ -89,6 +89,14 @@ A run SHALL commit only recorded owned bytes, preserve unrelated staged and unst
 #### Scenario: An external writer edits a run-owned file
 - **WHEN** an owned file no longer matches the run's last recorded bytes or mode
 - **THEN** further writes and commit refuse without overwriting those external changes
+
+#### Scenario: Dirty verification input is refused before model use
+- **WHEN** a run starts with `--allow-dirty` and a pre-existing non-owned verification input differs from HEAD
+- **THEN** preflight refuses before any model turn, names the file, and preserves its bytes, HEAD, and index; explicitly adopted create inputs remain eligible
+
+#### Scenario: Unrelated files share verification-input basenames
+- **WHEN** an unrelated file such as `firmware/config.json` or a BOM outside `config.docs` is dirty
+- **THEN** the configured-path input check permits it, the scoped commit excludes it, and its contents and staging state remain intact
 
 #### Scenario: A verification input is outside the run's commit
 - **WHEN** a non-owned schematic, board, library table, or other verification input differs from the expected HEAD
@@ -130,6 +138,10 @@ Rollback SHALL compare project files, HEAD, branch, and index with the run's exp
 #### Scenario: Another writer commits or stages work
 - **WHEN** HEAD, branch, or index differs from the run's expected state
 - **THEN** commit and rollback refuse without discarding that commit or staged work
+
+#### Scenario: Recursive mkdir returns a Windows namespace path
+- **WHEN** a run creates nested directories and recursive mkdir returns a namespace-prefixed path
+- **THEN** rollback removes the newly created empty directories and preserves parents that existed before the checkpoint
 
 #### Scenario: No external changes during failure
 - **WHEN** a failed run's tree still matches its recorded state

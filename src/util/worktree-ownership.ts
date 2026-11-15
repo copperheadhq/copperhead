@@ -257,15 +257,9 @@ export const mkdir: typeof rawMkdir = (async (file, options) => {
     }
   }
   const result = await rawMkdir(file, options);
-  if (run) {
-    const recursive = typeof options === 'object' && options?.recursive;
-    const firstCreated = typeof result === 'string' ? path.resolve(result) : null;
-    for (const dir of missing) {
-      if (!recursive || (firstCreated && (dir === firstCreated || dir.startsWith(firstCreated + path.sep)))) {
-        run.createdDirectories.add(dir);
-      }
-    }
-  }
+  // The successful call created these previously absent directories. Windows
+  // may return a namespaced path, so do not compare its result with our paths.
+  if (run) for (const dir of missing) run.createdDirectories.add(dir);
   return result;
 }) as typeof rawMkdir;
 
