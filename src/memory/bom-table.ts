@@ -246,9 +246,18 @@ export interface TableRow {
    * Value-cell equality key: `foldEncodings` plus case- and whitespace-folding.
    * Used to compare BOM.md value/footprint cells against schematic symbol values
    * so an encoding/case/spacing-only difference is not reported as drift.
+   *
+   * One letter keeps its case (#483): a capital `M` right after a digit or a
+   * decimal point is the SI prefix mega, and the lowercase `m` there is milli,
+   * so `1M` and `1m` (or `4M7`/`4m7`, `2.2MHz`/`2.2mHz`) are 10^9 apart, not the
+   * same value written two ways. The SPICE spelling `Meg` folds to `M` first, so
+   * `1Meg` still equals `1M`. Every other letter folds as before (`4K7` = `4k7`).
    */
   export function normalizeValue(s: string | undefined): string {
-    return foldEncodings(s).replace(/\s+/g, '').toLowerCase();
+    return foldEncodings(s)
+      .replace(/\s+/g, '')
+      .replace(/(?<=[\d.])meg/gi, 'M')
+      .replace(/((?<=[\d.])M)|./gsu, (c: string, mega?: string) => mega ?? c.toLowerCase());
   }
 
   /**

@@ -127,6 +127,29 @@ describe('copperhead check (AC-2)', () => {
     }
   });
 
+  it('BOM value drift: 1m (milli) for a 1M (mega) resistor is drift, 1Meg is not (#483)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const sch = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const text = await readFile(sch, 'utf8');
+      await writeFile(sch, text.replace('(property "Value" "10k"', '(property "Value" "1M"'), 'utf8');
+      await runInit({ repoRoot: repo });
+      const bomPath = path.join(repo, 'docs', 'BOM.md');
+      const bom = await readFile(bomPath, 'utf8');
+      expect(bom).toContain('| R1 | 1M |');
+
+      await writeFile(bomPath, bom.replace('| R1 | 1M |', '| R1 | 1m |'), 'utf8');
+      expect(await checkDrift(repo, 'docs/', 'hardware/open-key.kicad_sch')).toEqual([
+        { doc: 'BOM.md', claim: 'R1 value 1m', actual: 'R1 value 1M' },
+      ]);
+
+      await writeFile(bomPath, bom.replace('| R1 | 1M |', '| R1 | 1Meg |'), 'utf8');
+      expect(await checkDrift(repo, 'docs/', 'hardware/open-key.kicad_sch')).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('pre-commit hook blocks a desynced hand edit at git commit', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
