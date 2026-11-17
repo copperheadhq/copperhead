@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Query resolution order
-`explain` SHALL resolve `query` in this order: `REF.PIN` (pin number or pin name), exact refdes, exact net name, then a pin name that belongs to exactly one part. Matching SHALL be case-insensitive. A `REF.PIN`-shaped query whose part or pin does not exist SHALL fall through to the later steps and SHALL report the missing part or pin only when nothing else resolves. A pin name that belongs to more than one part, or to more than one pin of one part, SHALL fail and tell the caller to use `REF.PIN`; it SHALL NOT report that nothing is named. A `REF.PIN` query that matches several pins by name on different nets SHALL fail and ask for the pin number. An empty query SHALL fail with a usage hint.
+`explain` SHALL resolve `query` in this order: `REF.PIN` (pin number or pin name), exact refdes, exact net name, then a pin name that belongs to exactly one part. Matching SHALL be case-insensitive, except net lookup SHALL prefer an exact spelling and SHALL accept a case-insensitive match only when it identifies one net. If several case-distinct nets match and none matches exactly, lookup SHALL fail with an ambiguity error and exact-name suggestions. A `REF.PIN`-shaped query whose part or pin does not exist SHALL fall through to the later steps and SHALL report the missing part or pin only when nothing else resolves. A pin name that belongs to more than one part, or to more than one pin of one part, SHALL fail and tell the caller to use `REF.PIN`; it SHALL NOT report that nothing is named. A `REF.PIN` query that matches several pins by name on different nets SHALL fail and ask for the pin number. An empty query SHALL fail with a usage hint.
 
 #### Scenario: Pin by number
 - **WHEN** the query is `R2.1` on the open-key fixture
@@ -25,8 +25,16 @@
 - **WHEN** the query is `SHIELD` and only J1 has pins with that name, on pins S1 and S2
 - **THEN** `ok` is false and the error names J1 pins S1 and S2 and asks for `REF.PIN`
 
+#### Scenario: Case-distinct nets
+- **WHEN** the schematic contains separate nets `KEY_DAH` and `key_dah` and the query is `key_dah`
+- **THEN** only pins and PINOUT.md rows for `key_dah` are returned
+
+#### Scenario: Ambiguous case-insensitive net lookup
+- **WHEN** the schematic contains `KEY_DAH` and `key_dah` and the query is `Key_Dah`
+- **THEN** lookup fails with an ambiguity error and suggests the two exact net names
+
 ### Requirement: Schematic is the source of truth
-A part hit SHALL include value, footprint, library id, sheet, and every pin with its net from the schematic. A net hit SHALL list attached pins. Doc rows from BOM.md and PINOUT.md, and other markdown mentions under `docs/`, MAY decorate the hit and SHALL NOT override schematic fields.
+A part hit SHALL include value, footprint, library id, sheet, and every pin with its net from the schematic. A net hit SHALL list only pins attached to the resolved, case-sensitive net name; PINOUT.md rows SHALL also match that name exactly. Doc rows from BOM.md and PINOUT.md, and other markdown mentions under `docs/`, MAY decorate the hit and SHALL NOT override schematic fields.
 
 #### Scenario: Part hit carries schematic pins
 - **WHEN** `U1` is explained after `copperhead init` on the open-key fixture
