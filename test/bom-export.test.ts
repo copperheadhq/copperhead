@@ -12,6 +12,8 @@ import {
 import { runExportBom, ExportError, parseBoards, parseSpares, parseSupplier } from '../src/commands/export.js';
 import { runInit } from '../src/memory/scaffold.js';
 import { tempFixtureRepo } from './helpers.js';
+import { loadConfig, configPath } from '../src/config.js';
+import { renderManifest } from '../src/kicad/parts/render.js';
 
 // A BOM that is drift-clean against the open-key fixture schematic (R1 10k, R2
 // 1k, U1 ESP32-S3-MINI) and exercises every classification: R1 verified with an
@@ -246,6 +248,36 @@ describe('export command end-to-end (supplier-bom-export)', () => {
       runExportBom({ repoRoot: t.repo, supplier: 'jlcpcb', boards: 1, spares: 10, includeUnverified: false }),
     ).rejects.toThrow(/BOM\.md/);
   });
+
+  for (const schematic of [null, 'missing.kicad_sch']) {
+    for (const invalid of [false, true]) {
+      it(`refuses ${invalid ? 'an invalid manifest' : 'manifest drift'} with schematic ${schematic}`, async () => {
+        const repo = await fixtureWithBom();
+        await writeFile(configPath(repo), JSON.stringify({ ...(await loadConfig(repo)), schematic }));
+        const manifest = { version: 1 as const, parts: [] };
+        await writeFile(path.join(repo, 'docs', 'parts.intent.json'), invalid ? '{broken' : JSON.stringify(manifest));
+        await expect(
+          runExportBom({ repoRoot: repo, supplier: 'digikey', boards: 1, spares: 10, includeUnverified: false }),
+        ).rejects.toThrow(/drift/i);
+        expect(existsSync(path.join(repo, 'outputs', 'digikey-bom.csv'))).toBe(false);
+      });
+    }
+
+    it(`exports a matching manifest and preserves an existing CSV on drift with schematic ${schematic}`, async () => {
+      const repo = await fixtureWithBom();
+      await writeFile(configPath(repo), JSON.stringify({ ...(await loadConfig(repo)), schematic }));
+      const manifest = { version: 1 as const, parts: [{ ref: 'R1', value: '10k', package: '0603', mpn: 'RC0603FR-0710KL', verified: true, rationale: 'pullup' }] };
+      await writeFile(path.join(repo, 'docs', 'parts.intent.json'), JSON.stringify(manifest));
+      const bom = renderManifest(manifest);
+      await writeFile(path.join(repo, 'docs', 'BOM.md'), bom);
+      const opts = { repoRoot: repo, supplier: 'digikey' as const, boards: 1, spares: 10, includeUnverified: false };
+      const result = await runExportBom(opts);
+      expect(result.csv).toContain('RC0603FR-0710KL');
+      await writeFile(path.join(repo, 'docs', 'BOM.md'), bom.replace('RC0603FR-0710KL', 'WRONG-PART'));
+      await expect(runExportBom(opts)).rejects.toThrow(/drift/i);
+      expect(await readFile(path.join(repo, result.outPath), 'utf8')).toBe(result.csv);
+    });
+  }
 
   it('makes zero network calls during export (network-free invariant)', async () => {
     const repo = await fixtureWithBom();
