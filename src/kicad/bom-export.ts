@@ -69,7 +69,7 @@ const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 // MPN cells that mean "no orderable part number yet". `UNVERIFIED` is the
 // init/scaffold placeholder (src/memory/scaffold.ts writes it into the MPN
 // column for every extracted symbol); the rest are common human shorthand.
-const MPN_PLACEHOLDERS = new Set(['', 'unverified', 'tbd', 'todo', 'tbc', 'na', 'none', '-', '—', '?']);
+const MPN_PLACEHOLDERS = new Set(['', 'unverified', 'tbd', 'todo', 'tbc', 'na', 'n/a', 'none', '-', '—', '?']);
 
 const isMpnPlaceholder = (mpn: string): boolean => MPN_PLACEHOLDERS.has(mpn.trim().toLowerCase());
 
