@@ -5,7 +5,13 @@ import { mkdtemp, mkdir, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { parseManifest, MANIFEST_VERSION } from '../src/kicad/parts/manifest.js';
 import { passiveDefault, allPassiveFootprints, isPassivePrefix } from '../src/kicad/parts/passives.js';
-import { validatePartsManifest, formatManifestFindings, subsystemHeadings } from '../src/kicad/parts/validate.js';
+import {
+  validatePartsManifest,
+  formatManifestFindings,
+  subsystemHeadings,
+  substitutionCarriesChosen,
+  getSiPrefixM,
+} from '../src/kicad/parts/validate.js';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { FootprintResolver, footprintSearchDirs } from '../src/kicad/footprints.js';
 import { symbolSearchDirs, resolveLibrarySymbol } from '../src/kicad/symlib.js';
@@ -244,6 +250,307 @@ describe('validatePartsManifest', () => {
       'substitution for U7: no part entry has that refdes',
       'substitution for J1: "chosen" is "Molex 1234" but the entry carries value "Conn_01x03", mpn "PH-3"; they must agree',
     ]);
+  });
+
+  describe('substitution procurement integrity regressions (Candidate C)', () => {
+    it('rejects duplicate substitutions for the same refdes', async () => {
+      const v = await validate(
+        manifest([U1], {
+          substitutions: [
+            { ref: 'U1', wanted: 'DRV8701', chosen: 'MCU8', reason: 'first choice' },
+            { ref: 'U1', wanted: 'DRV8702', chosen: 'MCU8', reason: 'duplicate choice' },
+          ],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'duplicate substitution for refdes "U1"; each refdes may have at most one substitution record',
+      );
+    });
+
+    it('rejects spurious substring matches like chosen "0" against value "100k"', async () => {
+      const R100k = { ref: 'R1', value: '100k', group: 'Power', package: '0603', mpn: 'RC0603FR-07100KL' };
+      const v = await validate(
+        manifest([R100k], {
+          substitutions: [{ ref: 'R1', wanted: '10k', chosen: '0', reason: 'jumper' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "0" but the entry carries value "100k", mpn "RC0603FR-07100KL"; they must agree',
+      );
+    });
+
+    it('rejects voltage mismatches (e.g. 1.2V vs 3.3V LDO regulators)', async () => {
+      const LDO = {
+        ref: 'U2',
+        value: 'TLV70233DBVR',
+        group: 'Power',
+        libId: 'Regulator_Linear:TLV70233DBVR',
+        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
+        mpn: 'TLV70233DBVR',
+      };
+      const v = await validate(
+        manifest([LDO], {
+          substitutions: [{ ref: 'U2', wanted: 'MIC5365-3.3', chosen: 'TLV70012', reason: 'voltage mismatch' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for U2: "chosen" is "TLV70012" but the entry carries value "TLV70233DBVR", mpn "TLV70233DBVR"; they must agree',
+      );
+    });
+
+    it('rejects generic prefix matches where suffix is an electrical variant (e.g. AP2112K vs AP2112K-1.2TRG1)', async () => {
+      const LDO12 = {
+        ref: 'U5',
+        value: '3.3V',
+        group: 'Power',
+        libId: 'Regulator_Linear:AP2112K-3.3',
+        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
+        mpn: 'AP2112K-1.2TRG1',
+      };
+      const v = await validate(
+        manifest([LDO12], {
+          substitutions: [{ ref: 'U5', wanted: 'MIC5365-3.3', chosen: 'AP2112K', reason: 'generic prefix mismatch' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for U5: "chosen" is "AP2112K" but the entry carries value "3.3V", mpn "AP2112K-1.2TRG1"; they must agree',
+      );
+    });
+
+    it('rejects nearly identical manufacturer part numbers (e.g. 10k vs 100k MPNs, prefix truncations)', async () => {
+      const R10k = { ref: 'R1', value: '10k', group: 'Power', package: '0603', mpn: 'RC0603FR-0710KL' };
+      const v1 = await validate(
+        manifest([R10k], {
+          substitutions: [{ ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-07100KL', reason: 'wrong value MPN' }],
+        }),
+      );
+      expect(v1.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "RC0603FR-07100KL" but the entry carries value "10k", mpn "RC0603FR-0710KL"; they must agree',
+      );
+
+      const v2 = await validate(
+        manifest([R10k], {
+          substitutions: [{ ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710', reason: 'truncated prefix' }],
+        }),
+      );
+      expect(v2.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "RC0603FR-0710" but the entry carries value "10k", mpn "RC0603FR-0710KL"; they must agree',
+      );
+    });
+
+    it('rejects case/spacing differences that change real procurement identity (e.g. 100m vs 100M)', async () => {
+      const R100M = { ref: 'R1', value: '100M', group: 'Power', package: '0603' };
+      const v1 = await validate(
+        manifest([R100M], {
+          substitutions: [{ ref: 'R1', wanted: '100M', chosen: '100m', reason: 'milli vs mega mismatch' }],
+        }),
+      );
+      expect(v1.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "100m" but the entry carries value "100M"; they must agree',
+      );
+
+      // Manifest validation for whitespace and SI unit variants
+      const RmOhm = { ref: 'R2', value: '100 mΩ', group: 'Power', package: '0603' };
+      const v2 = await validate(
+        manifest([RmOhm], {
+          substitutions: [{ ref: 'R2', wanted: '100 mΩ', chosen: '100 MΩ', reason: 'milli vs mega with space and omega' }],
+        }),
+      );
+      expect(v2.findings.map((f) => f.detail)).toContain(
+        'substitution for R2: "chosen" is "100 MΩ" but the entry carries value "100 mΩ"; they must agree',
+      );
+
+      const Rword = { ref: 'R3', value: '100mOhm', group: 'Power', package: '0603' };
+      const v3 = await validate(
+        manifest([Rword], {
+          substitutions: [{ ref: 'R3', wanted: '100mOhm', chosen: '100MOhm', reason: 'milli vs mega Ohm spelling' }],
+        }),
+      );
+      expect(v3.findings.map((f) => f.detail)).toContain(
+        'substitution for R3: "chosen" is "100MOhm" but the entry carries value "100mOhm"; they must agree',
+      );
+
+      // Explicit code points: U+03A9 (GREEK CAPITAL LETTER OMEGA) and U+2126 (OHM SIGN)
+      const OMEGA_03A9 = '\u03A9';
+      const OHM_2126 = '\u2126';
+      expect(OMEGA_03A9.charCodeAt(0)).toBe(0x03a9);
+      expect(OHM_2126.charCodeAt(0)).toBe(0x2126);
+
+      // Manifest validation for U+2126 OHM SIGN
+      const R2126 = { ref: 'R4', value: `100m${OHM_2126}`, group: 'Power', package: '0603' };
+      const v4 = await validate(
+        manifest([R2126], {
+          substitutions: [{ ref: 'R4', wanted: `100m${OHM_2126}`, chosen: `100M${OHM_2126}`, reason: 'milli vs mega U+2126' }],
+        }),
+      );
+      expect(v4.findings.map((f) => f.detail)).toContain(
+        `substitution for R4: "chosen" is "100M${OHM_2126}" but the entry carries value "100m${OHM_2126}"; they must agree`,
+      );
+
+      const R2126Space = { ref: 'R5', value: `100 m${OHM_2126}`, group: 'Power', package: '0603' };
+      const v5 = await validate(
+        manifest([R2126Space], {
+          substitutions: [{ ref: 'R5', wanted: `100 m${OHM_2126}`, chosen: `100 M${OHM_2126}`, reason: 'milli vs mega with space U+2126' }],
+        }),
+      );
+      expect(v5.findings.map((f) => f.detail)).toContain(
+        `substitution for R5: "chosen" is "100 M${OHM_2126}" but the entry carries value "100 m${OHM_2126}"; they must agree`,
+      );
+    });
+
+    it('distinguishes SI prefix case in substitutionCarriesChosen helper across spelling and spacing variants', () => {
+      const OMEGA_03A9 = '\u03A9';
+      const OHM_2126 = '\u2126';
+      expect(OMEGA_03A9.charCodeAt(0)).toBe(0x03a9);
+      expect(OHM_2126.charCodeAt(0)).toBe(0x2126);
+
+      // Rejection: milli vs mega variations with explicit code points U+03A9 and U+2126
+      expect(substitutionCarriesChosen({ value: `100m${OMEGA_03A9}` }, `100M${OMEGA_03A9}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100 m${OMEGA_03A9}` }, `100 M${OMEGA_03A9}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, `100M${OHM_2126}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100 m${OHM_2126}` }, `100 M${OHM_2126}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, `100M${OMEGA_03A9}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100m${OMEGA_03A9}` }, `100M${OHM_2126}`)).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100mOhm' }, '100MOhm')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100mohm' }, '100Mohm')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100 mOhm' }, '100 MOhm')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100m' }, '100M')).toBe(false);
+      expect(substitutionCarriesChosen({ value: '100 m' }, '100 M')).toBe(false);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, `100M${OHM_2126} 1%`)).toBe(false);
+
+      // Acceptance: legitimate equivalent resistance spellings (same SI multiplier)
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, `100m${OMEGA_03A9}`)).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100m${OMEGA_03A9}` }, `100m${OHM_2126}`)).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100m${OHM_2126}` }, '100mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100 m${OHM_2126}` }, '100 mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100 m${OHM_2126}` }, '100 mOhm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100M${OHM_2126}` }, `100M${OMEGA_03A9}`)).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100M${OMEGA_03A9}` }, `100M${OHM_2126}`)).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100M${OHM_2126}` }, '100Mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100 M${OHM_2126}` }, '100 Mohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `100 M${OHM_2126}` }, '100 MOhm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100m' }, '100 m')).toBe(true);
+      expect(substitutionCarriesChosen({ value: '100M' }, '100 M')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `10k${OHM_2126}` }, '10kohm')).toBe(true);
+      expect(substitutionCarriesChosen({ value: `10 k${OHM_2126}` }, '10 kohm')).toBe(true);
+
+      // Non-prefix words are not falsely extracted as m/M prefix
+      expect(getSiPrefixM('100 ohm')).toBeNull();
+      expect(getSiPrefixM(`100 ${OMEGA_03A9}`)).toBeNull();
+      expect(getSiPrefixM(`100 ${OHM_2126}`)).toBeNull();
+      expect(getSiPrefixM(`100${OHM_2126}`)).toBeNull();
+      expect(getSiPrefixM('MCU8')).toBeNull();
+      expect(getSiPrefixM('MAX3232')).toBeNull();
+    });
+
+    it('rejects a chosen symbol name with conflicting canonical MPN', async () => {
+      const LDO = {
+        ref: 'U2',
+        value: 'TLV70233DBVR',
+        group: 'Power',
+        libId: 'Regulator_Linear:TLV70012_SOT23-5',
+        footprint: 'Package_TO_SOT_SMD:SOT-23-5',
+        mpn: 'TLV70233DBVR',
+      };
+      const v = await validate(
+        manifest([LDO], {
+          substitutions: [{ ref: 'U2', wanted: 'MIC5365-3.3', chosen: 'TLV70012_SOT23-5', reason: 'symbol name mismatch' }],
+        }),
+      );
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for U2: "chosen" is "TLV70012_SOT23-5" but the entry carries value "TLV70233DBVR", mpn "TLV70233DBVR"; they must agree',
+      );
+    });
+
+    it('rejects descriptive extensions that happen to contain another real value (e.g. 10k vs 10k5, 1k vs 1k2, 0 vs 0.1uF)', async () => {
+      const R10k = { ref: 'R1', value: '10k', group: 'Power', package: '0603' };
+      const v1 = await validate(
+        manifest([R10k], {
+          substitutions: [{ ref: 'R1', wanted: '9.1k', chosen: '10k5', reason: '10.5k resistor' }],
+        }),
+      );
+      expect(v1.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: "chosen" is "10k5" but the entry carries value "10k"; they must agree',
+      );
+
+      const R1k = { ref: 'R2', value: '1k', group: 'Power', package: '0603' };
+      const v2 = await validate(
+        manifest([R1k], {
+          substitutions: [{ ref: 'R2', wanted: '1k', chosen: '1k2', reason: '1.2k resistor' }],
+        }),
+      );
+      expect(v2.findings.map((f) => f.detail)).toContain(
+        'substitution for R2: "chosen" is "1k2" but the entry carries value "1k"; they must agree',
+      );
+
+      const R0 = { ref: 'R3', value: '0', group: 'Power', package: '0603' };
+      const v3 = await validate(
+        manifest([R0], {
+          substitutions: [{ ref: 'R3', wanted: '0', chosen: '0.1uF', reason: 'cap' }],
+        }),
+      );
+      expect(v3.findings.map((f) => f.detail)).toContain(
+        'substitution for R3: "chosen" is "0.1uF" but the entry carries value "0"; they must agree',
+      );
+    });
+
+    it('accepts legitimate descriptive value substitution (e.g. 10k 1%) and exact MPN substitution', async () => {
+      const R10k = { ref: 'R1', value: '10k', group: 'Power', package: '0603', mpn: 'RC0603FR-0710KL' };
+      const v1 = await validate(
+        manifest([R10k], {
+          substitutions: [
+            { ref: 'R1', wanted: 'CRCW060310K0FKEA', chosen: 'RC0603FR-0710KL', reason: 'stock shortage' },
+          ],
+        }),
+      );
+      expect(v1.findings.filter((f) => f.detail.includes('substitution'))).toHaveLength(0);
+
+      const R10kPassive = { ref: 'R2', value: '10k', group: 'Power', package: '0603' };
+      const v2 = await validate(
+        manifest([R10kPassive], {
+          substitutions: [
+            { ref: 'R2', wanted: '10k 0.1%', chosen: '10k 1%', reason: 'tolerance substitution' },
+          ],
+        }),
+      );
+      expect(v2.findings.filter((f) => f.detail.includes('substitution'))).toHaveLength(0);
+    });
+
+    it('rejects an odd number of backslashes immediately preceding a pipe inside code span in part fields', async () => {
+      const R1 = { ref: 'R1', value: '`10k\\|1%`', group: 'Power', package: '0603' };
+      const v = await validate(manifest([R1]));
+      expect(v.ok).toBe(false);
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'R1: field "value" has an unrepresentable code-span pipe sequence ("`10k\\\\|1%`"); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table',
+      );
+    });
+
+    it('rejects an odd number of backslashes before pipe inside code span in substitution fields', async () => {
+      const R1 = { ref: 'R1', value: '10k', group: 'Power', package: '0603' };
+      const v = await validate(
+        manifest([R1], {
+          substitutions: [{ ref: 'R1', wanted: '10k', chosen: '`10k\\|1%`', reason: 'stock shortage' }],
+        }),
+      );
+      expect(v.ok).toBe(false);
+      expect(v.findings.map((f) => f.detail)).toContain(
+        'substitution for R1: field "chosen" has an unrepresentable code-span pipe sequence ("`10k\\\\|1%`"); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table',
+      );
+    });
+
+    it('accepts even backslashes before pipe or pipes outside code spans', async () => {
+      const R1 = { ref: 'R1', value: '10k | 1%', group: 'Power', package: '0603' };
+      const v = await validate(manifest([R1]));
+      expect(v.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
+
+      const R2 = { ref: 'R2', value: '`10k | 1%`', group: 'Power', package: '0603' };
+      const v2 = await validate(manifest([R2]));
+      expect(v2.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
+
+      const R3 = { ref: 'R3', value: '`10k\\\\|1%`', group: 'Power', package: '0603' };
+      const v3 = await validate(manifest([R3]));
+      expect(v3.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
+    });
   });
 
   it('caps the listed findings and counts the rest', async () => {

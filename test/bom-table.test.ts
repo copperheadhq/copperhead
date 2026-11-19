@@ -8,7 +8,13 @@ import {
   normalizeValue,
   normalizeFootprint,
   pinoutColumnReport,
+  splitRow,
+  escapeCell,
+  unescapeCell,
+  findMatchingBacktickClose,
+  hasUnrepresentableCodeSpanPipe,
 } from '../src/memory/bom-table.js';
+import MarkdownIt from 'markdown-it';
 
 describe('parseMarkdownTables', () => {
   it('parses a well-formed table, skipping the separator row', () => {
@@ -480,5 +486,280 @@ describe('optional outer pipes (GitHub-flavored markdown)', () => {
       b3,
     ].join('\n');
     expect(parsePinoutRows(md).map((r) => r.ref)).toEqual(['U1']);
+  });
+});
+
+describe('GFM Table Integrity & splitRow regression (Candidate A)', () => {
+  const md = new MarkdownIt();
+
+  function renderTableHtml(cellContent: string): string {
+    const table = `| Col |\n|---|\n| ${cellContent} |`;
+    return md.render(table).replace(/\s+/g, ' ').trim();
+  }
+
+  describe('Handwritten GFM table row parsing (GFM §4.10 / CommonMark §6.4)', () => {
+    it('escaped pipe within a rendered BOM.md cell parses as 6 columns and preserves Symbol identity', () => {
+    const table = [
+      '# BOM',
+      '',
+      '| Refdes | Value | Footprint | MPN | Rationale | Symbol |',
+      '| --- | --- | --- | --- | --- | --- |',
+      '| R1 | 10k \\| 1% | Resistor_SMD:R_0805 | RC0805 | pull-up | Device:R |',
+    ].join('\n');
+
+    const rows = parseBomTable(table);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({
+      refdes: 'R1',
+      value: '10k | 1%',
+      footprint: 'Resistor_SMD:R_0805',
+      mpn: 'RC0805',
+      symbol: 'Device:R',
+      flags: [],
+    });
+  });
+
+  it('splitRow preserves escaped pipe and does not split column', () => {
+    const row = '| R1 | 10k \\| 1% | Resistor |';
+    const cells = splitRow(row);
+    expect(cells).toEqual(['R1', '10k | 1%', 'Resistor']);
+  });
+
+  it('preserves non-escape backslashes such as Windows paths', () => {
+    const row = '| U1 | C:\\path\\to\\firmware | MCU |';
+    const cells = splitRow(row);
+    expect(cells).toEqual(['U1', 'C:\\path\\to\\firmware', 'MCU']);
+  });
+
+  it('unescapes double backslashes to a single backslash', () => {
+    const row = '| U1 | foo\\\\bar | Package |';
+    const cells = splitRow(row);
+    expect(cells).toEqual(['U1', 'foo\\bar', 'Package']);
+  });
+
+  it('distinguishes escaped pipe vs escaped backslash before delimiter (0-4 backslashes parity)', () => {
+    // 0 backslashes before pipe: unescaped delimiter, splits into 3 columns
+    expect(splitRow('| a|b | c |')).toEqual(['a', 'b', 'c']);
+    expect(splitRow('a|b | c')).toEqual(['a', 'b', 'c']); // without outer borders
+
+    // 1 backslash before pipe: escaped pipe, does NOT split (2 columns)
+    expect(splitRow('| a\\|b | c |')).toEqual(['a|b', 'c']);
+    expect(splitRow('a\\|b | c')).toEqual(['a|b', 'c']);
+
+    // 2 backslashes before pipe: escaped backslash followed by unescaped pipe -> SPLITS into 3 columns
+    expect(splitRow('| a\\\\|b | c |')).toEqual(['a\\', 'b', 'c']);
+    expect(splitRow('a\\\\|b | c')).toEqual(['a\\', 'b', 'c']);
+
+    // 3 backslashes before pipe: escaped backslash followed by escaped pipe -> does NOT split (2 columns)
+    expect(splitRow('| a\\\\\\|b | c |')).toEqual(['a\\|b', 'c']);
+    expect(splitRow('a\\\\\\|b | c')).toEqual(['a\\|b', 'c']);
+
+    // 4 backslashes before pipe: two escaped backslashes followed by unescaped pipe -> SPLITS into 3 columns
+    expect(splitRow('| a\\\\\\\\|b | c |')).toEqual(['a\\\\', 'b', 'c']);
+    expect(splitRow('a\\\\\\\\|b | c')).toEqual(['a\\\\', 'b', 'c']);
+  });
+
+  it('enforces backslash-escape parity inside single-backtick code spans', () => {
+    // 0 backslashes: unescaped pipe splits the table cell and breaks code span across columns
+    expect(splitRow('| `a|b` | c |')).toEqual(['`a', 'b`', 'c']);
+
+    // 1 backslash: escaped pipe does NOT split; table parser consumes 1 backslash (0 literal backslashes remain)
+    expect(splitRow('| `a\\|b` | c |')).toEqual(['`a|b`', 'c']);
+
+    // 2 backslashes: escaped backslash followed by unescaped pipe -> SPLITS into 3 cells under canonical cmark-gfm
+    expect(splitRow('| `a\\\\|b` | c |')).toEqual(['`a\\', 'b`', 'c']);
+
+    // 3 backslashes: escaped pipe does NOT split; table parser consumes 1 backslash (2 literal backslashes remain)
+    expect(splitRow('| `a\\\\\\|b` | c |')).toEqual(['`a\\\\|b`', 'c']);
+
+    // 4 backslashes: two escaped backslashes followed by unescaped pipe -> SPLITS into 3 cells under canonical cmark-gfm
+    expect(splitRow('| `a\\\\\\\\|b` | c |')).toEqual(['`a\\\\', 'b`', 'c']);
+  });
+
+  it('enforces backslash-escape parity inside multi-backtick code spans', () => {
+    // 0 backslashes: unescaped pipe splits the cell
+    expect(splitRow('| ``a|b`` | c |')).toEqual(['``a', 'b``', 'c']);
+
+    // 1 backslash: escaped pipe does NOT split (0 literal backslashes remain)
+    expect(splitRow('| ``a\\|b`` | c |')).toEqual(['``a|b``', 'c']);
+
+    // 2 backslashes: escaped backslash followed by unescaped pipe -> SPLITS into 3 cells under canonical cmark-gfm
+    expect(splitRow('| ``a\\\\|b`` | c |')).toEqual(['``a\\', 'b``', 'c']);
+
+    // 3 backslashes: escaped pipe does NOT split (2 literal backslashes remain)
+    expect(splitRow('| ``a\\\\\\|b`` | c |')).toEqual(['``a\\\\|b``', 'c']);
+
+    // 4 backslashes: two escaped backslashes followed by unescaped pipe -> SPLITS into 3 cells under canonical cmark-gfm
+    expect(splitRow('| ``a\\\\\\\\|b`` | c |')).toEqual(['``a\\\\', 'b``', 'c']);
+  });
+
+  it('handles trailing border pipes with 0-4 backslashes correctly', () => {
+    // Even backslashes before trailing pipe: unescaped border pipe (stripped)
+    expect(splitRow('| a | b |')).toEqual(['a', 'b']);
+    expect(splitRow('| a | b\\\\|')).toEqual(['a', 'b\\']);
+    expect(splitRow('| a | b\\\\\\\\|')).toEqual(['a', 'b\\\\']);
+
+    // Odd backslashes before trailing pipe: escaped pipe (kept as cell content)
+    expect(splitRow('| a | b\\|')).toEqual(['a', 'b|']);
+    expect(splitRow('| a | b\\\\\\|')).toEqual(['a', 'b\\|']);
+  });
+
+  it('handles code spans containing escaped pipes per GFM §4.10', () => {
+    // Unescaped pipes inside code spans delimit columns under GFM
+    const unescapedRow = '| R1 | `10k | 1%` | Device:R |';
+    expect(splitRow(unescapedRow)).toEqual(['R1', '`10k', '1%`', 'Device:R']);
+
+    // Escaped pipes inside code spans do not delimit columns and unescape to literal pipes
+    const escapedRow = '| R1 | `10k \\| 1%` | Device:R |';
+    expect(splitRow(escapedRow)).toEqual(['R1', '`10k | 1%`', 'Device:R']);
+
+    // Multi-backtick code span
+    const multiRow = '| R1 | ``10k \\| ` \\| 1%`` | Device:R |';
+    expect(splitRow(multiRow)).toEqual(['R1', '``10k | ` | 1%``', 'Device:R']);
+  });
+
+  it('findMatchingBacktickClose enforces exact delimiter length', () => {
+    expect(findMatchingBacktickClose('`a`', 1, 1)).toBe(2);
+    expect(findMatchingBacktickClose('`a``', 1, 1)).toBe(-1); // longer closing run
+    expect(findMatchingBacktickClose('``a`', 2, 2)).toBe(-1); // shorter closing run
+    expect(findMatchingBacktickClose('```a``b```', 3, 3)).toBe(7);
+  });
+  });
+
+  describe('Generated GFM table cell escaping and lossless round-trip', () => {
+  it('detects unrepresentable code span pipes via hasUnrepresentableCodeSpanPipe', () => {
+    // Inside single-backtick code spans
+    expect(hasUnrepresentableCodeSpanPipe('`a|b`')).toBe(false); // 0 bs (even)
+    expect(hasUnrepresentableCodeSpanPipe('`a\\|b`')).toBe(true); // 1 bs (odd)
+    expect(hasUnrepresentableCodeSpanPipe('`a\\\\|b`')).toBe(false); // 2 bs (even)
+    expect(hasUnrepresentableCodeSpanPipe('`a\\\\\\|b`')).toBe(true); // 3 bs (odd)
+    expect(hasUnrepresentableCodeSpanPipe('`a\\\\\\\\|b`')).toBe(false); // 4 bs (even)
+
+    // Inside double-backtick code spans
+    expect(hasUnrepresentableCodeSpanPipe('``a|b``')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('``a\\|b``')).toBe(true);
+    expect(hasUnrepresentableCodeSpanPipe('``a\\\\|b``')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('``a\\\\\\|b``')).toBe(true);
+
+    // Outside code spans: always representable
+    expect(hasUnrepresentableCodeSpanPipe('a|b')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('a\\|b')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('10k | 1%')).toBe(false);
+
+    // Backslashes without pipe inside code span: always representable
+    expect(hasUnrepresentableCodeSpanPipe('`C:\\tools\\bin`')).toBe(false);
+    expect(hasUnrepresentableCodeSpanPipe('`foo\\\\bar`')).toBe(false);
+  });
+
+  it('round-trips 0 through 8 backslashes before pipe inside and outside code spans losslessly or fails explicitly', () => {
+    for (let k = 0; k <= 8; k++) {
+      // Outside code spans: all k from 0..8 round-trip 100% losslessly
+      const origOut = `a${'\\'.repeat(k)}|b`;
+      expect(splitRow(`| ${escapeCell(origOut)} |`)[0]).toBe(origOut);
+      expect(unescapeCell(escapeCell(origOut))).toBe(origOut);
+
+      // Inside single-backtick code spans
+      const origIn = `\`a${'\\'.repeat(k)}|b\``;
+      // Inside double-backtick code spans
+      const origDouble = `\`\`a${'\\'.repeat(k)}|b\`\``;
+
+      if (k % 2 === 0) {
+        // Even k: exactly lossless round trip (emit k+1 backslashes, table parser strips 1 -> k remain)
+        const parsedIn = splitRow(`| ${escapeCell(origIn)} |`);
+        expect(parsedIn).toHaveLength(1);
+        expect(parsedIn[0]).toBe(origIn);
+        expect(unescapeCell(escapeCell(origIn))).toBe(origIn);
+
+        const parsedDouble = splitRow(`| ${escapeCell(origDouble)} |`);
+        expect(parsedDouble).toHaveLength(1);
+        expect(parsedDouble[0]).toBe(origDouble);
+        expect(unescapeCell(escapeCell(origDouble))).toBe(origDouble);
+      } else {
+        // Odd k: GFM representability boundary. An odd number of literal backslashes immediately
+        // preceding a pipe inside a code span cannot be represented without either splitting the cell
+        // or dropping a backslash. escapeCell refuses to silently corrupt the value and throws.
+        expect(() => escapeCell(origIn)).toThrow(/Cannot losslessly represent/);
+        expect(() => escapeCell(origDouble)).toThrow(/Cannot losslessly represent/);
+      }
+    }
+  });
+
+  it('escapeCell and unescapeCell round-trip with GFM semantics', () => {
+    const testCases = [
+      '10k | 1%',
+      'C:\\tools\\bin',
+      'foo\\\\bar',
+      'path\\',
+      '`10k | 1%`',
+      '`C:\\tools\\bin`',
+      '``code with ` and | pipe``',
+      '10kΩ ±1% µF ⚡',
+    ];
+
+    for (const val of testCases) {
+      const escaped = escapeCell(val);
+      const row = `| ${escaped} |`;
+      const parsed = splitRow(row);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0]).toBe(val);
+      expect(unescapeCell(escaped)).toBe(val);
+    }
+  });
+  });
+
+  describe('GFM oracle agreement (markdown-it)', () => {
+    it('matches GFM markdown-it oracle rendering', () => {
+      expect(renderTableHtml(escapeCell('10k | 1%'))).toContain('<td>10k | 1%</td>');
+      expect(renderTableHtml(escapeCell('`10k | 1%`'))).toContain('<td><code>10k | 1%</code></td>');
+      expect(renderTableHtml(escapeCell('`C:\\tools\\bin`'))).toContain('<td><code>C:\\tools\\bin</code></td>');
+      expect(renderTableHtml(escapeCell('C:\\tools\\bin'))).toContain('<td>C:\\tools\\bin</td>');
+    });
+
+    it('distinguishes escaped backticks from code span delimiters (Finding A regression)', () => {
+      // Input with backslash-escaped backtick: not a code span
+      const input = '\\`10k\\|1%\\`';
+      expect(hasUnrepresentableCodeSpanPipe(input)).toBe(false);
+
+      // 1 backslash (odd): escaped backtick -> NOT a code span
+      expect(hasUnrepresentableCodeSpanPipe('\\`10k\\|1%\\`')).toBe(false);
+      // 3 backslashes (odd): escaped backtick -> NOT a code span
+      expect(hasUnrepresentableCodeSpanPipe('\\\\\\`10k\\|1%\\\\\\`')).toBe(false);
+      // 2 backslashes (even): unescaped backtick -> IS a code span, containing unrepresentable pipe
+      expect(hasUnrepresentableCodeSpanPipe('\\\\`10k\\|1%`')).toBe(true);
+
+      // escapeCell does not throw on representable escaped backticks
+      const escaped = escapeCell(input);
+      // In input, 1 bs before backtick remains 1 bs; 1 bs before pipe is doubled (2) + 1 (escaped pipe) = 3 bs
+      expect(escaped).toBe('\\`10k\\\\\\|1%\\`');
+
+      // splitRow parses as single cell, preserving literal backtick content and escaped pipe
+      const row = `| ${escaped} | other |`;
+      const cells = splitRow(row);
+      expect(cells).toEqual(['`10k\\|1%`', 'other']);
+
+      // Matches MarkdownIt oracle: renders literal backtick, no <code> tags, no column splitting
+      const html = md.render(`| Col | Other |\n| --- | --- |\n| ${escaped} | other |`).replace(/\s+/g, ' ');
+      expect(html).toContain('<td>`10k\\|1%`</td>');
+      expect(html).toContain('<td>other</td>');
+      expect(html).not.toContain('<code>');
+    });
+
+    it('handles backtick parity across consecutive runs and delimiter lengths', () => {
+      // Double-backtick code span containing single backtick and pipe with 0 backslashes
+      const multi = '``10k | ` | 1%``';
+      expect(hasUnrepresentableCodeSpanPipe(multi)).toBe(false);
+      const parsedMulti = splitRow(`| ${escapeCell(multi)} |`);
+      expect(parsedMulti).toEqual(['``10k | ` | 1%``']);
+
+      // Unmatched backtick outside code spans
+      const unmatched = 'foo`bar';
+      expect(hasUnrepresentableCodeSpanPipe(unmatched)).toBe(false);
+      expect(splitRow(`| ${escapeCell(unmatched)} |`)).toEqual(['foo`bar']);
+
+      // Escaped opening backtick followed by real code span
+      const mixed = '\\`not-code\\` and `real-code`';
+      expect(hasUnrepresentableCodeSpanPipe(mixed)).toBe(false);
+      expect(renderTableHtml(escapeCell(mixed))).toContain('`not-code` and <code>real-code</code>');
+    });
   });
 });
