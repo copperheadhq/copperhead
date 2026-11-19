@@ -53,6 +53,19 @@ describe('BOM parsing (supplier-bom-export)', () => {
   it('returns no rows when there is no Refdes-headed table', () => {
     expect(parseBom('# nothing here\n\njust prose\n')).toEqual([]);
   });
+
+  it('reads only Refdes-headed tables: a supporting table under the parts is not parts', () => {
+    const md = `${FIXTURE_BOM}\n## Cost\n\n| Line | Each | Total |\n|---|---|---|\n| Passives | 0.01 | 0.02 |\n\n## More parts\n\n| Refdes | Value | MPN |\n|---|---|---|\n| C1 | 100n | CL10B104KB8NNNC |\n`;
+    expect(parseBom(md).map((r) => r.refdes)).toEqual(['R1', 'R2', 'U1', 'C1']);
+  });
+
+  it('strips the verification annotation from the orderable MPN, wherever it sits', () => {
+    const md = '| Refdes | Value | MPN |\n|---|---|---|\n| U1 | X | ABC-123 (UNVERIFIED) |\n| U2 | Y | UNVERIFIED DEF-456 |\n| U3 | Z | (UNVERIFIED) |\n';
+    const [u1, u2, u3] = parseBom(md);
+    expect(u1).toMatchObject({ mpn: 'ABC-123', hasMpn: true, unverified: true });
+    expect(u2).toMatchObject({ mpn: 'DEF-456', hasMpn: true, unverified: true });
+    expect(u3).toMatchObject({ mpn: '', hasMpn: false, unverified: true });
+  });
 });
 
 describe('quantity arithmetic (supplier-bom-export)', () => {

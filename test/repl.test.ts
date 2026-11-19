@@ -73,6 +73,7 @@ describe('parseSlash', () => {
     expect(parseSlash('/')).toEqual({ cmd: '/', args: '' });
     expect(parseSlash('/quit')).toEqual({ cmd: '/quit', args: '' });
     expect(parseSlash('/help me')).toEqual({ cmd: '/help', args: 'me' });
+    expect(parseSlash('/explain U1')).toEqual({ cmd: '/explain', args: 'U1' });
   });
 
   it('maps bare quit/clear/help so they never start an agent run', () => {
@@ -102,6 +103,7 @@ describe('parseSlash', () => {
       '/runs',
       '/parts',
       '/nets',
+      '/explain',
       '/bom',
       '/openspec',
       '/last',

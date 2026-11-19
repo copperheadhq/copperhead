@@ -579,6 +579,58 @@ describe('tool-registry catalog', () => {
     }
   });
 
+  it('a skill turn names the calls that did not run after the real results, without proposal advice (#306)', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const ctx = await makeCtx(repo);
+      let done = false;
+      const skill = defineSkill({
+        schema: { name: 'net_report', description: 'test', parameters: { type: 'object', properties: {} } },
+        version: 1,
+        viewHint: 'diagnostic',
+        tools: ['list_nets'],
+        maxTurns: 3,
+        prompt: () => '',
+        isComplete: () => done,
+      });
+      const seen: Msg[][] = [];
+      const turns: Turn[] = [
+        {
+          text: null,
+          toolCalls: [{ id: '1', name: 'list_nets', args: {} }],
+          usage: { inputTokens: 1, outputTokens: 1 },
+          undispatched: { unavailable: ['write_file'], malformed: [] },
+        },
+        { text: 'done', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } },
+      ];
+      const provider: Provider = {
+        name: 'scripted',
+        chat: async (messages) => {
+          seen.push([...messages]);
+          if (seen.length === 2) done = true;
+          return turns[seen.length - 1]!;
+        },
+      };
+      await runSkillSubRun({ ctx, skill, args: {}, provider });
+      const second = seen[1]!;
+      const toolAt = second.findIndex((m) => m.role === 'tool' && m.toolCallId === '1');
+      const noteAt = second.findIndex((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('did not run'));
+      expect(toolAt).toBeGreaterThanOrEqual(0);
+      expect(noteAt).toBeGreaterThan(toolAt);
+      // The skill's catalog has no propose_change, so the note must not send the model there.
+      expect(second[noteAt]!.content).toMatch(/"write_file": not a tool in the catalog\. Use one of the available tools: list_nets\./);
+      expect(second[noteAt]!.content).not.toMatch(/propose_change/);
+      const events = (await readFile(path.join(ctx.transcript.dir, 'transcript.jsonl'), 'utf8'))
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { type: string; data: Record<string, unknown> });
+      expect(events.find((e) => e.type === 'undispatched-calls')?.data).toEqual({ skill: 'net_report', unavailable: ['write_file'], malformed: [] });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('off-catalog names stay prose in parseToolCalls', () => {
     const catalog = new Set(['read_file']);
     const parsed = parseToolCalls('```json\n{"tool":"edit_file","args":{}}\n```', () => 'id1', catalog);

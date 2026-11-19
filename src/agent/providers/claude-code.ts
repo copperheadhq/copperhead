@@ -77,7 +77,12 @@ export interface QueryMessage {
   subtype?: string;
   session_id?: string;
   message?: { content?: Array<{ type: string; text?: string }> };
-  usage?: { input_tokens?: number; output_tokens?: number };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
   /** On a `stream_event` message: the raw Messages-API stream event. */
   event?: { type: string; delta?: { type: string; text?: string } };
 }
@@ -233,7 +238,15 @@ export class ClaudeCodeProvider implements Provider {
             }
           }
         } else if (msg.type === 'result') {
-          if (typeof msg.usage?.input_tokens === 'number') inputTokens = msg.usage.input_tokens;
+          // Cache reads and writes are context the model processed, so they count as
+          // input, as the Anthropic provider counts them (AC-15.15, AC-18.4). Without
+          // them a cached run reports "2 in" for a 40k-token turn.
+          if (typeof msg.usage?.input_tokens === 'number') {
+            inputTokens =
+              msg.usage.input_tokens +
+              (msg.usage.cache_read_input_tokens ?? 0) +
+              (msg.usage.cache_creation_input_tokens ?? 0);
+          }
           if (typeof msg.usage?.output_tokens === 'number') outputTokens = msg.usage.output_tokens;
         }
         // The session id can arrive on any message (init/system/result); keep the
@@ -263,6 +276,7 @@ export class ClaudeCodeProvider implements Provider {
       usage: { inputTokens, outputTokens },
       nudge: parsed.nudge,
       ...(parsed.notice ? { notice: parsed.notice, discarded: parsed.discarded } : {}),
+      ...(parsed.undispatched ? { undispatched: parsed.undispatched } : {}),
     };
   }
 

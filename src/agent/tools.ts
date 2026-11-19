@@ -6,6 +6,7 @@ import { withRetry, isRateLimit } from '../util/retry.js';
 import { MAX_TURN_TIMEOUTS, TurnTimeoutError, withWatchdog } from './recovery.js';
 import type { RunContext } from './context.js';
 import type { Msg, Provider, Turn } from './types.js';
+import { renderUndispatched } from './providers/tool-protocol.js';
 
 export type { RunContext, FinishRequest } from './context.js';
 export type { CatalogEntry, CatalogSkill };
@@ -129,6 +130,14 @@ export async function runSkillSubRun(opts: {
         messages.push({ role: 'tool', toolCallId: call.id, content: flat });
       }
       if (res.notice) messages.push({ role: 'user', content: res.notice });
+      // #306, as in the main loop: calls written next to the ones that ran but never
+      // dispatched (a tool outside the skill's set, a call a brace short) are named
+      // after the real results. A sub-run has no finish, so there is nothing to hold.
+      if (res.undispatched) {
+        const available = new Set(registry.list(ctx).filter((e) => e.kind === 'tool' && only.has(e.name)).map((e) => e.name));
+        await ctx.transcript.event('undispatched-calls', { skill: skill.name, ...res.undispatched });
+        messages.push({ role: 'user', content: renderUndispatched(res.undispatched, available, ctx.editsUnlocked) });
+      }
     }
   } finally {
     ctx.finishRequest = savedFinish;

@@ -4,6 +4,7 @@ import { libTableRows } from './libtable.js';
 import { kicadMajorVersion } from './cli.js';
 import { parseSexp, children, isList } from './sexp.js';
 import { symbolSearchDirs } from './symlib.js';
+import { libraryCache } from './cache.js';
 
 /**
  * Exact footprint resolution for the board (#314). A `Lib:Name` id resolves to
@@ -374,7 +375,12 @@ export async function footprintPadNumbers(file: string): Promise<Set<string>> {
 }
 
 export async function readFootprintPads(file: string): Promise<FootprintPads> {
-  return footprintPads(await readFile(file, 'utf8'));
+  // cached by (file, mtime): the pad set is a property of the footprint file (design D9)
+  const cached = await libraryCache.getPads(file);
+  if (cached.value) return { numbers: new Set(cached.value.numbers), heatsink: new Set(cached.value.heatsink) };
+  const pads = footprintPads(await readFile(file, 'utf8'));
+  libraryCache.setPads(file, cached.mtimeMs, { numbers: [...pads.numbers], heatsink: [...pads.heatsink] });
+  return pads;
 }
 
 /**

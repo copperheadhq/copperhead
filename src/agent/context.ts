@@ -3,9 +3,25 @@ import type { CheckReport } from '../kicad/report.js';
 import type { ObligationsLedger } from './ledger.js';
 import type { Transcript } from './transcript.js';
 
+/**
+ * A structured reason a run could not finish (AC-18.1). `constraint` names a key
+ * in the constraint registry; `required` is what it demands and `found` the
+ * candidate that fails it, both in prose a reader can act on.
+ */
+export interface RefusalBlocker {
+  kind: 'constraint-conflict';
+  constraint: string;
+  required: string;
+  found: string;
+}
+
 export interface FinishRequest {
   outcome: 'done' | 'refuse';
   summary: string;
+  /** Blockers whose constraint key the registry holds (design D1): the only ones that count. */
+  blockers?: RefusalBlocker[];
+  /** Blockers naming a key the registry does not hold: kept as prose, never a stop (AC-18.2). */
+  unverifiedBlockers?: RefusalBlocker[];
 }
 
 /** Mutable state one run threads through every tool call. */

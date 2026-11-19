@@ -1,4 +1,4 @@
-import { parseMarkdownTables, type TableRow } from '../memory/bom-table.js';
+import { parseMarkdownTableGroups, isOffBoardCell, isNoPartCell, type TableRow } from '../memory/bom-table.js';
 
 /**
  * Supplier-format BOM export (capability supplier-bom-export). Deterministic,
@@ -34,6 +34,10 @@ export interface BomRow {
   unverified: boolean;
   /** True when the MPN column carries an orderable part number (not a placeholder). */
   hasMpn: boolean;
+  /** The Footprint cell is the off-board marker: bought, never placed (a battery with leads). */
+  offBoard: boolean;
+  /** The MPN cell is the no-part marker: a board feature with nothing to buy (a mounting hole). */
+  noPart: boolean;
 }
 
 // Header aliases → canonical field. Matched after normalizing a header cell to
@@ -72,9 +76,17 @@ const isMpnPlaceholder = (mpn: string): boolean => MPN_PLACEHOLDERS.has(mpn.trim
 const UNVERIFIED_RE = /\bUNVERIFIED\b/i;
 
 /**
+ * The orderable part number in an MPN cell: the cell without its verification
+ * annotation. The manifest renderer writes `RC0603FR-0710KL (UNVERIFIED)`, and
+ * a supplier matches on `RC0603FR-0710KL`; the flag travels on `unverified`.
+ */
+const orderableMpn = (cell: string): string => cell.replace(/\(\s*UNVERIFIED\s*\)|\bUNVERIFIED\b/gi, '').replace(/\s+/g, ' ').trim();
+
+/**
  * Parse BOM.md into rows by column header, tolerating extra/reordered columns.
- * Only the header row and data rows of the first parts table are used; a table
- * without a recognizable Refdes header yields no rows.
+ * Only tables that carry a recognizable Refdes header are parts tables, each
+ * read by its own header; any other table in the file (the manifest render's
+ * Substitutions, a cost roll-up) is not a list of parts and yields no rows.
  *
  * NOTE: the drift gate this exporter runs behind (checkDrift in
  * ../memory/drift.ts) reads Refdes|Value|Footprint *by position*, not by header.
@@ -83,37 +95,44 @@ const UNVERIFIED_RE = /\bUNVERIFIED\b/i;
  * drift message. Keep the base three columns first and in order; only append.
  */
 export function parseBom(md: string): BomRow[] {
-  const tableRows = parseMarkdownTables(md);
-  const headerIdx = tableRows.findIndex((r) => r.cells.some((c) => HEADER_ALIASES[norm(c)] === 'refdes'));
-  const header = headerIdx === -1 ? undefined : tableRows[headerIdx];
-  if (!header) return [];
-  const col: Partial<Record<keyof BomRow, number>> = {};
-  header.cells.forEach((c, i) => {
-    const field = HEADER_ALIASES[norm(c)];
-    // First occurrence wins, so a stray later column never shadows the real one.
-    if (field && col[field] === undefined) col[field] = i;
-  });
-
-  const at = (row: TableRow, field: keyof BomRow): string => {
-    const i = col[field];
-    return i === undefined ? '' : (row.cells[i] ?? '').trim();
-  };
-
   const rows: BomRow[] = [];
-  for (const row of tableRows.slice(headerIdx + 1)) {
-    const refdes = at(row, 'refdes');
-    if (!refdes) continue; // blank line / stray row
-    const mpn = at(row, 'mpn');
-    rows.push({
-      refdes,
-      value: at(row, 'value'),
-      footprint: at(row, 'footprint'),
-      mpn,
-      manufacturer: at(row, 'manufacturer'),
-      lcsc: at(row, 'lcsc'),
-      unverified: row.cells.some((c) => UNVERIFIED_RE.test(c)),
-      hasMpn: !isMpnPlaceholder(mpn),
+  for (const tableRows of parseMarkdownTableGroups(md)) {
+    const headerIdx = tableRows.findIndex((r) => r.cells.some((c) => HEADER_ALIASES[norm(c)] === 'refdes'));
+    const header = headerIdx === -1 ? undefined : tableRows[headerIdx];
+    if (!header) continue; // not a parts table
+    const col: Partial<Record<keyof BomRow, number>> = {};
+    header.cells.forEach((c, i) => {
+      const field = HEADER_ALIASES[norm(c)];
+      // First occurrence wins, so a stray later column never shadows the real one.
+      if (field && col[field] === undefined) col[field] = i;
     });
+
+    const at = (row: TableRow, field: keyof BomRow): string => {
+      const i = col[field];
+      return i === undefined ? '' : (row.cells[i] ?? '').trim();
+    };
+
+    for (const row of tableRows.slice(headerIdx + 1)) {
+      const refdes = at(row, 'refdes');
+      if (!refdes) continue; // blank line / stray row
+      const mpnCell = at(row, 'mpn');
+      const footprintCell = at(row, 'footprint');
+      const noPart = isNoPartCell(mpnCell);
+      const offBoard = isOffBoardCell(footprintCell);
+      const mpn = noPart ? '' : orderableMpn(mpnCell);
+      rows.push({
+        refdes,
+        value: at(row, 'value'),
+        footprint: offBoard ? '' : footprintCell,
+        mpn,
+        manufacturer: at(row, 'manufacturer'),
+        lcsc: at(row, 'lcsc'),
+        unverified: row.cells.some((c) => UNVERIFIED_RE.test(c)),
+        hasMpn: !isMpnPlaceholder(mpn),
+        offBoard,
+        noPart,
+      });
+    }
   }
   return rows;
 }
@@ -199,16 +218,23 @@ interface Line {
  * Split rows into included/excluded by the ordering rules (requirement
  * "Unorderable rows are excluded and reported"): MPN-less rows are always
  * excluded; UNVERIFIED rows are excluded unless `includeUnverified`, and even
- * then only when they carry a real MPN.
+ * then only when they carry a real MPN. A board feature (no part to buy) is
+ * on no order; an off-board part is bought but never placed, so it stays on a
+ * distributor cart and off the assembly BOM.
  */
 function partition(
   rows: BomRow[],
+  supplier: Supplier,
   includeUnverified: boolean,
 ): { included: BomRow[]; excluded: ExportResult['excluded'] } {
   const included: BomRow[] = [];
   const excluded: ExportResult['excluded'] = [];
   for (const row of rows) {
-    if (!row.hasMpn) {
+    if (row.noPart) {
+      excluded.push({ row, reason: 'board feature' });
+    } else if (row.offBoard && supplier === 'jlcpcb') {
+      excluded.push({ row, reason: 'off-board' });
+    } else if (!row.hasMpn) {
       excluded.push({ row, reason: 'no MPN' });
     } else if (row.unverified && !includeUnverified) {
       excluded.push({ row, reason: 'UNVERIFIED' });
@@ -246,10 +272,14 @@ function buildWarnings(
   const { includeUnverified } = opts;
   const warnings: string[] = [];
   for (const { row, reason } of excluded) {
+    // Nothing to buy and nothing to fix: a mounting hole is not a warning.
+    if (reason === 'board feature') continue;
     const hint =
       reason === 'no MPN'
         ? 'add an MPN in BOM.md — unorderable without one'
-        : 'verify against the datasheet or re-run with --include-unverified';
+        : reason === 'off-board'
+          ? 'not placed on the board; order it from a distributor (digikey | mouser export)'
+          : 'verify against the datasheet or re-run with --include-unverified';
     warnings.push(`EXCLUDED (${reason}): ${row.refdes} (${row.value || 'no value'}) — ${hint}`);
   }
   if (includeUnverified) {
@@ -306,7 +336,7 @@ function emitCart(lines: Line[], opts: ExportOptions, mpnHeader: string): string
  * so the emitters are golden-file testable in isolation (design D5).
  */
 export function buildExport(rows: BomRow[], supplier: Supplier, opts: ExportOptions): ExportResult {
-  const { included, excluded } = partition(rows, opts.includeUnverified);
+  const { included, excluded } = partition(rows, supplier, opts.includeUnverified);
   const lines =
     supplier === 'jlcpcb'
       ? groupBy(included, (r) => `${r.value} ${r.footprint} ${r.lcsc}`)

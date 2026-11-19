@@ -280,7 +280,7 @@ export async function runPass(o: PassOptions): Promise<PassRecord> {
           await checkpoint();
           break;
         }
-        messages.push({ role: 'user', content: reply.nudge ?? 'Reply with exactly one tool call: a query, propose, or submit.' });
+        messages.push({ role: 'user', content: reply.nudge ?? 'Reply with at least one tool call: a query, propose, or submit.' });
         await checkpoint();
         continue;
       }

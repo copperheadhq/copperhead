@@ -3,7 +3,10 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { SymbolSource, SymbolResolutionError, powerNetToken, type ResolvedSymbol } from './symsource.js';
 import { parseBomTable, normalizeValue, normalizeFootprint, bomFootprintRows } from '../../memory/bom-table.js';
-import { readFootprintPads, exposedPads, isMechanicalPad, formatPadMismatch, type FootprintResolver } from '../footprints.js';
+import type { FootprintResolver } from '../footprints.js';
+import { checkPinsAgainstPads } from '../parts/pads.js';
+import { loadManifest, invalidManifestDetail, resolveParts } from '../parts/resolve.js';
+import { MANIFEST_FILENAME } from '../parts/manifest.js';
 
 /**
  * The netlist-intent IR (`schematic.intent.json`): the compact declarative
@@ -63,7 +66,7 @@ export interface ValidatedIntent {
 }
 
 /** `## Heading` names from a markdown file, in order. */
-async function headingsOf(file: string): Promise<string[] | null> {
+export async function headingsOf(file: string): Promise<string[] | null> {
   if (!existsSync(file)) return null;
   const text = await readFile(file, 'utf8');
   const names = [...text.matchAll(/^#{2,6}\s+(.+?)\s*$/gm)].map((m) => m[1]!.trim()).filter(Boolean);
@@ -167,6 +170,47 @@ export function parseIntent(json: string): { intent: SchematicIntent | null; fin
  * consistency, and the BOM.md cross-check. A failed validation means nothing is
  * written; findings come back numbered in the verify_symbols shape.
  */
+/**
+ * Why the drafting engine could not place a multi-unit symbol, or null when it
+ * can. Units share symbol-space pin coordinates, so a single placed instance
+ * would overlay unrelated pins on one point and silently merge their nets (an
+ * LM358 drafted that way fused its two outputs); the engine places one unit
+ * at a time instead. Common (unit-0) pins are fine — KiCad draws them on every
+ * placed unit and the engine wires each appearance to the pin's one net. What
+ * is refused is a pin number repeated across NUMBERED units (an ambiguous
+ * endpoint), and a pin living only in a de Morgan alternate (it would vanish
+ * from the drawn sheet). Shared with the parts-manifest validator so stage 3
+ * refuses the same symbols stage 4 would.
+ */
+export function unitPlacementFinding(libId: string, sym: ResolvedSymbol): string | null {
+  if (!sym.multiUnit) return null;
+  const common = new Set(sym.commonUnitPins ?? []);
+  const owner = new Map<string, number>();
+  const shared = new Set<string>();
+  for (const u of sym.units ?? []) {
+    for (const pin of u.pins) {
+      if (common.has(pin.number)) continue;
+      const prev = owner.get(pin.number);
+      if (prev !== undefined && prev !== u.unit) shared.add(pin.number);
+      owner.set(pin.number, u.unit);
+    }
+  }
+  if (shared.size) {
+    return (
+      `"${libId}" repeats pin(s) ${[...shared].sort().join(', ')} in more than one unit, so a ` +
+      `net endpoint cannot be mapped to a single placed unit; the drafting engine cannot place this symbol`
+    );
+  }
+  const unmapped = [...new Set(sym.pins.map((pin) => pin.number))].filter((n) => !owner.has(n) && !common.has(n));
+  if (unmapped.length) {
+    return (
+      `"${libId}" defines pin(s) ${unmapped.sort().join(', ')} outside its default-style units, ` +
+      `so the drafting engine cannot place them; use a variant with conventional unit structure`
+    );
+  }
+  return null;
+}
+
 export async function validateIntent(
   intent: SchematicIntent,
   symsource: SymbolSource,
@@ -185,8 +229,47 @@ export async function validateIntent(
   // error — the repair contract matters most exactly when the input is wrong.
   const symbols = new Map<string, ResolvedSymbol>();
   const partByRef = new Map<string, IntentPart>();
+  // The parts manifest (structured-part-selection, design D8): when stage 3
+  // wrote one, the parts are decided there. An IR part may give its ref alone
+  // and inherit libId, value, footprint and group; a field it does give must
+  // agree; an off-board entry is not drawn; a ref the manifest lacks is a
+  // finding. Without a manifest the BOM.md cross-check below applies instead.
+  // A manifest file that does not parse is a finding, never a silent return to
+  // the BOM.md cross-check: the manifest is the decided part list, so the intent
+  // cannot be judged against it until it reads.
+  const loaded = docsDir ? await loadManifest(docsDir) : ({ state: 'absent' } as const);
+  if (loaded.state === 'invalid') {
+    add(`${MANIFEST_FILENAME} is not a valid parts manifest (${invalidManifestDetail(loaded.findings)}); fix it and run draft_bom before drafting the schematic`);
+  }
+  const manifestParts = loaded.state === 'ok' ? new Map(resolveParts(loaded.manifest).map((p) => [p.ref, p])) : null;
   for (const p of intent.parts) {
-    if (typeof (p as unknown as { ref?: unknown })?.ref !== 'string' || !p.ref || typeof p.libId !== 'string' || !p.libId || typeof p.value !== 'string') {
+    const refOf = (p as unknown as { ref?: unknown })?.ref;
+    if (manifestParts && typeof refOf === 'string' && refOf) {
+      const m = manifestParts.get(refOf);
+      const q = p as Partial<IntentPart>;
+      if (!m) {
+        add(`${refOf} is not in ${MANIFEST_FILENAME}; add it there and run draft_bom, or drop it from the intent`);
+        continue;
+      }
+      if (m.offBoard) {
+        add(`${refOf} is off-board in ${MANIFEST_FILENAME} (no place on the board); drop it from the intent`);
+        continue;
+      }
+      const disagree: string[] = [];
+      if (q.libId === undefined) q.libId = m.libId ?? undefined;
+      else if (m.libId && q.libId !== m.libId) disagree.push(`libId "${q.libId}" vs "${m.libId}"`);
+      if (q.value === undefined) q.value = m.value;
+      else if (typeof q.value === 'string' && normalizeValue(q.value) !== normalizeValue(m.value)) disagree.push(`value "${q.value}" vs "${m.value}"`);
+      if (q.footprint === undefined) q.footprint = m.footprint ?? undefined;
+      else if (m.footprint && typeof q.footprint === 'string' && normalizeFootprint(q.footprint) !== normalizeFootprint(m.footprint)) disagree.push(`footprint "${q.footprint}" vs "${m.footprint}"`);
+      if (q.group === undefined && m.group) q.group = m.group;
+      else if (typeof q.group === 'string' && m.group && q.group.toLowerCase() !== m.group.toLowerCase()) disagree.push(`group "${q.group}" vs "${m.group}"`);
+      if (disagree.length) {
+        add(`${refOf} differs from ${MANIFEST_FILENAME}: ${disagree.join('; ')} — the manifest is the decided part list; give the ref alone to inherit it, or change the manifest and run draft_bom`);
+        continue;
+      }
+    }
+    if (typeof refOf !== 'string' || !p.ref || typeof p.libId !== 'string' || !p.libId || typeof p.value !== 'string') {
       add(`part ${JSON.stringify(p?.ref ?? '(missing ref)')} needs string ref, libId, and value fields`);
       continue;
     }
@@ -214,35 +297,10 @@ export async function validateIntent(
       // refused is a pin number repeated across NUMBERED units (an ambiguous
       // endpoint), and a pin living only in a de Morgan alternate (it would
       // vanish from the drawn sheet).
-      if (sym.multiUnit) {
-        const common = new Set(sym.commonUnitPins ?? []);
-        const owner = new Map<string, number>();
-        const shared = new Set<string>();
-        for (const u of sym.units ?? []) {
-          for (const pin of u.pins) {
-            if (common.has(pin.number)) continue;
-            const prev = owner.get(pin.number);
-            if (prev !== undefined && prev !== u.unit) shared.add(pin.number);
-            owner.set(pin.number, u.unit);
-          }
-        }
-        if (shared.size) {
-          add(
-            `${p.ref}: "${p.libId}" repeats pin(s) ${[...shared].sort().join(', ')} in more than one unit, so a ` +
-              `net endpoint cannot be mapped to a single placed unit; the drafting engine cannot place this symbol`,
-          );
-          continue;
-        }
-        const unmapped = [...new Set(sym.pins.map((pin) => pin.number))].filter(
-          (n) => !owner.has(n) && !common.has(n),
-        );
-        if (unmapped.length) {
-          add(
-            `${p.ref}: "${p.libId}" defines pin(s) ${unmapped.sort().join(', ')} outside its default-style units, ` +
-              `so the drafting engine cannot place them; use a variant with conventional unit structure`,
-          );
-          continue;
-        }
+      const unit = unitPlacementFinding(p.libId, sym);
+      if (unit) {
+        add(`${p.ref}: ${unit}`);
+        continue;
       }
       symbols.set(p.ref, sym);
     } catch (e) {
@@ -251,50 +309,19 @@ export async function validateIntent(
     }
   }
 
-  // pins against pads (#314): a symbol pin its footprint has no pad for drops
-  // that pin's net off the board ("No pad found for pin" in KiCad). A footprint
-  // that does not resolve is the BOM gate's business, not this check's.
+  // pins against pads (#314/#325): shared with the parts-manifest validator
+  // (design D4), so stage 3 refuses the same pairs. A footprint that does not
+  // resolve is the BOM gate's business, not this check's.
   if (footprints) {
-    const byNum = (a: string, b: string): number => a.localeCompare(b, undefined, { numeric: true });
     for (const p of partByRef.values()) {
       const sym = symbols.get(p.ref);
       if (!sym || sym.isPower || !p.footprint) continue;
-      const hit = await footprints.resolve(p.footprint);
-      if (!hit.ok) continue;
-      const { numbers: pads, heatsink } = await readFootprintPads(hit.file);
-      const symPins = new Set(sym.pins.map((pin) => pin.number));
-      const pins = [...symPins].filter((n) => !pads.has(n)).sort(byNum);
-      // and the reverse (#325): an electrical pad no symbol pin names gets no net
-      // and floats (a 16-contact USB-C receptacle under a 6-pin power-only
-      // symbol leaves half its VBUS and GND contacts unconnected). Mechanical,
-      // shield and thermal pads are exempt, they are unconnected by design: by
-      // KiCad's pad naming, by the library's heatsink property, or as the
-      // exposed pad of a footprint named for one (DFN-8-1EP's pad 9, which the
-      // charger symbol drawn for it does not name).
-      const exposed = exposedPads(p.footprint, pads, symPins);
-      const unpinned = [...pads].filter((n) => !isMechanicalPad(n) && !heatsink.has(n) && !exposed.has(n) && !symPins.has(n)).sort(byNum);
-      // A pad no pin names is a slip when its library ships the variant the
-      // symbol fits (the 6-contact receptacle beside the 16-contact one). When
-      // it ships none, the pairing is the library's own (a no-connect lead the
-      // symbol omits, as KiCad draws the FT232RL and the PIC families): noted
-      // in the draft report for the reader, not refused, since there is no
-      // footprint to change to.
-      const variant = unpinned.length && !pins.length ? await footprints.variantCovering(p.footprint, symPins) : null;
-      const mismatch = formatPadMismatch({ ref: p.ref, footprint: p.footprint, pins, pads: [...pads].sort(byNum), ...(unpinned.length ? { unpinned } : {}) });
-      if (pins.length || variant) {
-        const advice = [
-          pins.length ? `use a symbol whose pin numbers match the footprint's pads` : '',
-          unpinned.length
-            ? `use a footprint whose electrical pads are all pins of the symbol (${variant ? `${variant} in the same library matches` : 'KiCad often ships a variant with the matching contact count'})`
-            : '',
-        ].filter(Boolean);
-        add(`${mismatch}; ${advice.join(', or ')} (change the footprint in BOM.md and the intent together)`);
-      } else if (unpinned.length) {
-        warnings.push(
-          `${mismatch}; no footprint in its library matches the symbol's pins exactly, so these are taken as pads the library leaves ` +
-            `unconnected by design (an exposed pad, or a lead the symbol omits as no-connect); confirm against the datasheet before fabrication`,
-        );
-      }
+      const r = await checkPinsAgainstPads(
+        { ref: p.ref, footprint: p.footprint, symbolPins: new Set(sym.pins.map((pin) => pin.number)), where: 'change the footprint in BOM.md and the intent together' },
+        footprints,
+      );
+      if (r.finding) add(r.finding);
+      if (r.warning) warnings.push(r.warning);
     }
   }
 
@@ -427,8 +454,10 @@ export async function validateIntent(
     }
   }
 
-  // BOM cross-check: a transcription slip dies here, not at the drift gate (D6)
-  const bomRows = docsDir ? await bomRowsOf(path.join(docsDir, 'BOM.md')) : null;
+  // BOM cross-check: a transcription slip dies here, not at the drift gate (D6).
+  // With a manifest the parts were inherited or checked against it above, and
+  // BOM.md is that manifest's render, so there is nothing further to compare.
+  const bomRows = docsDir && !manifestParts ? await bomRowsOf(path.join(docsDir, 'BOM.md')) : null;
   if (bomRows) {
     const bomByRef = new Map(bomRows.map((r) => [r.ref, r.value]));
     const bomFootprint = new Map(bomRows.map((r) => [r.ref, r.footprint]));

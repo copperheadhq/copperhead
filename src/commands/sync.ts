@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
+import { manifestDrift } from '../kicad/parts/render.js';
 import { loadConstraints, checkForbiddenPins } from '../memory/constraints.js';
 import { pinNets } from '../kicad/sexp.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -48,6 +49,17 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
         claim: m.claim,
         actual: m.actual,
         resolution: `update ${m.doc} to match the as-built schematic (KiCad files are truth for as-built facts)`,
+      });
+    }
+  } else {
+    // no schematic: the parts manifest against its render is still checkable
+    for (const m of await manifestDrift(path.join(repoRoot, config.docs))) {
+      resolvable.push({
+        kind: 'drift',
+        doc: m.doc,
+        claim: m.claim,
+        actual: m.actual,
+        resolution: 'fix docs/parts.intent.json if it is invalid, then render BOM.md from it with draft_bom',
       });
     }
   }

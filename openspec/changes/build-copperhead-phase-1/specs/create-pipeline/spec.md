@@ -35,7 +35,7 @@ The layout stage SHALL produce rule-driven placement (real coordinates in the `.
 - **THEN** LAYOUT.md contains a `## Draft quality` section and the board passes DRC
 
 ### Requirement: Firmware verification gate
-The firmware scaffold SHALL compile clean against the vendor toolchain when one is available; when the toolchain is absent, the run SHALL still complete, marking DEVPLAN.md that the firmware was not compiled locally.
+The firmware scaffold SHALL compile clean against the vendor toolchain when one is available; when the toolchain is absent, the run SHALL still complete, marking DEVPLAN.md that the firmware was not compiled locally. A board whose schematic has nothing programmable on it SHALL complete the stage without source, on a `firmware/README.md` that begins `# No firmware` and states why; the schematic, not the model, SHALL decide that.
 
 #### Scenario: Toolchain present
 - **WHEN** the firmware stage runs with the vendor toolchain installed
@@ -44,3 +44,11 @@ The firmware scaffold SHALL compile clean against the vendor toolchain when one 
 #### Scenario: Toolchain absent
 - **WHEN** no vendor toolchain is installed
 - **THEN** the scaffold and pins.h are still produced and DEVPLAN.md carries an explicit "not compiled here" flag
+
+#### Scenario: No programmable part
+- **WHEN** every schematic symbol comes from a stock non-programmable KiCad library (`Device`, `Connector*`, `Diode*`, `Transistor_*`, `Regulator_*`, `Mechanical`, `power`, `Power_Protection`, `LED`, `Switch`, `Jumper`, `Graphic`, `Amplifier_Operational`, `Amplifier_Instrumentation`, `Comparator`, `Reference_Voltage`, `Relay`, `Timer`) and `firmware/README.md` begins `# No firmware` with a reason below it (an HTML comment is not one)
+- **THEN** the firmware stage completes with no source under `firmware/`
+
+#### Scenario: Unknown part never waives firmware
+- **WHEN** `firmware/README.md` begins `# No firmware` but the schematic has a part from any other library (a stock MCU library or a project library such as `fixture:ESP32-S3-MINI`), or no readable schematic with parts
+- **THEN** the firmware stage stays incomplete until source exists under `firmware/`, and the stage's failure detail names the parts that need it

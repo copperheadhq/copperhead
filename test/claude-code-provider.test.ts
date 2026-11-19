@@ -56,6 +56,13 @@ function assistantToolUse(name: string, input: Record<string, unknown>): QueryMe
 function result(input = 0, output = 0): QueryMessage {
   return { type: 'result', subtype: 'success', usage: { input_tokens: input, output_tokens: output } };
 }
+function cachedResult(input: number, cacheRead: number, cacheCreation: number, output = 0): QueryMessage {
+  return {
+    type: 'result',
+    subtype: 'success',
+    usage: { input_tokens: input, output_tokens: output, cache_read_input_tokens: cacheRead, cache_creation_input_tokens: cacheCreation },
+  };
+}
 
 /** A partial-message event, as the SDK emits with includePartialMessages. */
 function streamEvent(type: string, delta?: { type: string; text?: string }): QueryMessage {
@@ -143,6 +150,10 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(sys).toContain('read_file');
     expect(sys).toContain('finish');
     expect(sys).toContain('"properties"'); // the JSON Schema is included
+    // #192: the protocol invites batching and must not contradict the WORKFLOW rule
+    expect(sys).toMatch(/one or more JSON objects/);
+    expect(sys).toMatch(/same turn/);
+    expect(sys).not.toMatch(/EXACTLY ONE/i);
     // reasoning-only: the SDK is given no tools and built-ins are denied
     expect(opts.tools).toEqual([]);
     expect(Array.isArray(opts.disallowedTools) && (opts.disallowedTools as string[]).includes('Bash')).toBe(true);
@@ -168,7 +179,7 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(prompt).toContain('the file contents');
   });
 
-  it('parses multiple fenced tool blocks into multiple tool calls (accepts >1 even though the protocol asks for one)', async () => {
+  it('parses multiple fenced tool blocks into multiple tool calls (#192)', async () => {
     const reply = '```json\n{"tool":"read_file","args":{"path":"a"}}\n```\nthen\n```json\n{"tool":"finish","args":{"outcome":"done"}}\n```';
     const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
     const turn = await provider.chat(messages, tools);
@@ -198,6 +209,14 @@ describe('ClaudeCodeProvider — tool protocol', () => {
     expect(turn.toolCalls).toHaveLength(1);
     expect(turn.toolCalls[0]!.name).toBe('write_file');
     expect(turn.toolCalls[0]!.args).toEqual({ path: 'docs/SUBSYSTEMS.md', content: doc });
+  });
+
+  it('forwards the calls a mixed reply left undispatched (#306)', async () => {
+    const reply = '{"tool":"read_file","args":{"path":"docs/SPEC.md"}}\n{"tool":"write_file","args":{"path":"a.md","content":"x"}}';
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant(reply), result()]));
+    const turn = await provider.chat(messages, tools); // catalog = read_file, finish
+    expect(turn.toolCalls.map((c) => c.name)).toEqual(['read_file']);
+    expect(turn.undispatched).toEqual({ unavailable: ['write_file'], malformed: [] });
   });
 
   it('nudges on a malformed near-miss tool call instead of silently dropping it (#I10)', async () => {
@@ -553,5 +572,19 @@ describe('ClaudeCodeProvider — missing optional dependency', () => {
     const provider = new ClaudeCodeProvider(undefined, undefined, () => Promise.resolve({}));
     const caught = await provider.chat(messages, tools).catch((e: Error) => e);
     expect(caught.message).toContain('did not export `query`');
+  });
+});
+
+describe('ClaudeCodeProvider — cached input tokens (AC-18.4, AC-18.5)', () => {
+  it('counts cache reads and cache creation as input, like the Anthropic provider', async () => {
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('ok'), cachedResult(2, 41000, 1500, 7)]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.usage).toEqual({ inputTokens: 42502, outputTokens: 7 });
+  });
+
+  it('a result with no cache fields counts its uncached input alone', async () => {
+    const provider = new ClaudeCodeProvider(undefined, fakeQuery([assistant('ok'), result(900, 3)]));
+    const turn = await provider.chat(messages, tools);
+    expect(turn.usage).toEqual({ inputTokens: 900, outputTokens: 3 });
   });
 });

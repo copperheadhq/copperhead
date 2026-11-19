@@ -20,6 +20,8 @@ export interface RunStats {
   exitPath: ExitPath;
   turnsUsed: number;
   maxTurns: number;
+  /** The budget the run ended with: `maxTurns`, plus any attended extension (AC-15.1). */
+  budget?: number;
   repairCyclesUsed: number;
   maxRepairCycles: number;
   tokensIn: number;
