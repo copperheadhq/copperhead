@@ -320,9 +320,21 @@ function emitJlcpcb(lines: Line[]): string {
   return [header, ...body].join('\n') + '\n';
 }
 
+function emitDigikey(lines: Line[], opts: ExportOptions): string {
+  // DigiKey cart/list upload: one line per MPN + Manufacturer, designators
+  // grouped into Customer Reference, and quantity computed with board count,
+  // spares, and the passive minimum.
+  const header = 'MPN,Manufacturer,Quantity,Customer Reference';
+  const body = lines.map((l) => {
+    const qty = orderQuantity(l.designators.length, opts.boards, opts.spares, isPassiveFootprint(l.head.footprint));
+    return csvRow([l.head.mpn, l.head.manufacturer, String(qty), l.designators.join(',')]);
+  });
+  return [header, ...body].join('\n') + '\n';
+}
+
 function emitCart(lines: Line[], opts: ExportOptions, mpnHeader: string): string {
-  // DigiKey / Mouser cart upload: one line per MPN with a computed order
-  // quantity and the designators as the customer reference.
+  // Mouser cart upload: one line per MPN with a computed order quantity and the
+  // designators as the customer reference.
   const header = `${mpnHeader},Manufacturer,Quantity,Customer Reference`;
   const body = lines.map((l) => {
     const qty = orderQuantity(l.designators.length, opts.boards, opts.spares, isPassiveFootprint(l.head.footprint));
@@ -339,12 +351,14 @@ export function buildExport(rows: BomRow[], supplier: Supplier, opts: ExportOpti
   const { included, excluded } = partition(rows, supplier, opts.includeUnverified);
   const lines =
     supplier === 'jlcpcb'
-      ? groupBy(included, (r) => `${r.value} ${r.footprint} ${r.lcsc}`)
-      : groupBy(included, (r) => r.mpn);
+      ? groupBy(included, (r) => `${r.value}\0${r.footprint}\0${r.lcsc}`)
+      : supplier === 'digikey'
+        ? groupBy(included, (r) => `${r.mpn}\0${r.manufacturer}`)
+        : groupBy(included, (r) => r.mpn);
 
   let csv: string;
   if (supplier === 'jlcpcb') csv = emitJlcpcb(lines);
-  else if (supplier === 'digikey') csv = emitCart(lines, opts, 'Manufacturer Part Number');
+  else if (supplier === 'digikey') csv = emitDigikey(lines, opts);
   else csv = emitCart(lines, opts, 'Mfr. Part Number');
 
   return { csv, included, excluded, warnings: buildWarnings(supplier, included, excluded, opts) };
