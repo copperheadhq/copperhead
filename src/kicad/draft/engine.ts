@@ -948,7 +948,8 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // leaves fewer wire crossings, or as many and less wire, on the same or a
   // smaller sheet with every gate holding and the connector still upright.
   const flips = new Map<string, Orient>();
-  const fitted = draftFitted(validated, projectName, today, flips);
+  const forcedLabels = new Set(validated.intent.hints?.labels ?? []);
+  const fitted = draftFitted(validated, projectName, today, flips, forcedLabels);
   const score = (m: PlacementModel, r: SchematicDraftReport): { overlaps: number; crossings: number; length: number } => ({
     // a label on another label, on a foreign wire, or over a part's body
     overlaps: labelOverlaps(m) + r.labelsOverBodies,
@@ -1022,7 +1023,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // the measured look) left out: they settle the page, not the parts, and
   // multiply every trial's cost. The kept orientations are then drafted in
   // full once.
-  const labelled = new Set<string>();
+  const labelled = new Set<string>(forcedLabels);
   const once = (f: ReadonlyMap<string, Orient>, lab: ReadonlySet<string> = labelled): { model: PlacementModel; report: SchematicDraftReport } =>
     draftOnce(validated, projectName, today, new Map(), 0, undefined, 0, undefined, f, lab);
   let kept = once(flips);
@@ -1463,6 +1464,7 @@ function draftOnce(
   // where the drawing actually reaches
   const MARGIN = measured ? MEASURED_MARGIN : BASE_MARGIN;
   const { intent, symbols, docGroups } = validated;
+  const forcedLabels = new Set(intent.hints?.labels ?? []);
   const notes: string[] = [];
 
   // ---------- net classification (deterministic, visible in the report) ----------
@@ -1574,9 +1576,14 @@ function draftOnce(
     powerNets.some((n) => netClasses.get(n.name)!.cls === 'ground' && n.pins.some((ep) => ep.startsWith(`${ref}.`)));
 
   const decapOwner = new Map<string, string>(); // cap ref -> owner IC ref
+  const nearRefs = new Set(
+    Array.isArray(intent.hints?.near)
+      ? intent.hints.near.filter((n) => n && typeof n.ref === 'string').map((n) => n.ref)
+      : [],
+  );
   for (const p of intent.parts) {
     const sym = symbols.get(p.ref)!;
-    if (sym.isPower || !isTwoPin(p)) continue;
+    if (sym.isPower || !isTwoPin(p) || nearRefs.has(p.ref)) continue;
     const rail = railOf(p.ref);
     if (!rail || !touchesGround(p.ref)) continue;
     // owner: an IC (3+ pins) on the same rail — same group first, then most
@@ -1914,7 +1921,7 @@ function draftOnce(
       // once the IC has coordinates, with the same clearance check every
       // idiom uses, and a hang that cannot be placed cleanly falls back to a
       // column at the group's right edge.
-      type Hang = { ic: string; pin: DraftPin; dx: -1 | 1; dir: -1 | 1; chain: string[]; slot: number; straight: boolean; w: number; h: number; ends: 'power' | 'open' };
+      type Hang = { ic: string; pin: DraftPin; dx: -1 | 1; dir: -1 | 1; chain: string[]; slot: number; straight: boolean; w: number; h: number; ends: 'power' | 'open'; fromHint?: boolean };
       /** A run of two-lead parts laid ALONG the pin's row, away from the IC. */
       type Inline = { ic: string; pin: DraftPin; dx: -1 | 1; chain: { key: string; nearPin: string; gap: number }[]; len: number; farNet: string | null; offset: number; lift: number };
       const hangs: Hang[] = [];
@@ -2200,11 +2207,59 @@ function draftOnce(
         const downRows = need(down, supplyReach(false));
         cellDims.set(icKey, { ...d, topPad: d.topPad + upRows, h: d.h + upRows + downRows });
       }
+      const nearHintsForGroup: Array<{ ref: string; pin: string; partPin: string; anchorKey: string; anchorPin: DraftPin }> = [];
+      if (Array.isArray(intent.hints?.near)) {
+        for (const entry of intent.hints.near) {
+          if (!entry || typeof entry.ref !== 'string' || typeof entry.pin !== 'string') continue;
+          const m = /^([^.]+)\.(.+)$/.exec(entry.pin);
+          if (!m) continue;
+          const [, aRef, aPin] = m;
+          const partInst = instancesOfRef.get(entry.ref)?.[0];
+          if (!partInst || partInst.part.group !== gname) continue;
+          const anchorInst = instancesOfRef.get(aRef!)?.[0];
+          if (!anchorInst) continue;
+          const anchorKey = instKeyOf(aRef!, aPin!);
+          const anchorPin = instByKey.get(anchorKey)?.sym.pins.find((p) => p.number === aPin);
+          if (!anchorPin) continue;
+          const anchorEp = `${aRef}.${aPin}`;
+          const anchorNet = netByEndpoint.get(anchorEp);
+          if (!anchorNet) continue;
+          const partEp = anchorNet.pins.find((ep) => ep.startsWith(`${entry.ref}.`));
+          if (!partEp) continue;
+          const partPin = partEp.split('.')[1]!;
+          nearHintsForGroup.push({ ref: entry.ref, pin: entry.pin, partPin, anchorKey, anchorPin });
+        }
+      }
+
       const claimAnchors = [
         ...anchors,
         ...members.filter((m) => !anchors.includes(m.key) && (isConnector(m.part) || isSwitch(m.key))).map((m) => m.key),
         ...members.filter((m) => !anchors.includes(m.key) && isTransistor(m.key)).map((m) => m.key),
+        ...members.filter((m) => !anchors.includes(m.key) && nearHintsForGroup.some((nh) => nh.anchorKey === m.key)).map((m) => m.key),
       ];
+
+      for (const nh of nearHintsForGroup) {
+        const partKey = instKeyOf(nh.ref, nh.partPin);
+        if (hungKeys.has(partKey)) continue;
+        if (!hangable(partKey)) continue;
+        const dx: -1 | 1 = (outward(nh.anchorPin).dx || 1) as -1 | 1;
+        const l = leadsOf(partKey);
+        let dir: -1 | 1 = 1;
+        if (l) {
+          const farPin = l.a.number === nh.partPin ? l.b : l.a;
+          const farNet = netByEndpoint.get(`${nh.ref}.${farPin.number}`);
+          const farCls = farNet ? (netClasses.get(farNet.name)?.cls ?? 'signal') : null;
+          if (farCls === 'rail') dir = -1;
+          else if (farCls === 'ground') dir = 1;
+          else dir = 1;
+        }
+        claimHang(nh.anchorKey, nh.anchorPin, dx, { key: partKey, pin: nh.partPin }, dir);
+        const hg = hangs[hangs.length - 1];
+        if (hg) {
+          hg.straight = true;
+          hg.fromHint = true;
+        }
+      }
       for (const icKey of claimAnchors) {
         if (hungKeys.has(icKey)) continue;
         const ic = instByKey.get(icKey)!;
@@ -2497,8 +2552,11 @@ function draftOnce(
             const alone = (pinNet?.pins.length ?? 0) <= 2;
             const lo = !alone || g.some((hg) => hg.dir === -1) ? top - 5 * U : rowY - U;
             const hi = !alone || g.some((hg) => hg.dir === 1) ? bot + 5 * U : rowY + U;
-            const straight = !feedsBack && !sidePinYs.some((y) => y !== rowY && y > lo && y < hi);
-            for (const hg of g) hg.straight = straight;
+            const straight = g.some((hg) => hg.fromHint) || (!feedsBack && !sidePinYs.some((y) => y !== rowY && y > lo && y < hi));
+            for (const hg of g) {
+              if (hg.fromHint) hg.straight = true;
+              else hg.straight = straight;
+            }
             if (straight) continue;
             anyShelved = true;
             let k = 0;
@@ -5123,8 +5181,9 @@ function draftOnce(
           if (!r) return;
           // a net the placement search chose to label is not wired between
           // parts that belong to different anchors (or to none): a hang, a
-          // bridge or a row keeps the wire to the pin it belongs to
-          if (labelNets.has(net.name) && new Set(cur.map((st) => anchorKey(st.ep.ref))).size > 1) return;
+          // bridge or a row keeps the wire to the pin it belongs to.
+          // Forced-label nets (hints.labels) are always emitted as labels instead of wires.
+          if (forcedLabels.has(net.name) || (labelNets.has(net.name) && new Set(cur.map((st) => anchorKey(st.ep.ref))).size > 1)) return;
           // Parts placed in columns (nothing hung on a pin) are wired only
           // where the wire crosses no other net: a run that can only be drawn
           // across another net's wire reads as a short, and labels say the

@@ -4,7 +4,7 @@
 
 ### Requirement: Netlist-intent IR
 
-The drafting engine SHALL accept a versioned netlist-intent document (`schematic.intent.json`) as its only input: parts (lib_id, refdes, value, optional footprint), connections (net name to a list of refdes.pin endpoints), group assignments naming a subsystem per non-power part, declared no-connects (a list of refdes.pin entries), optional net-kind declarations (`power`, `ground`, `signal`), and optional hints (port direction, group order, paper size). The IR SHALL contain no coordinates. The engine SHALL treat the IR as the single source of drafting truth: re-drafting the same IR SHALL fully regenerate the sheet.
+The drafting engine SHALL accept a versioned netlist-intent document (`schematic.intent.json`) as its only input: parts (lib_id, refdes, value, optional footprint), connections (net name to a list of refdes.pin endpoints), group assignments naming a subsystem per non-power part, declared no-connects (a list of refdes.pin entries), optional net-kind declarations (`power`, `ground`, `signal`), and optional hints (port direction, group order, paper size, placement near an anchor pin, forced net labels). The IR SHALL contain no coordinates. The engine SHALL treat the IR as the single source of drafting truth: re-drafting the same IR SHALL fully regenerate the sheet.
 
 #### Scenario: IR carries intent, not geometry
 
@@ -42,8 +42,13 @@ The engine SHALL validate the IR before any placement: lib_ids must resolve, eve
 
 #### Scenario: Type-confused fields are findings, not crashes
 
-- **WHEN** the IR is valid JSON with a wrong-typed field the engine dereferences (a numeric `group`, a string `hints.groupOrder`, a string `noConnect`, a non-string net endpoint)
+- **WHEN** the IR is valid JSON with a wrong-typed field the engine dereferences (a numeric `group`, a string `hints.groupOrder`, a string `noConnect`, a non-string net endpoint, wrong-typed `hints.near` or `hints.labels`)
 - **THEN** validation fails with a numbered finding naming the field and the expected shape, and no TypeError reaches the tool layer
+
+#### Scenario: Unknown hint key is a finding
+
+- **WHEN** the IR provides a hint key outside `{groupOrder, paper, date, near, labels}`
+- **THEN** validation fails with a finding naming the unknown hint key
 
 #### Scenario: Ambiguous multi-unit pin mapping is refused
 

@@ -49,6 +49,8 @@ export interface SchematicIntent {
     /** Title-block date. Part of the IR (not the wall clock) so identical IR
      * emits identical bytes on any day (design D4). */
     date?: string;
+    near?: Array<{ ref: string; pin: string }>;
+    labels?: string[];
   };
 }
 
@@ -450,6 +452,88 @@ export async function validateIntent(
       }
       if (hints.date !== undefined && typeof hints.date !== 'string') {
         add(`"hints.date" must be a string, got ${JSON.stringify(hints.date)}`);
+      }
+      if (hints.near !== undefined) {
+        if (!Array.isArray(hints.near)) {
+          add(`"hints.near" must be an array of { ref: string, pin: string } objects, got ${JSON.stringify(hints.near)}`);
+        } else {
+          for (const [i, n] of hints.near.entries()) {
+            if (
+              n === null ||
+              typeof n !== 'object' ||
+              Array.isArray(n) ||
+              typeof (n as { ref?: unknown }).ref !== 'string' ||
+              !(n as { ref: string }).ref ||
+              typeof (n as { pin?: unknown }).pin !== 'string' ||
+              !(n as { pin: string }).pin
+            ) {
+              add(`"hints.near[${i}]" must be an object with non-empty string "ref" and "pin" fields, got ${JSON.stringify(n)}`);
+            }
+          }
+        }
+      }
+      if (hints.labels !== undefined) {
+        if (!Array.isArray(hints.labels) || hints.labels.some((l) => typeof l !== 'string' || !l)) {
+          add(`"hints.labels" must be an array of non-empty net-name strings, got ${JSON.stringify(hints.labels)}`);
+        }
+      }
+      const allowedHintKeys = new Set(['groupOrder', 'paper', 'date', 'near', 'labels']);
+      for (const key of Object.keys(hints)) {
+        if (!allowedHintKeys.has(key)) {
+          add(`unknown hint key "${key}"`);
+        }
+      }
+      if (Array.isArray(hints.near)) {
+        for (const entry of hints.near) {
+          if (
+            entry &&
+            typeof entry === 'object' &&
+            !Array.isArray(entry) &&
+            typeof entry.ref === 'string' &&
+            entry.ref &&
+            typeof entry.pin === 'string' &&
+            entry.pin
+          ) {
+            if (!partByRef.has(entry.ref)) {
+              add(`hints.near: unknown part "${entry.ref}"`);
+              continue;
+            }
+            const m = /^([^.]+)\.(.+)$/.exec(entry.pin);
+            if (!m) {
+              add(`hints.near: anchor pin "${entry.pin}" is not of the form REF.PIN`);
+              continue;
+            }
+            const [, aRef, aPin] = m;
+            if (!partByRef.has(aRef!)) {
+              add(`hints.near: unknown anchor part "${aRef}" in "${entry.pin}"`);
+              continue;
+            }
+            const aSym = symbols.get(aRef!);
+            if (aSym && !aSym.pins.some((p) => p.number === aPin)) {
+              add(`hints.near: anchor part "${aRef}" has no pin "${aPin}"`);
+              continue;
+            }
+            const partGroup = partByRef.get(entry.ref)?.group;
+            const anchorGroup = partByRef.get(aRef!)?.group;
+            if (partGroup && anchorGroup && partGroup.toLowerCase() !== anchorGroup.toLowerCase()) {
+              add(`hints.near: part "${entry.ref}" (group "${partGroup}") and anchor "${aRef}" (group "${anchorGroup}") must be in the same group`);
+            }
+            const partSym = symbols.get(entry.ref);
+            if (partSym && partSym.pins.length !== 2 && !/TestPoint/i.test(partByRef.get(entry.ref)?.libId ?? '') && !/^TP\d/.test(entry.ref)) {
+              add(`hints.near: part "${entry.ref}" must be a two-lead part or test point to hang near a pin`);
+            }
+            const sharesNet = intent.nets.some(
+              (net) =>
+                Boolean(net) &&
+                Array.isArray(net.pins) &&
+                net.pins.includes(entry.pin) &&
+                net.pins.some((ep) => typeof ep === 'string' && ep.startsWith(`${entry.ref}.`)),
+            );
+            if (!sharesNet) {
+              add(`hints.near: part "${entry.ref}" and anchor pin "${entry.pin}" are not on the same net`);
+            }
+          }
+        }
       }
     }
   }
