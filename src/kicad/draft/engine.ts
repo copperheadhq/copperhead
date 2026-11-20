@@ -2217,15 +2217,31 @@ function draftOnce(
           const partInst = instancesOfRef.get(entry.ref)?.[0];
           if (!partInst || partInst.part.group !== gname) continue;
           const anchorInst = instancesOfRef.get(aRef!)?.[0];
-          if (!anchorInst) continue;
+          if (!anchorInst) {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: unknown anchor part`);
+            continue;
+          }
           const anchorKey = instKeyOf(aRef!, aPin!);
           const anchorPin = instByKey.get(anchorKey)?.sym.pins.find((p) => p.number === aPin);
-          if (!anchorPin) continue;
+          if (!anchorPin) {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: anchor pin not found`);
+            continue;
+          }
           const anchorEp = `${aRef}.${aPin}`;
           const anchorNet = netByEndpoint.get(anchorEp);
-          if (!anchorNet) continue;
+          if (!anchorNet) {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: anchor pin has no net`);
+            continue;
+          }
+          if ((netClasses.get(anchorNet.name)?.cls ?? 'signal') !== 'signal') {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: anchor pin is on power/ground net`);
+            continue;
+          }
           const partEp = anchorNet.pins.find((ep) => ep.startsWith(`${entry.ref}.`));
-          if (!partEp) continue;
+          if (!partEp) {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: part does not share net with anchor pin`);
+            continue;
+          }
           const partPin = partEp.split('.')[1]!;
           nearHintsForGroup.push({ ref: entry.ref, pin: entry.pin, partPin, anchorKey, anchorPin });
         }
@@ -2240,8 +2256,14 @@ function draftOnce(
 
       for (const nh of nearHintsForGroup) {
         const partKey = instKeyOf(nh.ref, nh.partPin);
-        if (hungKeys.has(partKey)) continue;
-        if (!hangable(partKey)) continue;
+        if (hungKeys.has(partKey)) {
+          notes.push(`near hint ${nh.ref} -> ${nh.pin} skipped: part already claimed`);
+          continue;
+        }
+        if (!hangable(partKey)) {
+          notes.push(`near hint ${nh.ref} -> ${nh.pin} skipped: part is not hangable`);
+          continue;
+        }
         const dx: -1 | 1 = (outward(nh.anchorPin).dx || 1) as -1 | 1;
         const l = leadsOf(partKey);
         let dir: -1 | 1 = 1;
@@ -2256,7 +2278,6 @@ function draftOnce(
         claimHang(nh.anchorKey, nh.anchorPin, dx, { key: partKey, pin: nh.partPin }, dir);
         const hg = hangs[hangs.length - 1];
         if (hg) {
-          hg.straight = true;
           hg.fromHint = true;
         }
       }
@@ -2552,10 +2573,9 @@ function draftOnce(
             const alone = (pinNet?.pins.length ?? 0) <= 2;
             const lo = !alone || g.some((hg) => hg.dir === -1) ? top - 5 * U : rowY - U;
             const hi = !alone || g.some((hg) => hg.dir === 1) ? bot + 5 * U : rowY + U;
-            const straight = g.some((hg) => hg.fromHint) || (!feedsBack && !sidePinYs.some((y) => y !== rowY && y > lo && y < hi));
+            const straight = !feedsBack && !sidePinYs.some((y) => y !== rowY && y > lo && y < hi);
             for (const hg of g) {
-              if (hg.fromHint) hg.straight = true;
-              else hg.straight = straight;
+              hg.straight = straight;
             }
             if (straight) continue;
             anyShelved = true;
@@ -3438,7 +3458,7 @@ function draftOnce(
         // axis regardless passed the clearance check — a wire may legally
         // cross a neighbouring rail stub — and drew exactly that crossing
         // on the Tier C divider, twice.
-        const axes = hg.straight ? [s.x] : [slotX];
+        const axes = hg.fromHint ? [s.x, slotX] : hg.straight ? [s.x] : [slotX];
         // Chains on one side start level: drops below the side's lowest hung
         // pin row, rises above its highest. Started at its own row, a chain
         // from one pin put its body across the next pin's row, and that
@@ -3447,8 +3467,8 @@ function draftOnce(
         // worst, and the resistors of a comb line up the way a drafter
         // lines them up. A straight hang keeps its own row.
         const sidePinYsAbs = side.map((o) => pinAt(icPl, icPl.sym.pins.find((p) => p.number === o.pin.number) ?? o.pin).y);
-        const baseY = hg.straight ? s.y : hg.dir === 1 ? Math.max(...sidePinYsAbs) : Math.min(...sidePinYsAbs);
         for (const axisX of axes) {
+        const baseY = axisX === s.x ? s.y : hg.dir === 1 ? Math.max(...sidePinYsAbs) : Math.min(...sidePinYsAbs);
         for (let lift = 0; lift < 3 && !placedOk; lift++) {
           // the near lead of the first part sits one gap from the base row,
           // and each further part one gap on, away from the IC
@@ -3500,7 +3520,9 @@ function draftOnce(
           leftovers.push(...hg.chain);
           for (const k of hg.chain) boundTo.delete(k);
           const refs = hg.chain.map((k) => instByKey.get(k)!.ref).join(', ');
-          const note = `hang refused: ${refs} could not be placed cleanly on ${instByKey.get(hg.ic)!.ref}.${hg.pin.number} in "${gname}"; drawn in a column instead`;
+          const note = hg.fromHint
+            ? `near hint ${refs} -> ${instByKey.get(hg.ic)!.ref}.${hg.pin.number} could not be honoured: could not be placed cleanly in "${gname}"; drawn in a column instead`
+            : `hang refused: ${refs} could not be placed cleanly on ${instByKey.get(hg.ic)!.ref}.${hg.pin.number} in "${gname}"; drawn in a column instead`;
           trace(note);
           if (!notes.includes(note)) notes.push(note);
         }
@@ -5120,6 +5142,7 @@ function draftOnce(
     const fedBack = new Set<Stub>();
     const inverting = (pin: DraftPin): boolean => AMP_INVERTING.test(pin.name);
     for (const o of stubs.filter((x) => x.ep.pin.etype === 'output')) {
+      if (forcedLabels.has(net.name)) continue;
       const m = stubs.find((x) => x !== o && x.ep.ref === o.ep.ref && inverting(x.ep.pin) && !fedBack.has(x));
       if (!m) continue;
       const r = routeStubs([o, m]);

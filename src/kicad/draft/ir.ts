@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { SymbolSource, SymbolResolutionError, powerNetToken, type ResolvedSymbol } from './symsource.js';
+import { SymbolSource, SymbolResolutionError, powerNetToken, type ResolvedSymbol, type DraftPin } from './symsource.js';
 import { parseBomTable, normalizeValue, normalizeFootprint, bomFootprintRows } from '../../memory/bom-table.js';
 import type { FootprintResolver } from '../footprints.js';
 import { checkPinsAgainstPads } from '../parts/pads.js';
@@ -389,15 +389,20 @@ export async function validateIntent(
   // one generated `copperhead_power:` lib_id and one embedded pin name, so
   // KiCad's netlist can quietly merge the rails (last write wins in the
   // lib_symbols map). Refused here as a finding, before any placement.
+  const GROUND_NAME = /^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i;
+  const RAIL_NAME = /^(?:[+-]?[0-9]+(?:\.[0-9]+)?v[0-9]*|(?:vcc|vdd|vbus|vee)[0-9a-z]*(?:_[0-9]+v[0-9]*)?)$/i;
+
   const isPowerClass = (net: IntentNet): boolean => {
     if (net.kind === 'power' || net.kind === 'ground') return true;
     if (net.kind === 'signal') return false;
-    return net.pins.some((ep) => {
+    const touchesPower = net.pins.some((ep) => {
       const m = typeof ep === 'string' ? /^([^.]+)\.(.+)$/.exec(ep) : null;
       if (!m) return false;
       const pin = symbols.get(m[1]!)?.pins.find((pn) => pn.number === m[2]);
       return pin !== undefined && (pin.etype === 'power_in' || pin.etype === 'power_out');
     });
+    if (touchesPower) return true;
+    return GROUND_NAME.test(net.name) || RAIL_NAME.test(net.name);
   };
   const byToken = new Map<string, Set<string>>();
   for (const net of intent.nets) {
@@ -475,14 +480,36 @@ export async function validateIntent(
       if (hints.labels !== undefined) {
         if (!Array.isArray(hints.labels) || hints.labels.some((l) => typeof l !== 'string' || !l)) {
           add(`"hints.labels" must be an array of non-empty net-name strings, got ${JSON.stringify(hints.labels)}`);
+        } else {
+          const declaredNets = new Map(
+            intent.nets
+              .filter((n) => Boolean(n) && typeof n.name === 'string')
+              .map((n) => [n.name, n]),
+          );
+          for (const label of hints.labels) {
+            const net = declaredNets.get(label);
+            if (!net) {
+              add(`hints.labels: "${label}" names no declared net`);
+            } else if (isPowerClass(net)) {
+              add(`hints.labels: "${label}" is a power/ground net (drawn with power symbols, never wired)`);
+            }
+          }
         }
       }
       const allowedHintKeys = new Set(['groupOrder', 'paper', 'date', 'near', 'labels']);
       for (const key of Object.keys(hints)) {
         if (!allowedHintKeys.has(key)) {
-          add(`unknown hint key "${key}"`);
+          add(`unknown hint key "${key}" (accepted: groupOrder, paper, date, near, labels)`);
         }
       }
+      const outward = (pin: DraftPin): { dx: number; dy: number } => {
+        const a = ((pin.angle % 360) + 360) % 360;
+        if (a === 0) return { dx: -1, dy: 0 };
+        if (a === 180) return { dx: 1, dy: 0 };
+        if (a === 90) return { dx: 0, dy: 1 };
+        if (a === 270) return { dx: 0, dy: -1 };
+        return { dx: 0, dy: 0 };
+      };
       if (Array.isArray(hints.near)) {
         for (const entry of hints.near) {
           if (
@@ -504,6 +531,10 @@ export async function validateIntent(
               continue;
             }
             const [, aRef, aPin] = m;
+            if (aRef === entry.ref) {
+              add(`hints.near: part "${entry.ref}" cannot anchor on itself`);
+              continue;
+            }
             if (!partByRef.has(aRef!)) {
               add(`hints.near: unknown anchor part "${aRef}" in "${entry.pin}"`);
               continue;
@@ -513,14 +544,38 @@ export async function validateIntent(
               add(`hints.near: anchor part "${aRef}" has no pin "${aPin}"`);
               continue;
             }
+            const anchorNet = intent.nets.find(
+              (net) => Boolean(net) && Array.isArray(net.pins) && net.pins.includes(entry.pin),
+            );
+            if (anchorNet && isPowerClass(anchorNet)) {
+              add(`hints.near: anchor pin "${entry.pin}" is on power/ground net "${anchorNet.name}"; decoupling caps are placed by the bank, near accepts signal pins only`);
+              continue;
+            }
             const partGroup = partByRef.get(entry.ref)?.group;
             const anchorGroup = partByRef.get(aRef!)?.group;
-            if (partGroup && anchorGroup && partGroup.toLowerCase() !== anchorGroup.toLowerCase()) {
+            if (partGroup && anchorGroup && partGroup !== anchorGroup) {
               add(`hints.near: part "${entry.ref}" (group "${partGroup}") and anchor "${aRef}" (group "${anchorGroup}") must be in the same group`);
             }
+            const partObj = partByRef.get(entry.ref);
+            const isTP = (partObj && /TestPoint/i.test(partObj.libId)) || /^TP\d/.test(entry.ref);
+            const isConn = partObj ? partObj.libId.startsWith('Connector') && !isTP : false;
+            const isCrystal = partObj ? /crystal|reson/i.test(partObj.libId) : false;
+            if (isConn) {
+              add(`hints.near: part "${entry.ref}" is a connector; connectors cannot be hung near a pin`);
+            }
+            if (isCrystal) {
+              add(`hints.near: part "${entry.ref}" is a crystal or resonator; cannot be hung near a pin`);
+            }
             const partSym = symbols.get(entry.ref);
-            if (partSym && partSym.pins.length !== 2 && !/TestPoint/i.test(partByRef.get(entry.ref)?.libId ?? '') && !/^TP\d/.test(entry.ref)) {
+            if (partSym && partSym.pins.length !== 2 && !isTP) {
               add(`hints.near: part "${entry.ref}" must be a two-lead part or test point to hang near a pin`);
+            }
+            if (partSym && partSym.pins.length === 2 && !isTP) {
+              const oa = outward(partSym.pins[0]!);
+              const ob = outward(partSym.pins[1]!);
+              if (oa.dx !== -ob.dx || oa.dy !== -ob.dy) {
+                add(`hints.near: part "${entry.ref}" leads do not oppose; cannot be hung near a pin`);
+              }
             }
             const sharesNet = intent.nets.some(
               (net) =>
