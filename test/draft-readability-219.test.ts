@@ -1192,8 +1192,7 @@ describe('schematic readability & wiring quality (#219)', () => {
       // Under the mutation where clearOfBodies passes [] for pendingStubs:
       // clearOfBodies(97.79, 69.85) fails to check pending stubs, accepts x = 97.79,
       // and places the initial B_TARGET label anchor directly inside Z_FOREIGN's reserved stub corridor.
-      // Because the downstream wired-label pass (engine.ts:5713) only checks committed wires and
-      // Z_FOREIGN has not yet routed, downstream checks do not relocate the label.
+      // Z_FOREIGN is drafted after B_TARGET (name order), so at selection time only its reserved stub is visible; the later wired-label pass does not move the label because Z_FOREIGN's drawn wire never reaches (97.79, 69.85).
       //
       // Note on final electrical connectivity:
       // While Z_FOREIGN's pending stub reserved y down to 71.12 during placement, when Z_FOREIGN
