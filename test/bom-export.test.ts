@@ -122,7 +122,7 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
   it('DigiKey cart CSV: MPN/Manufacturer/Quantity/Customer Reference, verified rows only (golden)', () => {
     const { csv } = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
     expect(csv).toBe(
-      'MPN,Manufacturer,Quantity,Customer Reference\n' +
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
         'RC0603FR-0710KL,Yageo,3,R1\n',
     );
   });
@@ -136,7 +136,7 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
     );
     const { csv } = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
     // Designators naturally sorted (R2 before R10) and quoted because of the comma.
-    expect(csv).toBe('MPN,Manufacturer,Quantity,Customer Reference\nRC0603FR-0710KL,Yageo,4,"R2,R10"\n');
+    expect(csv).toBe('Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\nRC0603FR-0710KL,Yageo,4,"R2,R10"\n');
   });
 
   it('DigiKey separates lines for identical MPN with different manufacturers', () => {
@@ -148,9 +148,37 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
     );
     const { csv } = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
     expect(csv).toBe(
-      'MPN,Manufacturer,Quantity,Customer Reference\n' +
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
         'RC0603FR-0710KL,Yageo,3,R1\n' +
         'RC0603FR-0710KL,Vishay,3,R2\n',
+    );
+  });
+
+  it('DigiKey groups rows sharing MPN when manufacturer differs only in case', () => {
+    const multi = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R1 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n' +
+        '| R2 | 10k | R_0603 | RC0603FR-0710KL | YAGEO |\n',
+    );
+    const { csv } = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,4,"R1,R2"\n',
+    );
+  });
+
+  it('DigiKey groups rows sharing MPN when one row has a blank manufacturer', () => {
+    const multi = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R1 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n' +
+        '| R2 | 10k | R_0603 | RC0603FR-0710KL | |\n',
+    );
+    const { csv } = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,4,"R1,R2"\n',
     );
   });
 
@@ -158,7 +186,7 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
     const { csv } = buildExport(rows, 'digikey', { boards: 5, spares: 10, includeUnverified: false });
     // R1 passive, 1/board × 5 = 5; ceil(5.5)=6, floor 5+2=7 → 7.
     expect(csv).toBe(
-      'MPN,Manufacturer,Quantity,Customer Reference\n' +
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
         'RC0603FR-0710KL,Yageo,7,R1\n',
     );
   });
@@ -192,20 +220,10 @@ describe('exclusion rules (supplier-bom-export)', () => {
     expect(res.warnings.join('\n')).toMatch(/INCLUDED but UNVERIFIED.*U1/);
   });
 
-  it('DigiKey CSV excludes MPN-less and UNVERIFIED rows by default', () => {
-    const { csv } = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
-    expect(csv).toBe(
-      'MPN,Manufacturer,Quantity,Customer Reference\n' +
-        'RC0603FR-0710KL,Yageo,3,R1\n',
-    );
-    expect(csv).not.toContain('R2');
-    expect(csv).not.toContain('U1');
-  });
-
   it('DigiKey CSV includes UNVERIFIED rows when --include-unverified is set, but never MPN-less', () => {
     const { csv } = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: true });
     expect(csv).toBe(
-      'MPN,Manufacturer,Quantity,Customer Reference\n' +
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
         'RC0603FR-0710KL,Yageo,3,R1\n' +
         'ESP32-S3-MINI-1-N8,Espressif,2,U1\n',
     );
@@ -280,10 +298,9 @@ describe('export command end-to-end (supplier-bom-export)', () => {
     const written = await readFile(path.join(repo, res.outPath), 'utf8');
     expect(written).toBe(res.csv);
     expect(written).toBe(
-      'MPN,Manufacturer,Quantity,Customer Reference\n' +
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
         'RC0603FR-0710KL,Yageo,3,R1\n',
     );
-    expect(written).toContain('RC0603FR-0710KL,Yageo,3,R1');
     expect(written).not.toContain('U1'); // UNVERIFIED, excluded by default
   });
 
