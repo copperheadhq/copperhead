@@ -160,6 +160,8 @@ async function readTable(
 export interface LibTableOptions {
   /** Directory holding the `.kicad_pro`; `${KIPRJMOD}` expands to it. */
   projectDir: string;
+  /** Read the project table (default true). Set false to read only the global table. */
+  project?: boolean;
   env?: NodeJS.ProcessEnv;
   /** Extra variable defaults (e.g. `KICAD10_FOOTPRINT_DIR` from the stock install). */
   defaults?: Record<string, string>;
@@ -194,7 +196,7 @@ export async function libTableRows(
   const rows: LibTableRow[] = [];
   const searched: string[] = [];
   const projectTable = path.join(opts.projectDir, TABLE_FILE[kind]);
-  if (existsSync(projectTable)) {
+  if (opts.project !== false && opts.projectDir && existsSync(projectTable)) {
     searched.push(`project ${TABLE_FILE[kind]}`);
     await readTable(projectTable, vars, `project ${TABLE_FILE[kind]}`, 0, rows);
   }

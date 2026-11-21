@@ -18,10 +18,13 @@
  * instead of guessing.
  */
 
+import { existsSync } from 'node:fs';
 import { readFile, readdir, access, stat } from 'node:fs/promises';
 import { libraryCache } from './cache.js';
 import path from 'node:path';
 import { parseSexp, children, child, isList, type SexpNode } from './sexp.js';
+import { libTableRows } from './libtable.js';
+import { kicadMajorVersion } from './cli.js';
 
 /** Numeric-aware, case-insensitive pin-number ordering ("2" < "10", "a1" ~ "A1")
  * shared by every pin-table renderer so orderings never diverge. */
@@ -146,21 +149,123 @@ export async function symbolSearchDirs(env = process.env, winRoot = 'C:/Program 
   return out;
 }
 
-/** Path to `<lib>.kicad_sym` in the first search dir that has it, or null.
+export interface SymbolResolverOptions {
+  projectDir?: string;
+  env?: NodeJS.ProcessEnv;
+  defaults?: Record<string, string>;
+  global?: boolean;
+  kicadMajor?: number | null;
+  platform?: NodeJS.Platform;
+  stockDirs?: string[];
+}
+
+/**
+ * KiCad symbol libraries, ordered as KiCad resolves them:
+ * 1. project `sym-lib-table` (skipping rows in `sym-lib-cache/`);
+ * 2. user/global `sym-lib-table`;
+ * 3. stock symbol search directories as fallback.
+ *
+ * Exact nickname matching is used; a row's nickname is its library name,
+ * regardless of the file name.
+ */
+export class SymbolResolver extends Map<string, string> {
+  public readonly searched: string[];
+
+  constructor(entries?: Iterable<readonly [string, string]>, searched: string[] = []) {
+    super(entries);
+    this.searched = searched;
+  }
+
+  static async create(opts: SymbolResolverOptions = {}): Promise<SymbolResolver> {
+    const env = opts.env ?? process.env;
+    const platform = opts.platform ?? process.platform;
+    const major = opts.kicadMajor !== undefined ? opts.kicadMajor : await kicadMajorVersion();
+    const stock = opts.stockDirs ?? (await symbolSearchDirs(env));
+    const defaults: Record<string, string> = { ...opts.defaults };
+    if (stock[0]) {
+      for (const v of major != null ? [major] : [10, 9, 8, 7]) {
+        defaults[`KICAD${v}_SYMBOL_DIR`] = stock[0];
+      }
+    }
+
+    const libs = new Map<string, string>();
+    const searched: string[] = [];
+
+    // 1. project sym-lib-table first
+    if (opts.projectDir) {
+      const { rows: projRows, searched: projSearched } = await libTableRows('sym', {
+        projectDir: opts.projectDir,
+        global: false,
+        env,
+        defaults,
+        kicadMajor: major,
+        platform,
+      });
+      searched.push(...projSearched);
+      const cacheDir = path.resolve(opts.projectDir, 'sym-lib-cache');
+      for (const [name, row] of projRows) {
+        const absUri = path.resolve(row.uri);
+        const inCache = absUri.startsWith(cacheDir + path.sep) || /[/\\]sym-lib-cache[/\\]/.test(absUri);
+        if (!inCache && existsSync(absUri)) {
+          libs.set(name, absUri);
+        }
+      }
+    }
+
+    // 2. then the user/global sym-lib-table
+    if (opts.global !== false) {
+      const { rows: globalRows, searched: globalSearched } = await libTableRows('sym', {
+        projectDir: opts.projectDir ?? '',
+        project: false,
+        global: true,
+        env,
+        defaults,
+        kicadMajor: major,
+        platform,
+      });
+      searched.push(...globalSearched);
+      for (const [name, row] of globalRows) {
+        const absUri = path.resolve(row.uri);
+        if (!libs.has(name) && existsSync(absUri)) {
+          libs.set(name, absUri);
+        }
+      }
+    }
+
+    // 3. then stock symbolSearchDirs() as fallback
+    for (const dir of stock) {
+      let entries: string[];
+      try {
+        entries = await readdir(dir);
+      } catch {
+        continue;
+      }
+      for (const e of entries) {
+        if (!e.endsWith('.kicad_sym')) continue;
+        const name = e.slice(0, -'.kicad_sym'.length);
+        if (!libs.has(name)) {
+          libs.set(name, path.join(dir, e));
+        }
+      }
+    }
+    if (stock.length) {
+      searched.push(`stock symbols (${stock.length} dir${stock.length > 1 ? 's' : ''})`);
+    }
+
+    return new SymbolResolver(libs.entries(), searched);
+  }
+}
+
+/** Path to `<lib>.kicad_sym` in the library map, or null.
  * The nickname is model-supplied text: a separator or `..` in it would escape
  * the search directories, so such a nickname resolves to nothing. */
-export async function findLibraryFile(lib: string, dirs: string[]): Promise<string | null> {
+export async function findLibraryFile(
+  lib: string,
+  libs: Map<string, string> | string[],
+): Promise<string | null> {
   if (lib.includes('/') || lib.includes('\\') || lib.includes('..')) return null;
-  for (const dir of dirs) {
-    const p = path.join(dir, `${lib}.kicad_sym`);
-    try {
-      await access(p);
-      return p;
-    } catch {
-      // try next dir
-    }
-  }
-  return null;
+  const map = libs instanceof Map ? libs : await listInstalledLibraries(libs);
+  return map.get(lib) ?? null;
 }
 
 /**
@@ -247,22 +352,28 @@ export function closestSymbolNames(names: Iterable<string>, query: string, cap =
 
 /** Every installed `<lib>.kicad_sym`, keyed by library nickname; the first
  * search dir claims a nickname, matching `findLibraryFile`'s precedence. */
-export async function listInstalledLibraries(dirs: string[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  for (const dir of dirs) {
-    let entries: string[];
-    try {
-      entries = await readdir(dir);
-    } catch {
-      continue;
+export async function listInstalledLibraries(
+  libsOrDirs?: Map<string, string> | string[],
+): Promise<Map<string, string>> {
+  if (libsOrDirs instanceof Map) return libsOrDirs;
+  if (Array.isArray(libsOrDirs)) {
+    const map = new Map<string, string>();
+    for (const dir of libsOrDirs) {
+      let entries: string[];
+      try {
+        entries = await readdir(dir);
+      } catch {
+        continue;
+      }
+      for (const e of entries) {
+        if (!e.endsWith('.kicad_sym')) continue;
+        const lib = e.slice(0, -'.kicad_sym'.length);
+        if (!map.has(lib)) map.set(lib, path.join(dir, e));
+      }
     }
-    for (const e of entries) {
-      if (!e.endsWith('.kicad_sym')) continue;
-      const lib = e.slice(0, -'.kicad_sym'.length);
-      if (!map.has(lib)) map.set(lib, path.join(dir, e));
-    }
+    return map;
   }
-  return map;
+  return await SymbolResolver.create();
 }
 
 export interface CrossLibraryMatch {
@@ -312,13 +423,14 @@ function editDistanceWithin(a: string, b: string, cap: number): number {
  */
 export async function findSymbolAcrossLibraries(
   name: string,
-  dirs: string[],
+  libs: Map<string, string> | string[],
   excludeLib?: string,
 ): Promise<CrossLibraryMatch[]> {
+  const map = libs instanceof Map ? libs : await listInstalledLibraries(libs);
   const q = name.toLowerCase();
   const exact: CrossLibraryMatch[] = [];
   const fuzzy: CrossLibraryMatch[] = [];
-  for (const [lib, file] of await listInstalledLibraries(dirs)) {
+  for (const [lib, file] of map) {
     // `excludeLib` is only known not to hold this *exact* name; it can still
     // hold the near-miss the caller actually wants (SHT40 guessed in
     // Sensor_Humidity, where the real symbol is SHT4x). Skip its exact check,
@@ -369,16 +481,17 @@ export async function findSymbolAcrossLibraries(
  */
 export async function searchInstalledSymbols(
   query: string,
-  dirs: string[],
+  libs: Map<string, string> | string[],
   cap = 24,
 ): Promise<string[]> {
   if (canonSymName(query).length < 2) return [];
+  const map = libs instanceof Map ? libs : await listInstalledLibraries(libs);
   // Rank globally, not per library: a library scanned early contributes only
   // weak matches, and capping in scan order would drop a later library's
   // stronger candidate — the exact case this tool exists to surface, since a
   // caller reaching for it has already guessed the nickname wrong.
   const hits: { libId: string; rank: number; name: string }[] = [];
-  for (const [lib, file] of await listInstalledLibraries(dirs)) {
+  for (const [lib, file] of map) {
     const names = await libSymbolNames(file);
     if (!names) continue;
     for (const { name, rank } of rankSymbolNames(names, query, 4)) {
@@ -448,17 +561,18 @@ function librarySymbols(root: SexpNode[]): Map<string, SexpNode[]> {
  */
 export async function resolveLibrarySymbol(
   libId: string,
-  dirs: string[],
+  libs: Map<string, string> | string[],
 ): Promise<
   | { status: 'ok'; pins: LibPin[]; units: number }
   | { status: 'no-symbol'; candidates: string[] }
   | { status: 'no-library' }
   | { status: 'found-elsewhere'; libIds: string[] }
 > {
+  const map = libs instanceof Map ? libs : await listInstalledLibraries(libs);
   const [lib, name] = libId.includes(':') ? [libId.slice(0, libId.indexOf(':')), libId.slice(libId.indexOf(':') + 1)] : ['', libId];
-  const file = await findLibraryFile(lib, dirs);
+  const file = await findLibraryFile(lib, map);
   if (!file) {
-    const elsewhere = await findSymbolAcrossLibraries(name, dirs, lib);
+    const elsewhere = await findSymbolAcrossLibraries(name, map, lib);
     if (elsewhere.length) return { status: 'found-elsewhere', libIds: elsewhere.map((m) => `${m.lib}:${m.name}`) };
     return { status: 'no-library' };
   }
@@ -496,7 +610,7 @@ export async function resolveLibrarySymbol(
   const candidates = closestSymbolNames(symbols.keys(), name);
   if (candidates.length) return { status: 'no-symbol', candidates };
 
-  const elsewhere = await findSymbolAcrossLibraries(name, dirs, lib);
+  const elsewhere = await findSymbolAcrossLibraries(name, map, lib);
   if (elsewhere.length) return { status: 'found-elsewhere', libIds: elsewhere.map((m) => `${m.lib}:${m.name}`) };
 
   return { status: 'no-symbol', candidates };

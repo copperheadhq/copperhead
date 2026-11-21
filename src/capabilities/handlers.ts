@@ -14,7 +14,7 @@ import { MANIFEST_FILENAME } from '../kicad/parts/manifest.js';
 import { formatManifestFindings } from '../kicad/parts/validate.js';
 import { manifestDrift } from '../kicad/parts/render.js';
 import { moveFootprint } from '../kicad/populate.js';
-import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
+import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers, SymbolResolver } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists, loadConstraints } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -445,13 +445,16 @@ export const HANDLERS: HandlerDef[] = [
       },
     },
     requiresUnlock: false,
-    handler: async (_ctx, args) => {
+    handler: async (ctx, args) => {
       const query = str(args, 'query');
-      const dirs = await symbolSearchDirs();
-      if (!dirs.length) return 'no installed KiCad symbol library directories found on this machine';
-      const hits = await searchInstalledSymbols(query, dirs);
+      const anchor = ctx.config.schematic ?? ctx.config.board;
+      const projectDir = anchor ? path.dirname(path.join(ctx.repoRoot, anchor)) : ctx.repoRoot;
+      const resolver = await SymbolResolver.create({ projectDir });
+      if (!resolver.size) return 'no installed KiCad symbol library directories found on this machine';
+      const hits = await searchInstalledSymbols(query, resolver);
       if (!hits.length) {
-        return `no installed symbol matches "${query}" (searched every library in: ${dirs.join(', ')}). The part is not capturable on this machine as named — choose a part whose symbol exists, or a same-family variant that does.`;
+        const searched = resolver.searched.join(', ') || 'no symbol libraries found';
+        return `no installed symbol matches "${query}" (searched: ${searched}). A project-local library plus a sym-lib-table row is an option; otherwise the part is not capturable on this machine as named — choose a part whose symbol exists, or a same-family variant that does.`;
       }
       return `installed symbols matching "${query}":\n${hits.map((h) => `  - ${h}`).join('\n')}`;
     },
@@ -510,14 +513,16 @@ export const HANDLERS: HandlerDef[] = [
       },
     },
     requiresUnlock: false,
-    handler: async (_ctx, args) => {
+    handler: async (ctx, args) => {
       const libId = str(args, 'lib_id');
       const name = libId.includes(':') ? libId.slice(libId.indexOf(':') + 1) : libId;
-      const dirs = await symbolSearchDirs();
-      if (!dirs.length) {
+      const anchor = ctx.config.schematic ?? ctx.config.board;
+      const projectDir = anchor ? path.dirname(path.join(ctx.repoRoot, anchor)) : ctx.repoRoot;
+      const resolver = await SymbolResolver.create({ projectDir });
+      if (!resolver.size) {
         return `cannot verify "${libId}": no installed KiCad symbol library directories were found on this machine, so nothing can be resolved or ruled out. Install the KiCad symbol libraries (or set KICAD_SYMBOL_DIR), or choose a part you can verify another way.`;
       }
-      const r = await resolveLibrarySymbol(libId, dirs);
+      const r = await resolveLibrarySymbol(libId, resolver);
       if (r.status === 'ok') {
         const pins = [...r.pins]
           .sort((a, b) => comparePinNumbers(a.number, b.number))
@@ -531,7 +536,7 @@ export const HANDLERS: HandlerDef[] = [
       if (r.status === 'found-elsewhere') {
         return `"${libId}" does not resolve, but the symbol is installed as: ${r.libIds.join(', ')} — use one of these lib_ids (and call symbol_pins on it for the pin table).`;
       }
-      const elsewhere = await searchInstalledSymbols(name, dirs, 6);
+      const elsewhere = await searchInstalledSymbols(name, resolver, 6);
       const where = elsewhere.length
         ? `\ninstalled as: ${elsewhere.join(', ')}`
         : `\nno installed symbol matches "${name}" in any library — the part is not capturable as named.`;
