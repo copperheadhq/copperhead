@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Msg, Provider } from './types.js';
-import { resolveLibrarySymbol, searchInstalledSymbols, symbolSearchDirs, listInstalledLibraries } from '../kicad/symlib.js';
+import { resolveLibrarySymbol, searchInstalledSymbols, symbolSearchDirs, listInstalledLibraries, SymbolResolver } from '../kicad/symlib.js';
 
 /**
  * How many times a hung provider turn is retried before the run gives up. One
@@ -203,7 +203,11 @@ export async function transcriptExcerpt(transcriptDir: string, maxChars = 4000):
  * that distinguishes them is re-checking the named lib_ids, which costs no
  * LLM turn. Never throws; on any probe error it reports what it could.
  */
-export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap = 8): Promise<string> {
+export async function symbolAvailabilityFacts(
+  text: string,
+  resolverOrDir?: SymbolResolver | Map<string, string> | string[] | string,
+  cap = 8,
+): Promise<string> {
   const ids: string[] = [];
   // A library nickname is its `.kicad_sym` filename stem, so it can carry `-`
   // and `.` as well as `_` (`Custom-Parts`, `MyCorp.RF`) — a nickname the regex
@@ -227,22 +231,26 @@ export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap
   // would let it read "unprobed" as "absent".
   const probed = ids.slice(0, cap);
   const unprobed = ids.slice(cap);
-  let searchDirs: string[];
+  let resolver: Map<string, string>;
   try {
-    searchDirs = dirs ?? (await symbolSearchDirs());
+    if (resolverOrDir instanceof Map) {
+      resolver = resolverOrDir;
+    } else if (typeof resolverOrDir === 'string') {
+      resolver = await SymbolResolver.create({ projectDir: resolverOrDir });
+    } else if (Array.isArray(resolverOrDir)) {
+      resolver = await SymbolResolver.create({ stockDirs: resolverOrDir, global: false });
+    } else {
+      resolver = await SymbolResolver.create();
+    }
   } catch {
     return '';
   }
-  if (!searchDirs.length) return '';
-  // A directory with no readable library means nothing was checked: emitting
-  // "not installed" lines as ground truth from that state is the exact false
-  // absence this block exists to prevent (same guard as bomSymbolDossier).
-  if (!(await listInstalledLibraries(searchDirs)).size) return '';
+  if (!resolver.size) return '';
   const lines: string[] = [];
   for (const libId of probed) {
     const name = libId.slice(libId.indexOf(':') + 1);
     try {
-      const r = await resolveLibrarySymbol(libId, searchDirs);
+      const r = await resolveLibrarySymbol(libId, resolver);
       if (r.status === 'ok') {
         lines.push(`- ${libId}: RESOLVES on this machine (${r.pins.length} pins)`);
       } else if (r.status === 'found-elsewhere') {
@@ -251,7 +259,7 @@ export async function symbolAvailabilityFacts(text: string, dirs?: string[], cap
         // block exists to prevent.
         lines.push(`- ${libId}: not at that lib_id, but installed as: ${r.libIds.slice(0, 4).join(', ')}`);
       } else {
-        const elsewhere = await searchInstalledSymbols(name, searchDirs, 4);
+        const elsewhere = await searchInstalledSymbols(name, resolver, 4);
         const inThat =
           r.status === 'no-symbol' && r.candidates.length
             ? ` (closest in that library: ${r.candidates.slice(0, 4).join(', ')})`

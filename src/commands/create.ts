@@ -36,6 +36,7 @@ import { copper, dim, ok, stageLine, warn } from '../agent/theme.js';
 import { openspecInit } from '../openspec/cli.js';
 import { sweepStaleTempDirs, pruneHistoryDir } from '../util/tmp.js';
 import { bomSymbolDossier } from '../kicad/dossier.js';
+import { SymbolResolver } from '../kicad/symlib.js';
 import { readManifest } from '../kicad/parts/resolve.js';
 import { libraryCache } from '../kicad/cache.js';
 import { symbolSearchDirs } from '../kicad/symlib.js';
@@ -771,6 +772,7 @@ async function diagnose(input: {
   maxAttempts: number;
   /** Compatible-endpoint settings, so a `compat` run can diagnose itself. */
   compat?: CompatSettings | undefined;
+  projectDir?: string;
 }): Promise<StageDiagnosis> {
   let provider: Provider | undefined;
   try {
@@ -783,7 +785,7 @@ async function diagnose(input: {
         // refusal narrating "library not installed" is adjudicated from the
         // machine's actual libraries, not from the narration (I15/#197). Inside
         // the watchdog, so a wedged filesystem scan cannot outlive timeoutMs.
-        const symbolFacts = await symbolAvailabilityFacts(`${input.failure}\n${excerpt}`).catch(() => '');
+        const symbolFacts = await symbolAvailabilityFacts(`${input.failure}\n${excerpt}`, input.projectDir).catch(() => '');
         return diagnoseStageFailure(p, {
           stageName: input.stageName,
           stageGoal: input.stageGoal,
@@ -1254,8 +1256,15 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
             if (existsSync(bomPath)) {
               // Bounded: a slow or wedged library scan must delay the stage by a
               // fixed cost at most — on timeout the stage simply runs dossier-less.
+              const anchor = config.schematic ?? config.board;
+              const projectDir = anchor ? path.dirname(path.join(opts.repoRoot, anchor)) : opts.repoRoot;
               const dossier = await withTimeout(
-                async () => bomSymbolDossier(await readFile(bomPath, 'utf8'), await symbolSearchDirs(), { manifest: (await readManifest(path.join(opts.repoRoot, config.docs))) ?? undefined }),
+                async () =>
+                  bomSymbolDossier(
+                    await readFile(bomPath, 'utf8'),
+                    await SymbolResolver.create({ projectDir }),
+                    { manifest: (await readManifest(path.join(opts.repoRoot, config.docs))) ?? undefined },
+                  ),
                 60_000,
               );
               if (dossier) {
@@ -1382,6 +1391,8 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
         }
 
         opts.log(stageLine(stage.name, `${failure}; asking the model whether to retry…`, 'warn'));
+        const diagAnchor = config.schematic ?? config.board;
+        const diagProjectDir = diagAnchor ? path.dirname(path.join(opts.repoRoot, diagAnchor)) : opts.repoRoot;
         const diagnosis = await diagnose({
           model: opts.model,
           timeoutMs: config.turnTimeoutMs,
@@ -1392,6 +1403,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
           transcriptDir: res.transcriptDir,
           attempt,
           maxAttempts: config.maxStageRetries + 1,
+          projectDir: diagProjectDir,
         });
         // Fold the diagnosis call's own tokens into the stage cost (F6): it is a
         // real model call made on behalf of this stage, so the cost table should
