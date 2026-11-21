@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { checkDrift } from '../memory/drift.js';
+import { manifestDrift } from '../kicad/parts/render.js';
 import { buildExport, parseBom, SUPPLIERS, isSupplier, type Supplier, type ExportResult } from '../kicad/bom-export.js';
 
 /**
@@ -49,14 +50,16 @@ export async function runExportBom(opts: ExportBomOptions): Promise<ExportBomRes
   // BOM.md is the sole input, but it must agree with the schematic before it can
   // be trusted as an ordering source (requirement "BOM.md is the sole input").
   // Refuse loudly here rather than let a drifted BOM become a wrong order.
-  if (config.schematic && existsSync(path.join(opts.repoRoot, config.schematic))) {
-    const drift = await checkDrift(opts.repoRoot, config.docs, config.schematic);
-    if (drift.length) {
-      const lines = drift.map((m) => `  - ${m.doc} claims "${m.claim}" but actual is "${m.actual}"`).join('\n');
-      throw new ExportError(
-        `BOM.md drifts from the schematic; run \`copperhead check\` and resolve drift before ordering:\n${lines}`,
-      );
-    }
+  // Before a schematic exists, the manifest is still a checkable source of
+  // truth. Match `check` rather than letting a stale render become an order.
+  const drift = config.schematic && existsSync(path.join(opts.repoRoot, config.schematic))
+    ? await checkDrift(opts.repoRoot, config.docs, config.schematic)
+    : await manifestDrift(path.join(opts.repoRoot, config.docs));
+  if (drift.length) {
+    const lines = drift.map((m) => `  - ${m.doc} claims "${m.claim}" but actual is "${m.actual}"`).join('\n');
+    throw new ExportError(
+      `BOM.md has drift; run \`copperhead check\` and resolve drift before ordering:\n${lines}`,
+    );
   }
 
   const rows = parseBom(await readFile(bomPath, 'utf8'));
