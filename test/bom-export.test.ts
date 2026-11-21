@@ -258,7 +258,9 @@ describe('export command end-to-end (supplier-bom-export)', () => {
         await writeFile(path.join(repo, 'docs', 'parts.intent.json'), invalid ? '{broken' : JSON.stringify(manifest));
         await expect(
           runExportBom({ repoRoot: repo, supplier: 'digikey', boards: 1, spares: 10, includeUnverified: false }),
-        ).rejects.toThrow(/drift/i);
+        ).rejects.toThrow(invalid
+          ? /parts\.intent\.json claims "is a valid parts manifest"/
+          : /R1 exists/);
         expect(existsSync(path.join(repo, 'outputs', 'digikey-bom.csv'))).toBe(false);
       });
     }
@@ -274,7 +276,7 @@ describe('export command end-to-end (supplier-bom-export)', () => {
       const result = await runExportBom(opts);
       expect(result.csv).toContain('RC0603FR-0710KL');
       await writeFile(path.join(repo, 'docs', 'BOM.md'), bom.replace('RC0603FR-0710KL', 'WRONG-PART'));
-      await expect(runExportBom(opts)).rejects.toThrow(/drift/i);
+      await expect(runExportBom(opts)).rejects.toThrow(/R1 MPN WRONG-PART/);
       expect(await readFile(path.join(repo, result.outPath), 'utf8')).toBe(result.csv);
     });
   }
