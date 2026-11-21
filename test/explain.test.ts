@@ -23,6 +23,8 @@ describe('explainQuery (schematic lookup)', () => {
       const sch = path.join(repo, 'hardware/open-key.kicad_sch');
       await writeFile(sch, (await readFile(sch, 'utf8')).replaceAll('(global_label "EN"', '(global_label "key_dah"'));
       await runInit({ repoRoot: repo, installHooks: false });
+      await writeFile(path.join(repo, 'docs/NETS.md'),
+        'KEY_DAH is the input signal.\nkey_dah enables the module.\ngnd is the return.\n');
       await writeFile(path.join(repo, 'docs/PINOUT.md'),
         '| Refdes | Pin | Net |\n| --- | --- | --- |\n' +
         '| R2 | 1 | KEY_DAH |\n| U1 | 5 | KEY_DAH |\n' +
@@ -37,6 +39,9 @@ describe('explainQuery (schematic lookup)', () => {
         expect(res.hit.name).toBe(name);
         expect(res.hit.pins.map((p) => `${p.ref}.${p.number}`).sort()).toEqual([...expected]);
         expect(res.hit.pinout.map((p) => `${p.ref}.${p.pin}`).sort()).toEqual([...expected]);
+        const other = name === 'KEY_DAH' ? 'key_dah' : 'KEY_DAH';
+        expect(res.hit.mentions.some((m) => m.excerpt.includes(name))).toBe(true);
+        expect(res.hit.mentions.some((m) => m.excerpt.includes(other))).toBe(false);
       }
       const ambiguous = await explainQuery(repo, 'Key_Dah');
       expect(ambiguous.ok).toBe(false);
@@ -46,6 +51,7 @@ describe('explainQuery (schematic lookup)', () => {
       // A uniquely matched net still supports convenient case-insensitive lookup.
       const ground = await explainQuery(repo, 'gnd');
       expect(ground.ok && ground.hit.kind === 'net' && ground.hit.name).toBe('GND');
+      expect(ground.ok && ground.hit.mentions.some((m) => m.excerpt === 'gnd is the return.')).toBe(true);
     } finally {
       await cleanup();
     }

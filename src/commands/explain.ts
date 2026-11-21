@@ -82,22 +82,22 @@ function eq(a: string, b: string): boolean {
   return a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0;
 }
 
-function wordRe(query: string): RegExp {
+function wordRe(query: string, caseSensitive = false): RegExp {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^A-Za-z0-9_])${escaped}([^A-Za-z0-9_]|$)`, 'i');
+  return new RegExp(`(^|[^A-Za-z0-9_])${escaped}([^A-Za-z0-9_]|$)`, caseSensitive ? '' : 'i');
 }
 
 async function loadDocs(
   docsDir: string,
-): Promise<{ bom: BomRow[]; pinout: Array<{ ref: string; pin: string; net: string }>; mentionsOf: (query: string) => Promise<ExplainMention[]> }> {
+): Promise<{ bom: BomRow[]; pinout: Array<{ ref: string; pin: string; net: string }>; mentionsOf: (query: string, caseSensitive?: boolean) => Promise<ExplainMention[]> }> {
   const bomPath = path.join(docsDir, 'BOM.md');
   const pinoutPath = path.join(docsDir, 'PINOUT.md');
   const bom = existsSync(bomPath) ? parseBomTable(await readFile(bomPath, 'utf8')) : [];
   const pinout = existsSync(pinoutPath) ? parsePinoutRows(await readFile(pinoutPath, 'utf8')) : [];
 
-  const mentionsOf = async (query: string): Promise<ExplainMention[]> => {
+  const mentionsOf = async (query: string, caseSensitive = false): Promise<ExplainMention[]> => {
     if (!existsSync(docsDir)) return [];
-    const re = wordRe(query);
+    const re = wordRe(query, caseSensitive);
     const out: ExplainMention[] = [];
     let files: string[] = [];
     try {
@@ -288,7 +288,7 @@ export async function explainQuery(repoRoot: string, query: string): Promise<Exp
   if (byNet) {
     return {
       ok: true,
-      hit: netHit(q, byNet, pins, docs.pinout, await docs.mentionsOf(byNet)),
+      hit: netHit(q, byNet, pins, docs.pinout, await docs.mentionsOf(byNet, foldedNets.length > 1)),
     };
   }
 
