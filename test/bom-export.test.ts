@@ -182,6 +182,25 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
     );
   });
 
+  it('groups rows sharing MPN when head row has blank manufacturer (DigiKey and Mouser)', () => {
+    const multi = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R1 | 10k | R_0603 | RC0603FR-0710KL | |\n' +
+        '| R2 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n',
+    );
+    const digikey = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(digikey.csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,4,"R1,R2"\n',
+    );
+    const mouser = buildExport(multi, 'mouser', { boards: 1, spares: 10, includeUnverified: false });
+    expect(mouser.csv).toBe(
+      'Mfr. Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,4,"R1,R2"\n',
+    );
+  });
+
   it('DigiKey cart CSV carries computed quantity, MPN, and manufacturer (spec: 5 boards)', () => {
     const { csv } = buildExport(rows, 'digikey', { boards: 5, spares: 10, includeUnverified: false });
     // R1 passive, 1/board × 5 = 5; ceil(5.5)=6, floor 5+2=7 → 7.
