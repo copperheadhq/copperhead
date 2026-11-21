@@ -119,6 +119,88 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
     expect(csv).toBe('Comment,Designator,Footprint,LCSC Part #\n10k,"R2,R10",R_0603,C25804\n');
   });
 
+  it('DigiKey cart CSV: MPN/Manufacturer/Quantity/Customer Reference, verified rows only (golden)', () => {
+    const { csv } = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,3,R1\n',
+    );
+  });
+
+  it('DigiKey groups multiple designators sharing MPN+manufacturer onto one line', () => {
+    const multi = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R10 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n' +
+        '| R2 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n',
+    );
+    const { csv } = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    // Designators naturally sorted (R2 before R10) and quoted because of the comma.
+    expect(csv).toBe('Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\nRC0603FR-0710KL,Yageo,4,"R2,R10"\n');
+  });
+
+  it('DigiKey separates lines for identical MPN with different manufacturers', () => {
+    const multi = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R1 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n' +
+        '| R2 | 10k | R_0603 | RC0603FR-0710KL | Vishay |\n',
+    );
+    const { csv } = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,3,R1\n' +
+        'RC0603FR-0710KL,Vishay,3,R2\n',
+    );
+  });
+
+  it('DigiKey groups rows sharing MPN when manufacturer differs only in case', () => {
+    const multi = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R1 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n' +
+        '| R2 | 10k | R_0603 | RC0603FR-0710KL | YAGEO |\n',
+    );
+    const { csv } = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,4,"R1,R2"\n',
+    );
+  });
+
+  it('DigiKey groups rows sharing MPN when one row has a blank manufacturer', () => {
+    const multi = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R1 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n' +
+        '| R2 | 10k | R_0603 | RC0603FR-0710KL | |\n',
+    );
+    const { csv } = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,4,"R1,R2"\n',
+    );
+  });
+
+  it('groups rows sharing MPN when head row has blank manufacturer (DigiKey and Mouser)', () => {
+    const multi = parseBom(
+      '| Refdes | Value | Footprint | MPN | Manufacturer |\n' +
+        '|---|---|---|---|---|\n' +
+        '| R1 | 10k | R_0603 | RC0603FR-0710KL | |\n' +
+        '| R2 | 10k | R_0603 | RC0603FR-0710KL | Yageo |\n',
+    );
+    const digikey = buildExport(multi, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
+    expect(digikey.csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,4,"R1,R2"\n',
+    );
+    const mouser = buildExport(multi, 'mouser', { boards: 1, spares: 10, includeUnverified: false });
+    expect(mouser.csv).toBe(
+      'Mfr. Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,4,"R1,R2"\n',
+    );
+  });
+
   it('DigiKey cart CSV carries computed quantity, MPN, and manufacturer (spec: 5 boards)', () => {
     const { csv } = buildExport(rows, 'digikey', { boards: 5, spares: 10, includeUnverified: false });
     // R1 passive, 1/board × 5 = 5; ceil(5.5)=6, floor 5+2=7 → 7.
@@ -155,6 +237,16 @@ describe('exclusion rules (supplier-bom-export)', () => {
     expect(res.excluded.map((e) => e.row.refdes)).toEqual(['R2']);
     // U1 is included but still reported as unverified.
     expect(res.warnings.join('\n')).toMatch(/INCLUDED but UNVERIFIED.*U1/);
+  });
+
+  it('DigiKey CSV includes UNVERIFIED rows when --include-unverified is set, but never MPN-less', () => {
+    const { csv } = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: true });
+    expect(csv).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,3,R1\n' +
+        'ESP32-S3-MINI-1-N8,Espressif,2,U1\n',
+    );
+    expect(csv).not.toContain('R2');
   });
 
   it('JLCPCB notes blank LCSC part numbers in the warnings footer', () => {
@@ -224,7 +316,10 @@ describe('export command end-to-end (supplier-bom-export)', () => {
     expect(res.outPath).toBe(path.join('outputs', 'digikey-bom.csv'));
     const written = await readFile(path.join(repo, res.outPath), 'utf8');
     expect(written).toBe(res.csv);
-    expect(written).toContain('RC0603FR-0710KL,Yageo,3,R1');
+    expect(written).toBe(
+      'Manufacturer Part Number,Manufacturer,Quantity,Customer Reference\n' +
+        'RC0603FR-0710KL,Yageo,3,R1\n',
+    );
     expect(written).not.toContain('U1'); // UNVERIFIED, excluded by default
   });
 
