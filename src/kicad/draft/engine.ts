@@ -1,7 +1,7 @@
 import type { Bounds } from '../sexp.js';
 import { knum, CAPTION_SIZE, type PlacementModel, type EmitSymbol, type EmitLabel, type LabelShape } from '../emit.js';
 import { strokeTextExtent, strokeTextHeight, wrapTwoLines } from '../strokefont.js';
-import { powerSymbolSource, pwrFlagSource, type ResolvedSymbol, type DraftPin } from './symsource.js';
+import { powerSymbolSource, pwrFlagSource, GROUND_NAME, RAIL_NAME, type ResolvedSymbol, type DraftPin } from './symsource.js';
 import type { SchematicIntent, IntentNet, IntentPart, ValidatedIntent } from './ir.js';
 
 /**
@@ -797,8 +797,6 @@ function outward(pin: DraftPin): { dx: number; dy: number } {
  * is still correctable with an IR `kind` declaration, which outranks all of
  * this, and the report names the basis so a miss is visible.
  */
-const GROUND_NAME = /^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i;
-const RAIL_NAME = /^(?:[+-]?[0-9]+(?:\.[0-9]+)?v[0-9]*|(?:vcc|vdd|vbus|vee)[0-9a-z]*(?:_[0-9]+v[0-9]*)?)$/i;
 
 function classifyNet(
   net: IntentNet,
@@ -948,7 +946,8 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // leaves fewer wire crossings, or as many and less wire, on the same or a
   // smaller sheet with every gate holding and the connector still upright.
   const flips = new Map<string, Orient>();
-  const fitted = draftFitted(validated, projectName, today, flips);
+  const forcedLabels = new Set(validated.intent.hints?.labels ?? []);
+  const fitted = draftFitted(validated, projectName, today, flips, forcedLabels);
   const score = (m: PlacementModel, r: SchematicDraftReport): { overlaps: number; crossings: number; length: number } => ({
     // a label on another label, on a foreign wire, or over a part's body
     overlaps: labelOverlaps(m) + r.labelsOverBodies,
@@ -1022,7 +1021,7 @@ export function draftSchematicPlacement(validated: ValidatedIntent, projectName:
   // the measured look) left out: they settle the page, not the parts, and
   // multiply every trial's cost. The kept orientations are then drafted in
   // full once.
-  const labelled = new Set<string>();
+  const labelled = new Set<string>(forcedLabels);
   const once = (f: ReadonlyMap<string, Orient>, lab: ReadonlySet<string> = labelled): { model: PlacementModel; report: SchematicDraftReport } =>
     draftOnce(validated, projectName, today, new Map(), 0, undefined, 0, undefined, f, lab);
   let kept = once(flips);
@@ -1463,6 +1462,7 @@ function draftOnce(
   // where the drawing actually reaches
   const MARGIN = measured ? MEASURED_MARGIN : BASE_MARGIN;
   const { intent, symbols, docGroups } = validated;
+  const forcedLabels = new Set(intent.hints?.labels ?? []);
   const notes: string[] = [];
 
   // ---------- net classification (deterministic, visible in the report) ----------
@@ -1574,9 +1574,14 @@ function draftOnce(
     powerNets.some((n) => netClasses.get(n.name)!.cls === 'ground' && n.pins.some((ep) => ep.startsWith(`${ref}.`)));
 
   const decapOwner = new Map<string, string>(); // cap ref -> owner IC ref
+  const nearRefs = new Set(
+    Array.isArray(intent.hints?.near)
+      ? intent.hints.near.filter((n) => n && typeof n.ref === 'string').map((n) => n.ref)
+      : [],
+  );
   for (const p of intent.parts) {
     const sym = symbols.get(p.ref)!;
-    if (sym.isPower || !isTwoPin(p)) continue;
+    if (sym.isPower || !isTwoPin(p) || nearRefs.has(p.ref)) continue;
     const rail = railOf(p.ref);
     if (!rail || !touchesGround(p.ref)) continue;
     // owner: an IC (3+ pins) on the same rail — same group first, then most
@@ -1914,7 +1919,7 @@ function draftOnce(
       // once the IC has coordinates, with the same clearance check every
       // idiom uses, and a hang that cannot be placed cleanly falls back to a
       // column at the group's right edge.
-      type Hang = { ic: string; pin: DraftPin; dx: -1 | 1; dir: -1 | 1; chain: string[]; slot: number; straight: boolean; w: number; h: number; ends: 'power' | 'open' };
+      type Hang = { ic: string; pin: DraftPin; dx: -1 | 1; dir: -1 | 1; chain: string[]; slot: number; straight: boolean; w: number; h: number; ends: 'power' | 'open'; fromHint?: boolean };
       /** A run of two-lead parts laid ALONG the pin's row, away from the IC. */
       type Inline = { ic: string; pin: DraftPin; dx: -1 | 1; chain: { key: string; nearPin: string; gap: number }[]; len: number; farNet: string | null; offset: number; lift: number };
       const hangs: Hang[] = [];
@@ -2200,11 +2205,80 @@ function draftOnce(
         const downRows = need(down, supplyReach(false));
         cellDims.set(icKey, { ...d, topPad: d.topPad + upRows, h: d.h + upRows + downRows });
       }
+      const nearHintsForGroup: Array<{ ref: string; pin: string; partPin: string; anchorKey: string; anchorPin: DraftPin }> = [];
+      if (Array.isArray(intent.hints?.near)) {
+        for (const entry of intent.hints.near) {
+          if (!entry || typeof entry.ref !== 'string' || typeof entry.pin !== 'string') continue;
+          const m = /^([^.]+)\.(.+)$/.exec(entry.pin);
+          if (!m) continue;
+          const [, aRef, aPin] = m;
+          const partInst = instancesOfRef.get(entry.ref)?.[0];
+          if (!partInst || partInst.part.group !== gname) continue;
+          const anchorInst = instancesOfRef.get(aRef!)?.[0];
+          if (!anchorInst) {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: unknown anchor part`);
+            continue;
+          }
+          const anchorKey = instKeyOf(aRef!, aPin!);
+          const anchorPin = instByKey.get(anchorKey)?.sym.pins.find((p) => p.number === aPin);
+          if (!anchorPin) {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: anchor pin not found`);
+            continue;
+          }
+          const anchorEp = `${aRef}.${aPin}`;
+          const anchorNet = netByEndpoint.get(anchorEp);
+          if (!anchorNet) {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: anchor pin has no net`);
+            continue;
+          }
+          if ((netClasses.get(anchorNet.name)?.cls ?? 'signal') !== 'signal') {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: anchor pin is on power/ground net`);
+            continue;
+          }
+          const partEp = anchorNet.pins.find((ep) => ep.startsWith(`${entry.ref}.`));
+          if (!partEp) {
+            notes.push(`near hint ${entry.ref} -> ${entry.pin} skipped: part does not share net with anchor pin`);
+            continue;
+          }
+          const partPin = partEp.split('.')[1]!;
+          nearHintsForGroup.push({ ref: entry.ref, pin: entry.pin, partPin, anchorKey, anchorPin });
+        }
+      }
+
       const claimAnchors = [
         ...anchors,
         ...members.filter((m) => !anchors.includes(m.key) && (isConnector(m.part) || isSwitch(m.key))).map((m) => m.key),
         ...members.filter((m) => !anchors.includes(m.key) && isTransistor(m.key)).map((m) => m.key),
+        ...members.filter((m) => !anchors.includes(m.key) && nearHintsForGroup.some((nh) => nh.anchorKey === m.key)).map((m) => m.key),
       ];
+
+      for (const nh of nearHintsForGroup) {
+        const partKey = instKeyOf(nh.ref, nh.partPin);
+        if (hungKeys.has(partKey)) {
+          notes.push(`near hint ${nh.ref} -> ${nh.pin} skipped: part already claimed`);
+          continue;
+        }
+        if (!hangable(partKey)) {
+          notes.push(`near hint ${nh.ref} -> ${nh.pin} skipped: part is not hangable`);
+          continue;
+        }
+        const dx: -1 | 1 = (outward(nh.anchorPin).dx || 1) as -1 | 1;
+        const l = leadsOf(partKey);
+        let dir: -1 | 1 = 1;
+        if (l) {
+          const farPin = l.a.number === nh.partPin ? l.b : l.a;
+          const farNet = netByEndpoint.get(`${nh.ref}.${farPin.number}`);
+          const farCls = farNet ? (netClasses.get(farNet.name)?.cls ?? 'signal') : null;
+          if (farCls === 'rail') dir = -1;
+          else if (farCls === 'ground') dir = 1;
+          else dir = 1;
+        }
+        claimHang(nh.anchorKey, nh.anchorPin, dx, { key: partKey, pin: nh.partPin }, dir);
+        const hg = hangs[hangs.length - 1];
+        if (hg) {
+          hg.fromHint = true;
+        }
+      }
       for (const icKey of claimAnchors) {
         if (hungKeys.has(icKey)) continue;
         const ic = instByKey.get(icKey)!;
@@ -2498,7 +2572,9 @@ function draftOnce(
             const lo = !alone || g.some((hg) => hg.dir === -1) ? top - 5 * U : rowY - U;
             const hi = !alone || g.some((hg) => hg.dir === 1) ? bot + 5 * U : rowY + U;
             const straight = !feedsBack && !sidePinYs.some((y) => y !== rowY && y > lo && y < hi);
-            for (const hg of g) hg.straight = straight;
+            for (const hg of g) {
+              hg.straight = straight;
+            }
             if (straight) continue;
             anyShelved = true;
             let k = 0;
@@ -3380,7 +3456,7 @@ function draftOnce(
         // axis regardless passed the clearance check — a wire may legally
         // cross a neighbouring rail stub — and drew exactly that crossing
         // on the Tier C divider, twice.
-        const axes = hg.straight ? [s.x] : [slotX];
+        const axes = hg.straight ? (hg.fromHint ? [s.x, slotX] : [s.x]) : [slotX];
         // Chains on one side start level: drops below the side's lowest hung
         // pin row, rises above its highest. Started at its own row, a chain
         // from one pin put its body across the next pin's row, and that
@@ -3389,8 +3465,8 @@ function draftOnce(
         // worst, and the resistors of a comb line up the way a drafter
         // lines them up. A straight hang keeps its own row.
         const sidePinYsAbs = side.map((o) => pinAt(icPl, icPl.sym.pins.find((p) => p.number === o.pin.number) ?? o.pin).y);
-        const baseY = hg.straight ? s.y : hg.dir === 1 ? Math.max(...sidePinYsAbs) : Math.min(...sidePinYsAbs);
         for (const axisX of axes) {
+        const baseY = axisX === s.x ? s.y : hg.dir === 1 ? Math.max(...sidePinYsAbs) : Math.min(...sidePinYsAbs);
         for (let lift = 0; lift < 3 && !placedOk; lift++) {
           // the near lead of the first part sits one gap from the base row,
           // and each further part one gap on, away from the IC
@@ -3442,7 +3518,9 @@ function draftOnce(
           leftovers.push(...hg.chain);
           for (const k of hg.chain) boundTo.delete(k);
           const refs = hg.chain.map((k) => instByKey.get(k)!.ref).join(', ');
-          const note = `hang refused: ${refs} could not be placed cleanly on ${instByKey.get(hg.ic)!.ref}.${hg.pin.number} in "${gname}"; drawn in a column instead`;
+          const note = hg.fromHint
+            ? `near hint ${refs} -> ${instByKey.get(hg.ic)!.ref}.${hg.pin.number} could not be honoured: could not be placed cleanly in "${gname}"; drawn in a column instead`
+            : `hang refused: ${refs} could not be placed cleanly on ${instByKey.get(hg.ic)!.ref}.${hg.pin.number} in "${gname}"; drawn in a column instead`;
           trace(note);
           if (!notes.includes(note)) notes.push(note);
         }
@@ -5062,6 +5140,7 @@ function draftOnce(
     const fedBack = new Set<Stub>();
     const inverting = (pin: DraftPin): boolean => AMP_INVERTING.test(pin.name);
     for (const o of stubs.filter((x) => x.ep.pin.etype === 'output')) {
+      if (forcedLabels.has(net.name)) continue;
       const m = stubs.find((x) => x !== o && x.ep.ref === o.ep.ref && inverting(x.ep.pin) && !fedBack.has(x));
       if (!m) continue;
       const r = routeStubs([o, m]);
@@ -5123,8 +5202,9 @@ function draftOnce(
           if (!r) return;
           // a net the placement search chose to label is not wired between
           // parts that belong to different anchors (or to none): a hang, a
-          // bridge or a row keeps the wire to the pin it belongs to
-          if (labelNets.has(net.name) && new Set(cur.map((st) => anchorKey(st.ep.ref))).size > 1) return;
+          // bridge or a row keeps the wire to the pin it belongs to.
+          // Forced-label nets (hints.labels) are always emitted as labels instead of wires.
+          if (forcedLabels.has(net.name) || (labelNets.has(net.name) && new Set(cur.map((st) => anchorKey(st.ep.ref))).size > 1)) return;
           // Parts placed in columns (nothing hung on a pin) are wired only
           // where the wire crosses no other net: a run that can only be drawn
           // across another net's wire reads as a short, and labels say the
