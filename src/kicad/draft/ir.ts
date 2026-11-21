@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { SymbolSource, SymbolResolutionError, powerNetToken, type ResolvedSymbol, type DraftPin } from './symsource.js';
+import { SymbolSource, SymbolResolutionError, powerNetToken, GROUND_NAME, RAIL_NAME, type ResolvedSymbol, type DraftPin } from './symsource.js';
 import { parseBomTable, normalizeValue, normalizeFootprint, bomFootprintRows } from '../../memory/bom-table.js';
 import type { FootprintResolver } from '../footprints.js';
 import { checkPinsAgainstPads } from '../parts/pads.js';
@@ -389,9 +389,6 @@ export async function validateIntent(
   // one generated `copperhead_power:` lib_id and one embedded pin name, so
   // KiCad's netlist can quietly merge the rails (last write wins in the
   // lib_symbols map). Refused here as a finding, before any placement.
-  const GROUND_NAME = /^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i;
-  const RAIL_NAME = /^(?:[+-]?[0-9]+(?:\.[0-9]+)?v[0-9]*|(?:vcc|vdd|vbus|vee)[0-9a-z]*(?:_[0-9]+v[0-9]*)?)$/i;
-
   const isPowerClass = (net: IntentNet): boolean => {
     if (net.kind === 'power' || net.kind === 'ground') return true;
     if (net.kind === 'signal') return false;
@@ -483,7 +480,7 @@ export async function validateIntent(
         } else {
           const declaredNets = new Map(
             intent.nets
-              .filter((n) => Boolean(n) && typeof n.name === 'string')
+              .filter((n) => Boolean(n) && typeof n.name === 'string' && Array.isArray(n.pins))
               .map((n) => [n.name, n]),
           );
           for (const label of hints.labels) {

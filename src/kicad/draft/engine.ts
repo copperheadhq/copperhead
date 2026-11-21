@@ -1,7 +1,7 @@
 import type { Bounds } from '../sexp.js';
 import { knum, CAPTION_SIZE, type PlacementModel, type EmitSymbol, type EmitLabel, type LabelShape } from '../emit.js';
 import { strokeTextExtent, strokeTextHeight, wrapTwoLines } from '../strokefont.js';
-import { powerSymbolSource, pwrFlagSource, type ResolvedSymbol, type DraftPin } from './symsource.js';
+import { powerSymbolSource, pwrFlagSource, GROUND_NAME, RAIL_NAME, type ResolvedSymbol, type DraftPin } from './symsource.js';
 import type { SchematicIntent, IntentNet, IntentPart, ValidatedIntent } from './ir.js';
 
 /**
@@ -797,8 +797,6 @@ function outward(pin: DraftPin): { dx: number; dy: number } {
  * is still correctable with an IR `kind` declaration, which outranks all of
  * this, and the report names the basis so a miss is visible.
  */
-const GROUND_NAME = /^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i;
-const RAIL_NAME = /^(?:[+-]?[0-9]+(?:\.[0-9]+)?v[0-9]*|(?:vcc|vdd|vbus|vee)[0-9a-z]*(?:_[0-9]+v[0-9]*)?)$/i;
 
 function classifyNet(
   net: IntentNet,
@@ -3458,7 +3456,7 @@ function draftOnce(
         // axis regardless passed the clearance check — a wire may legally
         // cross a neighbouring rail stub — and drew exactly that crossing
         // on the Tier C divider, twice.
-        const axes = hg.fromHint ? [s.x, slotX] : hg.straight ? [s.x] : [slotX];
+        const axes = hg.straight ? (hg.fromHint ? [s.x, slotX] : [s.x]) : [slotX];
         // Chains on one side start level: drops below the side's lowest hung
         // pin row, rises above its highest. Started at its own row, a chain
         // from one pin put its body across the next pin's row, and that

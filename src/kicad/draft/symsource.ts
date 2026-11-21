@@ -535,6 +535,9 @@ export class SymbolSource {
  */
 export const powerNetToken = (net: string): string => net.replace(/[^A-Za-z0-9_+.-]/g, '_');
 
+export const GROUND_NAME = /^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i;
+export const RAIL_NAME = /^(?:[+-]?[0-9]+(?:\.[0-9]+)?v[0-9]*|(?:vcc|vdd|vbus|vee)[0-9a-z]*(?:_[0-9]+v[0-9]*)?)$/i;
+
 /** Escape a string for embedding inside a quoted s-expression atom. Defense in
  * depth: `validateIntent` already refuses net names containing `"` or `\`, but
  * this template must not be able to corrupt a schematic even if called raw. */

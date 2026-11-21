@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { validateIntent, type SchematicIntent } from '../src/kicad/draft/ir.js';
@@ -122,6 +122,23 @@ describe('Schematic intent hints (Issue #482)', () => {
       }, symsource, null);
       expect(vLabelsPower.ok).toBe(false);
       expect(vLabelsPower.findings.some((f) => f.detail.includes('hints.labels: "GND" is a power/ground net (drawn with power symbols, never wired)'))).toBe(true);
+
+      // labels naming net with non-array pins returns findings, not TypeError (N2)
+      const vLabelsBadPins = await validateIntent({
+        ...baseIntent,
+        nets: [{ name: 'MID', pins: 'R1.1' as any }],
+        hints: { labels: ['MID'] },
+      }, symsource, null);
+      expect(vLabelsBadPins.ok).toBe(false);
+      expect(vLabelsBadPins.findings.some((f) => f.detail.includes('hints.labels: "MID" names no declared net'))).toBe(true);
+
+      const vLabelsNullPins = await validateIntent({
+        ...baseIntent,
+        nets: [{ name: 'MID', pins: null as any }],
+        hints: { labels: ['MID'] },
+      }, symsource, null);
+      expect(vLabelsNullPins.ok).toBe(false);
+      expect(vLabelsNullPins.findings.some((f) => f.detail.includes('hints.labels: "MID" names no declared net'))).toBe(true);
 
       // semantic near validations: unknown ref
       const v8 = await validateIntent({ ...baseIntent, hints: { near: [{ ref: 'R99', pin: 'R2.1' }] } }, symsource, null);
@@ -252,6 +269,51 @@ describe('Schematic intent hints (Issue #482)', () => {
     }
   });
 
+  it('hints.near returns finding when part leads do not oppose', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-hints-val-'));
+    try {
+      const symContent = `(kicad_symbol_lib
+\t(version 20231120)
+\t(generator "copperhead-test")
+\t(symbol "NonOpposing"
+\t\t(property "Reference" "U" (at 0 0 0) (effects (font (size 1.27 1.27))))
+\t\t(property "Value" "NonOpposing" (at 0 0 0) (effects (font (size 1.27 1.27))))
+\t\t(symbol "NonOpposing_0_1"
+\t\t\t(pin passive line (at 0 2.54 270) (length 2.54)
+\t\t\t\t(name "A" (effects (font (size 1.27 1.27))))
+\t\t\t\t(number "1" (effects (font (size 1.27 1.27))))
+\t\t\t)
+\t\t\t(pin passive line (at 2.54 0 180) (length 2.54)
+\t\t\t\t(name "B" (effects (font (size 1.27 1.27))))
+\t\t\t\t(number "2" (effects (font (size 1.27 1.27))))
+\t\t\t)
+\t\t)
+\t)
+)`;
+      await writeFile(path.join(repo, 'Custom.kicad_sym'), symContent);
+      const symsource = new SymbolSource(repo, [repo, SYMLIB]);
+      const intent: SchematicIntent = {
+        version: 1,
+        parts: [
+          { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' },
+          { ref: 'D1', libId: 'Custom:NonOpposing', value: 'D', group: 'MAIN' },
+        ],
+        nets: [
+          { name: 'SIG', pins: ['U1.4', 'D1.1'] },
+        ],
+        noConnect: ['U1.1', 'U1.2', 'U1.3', 'U1.5', 'U1.6', 'U1.7', 'U1.8', 'D1.2'],
+        hints: {
+          near: [{ ref: 'D1', pin: 'U1.4' }],
+        },
+      };
+      const v = await validateIntent(intent, symsource, null);
+      expect(v.ok).toBe(false);
+      expect(v.findings.some((f) => f.detail.includes('leads do not oppose; cannot be hung near a pin'))).toBe(true);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  });
+
   it('hints: {} produces the same sheet as absent hints', async () => {
     const baseIntent: SchematicIntent = {
       version: 1,
@@ -339,33 +401,43 @@ describe('Schematic intent hints (Issue #482)', () => {
   });
 
   it('hints.labels forces label pair on op-amp feedback net', async () => {
-    const opampDir = path.join(HERE, 'fixtures', 'draft-opamp', 'p15-voltage-follower');
-    const raw = await readFile(path.join(opampDir, 'schematic.intent.json'), 'utf8');
-    const intent: SchematicIntent = JSON.parse(raw);
-    intent.hints = {
-      ...intent.hints,
-      labels: ['EO'],
+    const baseIntent: SchematicIntent = {
+      version: 1,
+      parts: [
+        { ref: 'U1', libId: 'CopperAmp:OpAmp', value: 'OpAmp', group: 'AMP' },
+        { ref: 'R1', libId: 'Device:R', value: '10k', group: 'AMP' },
+        { ref: 'R2', libId: 'Device:R', value: '10k', group: 'AMP' },
+        { ref: 'R3', libId: 'Device:R', value: '10k', group: 'AMP' },
+        { ref: 'C1', libId: 'Device:C', value: '100n', group: 'AMP' },
+      ],
+      nets: [
+        { name: 'VCC', pins: ['U1.8', 'C1.1'], kind: 'power' },
+        { name: 'GND', pins: ['U1.4', 'R2.2', 'C1.2', 'R3.2'], kind: 'ground' },
+        { name: 'IN', pins: ['U1.3', 'R1.2'] },
+        { name: 'FB', pins: ['U1.1', 'U1.2', 'R2.1'] },
+        { name: 'SRC', pins: ['R1.1', 'R3.1'] },
+      ],
+      hints: {
+        labels: ['FB'],
+      },
     };
-    const res = await placeIntent(intent, [path.join(opampDir, 'sym-lib-cache')]);
+    const res = await placeIntent(baseIntent);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
 
-    // EO is the feedback net joining output U1.3 and inverting input U1.4
-    const eoWires = res.model.wires.filter((w) => w.net === 'EO');
-    // In forced labels mode, feedback loop wire is skipped, so wires do not connect U1.3 to U1.4
-    const meetsInLoop = eoWires.some((w1, i) =>
-      eoWires.some((w2, j) => i !== j && ((w1.x2 === w2.x2 && w1.y2 === w2.y2) || (w1.x1 === w2.x1 && w1.y1 === w2.y1)))
-    );
-    expect(meetsInLoop, 'feedback net must not be wired across output and inverting input').toBe(false);
-
-    // EO must carry global labels
-    const eoLabels = res.model.labels.filter((l) => l.name === 'EO');
-    expect(eoLabels.length).toBeGreaterThanOrEqual(2);
+    const fbWires = res.model.wires.filter((w) => w.net === 'FB');
+    const totalFbWireLength = fbWires.reduce((s, w) => s + Math.hypot(w.x2 - w.x1, w.y2 - w.y1), 0);
+    const fbLabels = res.model.labels.filter((l) => l.name === 'FB');
+    // Without forced labels, the feedback loop is routed as a 40.64 mm loop with 2 labels.
+    // With forced labels, feedback loop wire is skipped: total wire length is 7.62 mm with 3 labels.
+    expect(totalFbWireLength).toBeLessThan(20);
+    expect(totalFbWireLength).toBeCloseTo(7.62, 1);
+    expect(fbLabels.length).toBe(3);
+    expect(fbLabels.length).toBeGreaterThanOrEqual(2);
   });
 
   it('near places the part on the anchor pin\'s row, shortens the wire, and removes the bend', async () => {
-    // Design with MCU U1 and shunt cap C1 on pin 3 (input pin on left side of U1)
-    // plus other parts so that without near, C1 is placed in a separate column
+    // Design with MCU U1 and shunt cap C1 on pin 4 (right side of U1 with no netted neighbours)
     const baseIntent: SchematicIntent = {
       version: 1,
       parts: [
@@ -377,10 +449,10 @@ describe('Schematic intent hints (Issue #482)', () => {
       nets: [
         { name: 'VCC', pins: ['U1.1', 'R1.1'] },
         { name: 'GND', pins: ['U1.2', 'R2.2'] },
-        { name: 'IN_NET', pins: ['U1.3', 'C1.1'] },
+        { name: 'IN_NET', pins: ['U1.4', 'C1.1'] },
         { name: 'OUT_NET', pins: ['C1.2', 'R1.2', 'R2.1'] },
       ],
-      noConnect: ['U1.4', 'U1.5', 'U1.6', 'U1.7', 'U1.8'],
+      noConnect: ['U1.3', 'U1.5', 'U1.6', 'U1.7', 'U1.8'],
     };
 
     const unhinted = await placeIntent(baseIntent);
@@ -390,7 +462,7 @@ describe('Schematic intent hints (Issue #482)', () => {
     const hinted = await placeIntent({
       ...baseIntent,
       hints: {
-        near: [{ ref: 'C1', pin: 'U1.3' }],
+        near: [{ ref: 'C1', pin: 'U1.4' }],
       },
     });
     expect(hinted.ok).toBe(true);
@@ -402,8 +474,7 @@ describe('Schematic intent hints (Issue #482)', () => {
     const u1Hinted = hinted.model.symbols.find((s) => s.ref === 'U1')!;
     const c1Hinted = hinted.model.symbols.find((s) => s.ref === 'C1')!;
 
-    // Pin 3 is on U1's left side.
-    // In hinted draft, C1 is placed on U1.3's row: its X position matches U1.3's stub axis (left of U1 body)
+    // Pin 4 is on U1's right side.
     const wiresHinted = hinted.model.wires.filter((w) => w.net === 'IN_NET');
     const wiresUnhinted = unhinted.model.wires.filter((w) => w.net === 'IN_NET');
 
@@ -412,15 +483,30 @@ describe('Schematic intent hints (Issue #482)', () => {
     const lengthUnhinted = wiresUnhinted.reduce((s, w) => s + Math.hypot(w.x2 - w.x1, w.y2 - w.y1), 0);
     expect(lengthHinted, 'near hint should shorten the wire').toBeLessThanOrEqual(lengthUnhinted);
 
-    // Assert C1 sits on U1.3's stub side and near-lead y matches U1.3's row
-    expect(c1Hinted.at.x).toBeLessThan(u1Hinted.at.x);
-    // Wire between U1.3 and C1.1 has NO bend (horizontal stub + straight vertical drop or straight line)
+    // Assert C1 sits on U1.4's stub side (right side)
+    expect(c1Hinted.at.x).toBeGreaterThan(u1Hinted.at.x);
+    // Wire between U1.4 and C1.1 has vertical drop
     const vertWires = wiresHinted.filter((w) => Math.abs(w.x1 - w.x2) < 0.01);
     expect(vertWires.length).toBeGreaterThan(0);
     const xCoord = vertWires[0]!.x1;
     for (const vw of vertWires) {
       expect(vw.x1).toBeCloseTo(xCoord, 2);
     }
+
+    // Assert no wire on the hinted sheet crosses C1's pin-1 lead except at its ends
+    const c1Pin1Y = c1Hinted.at.y - 3.81;
+    const c1BodyY = c1Hinted.at.y - 1.27;
+    const leadMinY = Math.min(c1Pin1Y, c1BodyY);
+    const leadMaxY = Math.max(c1Pin1Y, c1BodyY);
+    const crossingWires = hinted.model.wires.filter((w) => {
+      if (Math.abs(w.y1 - w.y2) < 0.01) {
+        const wireMinX = Math.min(w.x1, w.x2);
+        const wireMaxX = Math.max(w.x1, w.x2);
+        return wireMinX < c1Hinted.at.x && c1Hinted.at.x < wireMaxX && w.y1 > leadMinY && w.y1 < leadMaxY;
+      }
+      return false;
+    });
+    expect(crossingWires.length, 'no wire should cross C1 pin-1 lead').toBe(0);
   });
 
   it('near hint with neighbouring side pins falls back to a lane without refusal', async () => {
@@ -451,10 +537,13 @@ describe('Schematic intent hints (Issue #482)', () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
 
-    // Assert no hang refused note
+    // Assert no hang refused note and no drawn in a column note
     expect(res.report.notes.some((n) => n.includes('hang refused') || n.includes('could not be honoured'))).toBe(false);
+    expect(res.report.notes.some((n) => n.includes('drawn in a column'))).toBe(false);
+    const u1 = res.model.symbols.find((s) => s.ref === 'U1')!;
     const c1 = res.model.symbols.find((s) => s.ref === 'C1');
     expect(c1).toBeDefined();
+    expect(c1!.at.x).toBeGreaterThan(u1.at.x);
   });
 
   it('near loop rail (dir = -1) and ground (dir = 1) branches', async () => {
@@ -477,6 +566,11 @@ describe('Schematic intent hints (Issue #482)', () => {
     };
     const resRail = await placeIntent(intentRail);
     expect(resRail.ok).toBe(true);
+    if (!resRail.ok) return;
+    const r1 = resRail.model.symbols.find((s) => s.ref === 'R1')!;
+    const u1Rail = resRail.model.symbols.find((s) => s.ref === 'U1')!;
+    // dir = -1 (rail pull-up): rises above the pin row (smaller Y)
+    expect(r1.at.y).toBeLessThan(u1Rail.at.y);
 
     const intentGround: SchematicIntent = {
       version: 1,
@@ -497,27 +591,40 @@ describe('Schematic intent hints (Issue #482)', () => {
     };
     const resGround = await placeIntent(intentGround);
     expect(resGround.ok).toBe(true);
+    if (!resGround.ok) return;
+    const c1 = resGround.model.symbols.find((s) => s.ref === 'C1')!;
+    const u1Gnd = resGround.model.symbols.find((s) => s.ref === 'U1')!;
+    // dir = 1 (ground drop): drops below the pin row (larger Y)
+    expect(c1.at.y).toBeGreaterThan(u1Gnd.at.y);
   });
 
   it('near hint on non-IC anchor pulls anchor into claimAnchors', async () => {
+    // Crystal Y1 has 2 pins (not an IC), is not a connector, not a switch, not a transistor.
+    // It is pulled into claimAnchors specifically through nearHintsForGroup.
     const intent: SchematicIntent = {
       version: 1,
       parts: [
-        { ref: 'SW1', libId: 'Device:SW_Push', value: 'Button', group: 'MAIN' },
+        { ref: 'Y1', libId: 'Device:Crystal', value: '16MHz', group: 'MAIN' },
         { ref: 'R1', libId: 'Device:R', value: '10k', group: 'MAIN' },
         { ref: 'R2', libId: 'Device:R', value: '10k', group: 'MAIN' },
       ],
       nets: [
-        { name: 'NET1', pins: ['SW1.1', 'R1.1', 'R2.1'] },
-        { name: 'NET2', pins: ['SW1.2', 'R2.2'] },
+        { name: 'NET1', pins: ['Y1.1', 'R1.1', 'R2.1'] },
+        { name: 'NET2', pins: ['Y1.2', 'R2.2'] },
       ],
       noConnect: ['R1.2'],
       hints: {
-        near: [{ ref: 'R1', pin: 'SW1.1' }],
+        near: [{ ref: 'R1', pin: 'Y1.1' }],
       },
     };
     const res = await placeIntent(intent);
     expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const y1 = res.model.symbols.find((s) => s.ref === 'Y1')!;
+    const r1 = res.model.symbols.find((s) => s.ref === 'R1')!;
+    expect(r1).toBeDefined();
+    expect(y1).toBeDefined();
+    expect(r1.at.x).toBeLessThan(y1.at.x);
   });
 
   it('nearRefs exempts capacitor from decoupling bank', async () => {
@@ -543,8 +650,13 @@ describe('Schematic intent hints (Issue #482)', () => {
         ['U1', await symsource.resolve('CopperMCU:MCU8')],
         ['C1', await symsource.resolve('Device:C')],
       ]);
-      const res = draftSchematicPlacement({ intent, symbols: syms, manifest: null, warnings: [] }, 'board', '2020-01-01');
-      expect(res.model.symbols.some((s) => s.ref === 'C1')).toBe(true);
+      const resWithHint = draftSchematicPlacement({ intent, symbols: syms, manifest: null, warnings: [] }, 'board', '2020-01-01');
+      const resWithoutHint = draftSchematicPlacement({ intent: { ...intent, hints: {} }, symbols: syms, manifest: null, warnings: [] }, 'board', '2020-01-01');
+      const c1With = resWithHint.model.symbols.find((s) => s.ref === 'C1')!;
+      const c1Without = resWithoutHint.model.symbols.find((s) => s.ref === 'C1')!;
+      expect(c1With).toBeDefined();
+      expect(c1Without).toBeDefined();
+      expect(c1With.at).not.toEqual(c1Without.at);
     } finally {
       await rm(repo, { recursive: true, force: true });
     }
