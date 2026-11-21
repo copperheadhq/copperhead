@@ -8,7 +8,7 @@ The CLI surface lists `copperhead explain <refdes|net|pin>` as a stretch command
 
 - **New command: `copperhead explain <query>`**, LLM-free and network-free:
   - A refdes (`U1`) prints value, footprint, library id, sheet, and every pin with its net.
-  - A net (`GND`, `KEY_DAH`) prints the attached pins.
+  - A net (`GND`, `KEY_DAH`) prints the attached pins. Exact spelling wins over a case-insensitive match; ambiguous case variants ask for an exact name, and pins on distinct nets are never merged.
   - A pin (`U1.GPIO14` or `R2.1`) prints the connected net. A pin name that belongs to exactly one part (`GPIO14`) resolves without a refdes.
   - Matching rows from `BOM.md` / `PINOUT.md` and other doc mentions are included when those files exist.
   - Unknown queries exit 1 and suggest nearby refdes and net names.
