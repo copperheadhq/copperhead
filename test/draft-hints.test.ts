@@ -624,7 +624,73 @@ describe('Schematic intent hints (Issue #482)', () => {
     const r1 = res.model.symbols.find((s) => s.ref === 'R1')!;
     expect(r1).toBeDefined();
     expect(y1).toBeDefined();
-    expect(r1.at.x).toBeLessThan(y1.at.x);
+    expect(r1.at.x).toBeCloseTo(y1.at.x - 6.35, 2);
+  });
+
+  it('near hint whose anchor part is itself hung records a note', async () => {
+    const intent: SchematicIntent = {
+      version: 1,
+      parts: [
+        { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' },
+        { ref: 'SW1', libId: 'Device:SW_Push', value: 'SW_Push', group: 'MAIN' },
+        { ref: 'C1', libId: 'Device:C', value: '100n', group: 'MAIN' },
+        { ref: 'R1', libId: 'Device:R', value: '10k', group: 'MAIN' },
+      ],
+      nets: [
+        { name: 'VCC', pins: ['U1.1', 'R1.1'], kind: 'power' },
+        { name: 'GND', pins: ['U1.2', 'SW1.2', 'C1.2'], kind: 'ground' },
+        { name: 'BTN', pins: ['U1.4', 'SW1.1', 'C1.1', 'R1.2'] },
+      ],
+      noConnect: ['U1.3', 'U1.5', 'U1.6', 'U1.7', 'U1.8'],
+      hints: {
+        near: [{ ref: 'C1', pin: 'SW1.1' }],
+      },
+    };
+    const res = await placeIntent(intent);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(
+      res.report.notes.some((n) => n.includes('near hint C1') && n.includes('could not be honoured')),
+    ).toBe(true);
+  });
+
+  it('near hint avoids crossing neighbouring rail stubs', async () => {
+    const intent: SchematicIntent = {
+      version: 1,
+      parts: [
+        { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'MAIN' },
+        { ref: 'R1', libId: 'Device:R', value: '10k', group: 'MAIN' },
+        { ref: 'R2', libId: 'Device:R', value: '10k', group: 'MAIN' },
+        { ref: 'C1', libId: 'Device:C', value: '100n', group: 'MAIN' },
+      ],
+      nets: [
+        { name: 'VCC', pins: ['U1.1', 'R1.1'] },
+        { name: 'GND', pins: ['U1.2', 'R2.2'] },
+        { name: 'IN_NET', pins: ['U1.3', 'C1.1'] },
+        { name: 'OUT_NET', pins: ['C1.2', 'R1.2', 'R2.1'] },
+      ],
+      noConnect: ['U1.4', 'U1.5', 'U1.6', 'U1.7', 'U1.8'],
+      hints: {
+        near: [{ ref: 'C1', pin: 'U1.3' }],
+      },
+    };
+    const res = await placeIntent(intent);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const c1 = res.model.symbols.find((s) => s.ref === 'C1')!;
+    expect(c1).toBeDefined();
+    const minY = Math.min(c1.at.y - 3.81, c1.at.y + 3.81);
+    const maxY = Math.max(c1.at.y - 3.81, c1.at.y + 3.81);
+    const crossingWires = res.model.wires.filter((w) => {
+      if (w.net === 'IN_NET' || w.net === 'OUT_NET') return false;
+      if (Math.abs(w.y1 - w.y2) < 0.01) {
+        const minX = Math.min(w.x1, w.x2);
+        const maxX = Math.max(w.x1, w.x2);
+        return minX < c1.at.x && c1.at.x < maxX && w.y1 > minY && w.y1 < maxY;
+      }
+      return false;
+    });
+    expect(crossingWires.length).toBe(0);
   });
 
   it('nearRefs exempts capacitor from decoupling bank', async () => {

@@ -786,18 +786,6 @@ function outward(pin: DraftPin): { dx: number; dy: number } {
   return { dx: 0, dy: -1 };
 }
 
-/**
- * Supply-name shapes for the last-resort classification below. Deliberately
- * narrow, and narrow in ONE direction: a rail misread as a signal draws labels
- * (exactly what the engine did before the fallback existed), while a signal
- * misread as a rail draws a power symbol and makes the sheet assert a supply
- * the design does not have. So an underscore may join a VOLTAGE suffix
- * (VDD_3V3, VCC_1V8) and nothing else — VBUS_DET, VCC_SENSE and VDD_MON are
- * measurement nodes on real boards and stay signals. Anything the shapes miss
- * is still correctable with an IR `kind` declaration, which outranks all of
- * this, and the report names the basis so a miss is visible.
- */
-
 function classifyNet(
   net: IntentNet,
   pinsOf: (ep: string) => DraftPin | null,
@@ -3435,6 +3423,11 @@ function draftOnce(
         const icPl = placed.get(hg.ic);
         if (!icPl) {
           leftovers.push(...hg.chain);
+          if (hg.fromHint) {
+            const note = `near hint ${hg.chain.map((k) => instByKey.get(k)!.ref).join(', ')} -> ${instByKey.get(hg.ic)!.ref}.${hg.pin.number} could not be honoured: its anchor part is itself hung and not placed yet in "${gname}"; drawn in a column instead`;
+            trace(note);
+            if (!notes.includes(note)) notes.push(note);
+          }
           continue;
         }
         // a node anchor is a hung part, placed turned: read its pin as drawn
