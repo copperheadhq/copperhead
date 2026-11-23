@@ -39,7 +39,6 @@ import { bomSymbolDossier } from '../kicad/dossier.js';
 import { SymbolResolver } from '../kicad/symlib.js';
 import { readManifest } from '../kicad/parts/resolve.js';
 import { libraryCache } from '../kicad/cache.js';
-import { symbolSearchDirs } from '../kicad/symlib.js';
 import { draftQualitySection, isDraftQualityHeading, isFilledDraftQuality } from '../kicad/fab.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';

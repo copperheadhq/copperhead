@@ -86,3 +86,23 @@ Symbol resolution SHALL consult the project `sym-lib-table` beside the schematic
 
 - **WHEN** a draft uses one symbol from a project-only library, and a later draft uses another symbol from it
 - **THEN** the user's row still points at the library after the first draft, and the second draft resolves
+
+#### Scenario: Discovery tools resolve a project library under its table nickname
+
+- **WHEN** a symbol library is named only in the project `sym-lib-table` under a nickname that differs from its filename
+- **THEN** `search_symbols`, `symbol_pins`, the stage-4 pin dossier, and recovery diagnosis probes resolve its symbols under that nickname
+
+#### Scenario: A vendored cache row does not hide a stock library
+
+- **WHEN** a project `sym-lib-table` contains a row pointing into `sym-lib-cache/` under a stock nickname
+- **THEN** the cache row is skipped and stock symbols under that nickname remain reachable
+
+#### Scenario: A global library is usable once discovered
+
+- **WHEN** a symbol library is named in the user's global `sym-lib-table`
+- **THEN** `search_symbols` and `symbol_pins` discover its symbols and `SymbolSource.resolve` drafts them with matching pins
+
+#### Scenario: A miss with no stock library is unverified rather than absent
+
+- **WHEN** no stock KiCad symbol library directory is found on the machine and a part is not in any project or global library
+- **THEN** tool output and dossiers report availability as unverified instead of declaring the part absent or not capturable

@@ -26,6 +26,7 @@ import {
   searchInstalledSymbols,
   listInstalledLibraries,
   comparePinNumbers,
+  SymbolResolver,
   type LibPin,
 } from './symlib.js';
 
@@ -95,6 +96,7 @@ export async function bomSymbolDossier(
   try {
     const map = libs instanceof Map ? libs : await listInstalledLibraries(libs);
     if (!map.size) return '';
+    const stockFound = map instanceof SymbolResolver ? map.stockFound : true;
     // Group refdes by primary query so a part used five times renders once.
     // The MPN is the stronger name when present; the stage-3 scaffold's
     // UNVERIFIED flag word is not part of it. The Value is kept as a fallback
@@ -159,11 +161,15 @@ export async function bomSymbolDossier(
         }
         const top = hits[0];
         if (!top) {
-          line = `- ${who}: NO INSTALLED SYMBOL matches — not capturable as named; substitute a part whose symbol exists (search_symbols to find one)`;
+          line = !stockFound
+            ? `- ${who}: availability is unverified (stock KiCad symbol libraries were not found on this machine; confirm with symbol_pins)`
+            : `- ${who}: NO INSTALLED SYMBOL matches — not capturable as named; substitute a part whose symbol exists (search_symbols to find one)`;
         } else {
           const r = await resolveLibrarySymbol(top, map);
           if (r.status !== 'ok' && exact) {
-            line = `- ${who}: ${exact} does NOT resolve on this machine — the manifest's lib_id is stale (a library changed since draft_bom ran); confirm with symbol_pins`;
+            line = !stockFound
+              ? `- ${who}: availability is unverified (stock KiCad symbol libraries were not found on this machine; confirm with symbol_pins)`
+              : `- ${who}: ${exact} does NOT resolve on this machine — the manifest's lib_id is stale (a library changed since draft_bom ran); confirm with symbol_pins`;
           } else if (r.status !== 'ok') {
             // A hit that fails to re-resolve is a library race or parse quirk;
             // report the candidates without claiming pins we could not read.

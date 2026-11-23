@@ -14,7 +14,7 @@ import { MANIFEST_FILENAME } from '../kicad/parts/manifest.js';
 import { formatManifestFindings } from '../kicad/parts/validate.js';
 import { manifestDrift } from '../kicad/parts/render.js';
 import { moveFootprint } from '../kicad/populate.js';
-import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers, SymbolResolver } from '../kicad/symlib.js';
+import { verifySchematicSymbols, searchInstalledSymbols, resolveLibrarySymbol, comparePinNumbers, SymbolResolver } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists, loadConstraints } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -454,6 +454,9 @@ export const HANDLERS: HandlerDef[] = [
       const hits = await searchInstalledSymbols(query, resolver);
       if (!hits.length) {
         const searched = resolver.searched.join(', ') || 'no symbol libraries found';
+        if (!resolver.stockFound) {
+          return `no project or global library matches "${query}" (searched: ${searched}); stock KiCad symbol libraries were not found on this machine, so this does not rule the part out.`;
+        }
         return `no installed symbol matches "${query}" (searched: ${searched}). A project-local library plus a sym-lib-table row is an option; otherwise the part is not capturable on this machine as named — choose a part whose symbol exists, or a same-family variant that does.`;
       }
       return `installed symbols matching "${query}":\n${hits.map((h) => `  - ${h}`).join('\n')}`;
@@ -537,6 +540,9 @@ export const HANDLERS: HandlerDef[] = [
         return `"${libId}" does not resolve, but the symbol is installed as: ${r.libIds.join(', ')} — use one of these lib_ids (and call symbol_pins on it for the pin table).`;
       }
       const elsewhere = await searchInstalledSymbols(name, resolver, 6);
+      if (!resolver.stockFound && !elsewhere.length) {
+        return `cannot verify "${libId}": stock KiCad symbol libraries were not found on this machine, and no project or global library matches "${name}". Install the KiCad symbol libraries (or set KICAD_SYMBOL_DIR), or choose a part you can verify another way.`;
+      }
       const where = elsewhere.length
         ? `\ninstalled as: ${elsewhere.join(', ')}`
         : `\nno installed symbol matches "${name}" in any library — the part is not capturable as named.`;

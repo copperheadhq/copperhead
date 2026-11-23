@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Msg, Provider } from './types.js';
-import { resolveLibrarySymbol, searchInstalledSymbols, symbolSearchDirs, listInstalledLibraries, SymbolResolver } from '../kicad/symlib.js';
+import { resolveLibrarySymbol, searchInstalledSymbols, SymbolResolver } from '../kicad/symlib.js';
 
 /**
  * How many times a hung provider turn is retried before the run gives up. One
@@ -260,6 +260,9 @@ export async function symbolAvailabilityFacts(
         lines.push(`- ${libId}: not at that lib_id, but installed as: ${r.libIds.slice(0, 4).join(', ')}`);
       } else {
         const elsewhere = await searchInstalledSymbols(name, resolver, 4);
+        if (resolver instanceof SymbolResolver && !resolver.stockFound && !elsewhere.length) {
+          continue;
+        }
         const inThat =
           r.status === 'no-symbol' && r.candidates.length
             ? ` (closest in that library: ${r.candidates.slice(0, 4).join(', ')})`

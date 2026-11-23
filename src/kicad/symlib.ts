@@ -170,10 +170,12 @@ export interface SymbolResolverOptions {
  */
 export class SymbolResolver extends Map<string, string> {
   public readonly searched: string[];
+  public readonly stockFound: boolean;
 
-  constructor(entries?: Iterable<readonly [string, string]>, searched: string[] = []) {
+  constructor(entries?: Iterable<readonly [string, string]>, searched: string[] = [], stockFound: boolean = true) {
     super(entries);
     this.searched = searched;
+    this.stockFound = stockFound;
   }
 
   static async create(opts: SymbolResolverOptions = {}): Promise<SymbolResolver> {
@@ -202,10 +204,9 @@ export class SymbolResolver extends Map<string, string> {
         platform,
       });
       searched.push(...projSearched);
-      const cacheDir = path.resolve(opts.projectDir, 'sym-lib-cache');
       for (const [name, row] of projRows) {
         const absUri = path.resolve(row.uri);
-        const inCache = absUri.startsWith(cacheDir + path.sep) || /[/\\]sym-lib-cache[/\\]/.test(absUri);
+        const inCache = path.basename(path.dirname(absUri)) === 'sym-lib-cache';
         if (!inCache && existsSync(absUri)) {
           libs.set(name, absUri);
         }
@@ -233,6 +234,7 @@ export class SymbolResolver extends Map<string, string> {
     }
 
     // 3. then stock symbolSearchDirs() as fallback
+    let stockFound = false;
     for (const dir of stock) {
       let entries: string[];
       try {
@@ -242,6 +244,7 @@ export class SymbolResolver extends Map<string, string> {
       }
       for (const e of entries) {
         if (!e.endsWith('.kicad_sym')) continue;
+        stockFound = true;
         const name = e.slice(0, -'.kicad_sym'.length);
         if (!libs.has(name)) {
           libs.set(name, path.join(dir, e));
@@ -252,7 +255,7 @@ export class SymbolResolver extends Map<string, string> {
       searched.push(`stock symbols (${stock.length} dir${stock.length > 1 ? 's' : ''})`);
     }
 
-    return new SymbolResolver(libs.entries(), searched);
+    return new SymbolResolver(libs.entries(), searched, stockFound);
   }
 }
 
