@@ -75,7 +75,10 @@ program
   .argument('[request...]', 'optional first change request before the prompt loop')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code (or a provider-specific model id)')
   .option('--max-turns <n>', 'turn budget per request')
-  .option('--allow-dirty', 'let turns run on a dirty working tree')
+  .option(
+    '--allow-dirty',
+    'allow unrelated uncommitted files; design inputs (schematic, board, docs, config) must be committed',
+  )
   .option('--interactive', 'pause for approval after each proposal validates')
   .action(
     async (
@@ -305,7 +308,10 @@ program
   .argument('<request>', 'the change request in natural language')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
   .option('--max-turns <n>', 'turn budget for this run')
-  .option('--allow-dirty', 'allow a dirty tree (snapshot via git stash create)')
+  .option(
+    '--allow-dirty',
+    'allow unrelated uncommitted files; design inputs (schematic, board, docs, config) must be committed',
+  )
   .option('--dry-run', 'propose the diff, write nothing')
   .option('--interactive', 'pause for approval after the proposal validates')
   .action(

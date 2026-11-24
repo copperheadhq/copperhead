@@ -50,7 +50,7 @@ copperhead repl --model claude-code
 | --- | --- |
 | `--model <model>` | Model / provider selection (same as `do`). When no model is configured anywhere (flag, `COPPERHEAD_MODEL`, config, `.env` API keys), the shell offers an interactive picker instead of refusing to start. |
 | `--max-turns <n>` | Turn budget per request. |
-| `--allow-dirty` | Permit a dirty working tree, same meaning and same default (off) as on `do`. |
+| `--allow-dirty` | Allow unrelated uncommitted files; design inputs (schematic, board, docs, config) must be committed. Default: off. |
 | `--interactive` | Pause for approval after each proposal validates. |
 
 Slash commands inside the shell: `/help`, `/demo`, `/examples`, `/status`, `/check`, `/parts`, `/nets`, `/explain`, `/bom`, `/sync`, `/drift`, `/constraints`, `/openspec`, `/config`, `/git`, `/runs`, `/last`, `/model`, `/version`, `/clear`, `/quit` (`/exit`, `/q`). Type `/` to see live filtered suggestions immediately; ↑/↓ + Enter picks one, Tab completes. `/model` opens an arrow-key picker and switches the session model in place. Requires a TTY (or a seed request for a one-shot non-TTY run). `--json` is refused; use `copperhead do … --json` instead.
@@ -100,7 +100,7 @@ copperhead do "<change request>" [options]
 | --- | --- |
 | `--model <model>` | `codex`, `cursor`, `gpt-5`, `claude`, `claude-code`, or a provider-specific model id. Saved-login providers: `codex` (Codex CLI), `cursor` (Cursor Agent CLI), `claude-code` (Claude Code). |
 | `--max-turns <n>` | Turn budget for this run. Overrides `maxTurns` from config. |
-| `--allow-dirty` | Permit a dirty working tree. The snapshot keeps tracked changes as a `git stash create` object and untracked files as a tree object, so a rollback restores both. |
+| `--allow-dirty` | Allow unrelated uncommitted files; design inputs (schematic, board, docs, config) must be committed. The snapshot keeps allowed tracked changes as a `git stash create` object and untracked files as a tree object, so a rollback restores both. |
 | `--dry-run` | Propose the diff and write nothing. |
 | `--interactive` | Pause for approval once the proposal validates. |
 
