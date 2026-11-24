@@ -16,6 +16,7 @@ const HINT: Record<string, ViewHint> = {
   edit_file: 'mutation',
   write_file: 'mutation',
   move_footprint: 'mutation',
+  fill_zones: 'mutation',
   run_erc: 'diagnostic',
   search_symbols: 'query',
   symbol_pins: 'query',

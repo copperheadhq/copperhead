@@ -4,7 +4,7 @@
 
 ### Requirement: `check` reports stale and missing pour fills
 
-`check` SHALL stay read-only for zone fills: it SHALL never write the board. When its DRC fails and zone refill is available, it SHALL refresh a scratch copy and, when the copy's DRC has fewer violations, report that the pour fills are stale and how many findings they account for. It SHALL report every copper zone that has no fill data, which needs no kicad-cli run. These findings SHALL NOT change `check`'s exit code, which DRC and the other checks already decide, and `check --json` SHALL carry them in a `fills` object on its `drc` result. A board with no copper zones SHALL cost no extra kicad-cli run.
+`check` SHALL stay read-only for zone fills: it SHALL never write the board. When its DRC fails and zone refill is available, it SHALL refresh a scratch copy and, when the copy's DRC has fewer violations, report that the pour fills are stale and how many findings they account for. It SHALL report every copper zone that has no fill data, which needs no kicad-cli run. These findings SHALL NOT change `check`'s exit code, which DRC and the other checks already decide, and `check --json` SHALL carry them in a `fills` object on its `drc` result (`stale`, `staleAccountsFor`, `staleZones`, `unfilled`, and `notChecked` when stale fills could not be checked). A board with no copper zones SHALL cost no extra kicad-cli run.
 
 #### Scenario: A stale fill is named, the board untouched (AC-22.16)
 

@@ -80,6 +80,15 @@ export function listZones(text: string): ZoneInfo[] {
   return out;
 }
 
+/** Whether `text` is a board with at least one zone KiCad fills; false for anything that is not a board. */
+export function hasPours(text: string): boolean {
+  try {
+    return listZones(text).some((z) => z.fillable);
+  } catch {
+    return false;
+  }
+}
+
 /** Fillable zones that hold no fill: a pour that was drawn but never filled. */
 export function unfilledZones(text: string): ZoneInfo[] {
   return listZones(text).filter((z) => z.fillable && !z.fills.length && !(z.fill && isFillYes(text, z.fill)));
@@ -442,6 +451,60 @@ async function inScratchProject<T>(boardPath: string, text: string, fn: (scratch
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * A key for the inputs a fill depends on: the board text and the project's
+ * rule files beside it. Two equal keys give equal fills, so a caller that
+ * found the fills current for one key need not refill again.
+ */
+export async function fillKey(boardPath: string, text: string): Promise<string> {
+  const hash = createHash('sha256').update(text);
+  const stem = path.basename(boardPath).replace(/\.kicad_pcb$/i, '');
+  for (const ext of PROJECT_RULE_FILES) {
+    const rules = await readFile(path.join(path.dirname(boardPath), stem + ext), 'utf8').catch(() => '');
+    hash.update(`\0${ext}\0${rules}`);
+  }
+  return hash.digest('hex');
+}
+
+/**
+ * KiCad's DRC of the board after it refills every zone with the project's
+ * rules, on a scratch copy (design D9: the unrouted count of a board whose
+ * pours are filled). Null when the board has no fillable zone, so its plain
+ * DRC already is that count. Throws ZoneRefillUnavailableError like a refresh.
+ */
+export async function refilledReport(boardPath: string, text: string): Promise<CheckReport | null> {
+  if (!listZones(text).some((z) => z.fillable)) return null;
+  if (!(await zoneRefillSupported())) throw new ZoneRefillUnavailableError();
+  return inScratchProject(boardPath, assignZoneIds(text), refillAndSave);
+}
+
+/** Findings a refill can change: library checks depend on the tables beside the board, which a scratch copy lacks. */
+const fillSensitive = (r: CheckReport): number => r.violations.filter((v) => !v.type.startsWith('lib_')).length;
+
+export interface StaleFills {
+  /** A refill clears some of the in-place DRC's findings. */
+  stale: boolean;
+  /** Labels of the zones a refill changes; empty when the fills are current. */
+  zones: string[];
+  /** How many of the in-place DRC's findings the refill clears. */
+  accountsFor: number;
+}
+
+/**
+ * The read-only meaning of stale fills (design D8), for `check` and for
+ * `run_drc` on a board it may not write: with the in-place DRC `inPlace`
+ * failing, the fills are stale when the same board with refreshed fills has
+ * fewer findings. A refill that changes coordinates but clears nothing (a
+ * board filled by another KiCad version) is not stale. Never writes the
+ * board; throws as refreshZoneFills does.
+ */
+export async function staleFills(boardPath: string, inPlace: CheckReport, text?: string): Promise<StaleFills> {
+  const fresh = await refreshZoneFills(boardPath, text);
+  const accountsFor =
+    fresh.zones.length && fresh.report ? Math.max(0, fillSensitive(inPlace) - fillSensitive(fresh.report)) : 0;
+  return { stale: accountsFor > 0, zones: fresh.zones, accountsFor };
 }
 
 export interface ZoneFillRefresh {

@@ -66,7 +66,7 @@ Alternative: the DRC comparison alone, which the first version of this design us
 
 ### D6: `run_drc` refills only a board the run has already edited
 
-`run_drc` refreshes when `ctx.editsUnlocked` and the board is in `ctx.filesTouched`. The board is then already in the rollback snapshot's scope and already owes a passing DRC, so writing fresh fills adds no new risk. The write updates the board and clears `ctx.lastDrc`, then DRC runs. It does not go through `markTouched`, which would call `ledger.onKicadEdit` and reopen drift and changelog after the agent had closed them: obligations that a fill change cannot affect. Alternatives: refill on every `run_drc` (writes during read-only runs and reports, PR #478's other flaw); refill only through `fill_zones` (the model must remember, and #469 asks for it to be automatic).
+`run_drc` refreshes when `ctx.editsUnlocked` and the board is in `ctx.filesTouched`. The board is then already in the rollback snapshot's scope and already owes a passing DRC, so writing fresh fills adds no new risk. The write updates the board and clears `ctx.lastDrc`, then DRC runs. It does not go through `markTouched`, which would call `ledger.onKicadEdit` and reopen drift and changelog after the agent had closed them: obligations that a fill change cannot affect. The run remembers a hash of the board text and its rule files whenever it writes fresh fills or finds them current (`ctx.fillsCurrent`), and `run_drc` skips the refill while that hash still matches: on the Jetson board a refresh costs about 50 s, and a repair loop calls `run_drc` repeatedly. Alternatives: refill on every `run_drc` (writes during read-only runs and reports, PR #478's other flaw); refill only through `fill_zones` (the model must remember, and #469 asks for it to be automatic).
 
 On a board the run has not touched, `run_drc` stays read-only. When its DRC fails, it refreshes in memory, and if the copy's DRC has fewer violations it says the fills are stale and points to `fill_zones`.
 
@@ -76,14 +76,14 @@ On a board the run has not touched, `run_drc` stays read-only. When its DRC fail
 
 ### D8: Two meanings of "stale", one per purpose
 
-- `check` and read-only `run_drc` call fills stale when DRC fails and the refreshed copy's DRC has fewer violations. That tolerates the small coordinate differences between KiCad versions' fillers on a board nobody changed.
+- `check` and read-only `run_drc` call fills stale when DRC fails and the refreshed copy's DRC has fewer violations, library findings aside (the scratch copy has no library tables beside it). That tolerates the small coordinate differences between KiCad versions' fillers on a board nobody changed.
 - `export_outputs` calls fills out of date when a refresh would change them at all, or a copper zone has none. Fab outputs must match the fill the running KiCad computes, and the committed board must match the fab outputs. The cost on a board filled by a different KiCad version is one `fill_zones` call.
 
 Alternative for export: `pcb export gerbers --check-zones`, which refills in memory for the plot. That ships copper the committed board does not hold, and a reviewer reading the board would not see it.
 
 ### D9: The unrouted baseline is counted on a refreshed copy
 
-`unroutedCount(boardText, boardPath)` places the starting text beside the project's rule files, refreshes, and counts KiCad's unconnected items on the refilled copy (the refresh's `report.unrouted`). When refill is unavailable or the refresh fails, it falls back to today's plain count. The `now === boardAtStart` shortcut in `unroutedGuard` stays: an unchanged board compares against itself.
+`startingUnrouted(boardPath, boardText)` places the starting text beside the project's rule files, refills it, and counts KiCad's unconnected items on the refilled copy. It needs only the refill's DRC, not a splice, so it skips the splice and its read-back. When refill is unavailable or fails, it falls back to today's plain count. An unchanged board still compares against itself, but its own count becomes the baseline only when it has no pours. With pours, a `run_drc` before the first edit counts the stored fills, and a later refill can change what they connect, so the baseline waits for the count on the refilled starting board.
 
 ### D10: Capability detection
 

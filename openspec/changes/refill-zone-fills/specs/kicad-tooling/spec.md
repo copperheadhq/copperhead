@@ -13,7 +13,7 @@ The system SHALL compute copper zone fills with KiCad's own zone filler on a scr
 
 #### Scenario: Fills honor the project's rules (AC-22.2)
 
-- **WHEN** the project's `.kicad_pro` sets a 1.0 mm default clearance and the refresh runs
+- **WHEN** the project's `.kicad_pro` sets a 0.8 mm default clearance and the refresh runs
 - **THEN** a plain DRC of the refreshed board in place, beside that project file, reports no clearance violation involving a zone
 
 #### Scenario: A hand-written zone is filled at its real thickness (AC-22.3)

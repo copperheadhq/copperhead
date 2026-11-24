@@ -4,7 +4,7 @@
 
 ### Requirement: `run_drc` fills the pours of a board the run edited
 
-When edits are unlocked and the configured board is already among the run's touched files, `run_drc` SHALL refresh the board's zone fills, write the result to the board when it differs, and then run DRC on the board in place. The write SHALL NOT reopen a sync obligation (drift, changelog, ERC) the run had already closed, since it changes only fill data on a board the run already edited; it SHALL invalidate the last DRC result. In every other case (edits locked, board not touched, or refill unavailable) `run_drc` SHALL NOT write the board; when its DRC fails there and the refreshed copy's DRC has fewer violations, the result SHALL say that the pour fills are stale and, when edits are unlocked, that `fill_zones` refreshes them. When the refresh fails, `run_drc` SHALL leave the board unwritten, report the refresh failure beside a plain DRC result, and the run's rollback rules apply unchanged.
+When edits are unlocked and the configured board is already among the run's touched files, `run_drc` SHALL refresh the board's zone fills, write the result to the board when it differs, and then run DRC on the board in place. The write SHALL NOT reopen a sync obligation (drift, changelog, ERC) the run had already closed, since it changes only fill data on a board the run already edited; it SHALL invalidate the last DRC result. It SHALL NOT refill again a board whose text and rule files are unchanged since its last refresh in the run. In every other case (edits locked, board not touched, or refill unavailable) `run_drc` SHALL NOT write the board; when its DRC fails there and the refreshed copy's DRC has fewer violations, the result SHALL say that the pour fills are stale, how many findings they cause and, when edits are unlocked, that `fill_zones` refreshes them; a failing board whose fills are current SHALL get no such note. When the refresh fails, `run_drc` SHALL leave the board unwritten, report the refresh failure beside a plain DRC result, and the run's rollback rules apply unchanged.
 
 #### Scenario: A move into a pour no longer fails on a stale fill (AC-22.8)
 
@@ -51,7 +51,7 @@ The starting unrouted count that `run_drc` compares against (AC-15.39) SHALL be 
 
 ### Requirement: Fab export refuses missing or out-of-date fills
 
-`export_outputs` SHALL refuse, writing no outputs, when a copper zone on the board has no fill data or when the stored fills differ from a refresh by the running kicad-cli, and SHALL name the zones and say that `fill_zones` (or `run_drc` after a board edit) refreshes them.
+`export_outputs` SHALL refuse, writing no outputs, when a copper zone on the board has no fill data or when the stored fills differ from a refresh by the running kicad-cli, and SHALL name the zones and say that `fill_zones` (or `run_drc` after a board edit) refreshes them. Without refill support it SHALL still refuse a zone with no fill data. Once the fills are current it SHALL export as before.
 
 #### Scenario: Gerbers never ship without the pour (AC-22.15)
 

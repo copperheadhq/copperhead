@@ -1,6 +1,6 @@
 ## 1. Fixtures
 
-- [x] 1.1 Add `test/fixtures/zones/`: a hand-written KiCad 8-format (`(version 20240108)`, two-space indent) board with GND, SIG and SIG2 nets, two through-hole connectors, an Edge.Cuts outline, and GND zones on F.Cu and B.Cu; a `zones.kicad_pro` that sets a 1.0 mm default clearance and ignores `lib_footprint_issues`/`lib_footprint_mismatch` (the footprints are inline). Variants: `unfilled` (outlines only, one zone without `filled_areas_thickness`, one without a uuid), `fresh` (filled by kicad-cli and spliced back by hand-checked text), `stale` (`fresh` with one connector moved into the pour). Verify with a test that plain DRC passes on `fresh` beside the project file and fails with a short or clearance on `stale`.
+- [x] 1.1 Add `test/fixtures/zones/`: a hand-written KiCad 8-format (`(version 20240108)`, two-space indent) board with GND, SIG and SIG2 nets, two through-hole connectors, an Edge.Cuts outline, and GND zones on F.Cu and B.Cu; a `zones.kicad_pro` that sets a 0.8 mm default clearance and ignores `lib_footprint_issues`/`lib_footprint_mismatch` (the footprints are inline). Variants: `unfilled` (outlines only, one zone without `filled_areas_thickness`, one without a uuid), `fresh` (filled by kicad-cli and spliced back by hand-checked text), `stale` (`fresh` with one connector moved into the pour). Verify with a test that plain DRC passes on `fresh` beside the project file and fails with a short or clearance on `stale`.
 
 ## 2. kicad-cli support
 
@@ -17,24 +17,24 @@
 
 ## 4. Agent tools
 
-- [ ] 4.1 `run_drc`: when unlocked and the board is touched, refresh, write if changed, clear `lastDrc` without `markTouched`, then DRC in place. Otherwise read-only, with a stale-fill note when DRC fails and the refreshed copy is better. A refresh failure is reported beside a plain DRC. Verify with handler tests on the fixtures: `stale` moved inside an unlocked touched run passes and keeps its header (AC-22.8); a pour added by `edit_file` is filled and its pads stop counting as unrouted (AC-22.9); locked and untouched runs leave the board's hash unchanged and name the stale fills (AC-22.10); after drift and changelog are closed, a refilling `run_drc` reopens neither (AC-22.11).
-- [ ] 4.2 Rollback: a loop test where `run_drc` refilled and the run then fails, ending with a board byte-identical to its start (AC-22.12).
-- [ ] 4.3 `fill_zones` tool (`requiresUnlock: true`, registry hint, `markTouched` on write, "already current" when unchanged, failure when unsupported). Verify: absent from the locked tool list; on `stale` in an untouched run it writes, the board is touched, and `finish` refuses until `run_drc` passes (AC-22.13).
-- [ ] 4.4 `unroutedCount(text, boardPath)` counts on a refreshed copy beside the project files, falling back to plain when unsupported or failing; `unroutedGuard` passes the board path. Verify: a starting board whose stored GND fill bridges a pad that a track now isolates gives no `unrouted_increase` after an unrelated edit (AC-22.14); the existing AC-15.39 tests still pass.
-- [ ] 4.5 `export_outputs` refuses, writing nothing, when a copper zone has no fill or a refresh would change the fills, naming the zones and `fill_zones`. Verify: `unfilled` refuses with an empty `outputs/` (AC-22.15), and `fresh` exports.
+- [x] 4.1 `run_drc`: when unlocked and the board is touched, refresh, write if changed, clear `lastDrc` without `markTouched`, then DRC in place; skip the refill while the board and rule files hash to the last refresh's (`ctx.fillsCurrent`). Otherwise read-only, with a stale-fill note when DRC fails and the refreshed copy is better. A refresh failure is reported beside a plain DRC. Verify with handler tests on the fixtures: `stale` moved inside an unlocked touched run passes and keeps its header (AC-22.8); a pour added by `edit_file` is filled and its pads stop counting as unrouted (AC-22.9); locked and untouched runs leave the board's hash unchanged and name the stale fills (AC-22.10); after drift and changelog are closed, a refilling `run_drc` reopens neither (AC-22.11); a second `run_drc` with no edit in between runs no refill (a recording kicad-cli wrapper).
+- [x] 4.2 Rollback: a loop test where `run_drc` refilled and the run then fails, ending with a board byte-identical to its start (AC-22.12).
+- [x] 4.3 `fill_zones` tool (`requiresUnlock: true`, registry hint, `markTouched` on write, "already current" when unchanged, failure when unsupported). Verify: absent from the locked tool list; on `stale` in an untouched run it writes, the board is touched, and `finish` refuses until `run_drc` passes (AC-22.13).
+- [x] 4.4 `startingUnrouted(boardPath, text)` (src/capabilities/fills.ts) counts on a refilled copy beside the project files, falling back to plain `unroutedCount` when unsupported or failing; `unroutedGuard` calls it with the board path. Verify: a starting board whose stored GND fill joins J2's pad through a ring of no-net track that a fresh fill keeps clear of gives no `unrouted_increase` after an unrelated move (AC-22.14); the existing AC-15.39 tests still pass.
+- [x] 4.5 `export_outputs` refuses, writing nothing, when a copper zone has no fill or a refresh would change the fills, naming the zones and `fill_zones`. Verify: `unfilled` refuses with an empty `outputs/` (AC-22.15), and `fresh` exports.
 
 ## 5. check
 
-- [ ] 5.1 `check`: unfilled copper zones reported from text; on a DRC failure, a refreshed scratch copy decides the stale-fill finding; `--json` gains `drc.fills` (`stale`, `staleAccountsFor`, `unfilled`); exit code unchanged; no extra kicad-cli run without copper zones. Verify: `stale` exits non-zero, prints the stale-fill finding, and the board's hash is unchanged (AC-22.16); `unfilled` lists the zone under `drc.fills.unfilled` with DRC's exit code (AC-22.17); the existing AC-2 tests pass.
+- [x] 5.1 `check`: unfilled copper zones reported from text; on a DRC failure, a refreshed scratch copy decides the stale-fill finding; `--json` gains `drc.fills` (`stale`, `staleAccountsFor`, `staleZones`, `unfilled`, `notChecked`); exit code unchanged; no extra kicad-cli run without copper zones. Verify: `stale` exits non-zero, prints the stale-fill finding, and the board's hash is unchanged (AC-22.16); `unfilled` lists the zone under `drc.fills.unfilled` with DRC's exit code (AC-22.17); the existing AC-2 tests pass.
 
 ## 6. Prompts
 
-- [ ] 6.1 Add to the `do` system rules and the layout-draft stage text in `src/commands/create.ts`: `run_drc` fills the pours of a board the run changed; never write `filled_polygon` data; `fill_zones` refills on request. Verify with the existing prompt snapshot or content tests updated to assert the sentence.
+- [x] 6.1 Add to the `do` workflow (the verbatim §4.3 rules stay as they are) and the layout-draft stage text in `src/commands/create.ts`: `run_drc` fills the pours of a board the run changed; never write `filled_polygon` data; `fill_zones` refills on request. Verify with the existing prompt snapshot or content tests updated to assert the sentence.
 
 ## 7. Spec
 
-- [ ] 7.1 Update SPEC.md: §4.2 `run_drc` row (refill on an edited board) and a new `fill_zones` row; §First-draft layout (pours the agent adds are filled by `run_drc`); AC-15.39 (the starting count is taken on filled pours); a new "AC-22 · Copper pour fills (change: refill-zone-fills)" section listing AC-22.1 to AC-22.17. Verify: `openspec validate refill-zone-fills` passes.
+- [x] 7.1 Update SPEC.md: §4.2 `run_drc` row (refill on an edited board) and a new `fill_zones` row; §First-draft layout (pours the agent adds are filled by `run_drc`); AC-15.39 (the starting count is taken on filled pours); a new "AC-22 · Copper pour fills (change: refill-zone-fills)" section listing AC-22.1 to AC-22.17. Verify: `openspec validate refill-zone-fills` passes.
 
 ## 8. Check
 
-- [ ] 8.1 `npm run typecheck`, `npm run build` and `npm test` pass in the worktree.
+- [x] 8.1 `npm run typecheck`, `npm run build` and `npm test` pass in the worktree.

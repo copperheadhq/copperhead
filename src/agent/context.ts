@@ -48,6 +48,12 @@ export interface RunContext {
   boardAtStart?: string | null;
   /** Unrouted connections on `boardAtStart`, computed on the first run_drc. */
   unroutedBaseline?: number;
+  /**
+   * The fill key (board text plus its rule files) last found to hold the
+   * fills KiCad computes, so `run_drc` does not refill an unchanged board
+   * again (refill-zone-fills D6).
+   */
+  fillsCurrent?: string;
   /** The caller's completion contract, checked by `finish` (see RunOptions.stageGate). */
   stageGate?: () => Promise<string | null>;
   /** Last check_legibility counts; feeds the run summary's verification section. */

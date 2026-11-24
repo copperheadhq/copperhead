@@ -2,7 +2,7 @@ import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
-import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
+import { runErc, runDrc, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
@@ -23,6 +23,8 @@ import { isEngineAuthoredSchematic } from '../kicad/fab.js';
 import type { ToolSchema } from '../agent/types.js';
 import type { RefusalBlocker, RunContext } from '../agent/context.js';
 import { corruptionError, markTouched, str } from './helpers.js';
+import { boardTouched, exportFillGap, fillZones, refillEditedBoard, staleFillNote, startingUnrouted } from './fills.js';
+import { hasPours } from '../kicad/zones.js';
 
 /**
  * Findings that say nothing about whether a repair worked: silkscreen text (cosmetic,
@@ -67,14 +69,22 @@ export function countRepairCycle(ctx: RunContext, kind: 'erc' | 'drc', report: C
  * with (AC-15.39): unrouted connections are a count beside a clean DRC for
  * `check`, and a violation for an agent run that raised it, since that means
  * the run broke a track or connection. The baseline is counted once, on the
- * board as the run found it.
+ * board as the run found it, with its pours filled (refill-zone-fills D9).
  */
 export async function unroutedGuard(ctx: RunContext, boardPath: string, report: CheckReport): Promise<CheckReport> {
   if (typeof ctx.boardAtStart !== 'string' || report.unrouted === undefined) return report;
   if (ctx.unroutedBaseline === undefined) {
     const now = await readFile(boardPath, 'utf8').catch(() => null);
+    if (now === ctx.boardAtStart) {
+      // the board is as the run found it, so there is nothing to compare yet.
+      // Without pours this report's count is the baseline; with pours it counts
+      // the stored fills, and a later refill can change what they connect, so
+      // the baseline waits for a count on filled pours (D9)
+      if (!hasPours(now)) ctx.unroutedBaseline = report.unrouted;
+      return report;
+    }
     try {
-      ctx.unroutedBaseline = now === ctx.boardAtStart ? report.unrouted : await unroutedCount(ctx.boardAtStart);
+      ctx.unroutedBaseline = await startingUnrouted(boardPath, ctx.boardAtStart);
     } catch {
       // the run started from a board KiCad could not load (a run that repairs
       // it, say): there is no count to hold it to, and the DRC itself still gates
@@ -378,6 +388,20 @@ export const HANDLERS: HandlerDef[] = [
       }
       markTouched(ctx, rel);
       return `moved ${ref} to (${x}, ${y})${rotation === undefined ? '' : ` at ${rotation}°`}; pads and text turned with it. Run run_drc after this batch of moves.`;
+    },
+  },
+  {
+    schema: {
+      name: 'fill_zones',
+      description:
+        "Refill every copper pour (zone) on the board with KiCad's own filler and the project's design rules, and write the new fills to the board. Only fill data changes. Use it when asked to fill or refill pours, or when run_drc says the fills are stale; after an edit to the board, run_drc refills by itself. Never write filled_polygon data by hand. The board then owes a passing run_drc like any edit. Requires a validated change proposal first, like edit_file.",
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+    requiresUnlock: true,
+    handler: async (ctx) => {
+      const rel = ctx.config.board;
+      if (!rel) return 'no board configured; nothing to fill';
+      return fillZones(ctx, rel, resolveInRepo(ctx.repoRoot, rel));
     },
   },
   {
@@ -732,7 +756,8 @@ export const HANDLERS: HandlerDef[] = [
   {
     schema: {
       name: 'run_drc',
-      description: 'Run kicad-cli DRC on the board. Clears the DRC obligation when clean.',
+      description:
+        'Run kicad-cli DRC on the board. When this run has edited the board, it first refills every copper pour with KiCad\'s filler and writes the new fills to the board, so pours follow the parts and tracks you moved. Otherwise it changes nothing and says when stale pour fills cause findings. Clears the DRC obligation when clean.',
       parameters: { type: 'object', properties: {}, required: [] },
     },
     requiresUnlock: false,
@@ -740,11 +765,15 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.board)
         return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
       const boardPath = path.join(ctx.repoRoot, ctx.config.board);
+      const writable = ctx.editsUnlocked && boardTouched(ctx, boardPath);
+      const refilled = writable ? await refillEditedBoard(ctx, boardPath) : null;
       const report = await unroutedGuard(ctx, boardPath, await runDrc(boardPath));
       countRepairCycle(ctx, 'drc', report);
       ctx.lastDrc = report;
       if (report.ok) ctx.ledger.clear('drc');
-      return { ok: report.ok, text: formatViolations(report) };
+      const stale = writable ? null : await staleFillNote(ctx, boardPath, report);
+      const text = [refilled, formatViolations(report), stale].filter((s): s is string => Boolean(s)).join('\n');
+      return { ok: report.ok, text };
     },
   },
   {
@@ -777,6 +806,8 @@ export const HANDLERS: HandlerDef[] = [
     requiresUnlock: true,
     handler: async (ctx) => {
       if (!ctx.config.board) return 'no board configured';
+      const gap = await exportFillGap(ctx, path.join(ctx.repoRoot, ctx.config.board));
+      if (gap) return { ok: false, text: gap };
       const outDir = path.join(ctx.repoRoot, 'outputs');
       await mkdir(outDir, { recursive: true });
       const res = await exportFab(
