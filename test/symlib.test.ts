@@ -13,6 +13,7 @@ import {
   SymbolResolver,
 } from '../src/kicad/symlib.js';
 import { symbolAvailabilityFacts } from '../src/agent/recovery.js';
+import { kicadMajorVersion } from '../src/kicad/cli.js';
 import { SymbolSource } from '../src/kicad/draft/symsource.js';
 import { bomSymbolDossier } from '../src/kicad/dossier.js';
 import { dispatchTool, type RunContext } from '../src/agent/tools.js';
@@ -630,7 +631,8 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
       const globalLibDir = await mkdtemp(path.join(tmpdir(), 'copperhead-global-lib-'));
       const testProj = await mkdtemp(path.join(tmpdir(), 'copperhead-global-proj-'));
       try {
-        await mkdir(path.join(configDir, '10.0'), { recursive: true });
+        const ver = `${(await kicadMajorVersion()) ?? 10}.0`;
+        await mkdir(path.join(configDir, ver), { recursive: true });
         const GLOBAL_PART_LIB = `(kicad_symbol_lib (version 20251024) (generator test)
   (symbol "GLOBAL-PART" (pin_names (offset 0))
     (symbol "GLOBAL-PART_0_1" (rectangle (start -2.54 -5.08) (end 2.54 5.08)))
@@ -645,8 +647,8 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
 )`;
         const globalLibPath = path.join(globalLibDir, 'corp.kicad_sym');
         await writeFile(globalLibPath, GLOBAL_PART_LIB, 'utf8');
-        const globalTable = `(sym_lib_table\n  (lib (name "corp")(type "KiCad")(uri "${globalLibPath}")(options "")(descr ""))\n)`;
-        await writeFile(path.join(configDir, '10.0', 'sym-lib-table'), globalTable, 'utf8');
+        const globalTable = `(sym_lib_table\n  (lib (name "corp")(type "KiCad")(uri "${globalLibPath.split(path.sep).join('/')}")(options "")(descr ""))\n)`;
+        await writeFile(path.join(configDir, ver, 'sym-lib-table'), globalTable, 'utf8');
         await writeFile(path.join(testProj, 'project.kicad_sch'), '(kicad_sch (version 20251024))\n', 'utf8');
 
         const prevConfig = process.env.KICAD_CONFIG_HOME;
@@ -674,8 +676,12 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
 
     it('when stock symbols are missing, project symbol resolves and stock misses are treated as unverified', async () => {
       const missingStockDir = path.join(tmpdir(), 'copperhead-missing-stock-dir-12345');
-      const prevSymbolDir = process.env.KICAD_SYMBOL_DIR;
+      const pinned = ['KICAD_SYMBOL_DIR', 'KICAD10_SYMBOL_DIR', 'KICAD9_SYMBOL_DIR', 'KICAD8_SYMBOL_DIR', 'KICAD_CONFIG_HOME'] as const;
+      const prevEnv = Object.fromEntries(pinned.map((k) => [k, process.env[k]]));
+      const emptyConfig = await mkdtemp(path.join(tmpdir(), 'copperhead-empty-config-'));
+      for (const k of pinned) delete process.env[k];
       process.env.KICAD_SYMBOL_DIR = missingStockDir;
+      process.env.KICAD_CONFIG_HOME = emptyConfig;
       try {
         const resolver = await SymbolResolver.create({ projectDir: projDir, stockDirs: [missingStockDir], global: false });
         expect(resolver.stockFound).toBe(false);
@@ -728,11 +734,11 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
         const facts = await symbolAvailabilityFacts(refusal, projDir);
         expect(facts).toBe('');
       } finally {
-        if (prevSymbolDir !== undefined) {
-          process.env.KICAD_SYMBOL_DIR = prevSymbolDir;
-        } else {
-          delete process.env.KICAD_SYMBOL_DIR;
+        for (const k of pinned) {
+          if (prevEnv[k] !== undefined) process.env[k] = prevEnv[k];
+          else delete process.env[k];
         }
+        await rm(emptyConfig, { recursive: true, force: true }).catch(() => {});
       }
     });
 
