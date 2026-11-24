@@ -41,24 +41,31 @@ export interface CheckResult {
   };
 }
 
-export async function runCheck(repoRoot: string, log: (s: string) => void): Promise<CheckResult> {
+export async function runCheck(
+  repoRoot: string,
+  log: (s: string) => void,
+  opts: { suppressLegacyBriefLog?: boolean } = {},
+): Promise<CheckResult> {
   const config = await loadConfig(repoRoot);
   libraryCache.attach(repoRoot);
   const brief = await inspectBriefFreshness(repoRoot, config.docs);
   if (brief.status === 'current') {
     log(`brief ✓ current (${brief.currentSha256?.slice(0, 12) ?? 'hash unavailable'})`);
-    for (const refused of brief.refused) {
-      log(`brief declined ${refused.id} at ${refused.briefSha256.slice(0, 12)}: ${refused.change} (reason: ${refused.rationale})`);
-    }
   } else if (brief.status === 'not-applicable') {
     log('brief skipped (no brief provenance configured)');
   } else if (brief.status === 'legacy') {
-    log(`brief legacy (${brief.path ?? 'external path'}): ${brief.detail ?? 'complete create to establish tracked provenance'}`);
+    if (!opts.suppressLegacyBriefLog) {
+      log(`brief legacy (${brief.path ?? 'external path'}): ${brief.detail ?? 'complete create to establish tracked provenance'}`);
+    }
   } else {
-    const hashes = brief.status === 'stale'
+    const hasRecord = brief.reconciledSha256 !== null;
+    const hashes = hasRecord
       ? `recorded ${brief.reconciledSha256?.slice(0, 12) ?? 'unknown'}, current ${brief.currentSha256?.slice(0, 12) ?? 'unknown'}`
       : `origin ${brief.originSha256?.slice(0, 12) ?? 'unknown'}, current ${brief.currentSha256?.slice(0, 12) ?? 'unknown'}`;
     log(`brief ${brief.status} (${hashes}): ${brief.detail ?? 'see reconciliation report'}`);
+  }
+  for (const refused of brief.refused) {
+    log(`brief declined ${refused.id} at ${refused.briefSha256.slice(0, 12)}: ${refused.change} (reason: ${refused.rationale})`);
   }
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;

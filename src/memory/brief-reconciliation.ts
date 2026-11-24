@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { execa } from 'execa';
 import { redactSecrets } from '../util/redact.js';
@@ -85,10 +85,45 @@ function insideRepoPath(repoRoot: string, relativePath: string): string | null {
   const portablePath = relativePath.replaceAll('\\', '/');
   if (path.isAbsolute(relativePath) || path.posix.isAbsolute(portablePath) || /^[A-Za-z]:\//.test(portablePath)) return null;
   if (portablePath.split('/').some((part) => part === '..' || part === '.')) return null;
+  if (portablePath.split('/')[0]?.toLowerCase() === '.git') return null;
   const absolute = path.resolve(repoRoot, portablePath);
   const relative = path.relative(path.resolve(repoRoot), absolute);
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
   return relative.split(path.sep).join('/');
+}
+
+function isWithinDirectory(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return Boolean(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+/** Resolve a real repository-local brief without accepting any symlinked path component. */
+export async function resolveRepositoryLocalBriefPath(
+  repoRoot: string,
+  briefPath: string,
+  opts: { fallbackToRepoRoot?: boolean } = {},
+): Promise<string | null> {
+  const rootPath = path.resolve(repoRoot);
+  const cwdCandidate = path.resolve(briefPath);
+  const repoCandidate = path.resolve(rootPath, briefPath);
+  const candidate =
+    !path.isAbsolute(briefPath) && opts.fallbackToRepoRoot && !existsSync(cwdCandidate)
+      ? repoCandidate
+      : cwdCandidate;
+  if (!isWithinDirectory(rootPath, candidate)) return null;
+
+  const lexicalRelative = path.relative(rootPath, candidate);
+  let cursor = rootPath;
+  try {
+    for (const component of lexicalRelative.split(path.sep)) {
+      cursor = path.join(cursor, component);
+      if ((await lstat(cursor)).isSymbolicLink()) return null;
+    }
+    const [rootReal, candidateReal] = await Promise.all([realpath(rootPath), realpath(candidate)]);
+    return isWithinDirectory(rootReal, candidateReal) ? candidateReal : null;
+  } catch {
+    return null;
+  }
 }
 
 async function readRepoFile(repoRoot: string, relativePath: string): Promise<ReadResult<{ text: string; path: string }>> {
@@ -96,10 +131,11 @@ async function readRepoFile(repoRoot: string, relativePath: string): Promise<Rea
   if (!safePath) return { value: null, detail: 'brief path is external or outside the repository' };
   try {
     const rootReal = await realpath(repoRoot);
-    const absolute = path.join(repoRoot, safePath);
-    const fileReal = await realpath(absolute);
-    const expectedFile = path.resolve(rootReal, safePath);
-    if (fileReal !== expectedFile) return { value: null, detail: 'brief path uses a symlink and is not trackable' };
+    if (!existsSync(path.join(repoRoot, safePath))) {
+      return { value: null, detail: 'brief file is missing or unreadable' };
+    }
+    const fileReal = await resolveRepositoryLocalBriefPath(repoRoot, path.join(repoRoot, safePath));
+    if (!fileReal) return { value: null, detail: 'brief path uses a symlink and is not trackable' };
     const resolved = path.relative(rootReal, fileReal);
     if (!resolved || resolved.startsWith('..') || path.isAbsolute(resolved)) {
       return { value: null, detail: 'brief path resolves outside the repository' };
@@ -179,13 +215,15 @@ async function readRecord(repoRoot: string): Promise<ReadResult<BriefReconciliat
       return { value: null, detail: 'brief reconciliation record resolves outside the repository' };
     }
     const parsed = JSON.parse(await readFile(fileReal, 'utf8')) as unknown;
+    const schemaVersion = parsed && typeof parsed === 'object'
+      ? (parsed as { schemaVersion?: unknown }).schemaVersion
+      : undefined;
+    if (typeof schemaVersion === 'number' && schemaVersion !== 1) {
+      return { value: null, detail: `brief reconciliation schema version ${schemaVersion} is not supported by this copperhead version` };
+    }
     const record = parseRecord(parsed);
     if (!record || !insideRepoPath(repoRoot, record.briefPath)) {
       return { value: null, detail: 'brief reconciliation record is malformed' };
-    }
-    const baseline = await gitBlob(repoRoot, record.gitBlob);
-    if (!baseline || hashText(baseline) !== record.sha256) {
-      return { value: null, detail: 'recorded brief baseline is unavailable or corrupt locally; Git lazy fetching is disabled to keep check network-free' };
     }
     return { value: record };
   } catch {
@@ -193,7 +231,23 @@ async function readRecord(repoRoot: string): Promise<ReadResult<BriefReconciliat
   }
 }
 
+async function gitObjectReadGuard(repoRoot: string): Promise<string | null> {
+  const partialClone = await execa('git', ['config', '--get', 'extensions.partialclone'], {
+    ...gitOptions(repoRoot),
+    reject: false,
+  });
+  if (partialClone.exitCode !== 0 || !partialClone.stdout.trim()) return null;
+  const noLazyFetch = await execa('git', ['--no-lazy-fetch', '--version'], {
+    ...gitOptions(repoRoot),
+    reject: false,
+  });
+  return noLazyFetch.exitCode === 0
+    ? null
+    : 'this partial clone requires Git 2.45 or newer to inspect brief history without lazy-fetching from the network';
+}
+
 async function gitBlob(repoRoot: string, oid: string): Promise<string | null> {
+  if (await gitObjectReadGuard(repoRoot)) return null;
   try {
     const { stdout } = await execa('git', ['cat-file', 'blob', oid], { ...gitOptions(repoRoot), stripFinalNewline: false });
     return stdout;
@@ -282,9 +336,6 @@ function changedBlocks(before: string, after: string): BriefChange[] {
     }
   }
   flush();
-  if (!blocks.length && before.replace(/\r\n?/g, '\n') !== after.replace(/\r\n?/g, '\n')) {
-    blocks.push({ before: ['(line-ending-only change)'], after: ['(line-ending-only change)'] });
-  }
   return blocks.map((block, index) => ({
     id: `B${index + 1}`,
     before: block.before.join('\n'),
@@ -412,6 +463,19 @@ export async function compareBrief(repoRoot: string, docsDir: string): Promise<B
   const current = await readRepoFile(repoRoot, briefPath);
   if (!current.value) return { status: 'unknown', path: briefPath.startsWith('external:') ? null : briefPath, baseline: null, currentSha256: null, baselineSha256: record.value?.sha256 ?? origin.value?.sha256 ?? null, items: [], refusals: record.value?.refusals ?? [], detail: current.detail };
   const currentSha256 = hashText(current.value.text);
+  const objectReadBlocked = await gitObjectReadGuard(repoRoot);
+  if (objectReadBlocked) {
+    return {
+      status: 'unknown',
+      path: briefPath,
+      baseline: record.value ? 'reconciled' : 'origin',
+      currentSha256,
+      baselineSha256: record.value?.sha256 ?? origin.value?.sha256 ?? null,
+      items: [],
+      refusals: record.value?.refusals ?? [],
+      detail: objectReadBlocked,
+    };
+  }
   let baseline: { oid: string; text: string } | null = null;
   let baselineKind: BriefComparison['baseline'] = null;
   let baselineSha256: string | null = null;
@@ -448,7 +512,6 @@ export async function compareBrief(repoRoot: string, docsDir: string): Promise<B
     items,
     currentText: current.value.text,
     refusals: record.value?.refusals ?? [],
-    ...(items.length || currentSha256 === baselineSha256 ? {} : { detail: 'brief hashes differ only in line-ending representation' }),
   };
 }
 

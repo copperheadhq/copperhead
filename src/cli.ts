@@ -9,7 +9,7 @@ import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport, syncBriefVerify, syncBriefResolve, formatBriefSyncReport } from './commands/sync.js';
-import { EXTERNAL_BRIEF_ERROR, isRepositoryLocalBrief, runCreate } from './commands/create.js';
+import { resolveCreateBriefPath, runCreate } from './commands/create.js';
 import { runDemo, demoTourText } from './commands/demo.js';
 import { runRepl } from './commands/repl.js';
 import {
@@ -406,10 +406,10 @@ program
       if (opts.brief) {
         const briefReport = await syncBriefVerify(repo);
         const briefOutput = { ...briefReport, currentText: undefined };
-        if (opts.dryRun || briefReport.status === 'unknown' || !briefReport.items.length) {
+        if (opts.dryRun || briefReport.status === 'unknown' || briefReport.status === 'legacy' || !briefReport.items.length) {
           if (json) console.log(JSON.stringify(briefOutput, null, 2));
           else console.log(formatBriefSyncReport(briefReport));
-          process.exit(opts.dryRun && briefReport.status !== 'unknown' ? 0 : briefReport.status === 'current' ? 0 : 1);
+          process.exit(briefReport.status === 'unknown' ? 1 : opts.dryRun || briefReport.status === 'current' || briefReport.status === 'legacy' ? 0 : 1);
         }
         if (!json) console.log(formatBriefSyncReport(briefReport));
         const kicadVer = await kicadCliVersion();
@@ -619,22 +619,21 @@ program
   .description(
     'Mode A: full pipeline from a product brief to the output package. Stops for a decision on a verified constraint conflict or a footprint that is not installed; re-run to resume at that stage',
   )
-  .requiredOption('--brief <file>', 'product brief (markdown)')
+  .requiredOption('--brief <file>', 'product brief (markdown); must be inside the target repository')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
   .option('--interactive', 're-enable the human gates (spec approval, pre-export)')
   .action(async (opts: { brief: string; model?: string; interactive?: boolean }) => {
     const repo = repoOf(program.opts());
     try {
-      if (!(await isRepositoryLocalBrief(repo, opts.brief))) {
-        throw new Error(`${EXTERNAL_BRIEF_ERROR}; move it into the repository and rerun.`);
-      }
+      const briefResolution = await resolveCreateBriefPath(repo, opts.brief);
+      if (!briefResolution.path) throw new Error(briefResolution.error ?? 'brief path is invalid');
       const kicadVer = await kicadCliVersion();
       const config = await loadConfig(repo);
       const { model, source } = resolveModel(opts.model, config);
       const continuePrompt = budgetContinuePrompt();
       const res = await runCreate({
         repoRoot: repo,
-        briefPath: opts.brief,
+        briefPath: briefResolution.path,
         model,
         interactive: opts.interactive ?? false,
         ...(continuePrompt ? { onBudgetExhausted: continuePrompt } : {}),

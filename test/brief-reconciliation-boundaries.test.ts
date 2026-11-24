@@ -22,7 +22,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { execa } from 'execa';
-import { briefSha256, inspectBriefFreshness, writeReconciliationRecord } from '../src/memory/brief-reconciliation.js';
+import { briefSha256, compareBrief, inspectBriefFreshness, resolveRepositoryLocalBriefPath, writeReconciliationRecord } from '../src/memory/brief-reconciliation.js';
 import { tempFixtureRepo } from './helpers.js';
 
 async function installOrigin(repo: string, briefPath: string, brief: string): Promise<void> {
@@ -101,15 +101,55 @@ describe('brief reconciliation path and git boundaries', () => {
       });
       vi.mocked(execa).mockClear();
 
-      const result = await inspectBriefFreshness(repo, 'docs');
+      const result = await compareBrief(repo, 'docs');
       const blobReads = vi.mocked(execa).mock.calls.filter((call) => {
         const [command, args] = call;
         return command === 'git' && Array.isArray(args) && args[0] === 'cat-file';
       });
 
-      expect(result).toMatchObject({ status: 'current', ok: true });
+      expect(result).toMatchObject({ status: 'current' });
       expect(blobReads.length).toBeGreaterThan(0);
       expect(JSON.stringify(blobReads)).toContain('"GIT_NO_LAZY_FETCH":"1"');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('does not read a Git blob when an older Git cannot disable lazy fetch in a partial clone', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const brief = '# Tracked brief\n';
+      await installOrigin(repo, 'docs/BRIEF.md', brief);
+      const { stdout: blob } = await execa('git', ['rev-parse', 'HEAD:docs/BRIEF.md'], { cwd: repo });
+      await writeReconciliationRecord(repo, {
+        schemaVersion: 1,
+        briefPath: 'docs/BRIEF.md',
+        sha256: briefSha256(brief),
+        gitBlob: blob.trim(),
+        refusals: [],
+      });
+      vi.mocked(execa).mockClear();
+      vi.mocked(execa)
+        .mockResolvedValueOnce({ exitCode: 0, stdout: 'origin' } as never)
+        .mockResolvedValueOnce({ exitCode: 129, stdout: '' } as never);
+
+      const result = await compareBrief(repo, 'docs');
+
+      expect(result).toMatchObject({ status: 'unknown', baseline: 'reconciled' });
+      expect(result.detail).toContain('Git 2.45 or newer');
+      expect(vi.mocked(execa).mock.calls.some(([, args]) => Array.isArray(args) && args[0] === 'cat-file')).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.runIf(process.platform === 'win32' || process.platform === 'darwin')('accepts repository paths whose casing differs from the on-disk casing', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      await writeFile(path.join(repo, 'docs', 'BRIEF.md'), '# Brief\n', 'utf8');
+
+      expect(await resolveRepositoryLocalBriefPath(repo, path.join(repo, 'DOCS', 'brief.md'))).toBe(path.join(repo, 'docs', 'BRIEF.md'));
     } finally {
       await cleanup();
     }

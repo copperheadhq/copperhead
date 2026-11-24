@@ -123,7 +123,7 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `0` | Everything agrees. |
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `brief`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Brief status is `current`, `stale`, `unknown`, or `not-applicable`; explicitly declined brief changes remain visible. Legibility findings never affect the exit code.
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `brief`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Brief status is `current`, `stale`, `unknown`, `legacy`, or `not-applicable`; explicitly declined brief changes remain visible. Legibility findings never affect the exit code.
 
 ## `copperhead explain`
 
@@ -219,8 +219,10 @@ copperhead sync --brief [--model <model>] [--dry-run]
 | `0` | Clean, or drift resolved successfully. |
 | `1` | The resolve phase failed. |
 | `2` | Requirement violations found. |
+| `0` with `--brief` | Reconciliation completed, the preview succeeded, or an advisory legacy state has nothing to reconcile. |
+| `1` with `--brief` | Brief state is stale or unknown and reconciliation did not complete. |
 
-With `--brief`, stale changes are reconciled block by block; every block needs an explicit applied or declined decision with rationale. Declines remain visible in `check`. A legacy origin without a reconciliation record is unknown; `sync --brief` can compare it only when the origin text is recoverable from local Git history. The configured tracked brief may be the only pre-existing dirty path, allowing the brief and reconciliation record to be committed together; other dirty or untracked paths are refused.
+With `--brief`, stale changes are reconciled block by block; every block needs an explicit applied or declined decision with rationale. Declines remain visible in `check`. An origin without a reconciliation record is reported as `legacy`; `sync --brief` can compare it only when the origin text is recoverable from local Git history. The configured tracked brief may be the only pre-existing dirty path, allowing the brief and reconciliation record to be committed together; other dirty or untracked paths are refused.
 
 Exit code 2 is the important one. A requirement violation means the as-built design contradicts a stated requirement, and copperhead will **never** auto-resolve that: the fix is an engineering decision. Drift, where the docs disagree with the files, is resolvable and gets resolved.
 
@@ -234,7 +236,7 @@ copperhead create --brief brief.md [--model <model>] [--interactive]
 
 | Option | Description |
 | --- | --- |
-| `--brief <file>` | **Required.** The product brief, in markdown. It must be inside the target repository so freshness can be tracked; external paths are rejected before create starts. |
+| `--brief <file>` | **Required.** The product brief, in markdown. It must be inside the target repository and committable so freshness can be tracked. A relative path is read from the current directory when present there, otherwise from the target repository root. External, ignored, and `.git/` paths are rejected before create starts. |
 | `--model <model>` | `codex`, `cursor`, `gpt-5`, `claude`, or `claude-code` (saved-login; no model API key for those three). |
 | `--interactive` | Re-enable the human gates: spec approval, and a pause before export. |
 
@@ -263,7 +265,7 @@ These are npm scripts in a copperhead checkout, not installed CLI commands.
 
 | Script | What it does |
 | --- | --- |
-| `npm run demo:simple` | Runs the create pipeline against `examples/simple/usb-c-breakout.md` in `demo-runs/usb-c-breakout/`. See [Simple demo](/getting-started/demo/). |
+| `npm run demo:simple` | Copies the packaged brief to `docs/BRIEF.md`, then runs the create pipeline in `demo-runs/usb-c-breakout/`. See [Simple demo](/getting-started/demo/). |
 | `npm run docs:dev` | Serves this documentation locally. |
 | `npm run docs:build` | Builds the documentation site. |
 | `npm test` | Runs the vitest suite. LLM-touching tests skip unless their provider is explicitly configured. |

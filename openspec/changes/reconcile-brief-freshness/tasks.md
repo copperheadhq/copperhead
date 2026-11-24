@@ -18,4 +18,8 @@
 - [x] Cover raw CRLF origin hashes under both `core.autocrlf` settings, differing external-origin copies, and successful create baselining for an external origin.
 - [x] Cover actionable legacy hints, including the unreviewed external-copy trade-off and restore/create/re-apply/sync recovery path; cover Windows-safe `tsx` loader use, unknown path boundaries, no-lazy-fetch environment, both demo brief reuse paths, and portable shell-demo path and line-ending assertions.
 - [x] Exercise initial create baseline recording for both in-repository and external legacy origins.
+- [x] Rebase on current main and preserve the merged command, check, create, specification, and CLI documentation behavior.
+- [x] Keep create sandbox briefs repository-local, reject ignored briefs, resolve repository-relative hints, and avoid duplicate final checks or broad staging.
+- [x] Guard partial-clone object reads on Git support, preserve stale detection without a baseline blob, and report unsupported future record schemas clearly.
+- [x] Keep declines and hash labels visible for stale and unknown output, align legacy sync exit status, and update CLI and demo documentation.
 - [x] Run `npm run typecheck`, `npm run build`, and `npm test`.

@@ -218,9 +218,14 @@ describe('brief reconciliation state', () => {
         '--import', 'tsx', path.join(process.cwd(), 'src', 'cli.ts'), '--repo', repo,
         'sync', '--brief', '--dry-run',
       ], { cwd: process.cwd(), reject: false });
+      const nonDryCli = await execa(process.execPath, [
+        '--import', 'tsx', path.join(process.cwd(), 'src', 'cli.ts'), '--repo', repo,
+        'sync', '--brief',
+      ], { cwd: process.cwd(), reject: false });
 
       expect(result).toMatchObject({ status: 'legacy', ok: true, reasonCode: 'legacy-external-origin' });
       expect(cli.exitCode).toBe(0);
+      expect(nonDryCli.exitCode).toBe(0);
       expect(cli.stdout).toContain('brief reconciliation: legacy');
     } finally {
       await cleanup();
@@ -382,15 +387,27 @@ describe('brief reconciliation state', () => {
       expect(corrupt.detail).toContain('unreadable');
 
       await writeFile(path.join(repo, '.copperhead', 'brief-reconciliation.json'), JSON.stringify({
+        schemaVersion: 2,
+        briefPath: 'docs/BRIEF.md',
+        sha256: briefSha256('# Keyer\n'),
+        gitBlob: '0000000000000000000000000000000000000000',
+        refusals: [],
+      }), 'utf8');
+      const future = await inspectBriefFreshness(repo, 'docs');
+      expect(future).toMatchObject({ status: 'unknown', ok: false });
+      expect(future.detail).toContain('schema version 2 is not supported');
+
+      await writeFile(path.join(repo, '.copperhead', 'brief-reconciliation.json'), JSON.stringify({
         schemaVersion: 1,
         briefPath: 'docs/BRIEF.md',
         sha256: briefSha256('# Keyer\n'),
         gitBlob: '0000000000000000000000000000000000000000',
         refusals: [],
       }), 'utf8');
-      const unavailable = await inspectBriefFreshness(repo, 'docs');
+      const currentWithoutBlob = await inspectBriefFreshness(repo, 'docs');
+      expect(currentWithoutBlob).toMatchObject({ status: 'current', ok: true });
+      const unavailable = await compareBrief(repo, 'docs');
       expect(unavailable.status).toBe('unknown');
-      expect(unavailable.ok).toBe(false);
       expect(unavailable.detail).toContain('baseline is unavailable');
     } finally {
       await cleanup();
@@ -413,6 +430,13 @@ describe('brief reconciliation state', () => {
 
       expect(result).toMatchObject({ status: 'current' });
       expect(result.refused).toEqual([{ briefSha256: briefSha256(brief), id: 'B1', change: 'Add a larger enclosure.', rationale: 'The board size constraint rules this out.' }]);
+
+      await writeFile(path.join(repo, 'docs', 'BRIEF.md'), `${brief}- Add status LEDs\n`, 'utf8');
+      const messages: string[] = [];
+      await runCheck(repo, (message) => messages.push(message));
+      expect(messages.join('\n')).toContain('brief declined B1 at ');
+      expect(messages.join('\n')).toContain('Add a larger enclosure.');
+      expect(messages.join('\n')).toContain('recorded ');
     } finally {
       await cleanup();
     }

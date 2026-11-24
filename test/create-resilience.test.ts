@@ -29,7 +29,7 @@ vi.mock('../src/agent/recovery.js', async (importOriginal) => ({
 vi.mock('../src/openspec/cli.js', () => ({ openspecInit: async () => ({ ok: true, output: '' }) }));
 vi.mock('../src/commands/check.js', () => ({ runCheck: mockRunCheck }));
 
-import { runCreate, STAGES, writeBriefHash } from '../src/commands/create.js';
+import { IGNORED_BRIEF_ERROR, resolveCreateBriefPath, runCreate, STAGES, writeBriefHash } from '../src/commands/create.js';
 import { runDemo, scaffoldDemoRepo } from '../src/commands/demo.js';
 import { briefSha256, inspectBriefFreshness } from '../src/memory/brief-reconciliation.js';
 
@@ -325,6 +325,38 @@ describe('create pipeline resilience (review F3)', () => {
     }
   });
 
+  it('resolves a relative brief from the target repository when it is absent from the current directory', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const brief = path.join(repo, 'docs', 'BRIEF.md');
+      await mkdir(path.dirname(brief), { recursive: true });
+      await writeFile(brief, '# Repository brief\n', 'utf8');
+
+      expect(await resolveCreateBriefPath(repo, 'docs/BRIEF.md')).toEqual({ path: brief });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.each(['ignored/BRIEF.md', '.git/BRIEF.md'])('rejects the uncommittable brief %s before create starts', async (relative) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const brief = path.join(repo, relative);
+      await mkdir(path.dirname(brief), { recursive: true });
+      await writeFile(brief, '# Ignored brief\n', 'utf8');
+      if (!relative.startsWith('.git/')) await writeFile(path.join(repo, '.gitignore'), 'ignored/\n', 'utf8');
+
+      const messages: string[] = [];
+      const result = await runCreate({ repoRoot: repo, briefPath: brief, model: 'gpt-5', log: (message) => messages.push(message) });
+
+      expect(result).toEqual({ ok: false, completed: [] });
+      expect(messages).toContain(IGNORED_BRIEF_ERROR);
+      expect(mockRunAgentLoop).not.toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('does not overwrite a different demo brief when given an external source', async () => {
     let demoDir: string | undefined;
     let externalDir: string | undefined;
@@ -478,15 +510,14 @@ describe('create pipeline resilience (review F3)', () => {
         openspec: { ok: true, detail: '' },
         constraints: { ok: true, violations: [] },
       };
-      mockRunCheck
-        .mockResolvedValueOnce({ ...allChecksPass, ok: true, brief: { status: 'legacy', reasonCode } })
-        .mockResolvedValueOnce({ ...allChecksPass, brief: { status: 'current' } });
+      mockRunCheck.mockResolvedValueOnce({ ...allChecksPass, ok: true, brief: { status: 'legacy', reasonCode } });
 
       const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });
       const { stdout: committedRecord } = await execa('git', ['show', 'HEAD:.copperhead/brief-reconciliation.json'], { cwd: repo });
       const freshness = await inspectBriefFreshness(repo, 'docs');
 
       expect(result.ok).toBe(true);
+      expect(mockRunCheck).toHaveBeenCalledTimes(1);
       expect(JSON.parse(committedRecord)).toMatchObject({ briefPath: 'docs/BRIEF.md', sha256: briefSha256(brief) });
       expect(freshness).toMatchObject({ status: 'current', ok: true, currentSha256: briefSha256(brief) });
     } finally {

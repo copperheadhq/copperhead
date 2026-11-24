@@ -511,7 +511,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-1.4** Re-running `init` on the same repo exits 0 and changes no hand-edited file (idempotent). With modified docs and no `--force`, it refuses and lists what it would overwrite.
 - **AC-1.5** On a repo with no `.kicad_sch`, exits non-zero with a clear message (no stack trace).
 - **AC-1.6** A complete successful `create` records the tracked repository-local brief as reconciled only after every stage and the final check pass, including when an external origin was copied into the repository; it never changes the immutable origin record.
-- **AC-1.7** `create --brief` rejects a brief outside the target repository before starting the pipeline, calling a provider, or writing project files. Demo setup copies its packaged brief into the demo repository before invoking create.
+- **AC-1.7** `create --brief` rejects a brief outside the target repository, under `.git/`, or ignored by Git before starting the pipeline, calling a provider, or writing project files. A relative brief path is resolved from the current directory when present there, otherwise from the target repository root. Demo setup copies its packaged brief into the demo repository before invoking create.
 
 ### AC-2 · `copperhead check`
 
@@ -523,7 +523,7 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-2.6** A repository-local brief matching its last-reconciled record reports `brief: current`; a changed brief reports `stale` and makes `ok` false.
 - **AC-2.7** A matching repository-local origin without a reconciliation record, an external origin without a reconciliation record (including a differing repository-local copy), or a conventional brief without origin reports non-failing `legacy` with an actionable `copperhead create --brief <path>` hint. For a differing local copy of an external origin, the hint warns that create accepts the edited copy without reviewing the difference and gives the restore, create, re-apply, then `sync --brief` path to review it. A changed in-repository origin brief reports `stale`; raw, LF-normalized, and CRLF representations of the same origin content match. Corrupt, mismatched, missing-file, or untrackable reconciliation state reports `unknown` and exits non-zero. No brief and no origin record reports `not-applicable`.
 - **AC-2.8** `--json` includes stable brief status, recorded/current hashes, and any explicit declines. A declined item is visible and is not described as implemented.
-- **AC-2.9** Brief freshness checking reads local files and Git objects only; it remains deterministic, read-only, LLM-free, and network-free.
+- **AC-2.9** Brief freshness checking reads local files and Git objects only; it remains deterministic, read-only, LLM-free, and network-free. In a partial clone, blob comparison requires Git 2.45 or newer so `--no-lazy-fetch` can prevent an object read from contacting the remote. Older Git reports the comparison as unknown without reading the blob.
 
 ### AC-17 · `copperhead explain`
 

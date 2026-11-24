@@ -35,6 +35,11 @@ The CLI SHALL provide `copperhead sync --brief` to reconcile changed brief block
 - **WHEN** the user runs `copperhead sync --brief --dry-run` for an external origin without a reconciliation record
 - **THEN** the comparison is reported unavailable and the command exits successfully without changing repository state
 
+#### Scenario: Non-preview legacy brief has nothing to reconcile
+
+- **WHEN** the user runs `copperhead sync --brief` for a legacy state with no changed blocks
+- **THEN** the command reports the advisory legacy state and exits successfully without resolving a provider
+
 #### Scenario: Brief reconciliation run
 
 - **WHEN** the user runs `copperhead sync --brief` with changed blocks

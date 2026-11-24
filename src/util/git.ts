@@ -452,6 +452,13 @@ export async function commitAll(repo: string, message: string): Promise<string> 
   return git(repo, ['rev-parse', 'HEAD']);
 }
 
+/** Commit only the named paths, leaving every other staged or unstaged path alone. */
+export async function commitPaths(repo: string, paths: string[], message: string): Promise<string> {
+  await git(repo, ['add', '--', ...paths]);
+  await git(repo, ['commit', '--only', '-m', message, '--', ...paths]);
+  return git(repo, ['rev-parse', 'HEAD']);
+}
+
 export async function changedFiles(repo: string, sinceHead: string): Promise<string[]> {
   const tracked = await git(repo, ['diff', '--name-only', sinceHead]);
   const untracked = await git(repo, ['ls-files', '--others', '--exclude-standard']);

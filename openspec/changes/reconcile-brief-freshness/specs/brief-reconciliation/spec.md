@@ -21,6 +21,16 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 - **WHEN** `create --brief` points to a file outside the target repository
 - **THEN** create exits before starting a stage, calling a provider, or writing project files
 
+#### Scenario: Create rejects an uncommittable brief before work starts
+
+- **WHEN** `create --brief` points under `.git/` or Git reports the brief as ignored
+- **THEN** create exits with `brief is ignored by git; it must be committable` before starting a stage, calling a provider, or writing project files
+
+#### Scenario: Relative brief paths work with an explicit repository
+
+- **WHEN** a relative `create --brief` path does not exist under the current directory but exists under the target repository root
+- **THEN** create uses the repository-local file
+
 #### Scenario: Demo copies its packaged brief before create
 
 - **WHEN** `copperhead demo` or `scripts/demo-simple.sh` uses a packaged brief outside the demo repository
@@ -28,7 +38,7 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 
 ### Requirement: Check reports brief freshness
 
-`copperhead check` SHALL compare the configured brief with its last-reconciled identity. Mismatches SHALL be stale. Corrupt or mismatched records and unavailable repository-local origins SHALL be unknown and fail. The legacy cases below SHALL be advisory. Brief checks SHALL be deterministic, LLM-free, and network-free. With no brief or origin, the result SHALL be not applicable.
+`copperhead check` SHALL compare the configured brief with its last-reconciled identity. Mismatches SHALL be stale. Corrupt or mismatched records and unavailable repository-local origins SHALL be unknown and fail. The legacy cases below SHALL be advisory. Brief checks SHALL be deterministic, LLM-free, and network-free. In partial clones, blob comparison SHALL require Git 2.45 or newer and SHALL return unknown without reading a missing blob when that guarantee is unavailable. With no brief or origin, the result SHALL be not applicable.
 
 #### Scenario: Brief matches last reconciled version
 
@@ -102,11 +112,11 @@ The system SHALL preserve the existing write-once `docs/BRIEF.sha256` origin rec
 
 ### Requirement: Reconcile each changed brief item through gated tools
 
-`sync --brief` SHALL reconcile changed brief blocks through the spec-gated agent loop. Each block SHALL receive one applied or declined decision with a non-empty rationale before finish. Existing verification, repair, sync-obligation, and rollback gates SHALL apply. The brief identity must match at commit. The brief and reconciliation record SHALL commit together after all gates pass; failures preserve prior state. Other dirty or untracked paths SHALL be refused before the run.
+`sync --brief` SHALL reconcile changed brief blocks through the spec-gated agent loop. Each block SHALL receive at least one applied or declined decision with a non-empty rationale, with no conflicting outcomes, before finish. Existing verification, repair, sync-obligation, and rollback gates SHALL apply. The brief identity must match at commit. The brief and reconciliation record SHALL commit together after all gates pass; failures preserve prior state. Other dirty or untracked paths SHALL be refused before the run.
 
 #### Scenario: Every changed block has an explicit decision
 
-- **WHEN** the agent has recorded one unambiguous decision for every changed block and all existing gates pass
+- **WHEN** the agent has recorded at least one decision for every changed block, none conflict, and all existing gates pass
 - **THEN** the run may finish and commit the decisions and new reconciliation identity atomically
 
 #### Scenario: A changed block has no valid decision

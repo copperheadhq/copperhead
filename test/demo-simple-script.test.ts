@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,14 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const demoScript = path.join(repoRoot, 'scripts', 'demo-simple.sh');
 const packagedBrief = path.join(repoRoot, 'examples', 'simple', 'usb-c-breakout.md');
+
+async function bashExecutable(): Promise<string> {
+  if (process.platform !== 'win32') return 'bash';
+  const { stdout } = await execa('git', ['--exec-path']);
+  const gitBash = path.resolve(stdout.trim(), '..', '..', '..', 'bin', 'bash.exe');
+  if (!existsSync(gitBash)) throw new Error(`Git Bash was not found at ${gitBash}`);
+  return gitBash;
+}
 
 async function makeDemoFixture(docsDir: string, existingBrief?: string) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), 'copperhead-demo-simple-')));
@@ -71,7 +80,7 @@ describe('scripts/demo-simple.sh brief handling', () => {
   it('copies the packaged brief into the configured docs directory, commits it, and passes that path to create', async () => {
     const fixture = await makeDemoFixture('product-docs/reference');
     try {
-      const result = await execa('bash', [demoScript], {
+      const result = await execa(await bashExecutable(), [demoScript], {
         cwd: repoRoot,
         env: fixture.env,
       });
@@ -101,7 +110,7 @@ describe('scripts/demo-simple.sh brief handling', () => {
     const sourceText = await readFile(packagedBrief, 'utf8');
     const fixture = await makeDemoFixture('docs', sourceText);
     try {
-      const result = await execa('bash', [demoScript], {
+      const result = await execa(await bashExecutable(), [demoScript], {
         cwd: repoRoot,
         env: fixture.env,
       });
@@ -119,7 +128,7 @@ describe('scripts/demo-simple.sh brief handling', () => {
   it('refuses to overwrite a different existing brief and does not start create', async () => {
     const fixture = await makeDemoFixture('docs', '# Preserve this demo brief\n');
     try {
-      const result = await execa('bash', [demoScript], {
+      const result = await execa(await bashExecutable(), [demoScript], {
         cwd: repoRoot,
         env: fixture.env,
         reject: false,
