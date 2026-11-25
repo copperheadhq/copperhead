@@ -36,7 +36,7 @@ revision.
     - back-side footprint definitions, which are not normalized to the front
       view
     - the copper of non-rectangular pads, imported as its bounding rectangle
-    - courtyards drawn as lines
+    - courtyards drawn as lines or arcs, or as several shapes
     - rule areas
     - traces and vias on no net, which RFC 11's records cannot hold
     - zones inside footprints, keepouts among them

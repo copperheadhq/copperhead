@@ -295,50 +295,46 @@ function footprintDefinition(fp: List, notes: Set<string>): Footprint {
     };
   });
   const def: Footprint = { schema_version: '2.0', lib_id: atom(fp, 1) ?? '', mount, pads };
-  const courtyard: Pt[] = [];
-  let traced = false;
+  // Each courtyard drawing as the points it is drawn through, and whether it
+  // is a closed shape on its own (a rectangle or a polygon).
+  const shapes: Array<{ points: Pt[]; closed: boolean }> = [];
   for (const g of fp) {
     if (!isList(g) || typeof g[0] !== 'string' || !g[0].startsWith('fp_')) continue;
     if (!/\.CrtYd$/.test(atom(child(g, 'layer'), 1) ?? '')) continue;
-    if (g[0] === 'fp_rect' && !traced) {
+    if (g[0] === 'fp_rect') {
       const [x1, y1] = pt(child(g, 'start'));
       const [x2, y2] = pt(child(g, 'end'));
-      courtyard.push([Math.min(x1, x2), Math.min(y1, y2)], [Math.max(x1, x2), Math.min(y1, y2)], [Math.max(x1, x2), Math.max(y1, y2)], [Math.min(x1, x2), Math.max(y1, y2)]);
-      traced = true;
-    } else if (g[0] === 'fp_poly' && !traced) {
-      courtyard.push(...children(child(g, 'pts') ?? [], 'xy').map(pt));
-      traced = true;
+      const [lx, hx, ly, hy] = [Math.min(x1, x2), Math.max(x1, x2), Math.min(y1, y2), Math.max(y1, y2)];
+      shapes.push({ points: [[lx, ly], [hx, ly], [hx, hy], [lx, hy]], closed: true });
+    } else if (g[0] === 'fp_poly') {
+      shapes.push({ points: children(child(g, 'pts') ?? [], 'xy').map(pt), closed: true });
+    } else if (g[0] === 'fp_circle') {
+      // A circle's extent, an arc's ends and the axis extremes its sweep passes, a line's ends.
+      const [cx, cy] = pt(child(g, 'center'));
+      const [ex, ey] = pt(child(g, 'end'));
+      const r = Math.round(Math.hypot(ex - cx, ey - cy));
+      shapes.push({ points: [[cx - r, cy - r], [cx + r, cy + r]], closed: false });
+    } else if (g[0] === 'fp_arc' && child(g, 'mid')) {
+      shapes.push({ points: arcExtremes(pt(child(g, 'start')), pt(child(g, 'mid')), pt(child(g, 'end'))), closed: false });
     } else {
-      // The points that bound the drawing: a circle's extent, an arc's ends and
-      // the axis extremes its sweep passes, a line's ends.
-      if (g[0] === 'fp_circle') {
-        const [cx, cy] = pt(child(g, 'center'));
-        const [ex, ey] = pt(child(g, 'end'));
-        const r = Math.round(Math.hypot(ex - cx, ey - cy));
-        courtyard.push([cx - r, cy - r], [cx + r, cy + r]);
-      } else if (g[0] === 'fp_arc' && child(g, 'mid')) {
-        courtyard.push(...arcExtremes(pt(child(g, 'start')), pt(child(g, 'mid')), pt(child(g, 'end'))));
-      } else {
-        for (const k of ['start', 'end']) if (child(g, k)) courtyard.push(pt(child(g, k)));
-      }
-      notes.add('a courtyard drawn as lines or arcs is imported as its bounding rectangle');
+      shapes.push({ points: ['start', 'end'].filter((k) => child(g, k)).map((k) => pt(child(g, k))), closed: false });
     }
   }
-  if (courtyard.length) {
-    let ring = courtyard;
-    if (!traced || courtyard.length < 3) {
-      const xs = courtyard.map((p) => p[0]);
-      const ys = courtyard.map((p) => p[1]);
-      ring = [
-        [Math.min(...xs), Math.min(...ys)],
-        [Math.max(...xs), Math.min(...ys)],
-        [Math.max(...xs), Math.max(...ys)],
-        [Math.min(...xs), Math.max(...ys)],
-      ];
-    }
-    const r = ringOf(ring);
-    if (r) def.courtyard = { outline: r as never };
+  // One closed shape is the courtyard as drawn. Anything else, lines and arcs
+  // or a courtyard of several shapes, is bounded by the rectangle around all
+  // of it, and the board's lossy field says so.
+  const only = shapes.length === 1 && shapes[0]!.closed ? shapes[0]!.points : undefined;
+  const all = shapes.flatMap((s) => s.points);
+  let ring: Pt[] | undefined = only;
+  if (!ring && all.length) {
+    notes.add('a courtyard drawn as lines or arcs, or as several shapes, is imported as its bounding rectangle');
+    const xs = all.map((p) => p[0]);
+    const ys = all.map((p) => p[1]);
+    const [lx, hx, ly, hy] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    ring = [[lx, ly], [hx, ly], [hx, hy], [lx, hy]];
   }
+  const r = ring ? ringOf(ring) : undefined;
+  if (r) def.courtyard = { outline: r as never };
   return def;
 }
 

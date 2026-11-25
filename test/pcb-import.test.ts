@@ -146,6 +146,14 @@ describe('importing a KiCad board into a layout input', () => {
     for (const v of [-3_450_000, 3_450_000]) expect(ring).toContain(String(v));
   });
 
+  it('bounds a courtyard of several shapes by all of them', () => {
+    const poly = (x: number) => `\t\t(fp_poly (pts (xy ${x} -1) (xy ${x + 1} -1) (xy ${x + 1} 1) (xy ${x} 1)) (stroke (width 0.05) (type default)) (fill none) (layer "F.CrtYd"))\n`;
+    const two = imported(board.replace('\t\t(property "Reference" "H1"', poly(-4) + poly(3) + '\t\t(property "Reference" "H1"'));
+    const ring = JSON.stringify(two.footprints[byRef(two, 'H1')[1].footprint]!.courtyard);
+    for (const v of [-4_000_000, 4_000_000]) expect(ring).toContain(String(v));
+    expect(two.board.lossy).toContain('a courtyard drawn as lines or arcs, or as several shapes, is imported as its bounding rectangle');
+  });
+
   it('says that it leaves out zones inside footprints', () => {
     const zone = '\t\t(zone (net 0) (net_name "") (layer "F.Cu") (hatch edge 0.5) (keepout (tracks not_allowed)) (polygon (pts (xy 2 2) (xy 4 2) (xy 4 4))))\n';
     const withZone = imported(board.replace('\t\t(property "Reference" "H1"', zone + '\t\t(property "Reference" "H1"'));
