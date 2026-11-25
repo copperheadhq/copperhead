@@ -1,0 +1,24 @@
+{
+  "case": "congestion",
+  "fault": "a 2x18 header on the left fans 16 signals into a QFN on the right through one channel",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "quality.congestion",
+      "entityReferences": [
+        "J2"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 21
+  },
+  "metricsWithin": {
+    "congestion_overflow": [
+      1,
+      null
+    ]
+  }
+}

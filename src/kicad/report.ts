@@ -31,6 +31,12 @@ export interface CheckReport {
    * KiCad reports as modified or unresolvable stays a violation.
    */
   intrinsic?: Violation[];
+  /**
+   * DRC only: the connections `unrouted` counts, each with the pads it joins,
+   * for a caller that needs to know which nets are still owed (the layout
+   * harness's checkers).
+   */
+  unroutedItems?: Violation[];
 }
 
 interface RawItem {
@@ -106,8 +112,9 @@ export function normalizeReport(
     else violations.push(n);
   }
   for (const v of r.schematic_parity ?? []) violations.push(normViolation(v));
-  const unrouted = r.unconnected_items?.length ?? 0;
-  return { ok: violations.length === 0, source, violations, ...(source === 'drc' ? { unrouted, intrinsic } : {}) };
+  const unroutedItems = (r.unconnected_items ?? []).map((v) => normViolation(v));
+  const unrouted = unroutedItems.length;
+  return { ok: violations.length === 0, source, violations, ...(source === 'drc' ? { unrouted, intrinsic, unroutedItems } : {}) };
 }
 
 /**

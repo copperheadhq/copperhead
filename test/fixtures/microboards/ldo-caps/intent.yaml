@@ -1,0 +1,10 @@
+placement:
+  attachments:
+    - component: C1
+      target: { component: U1, pins: ["3"] }
+      max_distance_mm: 3
+      priority: critical
+    - component: C2
+      target: { component: U1, pins: ["2"] }
+      max_distance_mm: 3
+      priority: critical

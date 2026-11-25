@@ -1,0 +1,5 @@
+placement:
+  groups:
+    - id: clock
+      components: [U1, Y1, C1, C2]
+      max_spread_mm: 8

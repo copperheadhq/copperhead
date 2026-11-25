@@ -1,0 +1,18 @@
+{
+  "case": "open",
+  "fault": "SIG1 track leaves U1.8 and stops 5 mm short of R1.1",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "conn.open",
+      "entityReferences": [
+        "SIG1"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 2
+  }
+}

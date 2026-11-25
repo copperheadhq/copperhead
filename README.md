@@ -124,6 +124,8 @@ copperhead sync [--dry-run]          # verify the whole design state, resolve dr
 copperhead create --brief brief.md   # brief → full output package
 copperhead export bom --supplier jlcpcb   # supplier-ready ordering file from docs/BOM.md
 copperhead mcp                       # EXPERIMENTAL: serve the gated pipeline to MCP hosts over stdio
+copperhead pcb reuse --reference old.kicad_pcb [--apply]   # place a board by reusing a placed one (RFC 15); writes placement.md
+copperhead pcb diff HEAD:board.kicad_pcb board.kicad_pcb  # what a change did to a board, one line per part; no LLM
 ```
 
 Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable output. `--model` is available on `do`, `sync`, `create`, `skill run`, and `doctor`; `--interactive` only on `do` and `create`; `do` also takes `--dry-run`, `--max-turns`, and `--allow-dirty`.

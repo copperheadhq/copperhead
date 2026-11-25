@@ -1,0 +1,851 @@
+{
+ "source": "IPC-2221 generic charts (the IPC-2152 tables are not redistributable); external k=0.048, internal k=0.024, I = k*dT^0.44*A^0.725",
+ "units": {
+  "current": "A",
+  "copper": "oz/ft2",
+  "rise": "C",
+  "width": "mm"
+ },
+ "rows": [
+  {
+   "amps": 0.5,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.115
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.3
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.525
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.781
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 1.367
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 2.033
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 2.765
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 3.556
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 5.288
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 7.194
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 0.3
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 0.781
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 1.367
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 2.033
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 3.556
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 5.288
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 7.194
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 9.251
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 13.757
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 1,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 18.715
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.076
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.197
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.345
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.513
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.898
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 1.335
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 1.816
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 2.335
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 3.472
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 4.724
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 0.197
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 0.513
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 0.898
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 1.335
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 2.335
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 3.472
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 4.724
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 6.074
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 9.033
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 1,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 12.288
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.059
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.154
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.27
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.401
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.702
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 1.044
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 1.42
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 1.826
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 2.715
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 3.693
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 0.154
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 0.401
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 0.702
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 1.044
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 1.826
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 2.715
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 3.693
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 4.749
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 7.062
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 1,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 9.608
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.058
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.15
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.263
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.391
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 0.683
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 1.016
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 1.383
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 1.778
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 2.644
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "external",
+   "widthMm": 3.597
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 0.15
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 0.391
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 0.683
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 1.016
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 1.778
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 2.644
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 3.597
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 4.626
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 6.878
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 2,
+   "riseC": 10,
+   "layer": "internal",
+   "widthMm": 9.357
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.038
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.099
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.173
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.257
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.449
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.667
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 0.908
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 1.167
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 1.736
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "external",
+   "widthMm": 2.362
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 0.099
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 0.257
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 0.449
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 0.667
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 1.167
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 1.736
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 2.362
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 3.037
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 4.516
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 2,
+   "riseC": 20,
+   "layer": "internal",
+   "widthMm": 6.144
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.03
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.077
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.135
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.201
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.351
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.522
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.71
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 0.913
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 1.357
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "external",
+   "widthMm": 1.847
+  },
+  {
+   "amps": 0.5,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 0.077
+  },
+  {
+   "amps": 1,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 0.201
+  },
+  {
+   "amps": 1.5,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 0.351
+  },
+  {
+   "amps": 2,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 0.522
+  },
+  {
+   "amps": 3,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 0.913
+  },
+  {
+   "amps": 4,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 1.357
+  },
+  {
+   "amps": 5,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 1.847
+  },
+  {
+   "amps": 6,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 2.375
+  },
+  {
+   "amps": 8,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 3.531
+  },
+  {
+   "amps": 10,
+   "copperOzFt2": 2,
+   "riseC": 30,
+   "layer": "internal",
+   "widthMm": 4.804
+  }
+ ]
+}

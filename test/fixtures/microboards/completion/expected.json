@@ -1,0 +1,23 @@
+{
+  "case": "completion",
+  "fault": "legal placement, nothing routed: every connection is owed",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "conn.unrouted",
+      "entityReferences": [
+        "VCC",
+        "GND",
+        "SIG1",
+        "SIG2",
+        "XI",
+        "XO"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 14
+  }
+}

@@ -1,0 +1,93 @@
+# JLCPCB rotation corrections for pick-and-place files.
+#
+# KiCad and JLCPCB use different 0-degree orientation conventions for
+# many common footprints.  These corrections are added to the KiCad
+# rotation value to produce the JLCPCB-expected orientation.
+#
+# Patterns use fnmatch-style glob matching:
+#   SOT-23*  matches  SOT-23, SOT-23-3, SOT-23-5, SOT-23-6, etc.
+#
+# Sources:
+#   - KiBot rotation correction database
+#   - JLCPCB SMT assembly documentation
+#   - Community-validated corrections
+
+rotation_corrections:
+  # --- SOT packages ---
+  "SOT-23*": 180.0
+  "SOT-323*": 180.0
+  "SOT-363*": 180.0
+  "SOT-89*": 180.0
+  "SOT-223*": 180.0
+  "SOT-353*": 180.0
+  "SOT-523*": 180.0
+  "SOT-666*": 180.0
+
+  # --- SOP / SOIC packages ---
+  "SOIC-8*": 270.0
+  "SOP-8*": 270.0
+  "SOIC-14*": 270.0
+  "SOIC-16*": 270.0
+  "SOIC-18*": 270.0
+  "SOIC-20*": 270.0
+  "SOP-4*": 270.0
+  "SOP-16*": 270.0
+
+  # --- SSOP / TSSOP packages ---
+  "SSOP-8*": 270.0
+  "SSOP-14*": 270.0
+  "SSOP-16*": 270.0
+  "SSOP-20*": 270.0
+  "SSOP-24*": 270.0
+  "SSOP-28*": 270.0
+  "TSSOP-8*": 270.0
+  "TSSOP-14*": 270.0
+  "TSSOP-16*": 270.0
+  "TSSOP-20*": 270.0
+  "TSSOP-24*": 270.0
+  "TSSOP-28*": 270.0
+
+  # --- QFN packages ---
+  "QFN-*": 270.0
+  "DFN-*": 270.0
+  "VQFN-*": 270.0
+  "UQFN-*": 270.0
+  "WQFN-*": 270.0
+
+  # --- QFP packages ---
+  "LQFP-*": 270.0
+  "TQFP-*": 270.0
+  "QFP-*": 270.0
+
+  # --- Diode packages ---
+  "D_SOD-123*": 180.0
+  "D_SOD-323*": 180.0
+  "D_SOD-523*": 180.0
+  "D_SOD-723*": 180.0
+  "D_SOD-923*": 180.0
+  "D_SMB*": 180.0
+  "D_SMA*": 180.0
+
+  # --- LED packages ---
+  "LED_0402*": 180.0
+  "LED_0603*": 180.0
+  "LED_0805*": 180.0
+  "LED_1206*": 180.0
+
+  # --- Power packages ---
+  "TO-252*": 180.0
+  "DPAK*": 180.0
+  "TO-263*": 180.0
+  "D2PAK*": 180.0
+  "TO-268*": 180.0
+  "SOT-669*": 180.0
+
+  # --- Crystal / oscillator packages ---
+  "Crystal_SMD_2016*": 180.0
+  "Crystal_SMD_2520*": 180.0
+  "Crystal_SMD_3215*": 180.0
+  "Crystal_SMD_5032*": 180.0
+
+  # --- USB / connector packages ---
+  "USB_C_Receptacle*": 0.0
+  "USB_Micro-B*": 0.0

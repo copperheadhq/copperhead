@@ -1,0 +1,19 @@
+{
+  "case": "separation",
+  "fault": "the analog front end (U1, R1) and the digital block (U2, R2) must stay 10 mm apart; they are 3 mm apart",
+  "generator": "bench/golden/generate.ts",
+  "status": "REFUSE",
+  "diagnostics": [
+    {
+      "code": "intent.functional.separation",
+      "entityReferences": [
+        "U1",
+        "U2"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 6
+  }
+}

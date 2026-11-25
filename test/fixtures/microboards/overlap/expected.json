@@ -1,0 +1,21 @@
+{
+  "case": "overlap",
+  "fault": "C1 sits on U1: courtyards overlap",
+  "generator": "bench/golden/generate.ts",
+  "status": "REFUSE",
+  "diagnostics": [
+    {
+      "code": "geom.courtyard-overlap",
+      "entityReferences": [
+        "U1",
+        "C1"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [
+      "courtyards_overlap"
+    ],
+    "unconnected": 2
+  }
+}

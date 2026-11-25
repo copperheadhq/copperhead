@@ -7,7 +7,24 @@ import path from 'node:path';
  * the docs: every stated/assumed/discovered constraint lands in both in the
  * same tool turn. `affects` drives propagation.
  */
-export interface Constraint {
+/**
+ * Layout constraint fields (RFC 11 §7, implementation spec §7.1): additive,
+ * ignored by the electrical paths; an entry carrying `class` is a claim the
+ * layout intent checker validates.
+ */
+export interface LayoutFields {
+  class: 'mechanical' | 'relative' | 'electrical-layout' | 'functional' | 'thermal' | 'emc' | 'manufacturing' | 'routing' | 'stackup';
+  severity: 'hard' | 'soft' | 'advisory';
+  scope: { refs?: string[]; roles?: string[]; nets?: string[]; pins?: string[] };
+  /** Units in the key: max_distance_nm, min_width_nm. Polygons travel as JSON strings. */
+  parameters: Record<string, number | string | boolean | string[]>;
+  priority: number;
+  /** 0..1 */
+  confidence: number;
+  approvedBy?: string;
+}
+
+export interface Constraint extends Partial<LayoutFields> {
   min?: number;
   max?: number;
   forbidden?: string[];

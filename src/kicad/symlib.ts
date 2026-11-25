@@ -602,3 +602,43 @@ export async function verifySchematicSymbols(
   }
   return { findings, checked, skipped };
 }
+
+/**
+ * A library symbol's footprint hints: the default `Footprint` property and the
+ * `ki_fp_filters` globs, following one `extends` link the way pin resolution
+ * does. Both are empty for a symbol with neither (generic parts such as
+ * `Device:R` carry only filters; a module part usually carries a default).
+ * The board bootstrap uses them when a schematic's Footprint field is not an
+ * installed footprint: a model that writes the symbol id into the footprint
+ * column has still named the part, and the library usually knows its package.
+ */
+export async function symbolFootprintHints(
+  libId: string,
+  dirs: string[],
+): Promise<{ footprint: string | null; filters: string[] }> {
+  const none = { footprint: null, filters: [] as string[] };
+  const [lib, name] = libId.includes(':') ? [libId.slice(0, libId.indexOf(':')), libId.slice(libId.indexOf(':') + 1)] : ['', libId];
+  const file = await findLibraryFile(lib, dirs);
+  if (!file) return none;
+  const root = parseSexp(await readFile(file, 'utf8'))[0];
+  if (root === undefined || !isList(root)) return none;
+  const symbols = librarySymbols(root);
+  let footprint: string | null = null;
+  const filters: string[] = [];
+  let current: string | undefined = name;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const sym = symbols.get(current);
+    if (!sym) break;
+    for (const prop of children(sym, 'property')) {
+      const key = atomAt(prop, 1);
+      const value = atomAt(prop, 2) ?? '';
+      if (key === 'Footprint' && value && !footprint) footprint = value;
+      if (key === 'ki_fp_filters' && value) filters.push(...value.split(/\s+/).filter(Boolean));
+    }
+    if (footprint || filters.length) break;
+    current = atomAt(child(sym, 'extends'), 1);
+  }
+  return { footprint, filters };
+}

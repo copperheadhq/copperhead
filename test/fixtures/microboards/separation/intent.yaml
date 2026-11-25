@@ -1,0 +1,9 @@
+placement:
+  groups:
+    - id: analog
+      components: [U1, R1]
+    - id: digital
+      components: [U2, R2]
+  separation:
+    - groups: [analog, digital]
+      minimum_mm: 10

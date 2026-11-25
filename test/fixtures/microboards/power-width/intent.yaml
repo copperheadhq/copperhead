@@ -1,0 +1,7 @@
+routing:
+  widths:
+    - net: VIN
+      min_width_mm: 0.8
+  currents:
+    - net: VIN
+      amps: 2

@@ -1,0 +1,18 @@
+{
+  "case": "power-width",
+  "fault": "VIN carries 2 A and is routed at 0.25 mm; the intent asks for 0.8 mm",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "intent.routing.width",
+      "entityReferences": [
+        "VIN"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 2
+  }
+}

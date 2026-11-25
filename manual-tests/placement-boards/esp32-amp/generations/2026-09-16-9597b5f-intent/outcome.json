@@ -1,0 +1,1845 @@
+{
+  "status": "PARTIAL",
+  "summary": "every candidate failed a hard gate; the board is unchanged",
+  "detail": [
+    "placer-reference: ineligible (harness-only reference engine (pass allowHarnessEngines to use it))",
+    "placer-kicad-tools-evolutionary: process-failed: kct placement optimize exited 1:   \"message\": \"Error during optimization: 'EvolutionaryPlacementOptimizer' object has no attribute 'total_wire_length'\" | } | CuPy not available, falling back to NumPy (fix: see kct.log in the run directory)",
+    "placer-reuse-copy: unsupported (no placement, no explanation from the engine)",
+    "placer-kicad-tools-physics: ineligible: geom.outside-board; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.pth_inside_courtyard; drc.pth_inside_courtyard; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; courtyard_overlap_count 43 > 0; outside_board_count 1 > 0",
+    "placer-pyplacer: ineligible: geom.outside-board; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.pth_inside_courtyard; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.pth_inside_courtyard; drc.pth_inside_courtyard; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; courtyard_overlap_count 32 > 0; outside_board_count 1 > 0",
+    "placer-fixed: ineligible: geom.outside-board; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.pth_inside_courtyard; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.pth_inside_courtyard; drc.pth_inside_courtyard; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; courtyard_overlap_count 29 > 0; outside_board_count 1 > 0",
+    "placer-reuse-pack: ineligible: geom.outside-board; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.copper_edge_clearance; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.pth_inside_courtyard; drc.pth_inside_courtyard; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; courtyard_overlap_count 28 > 0; outside_board_count 1 > 0"
+  ],
+  "diagnostics": [
+    {
+      "code": "geom.outside-board",
+      "severity": "error",
+      "message": "F1: 2 pad(s) outside the board outline",
+      "entityReferences": [
+        "F1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C7 and CP1 overlap",
+      "entityReferences": [
+        "C7",
+        "CP1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C7 and C6 overlap",
+      "entityReferences": [
+        "C7",
+        "C6"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C8 and FB2 overlap",
+      "entityReferences": [
+        "C8",
+        "FB2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C8 and FB1 overlap",
+      "entityReferences": [
+        "C8",
+        "FB1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C8 and R3 overlap",
+      "entityReferences": [
+        "C8",
+        "R3"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C8 and D2 overlap",
+      "entityReferences": [
+        "C8",
+        "D2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C8 and C9 overlap",
+      "entityReferences": [
+        "C8",
+        "C9"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C4 and C5 overlap",
+      "entityReferences": [
+        "C4",
+        "C5"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C4 and R4 overlap",
+      "entityReferences": [
+        "C4",
+        "R4"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C4 and C3 overlap",
+      "entityReferences": [
+        "C4",
+        "C3"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C4 and SW2 overlap",
+      "entityReferences": [
+        "C4",
+        "SW2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of R5 and U1 overlap",
+      "entityReferences": [
+        "R5",
+        "U1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of F1 and D1 overlap",
+      "entityReferences": [
+        "F1",
+        "D1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of F1 and R1 overlap",
+      "entityReferences": [
+        "F1",
+        "R1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of R6 and CP1 overlap",
+      "entityReferences": [
+        "R6",
+        "CP1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of R6 and R7 overlap",
+      "entityReferences": [
+        "R6",
+        "R7"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of R6 and U1 overlap",
+      "entityReferences": [
+        "R6",
+        "U1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of FB2 and FB1 overlap",
+      "entityReferences": [
+        "FB2",
+        "FB1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of FB2 and R3 overlap",
+      "entityReferences": [
+        "FB2",
+        "R3"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of FB2 and D2 overlap",
+      "entityReferences": [
+        "FB2",
+        "D2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of FB2 and C9 overlap",
+      "entityReferences": [
+        "FB2",
+        "C9"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C5 and R4 overlap",
+      "entityReferences": [
+        "C5",
+        "R4"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C5 and SW2 overlap",
+      "entityReferences": [
+        "C5",
+        "SW2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C2 and SW2 overlap",
+      "entityReferences": [
+        "C2",
+        "SW2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C2 and U1 overlap",
+      "entityReferences": [
+        "C2",
+        "U1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of D1 and J1 overlap",
+      "entityReferences": [
+        "D1",
+        "J1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of D1 and R1 overlap",
+      "entityReferences": [
+        "D1",
+        "R1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of J1 and U1 overlap",
+      "entityReferences": [
+        "J1",
+        "U1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of R4 and SW2 overlap",
+      "entityReferences": [
+        "R4",
+        "SW2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C3 and SW2 overlap",
+      "entityReferences": [
+        "C3",
+        "SW2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of CP1 and R7 overlap",
+      "entityReferences": [
+        "CP1",
+        "R7"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of CP1 and U3 overlap",
+      "entityReferences": [
+        "CP1",
+        "U3"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of CP1 and C6 overlap",
+      "entityReferences": [
+        "CP1",
+        "C6"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of CP1 and U1 overlap",
+      "entityReferences": [
+        "CP1",
+        "U1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of C1 and SW2 overlap",
+      "entityReferences": [
+        "C1",
+        "SW2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of U2 and SW2 overlap",
+      "entityReferences": [
+        "U2",
+        "SW2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of FB1 and R3 overlap",
+      "entityReferences": [
+        "FB1",
+        "R3"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of FB1 and D2 overlap",
+      "entityReferences": [
+        "FB1",
+        "D2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of FB1 and C9 overlap",
+      "entityReferences": [
+        "FB1",
+        "C9"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of R7 and U1 overlap",
+      "entityReferences": [
+        "R7",
+        "U1"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of R3 and D2 overlap",
+      "entityReferences": [
+        "R3",
+        "D2"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of R3 and C9 overlap",
+      "entityReferences": [
+        "R3",
+        "C9"
+      ]
+    },
+    {
+      "code": "geom.courtyard-overlap",
+      "severity": "error",
+      "message": "courtyards of D2 and C9 overlap",
+      "entityReferences": [
+        "D2",
+        "C9"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets +3V3 and /OUTN and /OUTP and /SPK_N and /SPK_P and GND",
+      "entityReferences": [
+        "+3V3",
+        "/OUTN",
+        "/OUTP",
+        "/SPK_N",
+        "/SPK_P",
+        "GND",
+        "C8.1",
+        "FB2.1",
+        "FB1.1",
+        "R3.1",
+        "D2.1",
+        "C9.1"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets +3V3 and /EN and GND",
+      "entityReferences": [
+        "+3V3",
+        "/EN",
+        "GND",
+        "C4.2",
+        "C5.2",
+        "R4.2",
+        "C3.1",
+        "C3.2",
+        "SW2.1",
+        "SW2.2"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets /GAIN and /RXD",
+      "entityReferences": [
+        "/GAIN",
+        "/RXD",
+        "R5.1",
+        "U1.36"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets +5V and VBUS",
+      "entityReferences": [
+        "+5V",
+        "VBUS",
+        "F1.1",
+        "D1.1"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets +5V and GND",
+      "entityReferences": [
+        "+5V",
+        "GND",
+        "F1.2",
+        "D1.2",
+        "R1.2"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets +3V3 and /SD_MODE and unconnected-(U1-IO42-Pad35)",
+      "entityReferences": [
+        "+3V3",
+        "/SD_MODE",
+        "unconnected-(U1-IO42-Pad35)",
+        "R6.1",
+        "R7.1",
+        "U1.35"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets /SD_MODE and GND",
+      "entityReferences": [
+        "/SD_MODE",
+        "GND",
+        "R6.2",
+        "R7.2"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets /LED_A and /SPK_N and /SPK_P",
+      "entityReferences": [
+        "/LED_A",
+        "/SPK_N",
+        "/SPK_P",
+        "FB2.2",
+        "FB1.2",
+        "R3.2",
+        "D2.2"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets +3V3 and /EN",
+      "entityReferences": [
+        "+3V3",
+        "/EN",
+        "C5.1",
+        "R4.1"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets +3V3 and /BCLK and GND and unconnected-(U1-IO4-Pad4)",
+      "entityReferences": [
+        "+3V3",
+        "/BCLK",
+        "GND",
+        "unconnected-(U1-IO4-Pad4)",
+        "C2.1",
+        "C2.2",
+        "U1.4",
+        "U1.5"
+      ]
+    },
+    {
+      "code": "conn.short",
+      "severity": "error",
+      "message": "copper joins nets +5V and unconnected-(U1-IO40-Pad33)",
+      "entityReferences": [
+        "+5V",
+        "unconnected-(U1-IO40-Pad33)",
+        "CP1.1",
+        "U1.33"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [GND] of D2 on F.Cu; Pad 1 [/OUTP] of FB1 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/OUTP"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [+5V] of D1 on F.Cu; Pad 1 [VBUS] of F1 on F.Cu",
+      "entityReferences": [
+        "+5V",
+        "F.Cu",
+        "VBUS"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [GND] of C2 on F.Cu; Pad 4 [unconnected-(U1-IO4-Pad4)] of U1 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "unconnected-(U1-IO4-Pad4)"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [+5V] of F1 on F.Cu; Pad 2 [GND] of D1 on F.Cu",
+      "entityReferences": [
+        "+5V",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [GND] of D2 on F.Cu; Pad 1 [/OUTN] of FB2 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/OUTN"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [GND] of C3 on F.Cu; Pad 1 [/EN] of SW2 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/EN"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [+3V3] of R4 on F.Cu; Pad 1 [/EN] of C5 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/EN"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [+3V3] of C2 on F.Cu; Pad 5 [/BCLK] of U1 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/BCLK"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [GND] of D2 on F.Cu; Pad 1 [+3V3] of R3 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 35 [unconnected-(U1-IO42-Pad35)] of U1 on F.Cu; Pad 1 [+3V3] of R6 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO42-Pad35)",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 35 [unconnected-(U1-IO42-Pad35)] of U1 on F.Cu; Pad 1 [/SD_MODE] of R7 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO42-Pad35)",
+        "F.Cu",
+        "/SD_MODE"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [GND] of C2 on F.Cu; Pad 5 [/BCLK] of U1 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/BCLK"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 36 [/RXD] of U1 on F.Cu; Pad 1 [/GAIN] of R5 on F.Cu",
+      "entityReferences": [
+        "/RXD",
+        "F.Cu",
+        "/GAIN"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [GND] of C4 on F.Cu; Pad 1 [/EN] of SW2 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/EN"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [+5V] of F1 on F.Cu; Pad 2 [GND] of R1 on F.Cu",
+      "entityReferences": [
+        "+5V",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [GND] of C5 on F.Cu; Pad 2 [/EN] of R4 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/EN"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 4 [unconnected-(U1-IO4-Pad4)] of U1 on F.Cu; Pad 1 [+3V3] of C2 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO4-Pad4)",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [/SPK_P] of C8 on F.Cu; Pad 1 [+3V3] of R3 on F.Cu",
+      "entityReferences": [
+        "/SPK_P",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [/EN] of R4 on F.Cu; Pad 2 [GND] of SW2 on F.Cu",
+      "entityReferences": [
+        "/EN",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [+5V] of CP1 on F.Cu; Pad 33 [unconnected-(U1-IO40-Pad33)] of U1 on F.Cu",
+      "entityReferences": [
+        "+5V",
+        "F.Cu",
+        "unconnected-(U1-IO40-Pad33)"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [/EN] of SW2 on F.Cu; Pad 2 [GND] of C5 on F.Cu",
+      "entityReferences": [
+        "/EN",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [/LED_A] of D2 on F.Cu; Pad 2 [/SPK_P] of FB1 on F.Cu",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu",
+        "/SPK_P"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [+3V3] of R6 on F.Cu; Pad 1 [/SD_MODE] of R7 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/SD_MODE"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [/SD_MODE] of R6 on F.Cu; Pad 2 [GND] of R7 on F.Cu",
+      "entityReferences": [
+        "/SD_MODE",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [/LED_A] of D2 on F.Cu; Pad 2 [/SPK_N] of FB2 on F.Cu",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [+3V3] of R3 on F.Cu; Pad 1 [/OUTP] of FB1 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/OUTP"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [+3V3] of R3 on F.Cu; Pad 1 [/OUTN] of FB2 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/OUTN"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [+3V3] of R3 on F.Cu; Pad 1 [/SPK_N] of C9 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [/LED_A] of R3 on F.Cu; Pad 2 [/SPK_P] of FB1 on F.Cu",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu",
+        "/SPK_P"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [/LED_A] of R3 on F.Cu; Pad 2 [/SPK_N] of FB2 on F.Cu",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [/SPK_P] of C8 on F.Cu; Pad 1 [/SPK_N] of C9 on F.Cu",
+      "entityReferences": [
+        "/SPK_P",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [GND] of C4 on F.Cu; Pad 1 [+3V3] of C3 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 1 [/OUTP] of FB1 on F.Cu; Pad 1 [/OUTN] of FB2 on F.Cu",
+      "entityReferences": [
+        "/OUTP",
+        "F.Cu",
+        "/OUTN"
+      ]
+    },
+    {
+      "code": "drc.solder_mask_bridge",
+      "severity": "error",
+      "message": "Front solder mask aperture bridges items with different nets: Pad 2 [/SPK_P] of FB1 on F.Cu; Pad 2 [/SPK_N] of FB2 on F.Cu",
+      "entityReferences": [
+        "/SPK_P",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.copper_edge_clearance",
+      "severity": "error",
+      "message": "Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.0000 mm): Rectangle on Edge.Cuts; Pad 1 [VBUS] of F1 on F.Cu",
+      "entityReferences": [
+        "Edge.Cuts",
+        "VBUS",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.copper_edge_clearance",
+      "severity": "error",
+      "message": "Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.0000 mm): Rectangle on Edge.Cuts; Pad 2 [+5V] of F1 on F.Cu",
+      "entityReferences": [
+        "Edge.Cuts",
+        "+5V",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.copper_edge_clearance",
+      "severity": "error",
+      "message": "Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.3050 mm): Rectangle on Edge.Cuts; Pad 1 [+5V] of D1 on F.Cu",
+      "entityReferences": [
+        "Edge.Cuts",
+        "+5V",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.copper_edge_clearance",
+      "severity": "error",
+      "message": "Board edge clearance violation (board setup constraints edge clearance 0.5000 mm; actual 0.3050 mm): Rectangle on Edge.Cuts; Pad 2 [GND] of D1 on F.Cu",
+      "entityReferences": [
+        "Edge.Cuts",
+        "GND",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C7; Footprint CP1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C7; Footprint C6",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C8; Footprint FB2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C8; Footprint FB1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C8; Footprint R3",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C8; Footprint D2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C8; Footprint C9",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C4; Footprint C5",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C4; Footprint R4",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C4; Footprint C3",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C4; Footprint SW2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint R5; Footprint U1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint F1; Footprint D1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint F1; Footprint R1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint R6; Footprint CP1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint R6; Footprint R7",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint R6; Footprint U1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint FB2; Footprint FB1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint FB2; Footprint R3",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint FB2; Footprint D2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint FB2; Footprint C9",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C5; Footprint R4",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C5; Footprint SW2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C2; Footprint SW2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C2; Footprint U1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint D1; Footprint J1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint D1; Footprint R1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint J1; Footprint U1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.pth_inside_courtyard",
+      "severity": "error",
+      "message": "PTH inside courtyard: PTH pad SH [GND] of J1; Footprint U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.pth_inside_courtyard",
+      "severity": "error",
+      "message": "PTH inside courtyard: PTH pad SH [GND] of J1; Footprint U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint R4; Footprint SW2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C3; Footprint SW2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint CP1; Footprint R7",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint CP1; Footprint U3",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint CP1; Footprint C6",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint CP1; Footprint U1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint C1; Footprint SW2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint U2; Footprint SW2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint FB1; Footprint R3",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint FB1; Footprint D2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint FB1; Footprint C9",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint R7; Footprint U1",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint R3; Footprint D2",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint R3; Footprint C9",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.courtyards_overlap",
+      "severity": "error",
+      "message": "Courtyards overlap: Footprint D2; Footprint C9",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets +3V3 and /EN): Pad 1 [+3V3] of R4 on F.Cu; Pad 1 [/EN] of C5 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/EN"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /OUTP and /OUTN): Pad 1 [/OUTP] of FB1 on F.Cu; Pad 1 [/OUTN] of FB2 on F.Cu",
+      "entityReferences": [
+        "/OUTP",
+        "F.Cu",
+        "/OUTN"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets VBUS and +5V): Pad 1 [VBUS] of F1 on F.Cu; Pad 1 [+5V] of D1 on F.Cu",
+      "entityReferences": [
+        "VBUS",
+        "F.Cu",
+        "+5V"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /OUTP and +3V3): Pad 1 [/OUTP] of FB1 on F.Cu; Pad 1 [+3V3] of R3 on F.Cu",
+      "entityReferences": [
+        "/OUTP",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets +5V and GND): Pad 2 [+5V] of F1 on F.Cu; Pad 2 [GND] of D1 on F.Cu",
+      "entityReferences": [
+        "+5V",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets +5V and GND): Pad 2 [+5V] of F1 on F.Cu; Pad 2 [GND] of R1 on F.Cu",
+      "entityReferences": [
+        "+5V",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /EN and GND): Pad 2 [/EN] of R4 on F.Cu; Pad 2 [GND] of C5 on F.Cu",
+      "entityReferences": [
+        "/EN",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /SPK_P and /SPK_N): Pad 2 [/SPK_P] of FB1 on F.Cu; Pad 2 [/SPK_N] of FB2 on F.Cu",
+      "entityReferences": [
+        "/SPK_P",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /SPK_P and /LED_A): Pad 2 [/SPK_P] of FB1 on F.Cu; Pad 2 [/LED_A] of R3 on F.Cu",
+      "entityReferences": [
+        "/SPK_P",
+        "F.Cu",
+        "/LED_A"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets +3V3 and /SPK_P): Pad 1 [+3V3] of R3 on F.Cu; Pad 1 [/SPK_P] of C8 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/SPK_P"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets +3V3 and /SPK_N): Pad 1 [+3V3] of R3 on F.Cu; Pad 1 [/SPK_N] of C9 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1447 mm): Pad 1 [/EN] of SW2 on F.Cu; Pad 1 [+3V3] of R4 on F.Cu",
+      "entityReferences": [
+        "/EN",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1504 mm): Pad 1 [+5V] of C7 on F.Cu; Pad 2 [GND] of C6 on F.Cu",
+      "entityReferences": [
+        "+5V",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /EN and GND): Pad 1 [/EN] of SW2 on F.Cu; Pad 2 [GND] of C4 on F.Cu",
+      "entityReferences": [
+        "/EN",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /EN and GND): Pad 1 [/EN] of SW2 on F.Cu; Pad 2 [GND] of C5 on F.Cu",
+      "entityReferences": [
+        "/EN",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.0600 mm): Pad 1 [/EN] of SW2 on F.Cu; Pad 1 [+3V3] of C3 on F.Cu",
+      "entityReferences": [
+        "/EN",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /EN and GND): Pad 1 [/EN] of SW2 on F.Cu; Pad 2 [GND] of C3 on F.Cu",
+      "entityReferences": [
+        "/EN",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1700 mm): Pad 2 [GND] of SW2 on F.Cu; Pad 1 [+5V] of U2 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "+5V"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1700 mm): Pad 2 [GND] of SW2 on F.Cu; Pad 5 [+3V3] of U2 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /OUTN and +3V3): Pad 1 [/OUTN] of FB2 on F.Cu; Pad 1 [+3V3] of R3 on F.Cu",
+      "entityReferences": [
+        "/OUTN",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1447 mm): Pad 2 [GND] of SW2 on F.Cu; Pad 1 [+3V3] of R4 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets unconnected-(U1-IO4-Pad4) and +3V3): Pad 4 [unconnected-(U1-IO4-Pad4)] of U1 on F.Cu; Pad 1 [+3V3] of C2 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO4-Pad4)",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.0985 mm): Pad 2 [GND] of SW2 on F.Cu; Pad 1 [/EN] of C5 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/EN"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets unconnected-(U1-IO4-Pad4) and GND): Pad 4 [unconnected-(U1-IO4-Pad4)] of U1 on F.Cu; Pad 2 [GND] of C2 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO4-Pad4)",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /SPK_N and /LED_A): Pad 2 [/SPK_N] of FB2 on F.Cu; Pad 2 [/LED_A] of R3 on F.Cu",
+      "entityReferences": [
+        "/SPK_N",
+        "F.Cu",
+        "/LED_A"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets GND and /EN): Pad 2 [GND] of SW2 on F.Cu; Pad 2 [/EN] of R4 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/EN"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1407 mm): Pad 2 [/SPK_N] of FB2 on F.Cu; Pad 2 [GND] of C8 on F.Cu",
+      "entityReferences": [
+        "/SPK_N",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /BCLK and +3V3): Pad 5 [/BCLK] of U1 on F.Cu; Pad 1 [+3V3] of C2 on F.Cu",
+      "entityReferences": [
+        "/BCLK",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /BCLK and GND): Pad 5 [/BCLK] of U1 on F.Cu; Pad 2 [GND] of C2 on F.Cu",
+      "entityReferences": [
+        "/BCLK",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1322 mm): Pad 2 [/SPK_N] of FB2 on F.Cu; Pad 2 [GND] of C9 on F.Cu",
+      "entityReferences": [
+        "/SPK_N",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /SPK_P and /SPK_N): Pad 1 [/SPK_P] of C8 on F.Cu; Pad 1 [/SPK_N] of C9 on F.Cu",
+      "entityReferences": [
+        "/SPK_P",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets unconnected-(U1-IO39-Pad32) and +5V): Pad 32 [unconnected-(U1-IO39-Pad32)] of U1 on F.Cu; Pad 1 [+5V] of CP1 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO39-Pad32)",
+        "F.Cu",
+        "+5V"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets unconnected-(U1-IO40-Pad33) and +5V): Pad 33 [unconnected-(U1-IO40-Pad33)] of U1 on F.Cu; Pad 1 [+5V] of CP1 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO40-Pad33)",
+        "F.Cu",
+        "+5V"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.0400 mm): Pad 34 [unconnected-(U1-IO41-Pad34)] of U1 on F.Cu; Pad 1 [+5V] of CP1 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO41-Pad34)",
+        "F.Cu",
+        "+5V"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets +3V3 and /SD_MODE): Pad 1 [+3V3] of R6 on F.Cu; Pad 1 [/SD_MODE] of R7 on F.Cu",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu",
+        "/SD_MODE"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /SD_MODE and GND): Pad 2 [/SD_MODE] of R6 on F.Cu; Pad 2 [GND] of R7 on F.Cu",
+      "entityReferences": [
+        "/SD_MODE",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets unconnected-(U1-IO42-Pad35) and +3V3): Pad 35 [unconnected-(U1-IO42-Pad35)] of U1 on F.Cu; Pad 1 [+3V3] of R6 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO42-Pad35)",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1100 mm): Pad 35 [unconnected-(U1-IO42-Pad35)] of U1 on F.Cu; Pad 2 [/SD_MODE] of R6 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO42-Pad35)",
+        "F.Cu",
+        "/SD_MODE"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1100 mm): Pad 35 [unconnected-(U1-IO42-Pad35)] of U1 on F.Cu; Pad 2 [GND] of R7 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO42-Pad35)",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets unconnected-(U1-IO42-Pad35) and /SD_MODE): Pad 35 [unconnected-(U1-IO42-Pad35)] of U1 on F.Cu; Pad 1 [/SD_MODE] of R7 on F.Cu",
+      "entityReferences": [
+        "unconnected-(U1-IO42-Pad35)",
+        "F.Cu",
+        "/SD_MODE"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1600 mm): Pad 36 [/RXD] of U1 on F.Cu; Pad 1 [+3V3] of R6 on F.Cu",
+      "entityReferences": [
+        "/RXD",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /RXD and /GAIN): Pad 36 [/RXD] of U1 on F.Cu; Pad 1 [/GAIN] of R5 on F.Cu",
+      "entityReferences": [
+        "/RXD",
+        "F.Cu",
+        "/GAIN"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1100 mm): Pad 36 [/RXD] of U1 on F.Cu; Pad 2 [GND] of R5 on F.Cu",
+      "entityReferences": [
+        "/RXD",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1600 mm): Pad 36 [/RXD] of U1 on F.Cu; Pad 1 [/SD_MODE] of R7 on F.Cu",
+      "entityReferences": [
+        "/RXD",
+        "F.Cu",
+        "/SD_MODE"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets GND and /OUTP): Pad 1 [GND] of D2 on F.Cu; Pad 1 [/OUTP] of FB1 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/OUTP"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets GND and /OUTN): Pad 1 [GND] of D2 on F.Cu; Pad 1 [/OUTN] of FB2 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/OUTN"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets GND and +3V3): Pad 1 [GND] of D2 on F.Cu; Pad 1 [+3V3] of R3 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "+3V3"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.0152 mm): Pad 1 [GND] of D2 on F.Cu; Pad 1 [/SPK_P] of C8 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/SPK_P"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.0159 mm): Pad 1 [GND] of D2 on F.Cu; Pad 1 [/SPK_N] of C9 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /LED_A and /SPK_P): Pad 2 [/LED_A] of D2 on F.Cu; Pad 2 [/SPK_P] of FB1 on F.Cu",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu",
+        "/SPK_P"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets /LED_A and /SPK_N): Pad 2 [/LED_A] of D2 on F.Cu; Pad 2 [/SPK_N] of FB2 on F.Cu",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu",
+        "/SPK_N"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1286 mm): Pad 2 [/LED_A] of D2 on F.Cu; Pad 2 [GND] of C8 on F.Cu",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.clearance",
+      "severity": "error",
+      "message": "Clearance violation ( clearance 0.2000 mm; actual 0.1222 mm): Pad 2 [/LED_A] of D2 on F.Cu; Pad 2 [GND] of C9 on F.Cu",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu",
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.shorting_items",
+      "severity": "error",
+      "message": "Items shorting two nets (nets GND and +3V3): Pad 2 [GND] of C4 on F.Cu; Pad 1 [+3V3] of C3 on F.Cu",
+      "entityReferences": [
+        "GND",
+        "F.Cu",
+        "+3V3"
+      ]
+    }
+  ]
+}
