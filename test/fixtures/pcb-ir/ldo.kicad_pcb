@@ -22,6 +22,7 @@
 		(layer "F.Cu")
 		(uuid "6f1d4a6e-1b2c-4d3e-9f40-5a6b7c8d9e01")
 		(at 10.78 10 90)
+		(path "/a1f00000-0000-4000-8000-000000000001/a1f00000-0000-4000-8000-0000000000u1")
 		(property "Reference" "U1"
 			(at 0 -2.4 90)
 			(layer "F.SilkS")
@@ -40,6 +41,7 @@
 		(layer "F.Cu")
 		(uuid "6f1d4a6e-1b2c-4d3e-9f40-5a6b7c8d9e11")
 		(at 13.7 11.4 270)
+		(path "/a1f00000-0000-4000-8000-000000000001/a1f00000-0000-4000-8000-0000000000c1")
 		(property "Reference" "C1"
 			(at 0 -1.43 270)
 			(layer "F.SilkS")
@@ -57,6 +59,7 @@
 		(layer "F.Cu")
 		(uuid "6f1d4a6e-1b2c-4d3e-9f40-5a6b7c8d9e21")
 		(at 7.9 11.4 90)
+		(path "/a1f00000-0000-4000-8000-000000000001/a1f00000-0000-4000-8000-0000000000c2")
 		(property "Reference" "C2"
 			(at 0 -1.43 90)
 			(layer "F.SilkS")
@@ -74,6 +77,7 @@
 		(layer "F.Cu")
 		(uuid "6f1d4a6e-1b2c-4d3e-9f40-5a6b7c8d9e31")
 		(at 20 7)
+		(path "/a1f00000-0000-4000-8000-000000000001/a1f00000-0000-4000-8000-0000000000r1")
 		(property "Reference" "R1"
 			(at 0 -1.43 0)
 			(layer "F.SilkS")

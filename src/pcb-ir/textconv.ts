@@ -52,12 +52,12 @@ function angle(text: string | undefined): string {
   return degrees(rotationOf(Math.round(Number(text ?? '0') * 1000)));
 }
 
-type Pt = [number, number];
+export type Pt = [number, number];
 const TURN = 2 * Math.PI;
 const norm = (a: number): number => ((a % TURN) + TURN) % TURN;
 
 /** The circle through an arc's start, mid, and end, with the arc's angles; null when the three are collinear. */
-function arcCircle(start: Pt, mid: Pt, end: Pt) {
+export function arcCircle(start: Pt, mid: Pt, end: Pt) {
   const [ax, ay] = start;
   const [bx, by] = mid;
   const [cx, cy] = end;

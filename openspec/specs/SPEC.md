@@ -349,15 +349,18 @@ copperhead explain <refdes|net|pin>
     structured hit. Unknown queries exit 1 with nearby-name suggestions.
     The REPL exposes the same lookup as `/explain`.
 
-copperhead pcb diff <before> <after> [--blocks <dir>] [--json]
-    What <after> changes relative to <before> (RFC 11 Section 6.11). The
-    before side is a layout input; the after side is a candidate, whose
-    block layouts are read from --blocks or from beside it, or a later
-    layout input. Prints the text view of RFC 11 Section 14.4 (one line per
-    changed component, ! where the change needs approval, then constraint,
-    finding, and copper lines); --json prints the placement diff record.
-    Given a .kicad_pcb it exits 1: boards are compared once imported into a
-    layout input. Read-only; no LLM, no network, no kicad-cli.
+copperhead pcb diff <before> <after> [--blocks <dir>] [--project <id>] [--json]
+    What <after> changes relative to <before> (RFC 11 Section 6.11). Each
+    side is a layout input, a .kicad_pcb, or a board at a git revision
+    written <rev>:<path>; the after side may instead be a candidate, whose
+    block layouts are read from --blocks or from beside it. A board is
+    imported into a layout input (RFC 11 Section 5.1) with identifiers
+    derived under one project, the board file's name unless --project
+    says otherwise, so the same part matches across revisions. Prints the
+    text view of RFC 11 Section 14.4 (one line per changed component, !
+    where the change needs approval, then constraint, finding, and copper
+    lines); --json prints the placement diff record. Read-only; no LLM,
+    no network, no kicad-cli.
 
 copperhead pcb textconv <board>
     Prints a .kicad_pcb as the board text of RFC 11 Section 14.4, one fact
@@ -552,6 +555,13 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-20.5** The text view of the RFC's published diff equals the example in RFC 11 Section 14.4, line for line.
 - **AC-20.6** `pcb textconv` prints one fact per line; moving one footprint changes exactly one line, reordering footprints in the file changes none, a changed trace width or via changes its net's line, and a circular edge cut reports its full extent.
 - **AC-20.7** `pcb diff` and `pcb textconv` make no LLM, network, or kicad-cli call, and write nothing.
+
+### AC-21 · KiCad board import (change: add-pcb-import)
+
+- **AC-21.1** Importing a `.kicad_pcb` yields a layout input that validates against the RFC 11 schema, with each footprint definition keyed by its content hash and shared by the parts that use it.
+- **AC-21.2** Identifiers are derived as RFC 3 Section 4.2 specifies: the derivation reproduces the RFC example's `PCB-217f1404b81d`, and a part keeps its identifier when it is renumbered.
+- **AC-21.3** The import does not depend on the order of the file, records every placement as owned by the import adapter, and lists in the board's `lossy` field what it could not represent.
+- **AC-21.4** `pcb diff` of two boards, or of a board and itself at a git revision (`HEAD:board.kicad_pcb`), shows a moved and turned part as one row with its distance and rotation.
 
 ### AC-3 · `copperhead do` — core loop
 

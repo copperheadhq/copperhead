@@ -1,5 +1,8 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { access, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
+import { importKicadBoard } from '../pcb-ir/import-kicad.js';
 import {
   boardTextOfFile,
   placementDiff,
@@ -20,13 +23,42 @@ export class PcbCommandError extends Error {}
 
 type Side = { kind: 'input'; input: LayoutInput } | { kind: 'candidate'; candidate: Candidate };
 
-async function readJson(file: string): Promise<unknown> {
-  if (file.endsWith('.kicad_pcb')) {
-    throw new PcbCommandError(
-      `${file}: importing a KiCad board into a layout input (RFC 11 Section 5.1) is not part of pcb diff yet; ` +
-        'pass a layout input or candidate JSON, or compare boards with pcb textconv',
-    );
+async function exists(file: string): Promise<boolean> {
+  return access(file).then(
+    () => true,
+    () => false,
+  );
+}
+
+/**
+ * A board side: a .kicad_pcb file, or one at a revision under version control
+ * written `<revision>:<path>`, imported into a layout input (RFC 11 Section 5.1).
+ */
+async function boardSide(spec: string, projectId: string | undefined): Promise<Side> {
+  let text: string;
+  let file = spec;
+  if (await exists(spec)) {
+    text = await readFile(spec, 'utf8');
+  } else {
+    const m = /^([^:]+):(.+)$/.exec(spec);
+    if (!m) throw new PcbCommandError(`${spec}: no such board file`);
+    file = m[2]!;
+    try {
+      const { stdout } = await promisify(execFile)('git', ['show', `${m[1]}:${file}`], { maxBuffer: 256 * 1024 * 1024 });
+      text = stdout;
+    } catch (err) {
+      throw new PcbCommandError(`${spec}: ${(err as Error).message.split('\n')[0]}`);
+    }
   }
+  const project = projectId ?? path.basename(file, '.kicad_pcb');
+  try {
+    return { kind: 'input', input: importKicadBoard(text, { projectId: project, path: spec }) };
+  } catch (err) {
+    throw new PcbCommandError((err as Error).message);
+  }
+}
+
+async function readJson(file: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(file, 'utf8'));
   } catch (err) {
@@ -62,11 +94,25 @@ export interface PcbDiffResult {
   text: string;
 }
 
-/** What <after>, a candidate or a later layout input, changes relative to <before>, a layout input. */
-export async function pcbDiff(beforeFile: string, afterFile: string, opts: { blocks?: string } = {}): Promise<PcbDiffResult> {
-  const before = classify(beforeFile, await readJson(beforeFile));
-  if (before.kind !== 'input') throw new PcbCommandError(`${beforeFile}: the before side is a layout input`);
-  const after = classify(afterFile, await readJson(afterFile));
+async function side(spec: string, projectId: string | undefined): Promise<Side> {
+  return spec.endsWith('.kicad_pcb') ? boardSide(spec, projectId) : classify(spec, await readJson(spec));
+}
+
+/**
+ * What <after> changes relative to <before>. The before side is a layout input
+ * or a board; the after side is a candidate, a later layout input, or a board.
+ * A board is a .kicad_pcb file or `<revision>:<path>`, imported with
+ * identifiers derived under one project, the board file's name unless
+ * `project` says otherwise, so the same part matches across revisions.
+ */
+export async function pcbDiff(
+  beforeFile: string,
+  afterFile: string,
+  opts: { blocks?: string; project?: string } = {},
+): Promise<PcbDiffResult> {
+  const before = await side(beforeFile, opts.project);
+  if (before.kind !== 'input') throw new PcbCommandError(`${beforeFile}: the before side is a layout input or a board`);
+  const after = await side(afterFile, opts.project);
   const diff =
     after.kind === 'candidate'
       ? placementDiff(before.input, {

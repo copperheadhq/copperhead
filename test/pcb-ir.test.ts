@@ -243,11 +243,11 @@ describe('copperhead pcb diff', () => {
     expect(res.diff.components).toHaveLength(4);
   });
 
-  it('says a KiCad board must be imported first', async () => {
-    const { pcbDiff, PcbCommandError } = await import('../src/commands/pcb.js');
-    await expect(pcbDiff(path.join(HERE, 'fixtures/pcb-ir/ldo.kicad_pcb'), path.join(RFC11, 'candidate.ldo-board.json'))).rejects.toThrow(
-      PcbCommandError,
-    );
+  it('refuses a candidate produced against a different input than the board it is given', async () => {
+    const { pcbDiff } = await import('../src/commands/pcb.js');
+    await expect(
+      pcbDiff(path.join(HERE, 'fixtures/pcb-ir/ldo.kicad_pcb'), path.join(RFC11, 'candidate.ldo-board.json')),
+    ).rejects.toThrow(DiffInputError);
   });
 });
 
