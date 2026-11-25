@@ -48,7 +48,7 @@ export interface PcbReuseResult {
  * reference's positions (the copy, and the A family) adapt a golden layout;
  * the others pack. A part the option's board does not hold is unplaced.
  */
-function candidateOf(
+export function candidateOf(
   optionId: string,
   engineId: string,
   before: LayoutInput,

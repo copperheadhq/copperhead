@@ -27,12 +27,19 @@ Implements copperhead RFC 15 on the records of RFC 11 version 1.4.
 - [x] 3.1 The final ranking decides the outcome, `ranking.json`,
       `outcome.json`, and `--apply`.
 - [x] 3.2 Critical routing defaults to the top five.
+- [x] 3.3 RFC 15's tiers, with per-metric direction and tolerance, and the
+      tier metrics derived from intent findings
+      (`test/pcb-scoring-tiers.test.ts`).
+- [x] 3.4 Each option as an RFC 11 candidate, so the diff marks approvals.
 
 ## 4. End to end
 
 - [x] 4.1 `pcb reuse` on `esp32-amp` against its placed generation, with
       `--apply`, then `pcb diff` of the applied board against its git
-      revision.
+      revision. Every candidate and diff the run wrote validates against
+      the RFC 11 schemas.
+- [x] 4.2 `pcb diff` reads paths and revisions in the `--repo` it is
+      given, not the shell's directory.
 
 ## 5. Next
 

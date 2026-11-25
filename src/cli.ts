@@ -297,6 +297,7 @@ pcbGroup
       const res = await pcbDiff(before, after, {
         ...(opts.blocks && { blocks: opts.blocks }),
         ...(opts.project && { project: opts.project }),
+        cwd: repoOf(program.opts()),
       });
       // What an import could not represent goes to stderr, so --json stays one record.
       for (const note of res.notes) console.error(`note: ${note}`);

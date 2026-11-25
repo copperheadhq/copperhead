@@ -41,6 +41,17 @@ placement diff, no placement.md, no ownership or approval.
   - **Ownership:** the board is imported by `add-pcb-import`, so every
     part is owned by the import. Moving one needs approval (RFC 12
     Section 9.5); `--apply` is that approval.
+- **Ranking follows RFC 15 Section 11.** The tiers run in the RFC's order:
+  T1 mechanical, T2 datasheet-required placement, T3 antenna and thermal, T4
+  critical routing, T5 loop area, T6 separation, T8 routability, T9 length.
+  Each metric has its own direction and tolerance, relative where the RFC
+  says so; a tier a candidate was not measured on ties. The framework's
+  profile ranked loop area before critical routing, had no T2, and compared
+  min-max normalised sums inside one tolerance. Each candidate's reason
+  names the tier that put it ahead of the next.
+- **Each option is an RFC 11 candidate** (Section 6.10), written as
+  `candidate.json` beside its board, so its placement diff marks the moves
+  that need approval.
 - **One ranking decides.** After critical routing, the outcome,
   `ranking.json` and `outcome.json` are rebuilt from the final ranking, so
   what the run says it selected is what `--apply` writes. The ranking it

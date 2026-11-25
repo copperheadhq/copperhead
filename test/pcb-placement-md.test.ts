@@ -77,3 +77,27 @@ describe('placement.md', () => {
     expect(byModel).toContain('Rationale, written by a model:\n\n> Keep the LDO near the input connector.');
   });
 });
+
+describe('a reuse option as an RFC 11 candidate', () => {
+  it('validates, and its diff marks a move of an imported part as needing approval', async () => {
+    const { candidateOf } = await import('../src/commands/pcb-reuse.js');
+    const Ajv2020 = (await import('ajv/dist/2020.js')).default;
+    const { readdirSync } = await import('node:fs');
+    const candidate = candidateOf('b0', 'placer-reuse-b0', before, after, {
+      verified: true,
+      findings: [],
+      metrics: { hpwl_nm: 1, missing: undefined },
+    });
+    const SCHEMAS = path.join(HERE, '../src/pcb-ir/schemas/rfc11');
+    const ajv = new Ajv2020({ strict: false, allErrors: true });
+    for (const f of readdirSync(SCHEMAS).filter((n) => n.endsWith('.schema.json'))) ajv.addSchema(JSON.parse(readFileSync(path.join(SCHEMAS, f), 'utf8')));
+    const valid = ajv.getSchema('https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/candidate.schema.json')!;
+    expect(valid(candidate), JSON.stringify(valid.errors)).toBe(true);
+    expect(candidate.loose.every((l) => l.basis === 'packed')).toBe(true);
+    expect(candidateOf('copy', 'placer-reuse-copy', before, after, { verified: true, findings: [], metrics: {} }).loose[0]!.basis).toBe('golden-adapted');
+
+    const d = placementDiff(before, { candidate, blockLayouts: [] });
+    expect(d.components.map((r) => [r.refdes, r.changes, r.approval])).toEqual([['R1', ['moved'], 'required']]);
+    expect(renderDiffText(d, { before }).split("\n")[1]).toMatch(/^! ~ R1 1k moved/);
+  });
+});

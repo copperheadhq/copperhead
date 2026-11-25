@@ -591,7 +591,8 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-22.1** `pcb reuse --reference <board>` on a board and a reference places every part, offers ranked options, and writes each option's board, render, and placement diff against the board as it was; the diff validates against the RFC 11 schema.
 - **AC-22.2** `placement.md` is written once the plan is validated, saying nothing has been measured, and again when the run ends, with the six sections of RFC 11 Section 12.6 in order; the same records give the same bytes.
 - **AC-22.3** The printed outcome, `ranking.json`, `options.md`, and `--apply` name the same selected option: the ranking after critical routing, when it ran. The critical nets of the top five candidates are routed by default.
-- **AC-22.4** After `--apply`, `pcb diff HEAD:<board> <board>` shows the parts the applied option moved, each marked as needing approval, since the import owns them.
+- **AC-22.4** Each option is written as an RFC 11 candidate against the board's layout input, and its placement diff marks every part it moves as needing approval, since the import owns them. After `--apply`, `pcb diff HEAD:<board> <board>` shows the parts the applied option moved.
+- **AC-22.5** Candidates are ranked by RFC 15 Section 11's tiers in order, each metric within its own tolerance; an unmeasured tier ties; each candidate's reason names the tier that put it ahead.
 
 ### AC-3 · `copperhead do` — core loop
 

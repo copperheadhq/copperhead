@@ -34,3 +34,20 @@ candidates SHALL be routed (RFC 15 Section 5.1).
 #### Scenario: The selected option is the one applied
 - **WHEN** critical routing changes which candidate leads
 - **THEN** the printed outcome names the new leader, and `--apply` writes it
+
+### Requirement: Ranking by RFC 15's tiers
+Placement candidates SHALL be ranked by the tiers of RFC 15 Section 11.1 in
+its order, each metric compared in its own direction and within its own
+tolerance, relative for loop area, overflow, and length. A metric a candidate
+was not measured on SHALL tie. The weighted score SHALL break final ties, and
+each candidate's reason SHALL name what put it ahead of the next.
+
+#### Scenario: Critical routing before loop area
+- **WHEN** one candidate routes every critical net and another has a smaller
+  loop but routes fewer
+- **THEN** the first ranks higher, and its reason names T4 critical routing
+
+#### Scenario: Decoupling before critical routing
+- **WHEN** one candidate keeps its decoupling capacitors within their limits
+  and another does not but routes more critical nets
+- **THEN** the first ranks higher

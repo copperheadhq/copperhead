@@ -76,7 +76,7 @@ A run produces several boards, not one:
 
 Each is screened **in memory** — a packer solve and a geometry check, milliseconds each — and identical placements are merged. Only the survivors are materialised into real KiCad files, verified with DRC, and ranked.
 
-Ranking is **tiered**, in the engineer's order: what the board declares, then current loops, then isolation, then whether the critical nets route, then length, then neatness. A candidate better in an earlier tier wins whatever the later tiers say — a violated hot loop is not paid for by a shorter net.
+Ranking is **tiered**, in the engineer's order of RFC 15: mechanical correctness, then datasheet-required placement such as decoupling at its pins, then antenna and thermal, then whether the critical nets route, then current-loop area, then separation, then routability, then length. A candidate better in an earlier tier wins whatever the later tiers say — a violated hot loop is not paid for by a shorter net. Each metric has a tolerance inside which two candidates count as equal (10 % on loop area, 5 % on length), and a tier a candidate was not measured on ties. Each candidate's reason says which tier put it ahead of the next.
 
 ## Critical routing
 
@@ -95,6 +95,8 @@ The run directory holds:
 - **`placement.md`**, the document to read. It is written once when the plan is validated, so you can stop a run whose plan is wrong, and again when the run ends. In order, it covers the board, the plan, the critical constraints, the candidates offered, the selected candidate's changes, and what remains.
 - **`options.md` and `delta.md`**: what each option traded away, and what changed against the reference.
 - **`variants/<option>/`**: each option's board, its render, and its placement diff against your board, as `placement-diff.json` and `placement-diff.txt`.
+
+- **`variants/<option>/candidate.json`**: the option as an RFC 11 candidate against your board.
 
 Every part of your board is owned by the import, so each move is marked as needing approval (`!`). Passing `--apply` is that approval. Without `--apply`, nothing is written to your board.
 

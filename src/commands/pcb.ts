@@ -40,12 +40,14 @@ interface Board {
  * A board: a .kicad_pcb file, or one at a revision under version control
  * written `<revision>:<path>`.
  */
-async function readBoard(spec: string): Promise<Board> {
-  if (await exists(spec)) return { spec, file: spec, text: await readFile(spec, 'utf8') };
+async function readBoard(spec: string, cwd: string): Promise<Board> {
+  const file = path.resolve(cwd, spec);
+  if (await exists(file)) return { spec, file, text: await readFile(file, 'utf8') };
   const m = /^([^:]+):(.+)$/.exec(spec);
   if (!m) throw new PcbCommandError(`${spec}: no such board file`);
   try {
-    const { stdout } = await promisify(execFile)('git', ['show', `${m[1]}:${m[2]}`], { maxBuffer: 256 * 1024 * 1024 });
+    // <rev>:<path> as git reads it, in the repository the command works in
+    const { stdout } = await promisify(execFile)('git', ['show', `${m[1]}:${m[2]}`], { cwd, maxBuffer: 256 * 1024 * 1024 });
     return { spec, file: m[2]!, text: stdout };
   } catch (err) {
     throw new PcbCommandError(`${spec}: ${(err as Error).message.split('\n')[0]}`);
@@ -110,10 +112,12 @@ export interface PcbDiffResult {
 export async function pcbDiff(
   beforeFile: string,
   afterFile: string,
-  opts: { blocks?: string; project?: string } = {},
+  opts: { blocks?: string; project?: string; cwd?: string } = {},
 ): Promise<PcbDiffResult> {
+  // Paths, and revisions, are read in the repository the command works in.
+  const cwd = opts.cwd ?? process.cwd();
   const load = async (spec: string) =>
-    spec.endsWith('.kicad_pcb') ? readBoard(spec) : classify(spec, await readJson(spec));
+    spec.endsWith('.kicad_pcb') ? readBoard(spec, cwd) : classify(spec, await readJson(path.resolve(cwd, spec)));
   const loaded = [await load(beforeFile), await load(afterFile)] as const;
   const boards = loaded.filter((s): s is Board => 'text' in s);
   const project = opts.project ?? (boards[0] && path.basename(boards[0].file, '.kicad_pcb'));
@@ -125,7 +129,7 @@ export async function pcbDiff(
     after.kind === 'candidate'
       ? placementDiff(before.input, {
           candidate: after.candidate,
-          blockLayouts: await blockLayoutsIn(opts.blocks ?? path.dirname(afterFile)),
+          blockLayouts: await blockLayoutsIn(path.resolve(cwd, opts.blocks ?? path.dirname(afterFile))),
         })
       : placementDiff(before.input, { input: after.input });
   const text = renderDiffText(diff, { before: before.input, ...(after.kind === 'input' && { after: after.input }) });

@@ -209,6 +209,18 @@ describe('diffing two boards', () => {
     }
   });
 
+  it('reads paths and revisions in the repository it is given, wherever it runs', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'pcb-diff-'));
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+    git('init', '-q');
+    writeFileSync(path.join(dir, 'board.kicad_pcb'), board);
+    git('add', '-A');
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-qm', 'base');
+    writeFileSync(path.join(dir, 'board.kicad_pcb'), moveR1(board));
+    const res = await pcbDiff('HEAD:board.kicad_pcb', 'board.kicad_pcb', { cwd: dir });
+    expect(res.diff.components.map((r) => r.refdes)).toEqual(['R1']);
+  });
+
   it('imports two differently named boards under one project, and says what neither could represent', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'pcb-diff-'));
     writeFileSync(path.join(dir, 'old.kicad_pcb'), board);
