@@ -1,0 +1,83 @@
+{
+  "schema_version": "2.0",
+  "before": {
+    "input": "sha256:14fd43527bd5c642a3ae80cc67c4290cfa7c73b3f9c40d9d0943a8917067d96c"
+  },
+  "after": {
+    "candidate": "sha256:b9974acb8f7aad157eab83e12a782e01fd3a4c537e3f653540cb115c5f2ef2eb"
+  },
+  "components": [
+    {
+      "component": "CMP-940e54e6408c",
+      "refdes": "C1",
+      "changes": ["placed"],
+      "after": {
+        "pose": {"x": 13700000, "y": 11400000, "rot": {"q": 3}},
+        "side": "front"
+      },
+      "block": "CKT-963fa1bea581",
+      "basis": "golden-exact",
+      "source": "AP2112K-3.3/SOT-23-5#geometry",
+      "owner": "none",
+      "approval": "automatic"
+    },
+    {
+      "component": "CMP-aac7f645cf08",
+      "refdes": "C2",
+      "changes": ["placed"],
+      "after": {
+        "pose": {"x": 7900000, "y": 11400000, "rot": {"q": 1}},
+        "side": "front"
+      },
+      "block": "CKT-963fa1bea581",
+      "basis": "golden-exact",
+      "source": "AP2112K-3.3/SOT-23-5#geometry",
+      "owner": "none",
+      "approval": "automatic"
+    },
+    {
+      "component": "CMP-b29303b9e2bb",
+      "refdes": "R1",
+      "changes": ["moved"],
+      "before": {
+        "pose": {"x": 25000000, "y": 6000000, "rot": {"q": 0}},
+        "side": "front"
+      },
+      "after": {
+        "pose": {"x": 20000000, "y": 7000000, "rot": {"q": 0}},
+        "side": "front"
+      },
+      "distance": 5099020,
+      "basis": "packed",
+      "source": "placer-reuse-pack",
+      "owner": "person",
+      "approval": "required"
+    },
+    {
+      "component": "CMP-6c6bb6dce903",
+      "refdes": "U1",
+      "changes": ["placed"],
+      "after": {
+        "pose": {"x": 10780000, "y": 10000000, "rot": {"q": 1}},
+        "side": "front"
+      },
+      "block": "CKT-963fa1bea581",
+      "basis": "golden-exact",
+      "source": "AP2112K-3.3/SOT-23-5#geometry",
+      "owner": "none",
+      "approval": "automatic"
+    }
+  ],
+  "constraints": [
+    {
+      "constraint": "RULE-8a4fc38a167e",
+      "before": "UNKNOWN",
+      "after": "PASS"
+    },
+    {
+      "constraint": "RULE-9b1140645ad7",
+      "before": "UNKNOWN",
+      "after": "PASS"
+    }
+  ]
+}

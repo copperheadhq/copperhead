@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/placement-diff.schema.json",
+  "title": "Placement diff",
+  "description": "What one board changes relative to another (RFC 11 Section 6.11): a layout input against a candidate produced from it, or against a later layout input. Derived, never edited, and identified by its content hash. Components are matched by stable identifier.",
+  "type": "object",
+  "required": ["schema_version", "before", "after", "components"],
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/SchemaVersion"},
+    "before": {
+      "description": "The layout input on the before side.",
+      "type": "object",
+      "required": ["input"],
+      "properties": {
+        "input": {"$ref": "common.schema.json#/$defs/Hash"}
+      }
+    },
+    "after": {
+      "description": "A candidate produced against the before side's layout input, or a later layout input.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["candidate"],
+          "properties": {
+            "candidate": {
+              "description": "The content hash of the candidate.",
+              "$ref": "common.schema.json#/$defs/Hash"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["input"],
+          "properties": {
+            "input": {"$ref": "common.schema.json#/$defs/Hash"}
+          }
+        }
+      ]
+    },
+    "components": {
+      "description": "One row per component whose placement differs.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/ComponentChange"}
+    },
+    "constraints": {
+      "description": "Constraints whose result state or measured value differs. Absent when a side was not checked.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/ConstraintChange"}
+    },
+    "drc": {
+      "description": "Normalized diagnostics present on one side only. Absent when a side was not checked.",
+      "type": "object",
+      "required": ["added", "resolved"],
+      "properties": {
+        "added": {"type": "array", "items": {"$ref": "#/$defs/Finding"}},
+        "resolved": {"type": "array", "items": {"$ref": "#/$defs/Finding"}}
+      }
+    },
+    "copper": {
+      "description": "Traces, vias, and zones present on one side only, by identifier.",
+      "type": "object",
+      "required": ["added", "removed"],
+      "properties": {
+        "added": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}},
+        "removed": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}}
+      }
+    }
+  },
+  "$defs": {
+    "Placed": {
+      "description": "Where a component sits on one side: its pose in the board frame and its side. A block member's pose is its block's transform composed with its pose in the block frame (RFC 11 Section 6.1).",
+      "type": "object",
+      "required": ["pose", "side"],
+      "properties": {
+        "pose": {"$ref": "common.schema.json#/$defs/Pose"},
+        "side": {"$ref": "common.schema.json#/$defs/Side"}
+      }
+    },
+    "ComponentChange": {
+      "type": "object",
+      "required": ["component", "refdes", "changes", "owner"],
+      "properties": {
+        "component": {"$ref": "common.schema.json#/$defs/Id"},
+        "refdes": {
+          "description": "The reference designator on the after side, or on the before side for a removed component.",
+          "type": "string",
+          "minLength": 1
+        },
+        "changes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["placed", "unplaced", "moved", "rotated", "flipped", "footprint", "locked", "unlocked", "added", "removed"]
+          }
+        },
+        "before": {"$ref": "#/$defs/Placed"},
+        "after": {"$ref": "#/$defs/Placed"},
+        "distance": {
+          "description": "The straight-line distance between the two positions, in nanometres, rounded half away from zero. Present when both sides place the component.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "block": {
+          "description": "The circuit whose block layout places the component on the after side.",
+          "$ref": "common.schema.json#/$defs/Id"
+        },
+        "basis": {"$ref": "common.schema.json#/$defs/Basis"},
+        "source": {"type": "string", "minLength": 1},
+        "owner": {
+          "description": "The owner of the placement before the change (RFC 12 Section 9.5), or none when there was no placement.",
+          "enum": ["person", "engine", "import", "none"]
+        },
+        "approval": {
+          "description": "What the commit gate's policy will require, when the after side is a candidate. A prediction, not a decision.",
+          "enum": ["automatic", "required", "refused"]
+        }
+      }
+    },
+    "ConstraintChange": {
+      "type": "object",
+      "required": ["constraint", "before", "after"],
+      "properties": {
+        "constraint": {"$ref": "common.schema.json#/$defs/Id"},
+        "before": {"$ref": "common.schema.json#/$defs/ResultState"},
+        "after": {"$ref": "common.schema.json#/$defs/ResultState"},
+        "measured_before": {"$ref": "common.schema.json#/$defs/Quantity"},
+        "measured_after": {"$ref": "common.schema.json#/$defs/Quantity"}
+      }
+    },
+    "Finding": {
+      "description": "A normalized diagnostic (RFC 11 Section 10.3), matched across sides by its code and its entities.",
+      "type": "object",
+      "required": ["code", "entities"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "entities": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}},
+        "message": {"type": "string"}
+      }
+    }
+  }
+}

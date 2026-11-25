@@ -1,0 +1,490 @@
+{
+  "schema_version": "2.0",
+  "parent": {
+    "graph": "sha256:eb01004a70929f97b6edc27b09422fbb6c62b6fb61957590d7559c49409b0edd"
+  },
+  "config": "sha256:1bbf30fccf1812ecf1c00743be3e64981d5a5ee294ba6fb0da56488aec0eaac3",
+  "packs": [
+    "sha256:2d0b4ba0b9e186197b804d1090c5d39c221a613f0efe52cce6ba5fc5a79dd464"
+  ],
+  "board": {
+    "unit": "nm",
+    "outline": [
+      {"x": 0, "y": 0},
+      {"x": 30000000, "y": 0},
+      {"x": 30000000, "y": 20000000},
+      {"x": 0, "y": 20000000}
+    ],
+    "fabrication_profile": "jlcpcb-2layer",
+    "thickness": {
+      "kind": "scalar",
+      "value": "1.6",
+      "unit": "mm"
+    },
+    "layers": [
+      {
+        "id": "LYR-1b5141349514",
+        "name": "F.Cu",
+        "layer_kind": "copper",
+        "side": "front",
+        "function": "signal"
+      },
+      {
+        "id": "LYR-2d35b7c5bfd4",
+        "name": "B.Cu",
+        "layer_kind": "copper",
+        "side": "back",
+        "function": "plane",
+        "plane_net": "NET-6188f0638a57"
+      }
+    ],
+    "regions": {}
+  },
+  "footprints": {
+    "sha256:bb0ce2831b1e916779e3291ed329a0333bc80ca29824bddf3437fead87f2bf36": {
+      "schema_version": "2.0",
+      "lib_id": "Package_TO_SOT_SMD:SOT-23-5",
+      "mount": "smd",
+      "pads": [
+        {
+          "number": "1",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 600000, "h": 1100000},
+          "pose": {"x": -950000, "y": 1100000, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": -1250000, "y": 550000},
+              {"x": -650000, "y": 550000},
+              {"x": -650000, "y": 1650000},
+              {"x": -1250000, "y": 1650000}
+            ]
+          }
+        },
+        {
+          "number": "2",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 600000, "h": 1100000},
+          "pose": {"x": 0, "y": 1100000, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": -300000, "y": 550000},
+              {"x": 300000, "y": 550000},
+              {"x": 300000, "y": 1650000},
+              {"x": -300000, "y": 1650000}
+            ]
+          }
+        },
+        {
+          "number": "3",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 600000, "h": 1100000},
+          "pose": {"x": 950000, "y": 1100000, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": 650000, "y": 550000},
+              {"x": 1250000, "y": 550000},
+              {"x": 1250000, "y": 1650000},
+              {"x": 650000, "y": 1650000}
+            ]
+          }
+        },
+        {
+          "number": "4",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 600000, "h": 1100000},
+          "pose": {"x": 950000, "y": -1100000, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": 650000, "y": -1650000},
+              {"x": 1250000, "y": -1650000},
+              {"x": 1250000, "y": -550000},
+              {"x": 650000, "y": -550000}
+            ]
+          }
+        },
+        {
+          "number": "5",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 600000, "h": 1100000},
+          "pose": {"x": -950000, "y": -1100000, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": -1250000, "y": -1650000},
+              {"x": -650000, "y": -1650000},
+              {"x": -650000, "y": -550000},
+              {"x": -1250000, "y": -550000}
+            ]
+          }
+        }
+      ],
+      "courtyard": {
+        "outline": [
+          {"x": -1700000, "y": -2000000},
+          {"x": 1700000, "y": -2000000},
+          {"x": 1700000, "y": 2000000},
+          {"x": -1700000, "y": 2000000}
+        ]
+      },
+      "body": {
+        "outline": [
+          {"x": -800000, "y": -1500000},
+          {"x": 800000, "y": -1500000},
+          {"x": 800000, "y": 1500000},
+          {"x": -800000, "y": 1500000}
+        ]
+      }
+    },
+    "sha256:eb62a442e90c928ba84dd74ccba1879c10c03decaab9a0c3f0efbe75871d6f0b": {
+      "schema_version": "2.0",
+      "lib_id": "Capacitor_SMD:C_0603_1608Metric",
+      "mount": "smd",
+      "pads": [
+        {
+          "number": "1",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 900000, "h": 950000},
+          "pose": {"x": -775000, "y": 0, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": -1225000, "y": -475000},
+              {"x": -325000, "y": -475000},
+              {"x": -325000, "y": 475000},
+              {"x": -1225000, "y": 475000}
+            ]
+          }
+        },
+        {
+          "number": "2",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 900000, "h": 950000},
+          "pose": {"x": 775000, "y": 0, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": 325000, "y": -475000},
+              {"x": 1225000, "y": -475000},
+              {"x": 1225000, "y": 475000},
+              {"x": 325000, "y": 475000}
+            ]
+          }
+        }
+      ],
+      "courtyard": {
+        "outline": [
+          {"x": -1480000, "y": -730000},
+          {"x": 1480000, "y": -730000},
+          {"x": 1480000, "y": 730000},
+          {"x": -1480000, "y": 730000}
+        ]
+      }
+    },
+    "sha256:07d186a50eb659c2e9b0cc18188086f5b86b86fe23a9665bcc68b1d3ccd806a3": {
+      "schema_version": "2.0",
+      "lib_id": "Resistor_SMD:R_0603_1608Metric",
+      "mount": "smd",
+      "pads": [
+        {
+          "number": "1",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 900000, "h": 950000},
+          "pose": {"x": -775000, "y": 0, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": -1225000, "y": -475000},
+              {"x": -325000, "y": -475000},
+              {"x": -325000, "y": 475000},
+              {"x": -1225000, "y": 475000}
+            ]
+          }
+        },
+        {
+          "number": "2",
+          "type": "smd",
+          "shape": "roundrect",
+          "size": {"w": 900000, "h": 950000},
+          "pose": {"x": 775000, "y": 0, "rot": {"q": 0}},
+          "layers": [
+            "F.Cu",
+            "F.Paste",
+            "F.Mask"
+          ],
+          "copper": {
+            "outline": [
+              {"x": 325000, "y": -475000},
+              {"x": 1225000, "y": -475000},
+              {"x": 1225000, "y": 475000},
+              {"x": 325000, "y": 475000}
+            ]
+          }
+        }
+      ],
+      "courtyard": {
+        "outline": [
+          {"x": -1480000, "y": -730000},
+          {"x": 1480000, "y": -730000},
+          {"x": 1480000, "y": 730000},
+          {"x": -1480000, "y": 730000}
+        ]
+      }
+    }
+  },
+  "components": {
+    "CMP-6c6bb6dce903": {
+      "refdes": "U1",
+      "value": "AP2112K-3.3",
+      "footprint": "sha256:bb0ce2831b1e916779e3291ed329a0333bc80ca29824bddf3437fead87f2bf36",
+      "side": "front",
+      "locked": false,
+      "pads": {
+        "1": {
+          "pin": "PIN-96ced6ef8e59",
+          "net": "NET-7c1efcdd57f6"
+        },
+        "2": {
+          "pin": "PIN-812d81141566",
+          "net": "NET-6188f0638a57"
+        },
+        "3": {
+          "pin": "PIN-77aa0e773f1a",
+          "net": "NET-7c1efcdd57f6"
+        },
+        "4": {
+          "pin": "PIN-f5e0ad902cad"
+        },
+        "5": {
+          "pin": "PIN-19a8e90a95fa",
+          "net": "NET-5971a826cfff"
+        }
+      },
+      "source_refs": {
+        "symbol_path": "/3c1f/9a02"
+      },
+      "pose": {"x": 10780000, "y": 10000000, "rot": {"q": 1}},
+      "owner": "engine"
+    },
+    "CMP-940e54e6408c": {
+      "refdes": "C1",
+      "value": "1uF",
+      "footprint": "sha256:eb62a442e90c928ba84dd74ccba1879c10c03decaab9a0c3f0efbe75871d6f0b",
+      "side": "front",
+      "locked": false,
+      "pads": {
+        "1": {
+          "pin": "PIN-ef8c86e96905",
+          "net": "NET-7c1efcdd57f6"
+        },
+        "2": {
+          "pin": "PIN-05e581b4a4f1",
+          "net": "NET-6188f0638a57"
+        }
+      },
+      "source_refs": {
+        "symbol_path": "/3c1f/41d7"
+      },
+      "pose": {"x": 13700000, "y": 11400000, "rot": {"q": 3}},
+      "owner": "engine"
+    },
+    "CMP-aac7f645cf08": {
+      "refdes": "C2",
+      "value": "1uF",
+      "footprint": "sha256:eb62a442e90c928ba84dd74ccba1879c10c03decaab9a0c3f0efbe75871d6f0b",
+      "side": "front",
+      "locked": false,
+      "pads": {
+        "1": {
+          "pin": "PIN-17e6db6853ea",
+          "net": "NET-5971a826cfff"
+        },
+        "2": {
+          "pin": "PIN-fbc0548cc0bf",
+          "net": "NET-6188f0638a57"
+        }
+      },
+      "source_refs": {
+        "symbol_path": "/3c1f/77e0"
+      },
+      "pose": {"x": 7900000, "y": 11400000, "rot": {"q": 1}},
+      "owner": "engine"
+    },
+    "CMP-b29303b9e2bb": {
+      "refdes": "R1",
+      "value": "1k",
+      "footprint": "sha256:07d186a50eb659c2e9b0cc18188086f5b86b86fe23a9665bcc68b1d3ccd806a3",
+      "pose": {"x": 20000000, "y": 7000000, "rot": {"q": 0}},
+      "side": "front",
+      "locked": false,
+      "owner": "engine",
+      "pads": {
+        "1": {
+          "pin": "PIN-4633d85692ca",
+          "net": "NET-5971a826cfff"
+        },
+        "2": {
+          "pin": "PIN-44a66ac3eb68",
+          "net": "NET-116dba248a85"
+        }
+      },
+      "source_refs": {
+        "symbol_path": "/3c1f/b215"
+      }
+    }
+  },
+  "nets": {
+    "NET-7c1efcdd57f6": {
+      "name": "VIN"
+    },
+    "NET-6188f0638a57": {
+      "name": "GND",
+      "class": "Power"
+    },
+    "NET-5971a826cfff": {
+      "name": "+3V3",
+      "class": "Power"
+    },
+    "NET-116dba248a85": {
+      "name": "LED_K"
+    }
+  },
+  "circuits": {
+    "CKT-963fa1bea581": {
+      "pattern": {
+        "id": "AP2112K-3.3/SOT-23-5",
+        "hash": "sha256:2d0b4ba0b9e186197b804d1090c5d39c221a613f0efe52cce6ba5fc5a79dd464"
+      },
+      "anchor": "CMP-6c6bb6dce903",
+      "roles": {
+        "input-capacitor": [
+          "CMP-940e54e6408c"
+        ],
+        "output-capacitor": [
+          "CMP-aac7f645cf08"
+        ]
+      },
+      "deviations": []
+    }
+  },
+  "constraints": {
+    "RULE-8a4fc38a167e": {
+      "class": "placement",
+      "kind": "place_near",
+      "targets": [
+        "CMP-940e54e6408c",
+        "PIN-96ced6ef8e59",
+        "PIN-812d81141566"
+      ],
+      "expression": {
+        "op": "le",
+        "args": [
+          {
+            "ref": "CMP-940e54e6408c",
+            "attr": "distance_to_targets"
+          },
+          {
+            "quantity": {
+              "kind": "scalar",
+              "value": "2",
+              "unit": "mm"
+            }
+          }
+        ]
+      },
+      "enforcement": "soft",
+      "source": "AP2112K-3.3/SOT-23-5#cin-near"
+    },
+    "RULE-9b1140645ad7": {
+      "class": "placement",
+      "kind": "place_near",
+      "targets": [
+        "CMP-aac7f645cf08",
+        "PIN-19a8e90a95fa",
+        "PIN-812d81141566"
+      ],
+      "expression": {
+        "op": "le",
+        "args": [
+          {
+            "ref": "CMP-aac7f645cf08",
+            "attr": "distance_to_targets"
+          },
+          {
+            "quantity": {
+              "kind": "scalar",
+              "value": "2",
+              "unit": "mm"
+            }
+          }
+        ]
+      },
+      "enforcement": "soft",
+      "source": "AP2112K-3.3/SOT-23-5#cout-near"
+    }
+  },
+  "routing": {
+    "traces": {
+      "TRC-a82a9d7ddee6": {
+        "kind": "trace",
+        "id": "TRC-a82a9d7ddee6",
+        "identity": {
+          "id": "TRC-a82a9d7ddee6",
+          "origin": "derived",
+          "path": "board.trace.old",
+          "uuid": "a82a9d7d-dee6-5343-a2e5-bc19fbfa4e4e"
+        },
+        "net": "NET-5971a826cfff",
+        "layer": "LYR-1b5141349514",
+        "width": 250000,
+        "start": {"x": 9900000, "y": 8600000},
+        "end": {"x": 12000000, "y": 8600000}
+      }
+    },
+    "vias": {},
+    "zones": {}
+  }
+}

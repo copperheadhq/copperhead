@@ -1,0 +1,31 @@
+{
+  "schema_version": "2.0",
+  "input": "sha256:14fd43527bd5c642a3ae80cc67c4290cfa7c73b3f9c40d9d0943a8917067d96c",
+  "candidate": "sha256:b9974acb8f7aad157eab83e12a782e01fd3a4c537e3f653540cb115c5f2ef2eb",
+  "operations": [
+    {
+      "op": "place_block",
+      "circuit": "CKT-963fa1bea581",
+      "layout": "sha256:2858da5a969e48f275ff3448ebf985a3a1f85af2d7d46e86b6c5ec1da83244ed",
+      "transform": {"x": 11000000, "y": 10000000, "rot": {"q": 1}},
+      "side": "front"
+    },
+    {
+      "op": "place_component",
+      "component": "CMP-b29303b9e2bb",
+      "pose": {"x": 20000000, "y": 7000000, "rot": {"q": 0}},
+      "side": "front",
+      "basis": "packed",
+      "source": "EVD-efea58d43bc8",
+      "overrides": "person"
+    },
+    {
+      "op": "record_deviation",
+      "circuit": "CKT-963fa1bea581",
+      "constraint": "RULE-9b1140645ad7",
+      "component": "CMP-aac7f645cf08",
+      "reason": "Output capacitor turned to clear the mounting hole keepout; still within 2 mm.",
+      "waiver": "WVR-5325d2dedbde"
+    }
+  ]
+}

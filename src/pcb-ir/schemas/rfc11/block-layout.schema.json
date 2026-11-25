@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/block-layout.schema.json",
+  "title": "Block layout",
+  "description": "The arrangement of one block's members in the block frame (RFC 11 Sections 6.1 and 6.10). Immutable: a changed member pose is a new block layout. Every member sits on the side the block is placed on.",
+  "type": "object",
+  "required": ["schema_version", "circuit", "pack", "fit", "members", "envelope", "ports", "results"],
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/SchemaVersion"},
+    "circuit": {
+      "description": "The circuit whose binding this arranges (RFC 3 Section 10).",
+      "$ref": "common.schema.json#/$defs/Id"
+    },
+    "pack": {
+      "description": "The content hash of the part pack whose rules or geometry produced it.",
+      "$ref": "common.schema.json#/$defs/Hash"
+    },
+    "fit": {
+      "description": "How the pack's geometry applies to this board. A block that does not fit is held and has no layout.",
+      "enum": ["exact", "adaptable", "rules-only"]
+    },
+    "members": {
+      "description": "The anchor is a member.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["component", "pose", "basis", "source"],
+        "properties": {
+          "component": {"$ref": "common.schema.json#/$defs/Id"},
+          "pose": {
+            "description": "In the block frame: origin at the centroid of the anchor's pads, axes of the anchor's footprint frame.",
+            "$ref": "common.schema.json#/$defs/Pose"
+          },
+          "basis": {"$ref": "common.schema.json#/$defs/Basis"},
+          "source": {
+            "description": "The pack rule or geometry, constraint, or run that produced the pose.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "envelope": {
+      "description": "The smallest rectangle, with sides along the block frame's axes, that encloses every member's courtyard (or, for a member without one, its pads' copper) and the block's keepouts (RFC 11 Section 6.10). Conservative: it may enclose space no member uses.",
+      "$ref": "common.schema.json#/$defs/Outline"
+    },
+    "ports": {
+      "description": "Where each external net leaves the block.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["net", "at", "facing"],
+        "properties": {
+          "net": {"$ref": "common.schema.json#/$defs/Id"},
+          "at": {"$ref": "common.schema.json#/$defs/Point"},
+          "facing": {
+            "description": "The direction the net leaves in, in the block frame, as a rotation from the +x axis.",
+            "$ref": "common.schema.json#/$defs/Rotation"
+          }
+        }
+      }
+    },
+    "results": {
+      "description": "The result of each constraint the binding instantiates.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["constraint", "state"],
+        "properties": {
+          "constraint": {"$ref": "common.schema.json#/$defs/Id"},
+          "state": {"$ref": "common.schema.json#/$defs/ResultState"}
+        }
+      }
+    }
+  }
+}

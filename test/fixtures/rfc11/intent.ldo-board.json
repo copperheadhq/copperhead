@@ -1,0 +1,58 @@
+{
+  "placement": {
+    "attachments": [
+      {
+        "component": "C1",
+        "target": {
+          "component": "U1",
+          "pins": ["VIN", "GND"]
+        },
+        "max_distance_mm": 2,
+        "priority": "critical"
+      },
+      {
+        "component": "C2",
+        "target": {
+          "component": "U1",
+          "pins": ["VOUT", "GND"]
+        },
+        "max_distance_mm": 2,
+        "priority": "critical"
+      }
+    ],
+    "groups": [
+      {
+        "id": "ldo_stage",
+        "components": ["U1", "C1", "C2"],
+        "topology": "datasheet_reference",
+        "region": [5, 5, 12, 10]
+      }
+    ],
+    "keepouts": [
+      {
+        "region": "mounting_hole_ring",
+        "prohibit": ["components", "copper"],
+        "radius_mm": 3.2
+      }
+    ]
+  },
+  "routing": {
+    "priorities": [
+      ["+3V3", "GND"],
+      ["remaining"]
+    ],
+    "widths": [
+      {
+        "net": "VIN",
+        "min_width_mm": 0.5
+      }
+    ],
+    "currents": [
+      {
+        "net": "VIN",
+        "amps": 0.6,
+        "rise_c": 10
+      }
+    ]
+  }
+}

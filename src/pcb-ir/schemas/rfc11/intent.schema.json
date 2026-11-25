@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/intent.schema.json",
+  "title": "Intent file",
+  "description": "The layout intent a person writes for one board (RFC 11 Section 7.3). A source, not a record: identified by the hash of its bytes, never canonicalized, and carrying no version. Components are named by refdes. A number is in the unit its key names. Standards extending the language add keys; a key no standard defines holds the run, which this schema leaves to the intent compiler.",
+  "type": "object",
+  "properties": {
+    "placement": {
+      "type": "object",
+      "properties": {
+        "fixed": {
+          "type": "array",
+          "items": {
+            "description": "A component held at an edge, at a position, or both.",
+            "type": "object",
+            "required": ["component"],
+            "anyOf": [{"required": ["edge"]}, {"required": ["at"]}],
+            "properties": {
+              "component": {"$ref": "#/$defs/Refdes"},
+              "edge": {"enum": ["north", "south", "east", "west"]},
+              "orientation": {
+                "description": "Which way the mating face points, such as outward.",
+                "type": "string",
+                "minLength": 1
+              },
+              "at": {
+                "description": "The position, [x, y] in millimetres, in the board frame.",
+                "type": "array",
+                "prefixItems": [{"type": "number"}, {"type": "number"}],
+                "items": false,
+                "minItems": 2
+              },
+              "rotation_deg": {"type": "number"}
+            }
+          }
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["component", "target", "max_distance_mm"],
+            "properties": {
+              "component": {"$ref": "#/$defs/Refdes"},
+              "target": {
+                "type": "object",
+                "required": ["component"],
+                "properties": {
+                  "component": {"$ref": "#/$defs/Refdes"},
+                  "pins": {"type": "array", "items": {"type": "string", "minLength": 1}}
+                }
+              },
+              "max_distance_mm": {"$ref": "#/$defs/Mm"},
+              "priority": {
+                "description": "critical makes the attachment hard; any other priority leaves it soft.",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "components"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "components": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/Refdes"}},
+              "topology": {"type": "string", "minLength": 1},
+              "max_spread_mm": {"$ref": "#/$defs/Mm"},
+              "region": {
+                "description": "A rectangle, [x, y, width, height] in millimetres, in the board frame.",
+                "type": "array",
+                "prefixItems": [
+                  {"type": "number"},
+                  {"type": "number"},
+                  {"type": "number", "exclusiveMinimum": 0},
+                  {"type": "number", "exclusiveMinimum": 0}
+                ],
+                "items": false,
+                "minItems": 4
+              }
+            }
+          }
+        },
+        "separation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["groups", "minimum_mm"],
+            "properties": {
+              "groups": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1},
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "minimum_mm": {"$ref": "#/$defs/Mm"}
+            }
+          }
+        },
+        "keepouts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["region"],
+            "properties": {
+              "region": {"type": "string", "minLength": 1},
+              "prohibit": {
+                "description": "What the keepout prohibits: components compiles to the region's footprints; the rest are the region's own terms (RFC 11 Section 6.8).",
+                "type": "array",
+                "items": {"enum": ["components", "copper", "traces", "vias", "pads"]}
+              },
+              "radius_mm": {"$ref": "#/$defs/Mm"}
+            }
+          }
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "properties": {
+        "priorities": {
+          "description": "Tiers of nets in routing order; the name remaining stands for every net no tier names.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          }
+        },
+        "widths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["net", "min_width_mm"],
+            "properties": {
+              "net": {"type": "string", "minLength": 1},
+              "min_width_mm": {"$ref": "#/$defs/Mm"}
+            }
+          }
+        },
+        "currents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["net", "amps"],
+            "properties": {
+              "net": {"type": "string", "minLength": 1},
+              "amps": {"type": "number", "exclusiveMinimum": 0},
+              "rise_c": {
+                "description": "The permitted temperature rise, in degrees Celsius.",
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "Refdes": {
+      "description": "A reference designator, resolved to a stable identifier through the reference map (RFC 11 Section 6.3).",
+      "type": "string",
+      "minLength": 1
+    },
+    "Mm": {
+      "description": "A length in millimetres, greater than zero. The compiler keeps it as the shortest decimal that reads back as the same number.",
+      "type": "number",
+      "exclusiveMinimum": 0
+    }
+  }
+}

@@ -278,6 +278,42 @@ scoreGroup
     }
   });
 
+// RFC 11 Section 14.4: the views of a change to a board. They read files only:
+// no LLM, no network, no CAD tool, and they write nothing.
+const pcbGroup = program
+  .command('pcb')
+  .description('PCB layout records and their change views (RFC 11); no LLM, no network');
+pcbGroup
+  .command('diff <before> <after>')
+  .description('what <after> (a candidate or later layout input) changes relative to <before> (a layout input)')
+  .option('--blocks <dir>', 'where the block layouts a candidate places are (default: beside <after>)')
+  .option('--json', 'print the placement diff record (RFC 11 Section 6.11)')
+  .action(async (before: string, after: string, opts: { blocks?: string; json?: boolean }) => {
+    try {
+      const { pcbDiff } = await import('./commands/pcb.js');
+      const res = await pcbDiff(before, after, opts.blocks ? { blocks: opts.blocks } : {});
+      if (opts.json || program.opts().json) console.log(JSON.stringify(res.diff, null, 2));
+      else process.stdout.write(res.text);
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('textconv <board>')
+  .description('print a .kicad_pcb one fact per line, for git diff: set diff.copperhead-pcb.textconv to this command')
+  .action(async (board: string) => {
+    try {
+      const { pcbTextconv } = await import('./commands/pcb.js');
+      process.stdout.write(await pcbTextconv(board));
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
 program
   .command('doctor')
   .description('env preflight: kicad-cli, git, node, and the model provider credential; no LLM, no network')

@@ -1,0 +1,34 @@
+{
+  "schema_version": "2.0",
+  "input": "sha256:14fd43527bd5c642a3ae80cc67c4290cfa7c73b3f9c40d9d0943a8917067d96c",
+  "scope": {
+    "kind": "placement",
+    "movable": [
+      "CMP-6c6bb6dce903",
+      "CMP-940e54e6408c",
+      "CMP-aac7f645cf08",
+      "CMP-b29303b9e2bb"
+    ]
+  },
+  "constraints": [
+    "RULE-8a4fc38a167e",
+    "RULE-9b1140645ad7"
+  ],
+  "profile": "engineering-placement-2-layer",
+  "seed": 7,
+  "limits": {
+    "engine_seconds": 600,
+    "wall_seconds": 900,
+    "memory_mb": 4096
+  },
+  "preserved": {
+    "components": [],
+    "nets": []
+  },
+  "reference_map": {
+    "C1": "CMP-940e54e6408c",
+    "C2": "CMP-aac7f645cf08",
+    "R1": "CMP-b29303b9e2bb",
+    "U1": "CMP-6c6bb6dce903"
+  }
+}
