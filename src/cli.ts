@@ -285,13 +285,21 @@ const pcbGroup = program
   .description('PCB layout records and their change views (RFC 11); no LLM, no network');
 pcbGroup
   .command('diff <before> <after>')
-  .description('what <after> (a candidate or later layout input) changes relative to <before> (a layout input)')
+  .description(
+    'what <after> changes relative to <before>: each a layout input, a candidate (after only), a .kicad_pcb, or <rev>:<path>.kicad_pcb',
+  )
   .option('--blocks <dir>', 'where the block layouts a candidate places are (default: beside <after>)')
+  .option('--project <id>', 'project identifiers are derived under for a board (default: the board file name)')
   .option('--json', 'print the placement diff record (RFC 11 Section 6.11)')
-  .action(async (before: string, after: string, opts: { blocks?: string; json?: boolean }) => {
+  .action(async (before: string, after: string, opts: { blocks?: string; project?: string; json?: boolean }) => {
     try {
       const { pcbDiff } = await import('./commands/pcb.js');
-      const res = await pcbDiff(before, after, opts.blocks ? { blocks: opts.blocks } : {});
+      const res = await pcbDiff(before, after, {
+        ...(opts.blocks && { blocks: opts.blocks }),
+        ...(opts.project && { project: opts.project }),
+      });
+      // What an import could not represent goes to stderr, so --json stays one record.
+      for (const note of res.notes) console.error(`note: ${note}`);
       if (opts.json || program.opts().json) console.log(JSON.stringify(res.diff, null, 2));
       else process.stdout.write(res.text);
       process.exit(0);

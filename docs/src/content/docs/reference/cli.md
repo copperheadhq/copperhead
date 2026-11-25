@@ -164,15 +164,17 @@ Regenerates the configured schematic deterministically from the netlist-intent I
 ## `copperhead pcb diff`
 
 ```bash
-copperhead pcb diff layout-input.json candidate.json
+copperhead pcb diff HEAD:hardware/board.kicad_pcb hardware/board.kicad_pcb
+copperhead pcb diff old.kicad_pcb new.kicad_pcb --json
 copperhead pcb diff layout-input.json candidate.json --blocks runs/blocks/
-copperhead pcb diff before-input.json after-input.json --json
 ```
 
 Shows what the after side changes relative to the before side, as the placement diff of [RFC 11](https://github.com/copperheadhq/copperhead-rfcs) Section 6.11.
 
-- **The before side** is a layout input.
-- **The after side** is either a candidate produced against that input, or a later layout input. A candidate's block layouts are read from `--blocks`, or else from the candidate's own directory.
+- **Each side** is a `.kicad_pcb` file, a board at a git revision written `<rev>:<path>`, or a layout input.
+- **The after side** may instead be a candidate produced against the before side. A candidate's block layouts are read from `--blocks`, or else from the candidate's own directory.
+- **Boards are imported first** into layout inputs, with identifiers derived from each part's schematic symbol path, or from its KiCad identifier for a part placed only on the board, so renumbering a part doesn't make it look removed and added. Both sides derive identifiers under one project, the first board's file name unless `--project` names another.
+- **Anything the import can't represent faithfully** is listed in the layout input's `lossy` field and printed on standard error as `note:` lines, so `--json` output stays a single placement diff record.
 
 It prints one line per changed part:
 
@@ -186,7 +188,7 @@ diff 14fd4352 -> candidate b9974acb: 4 changed, 1 needs approval
   + C1 1uF         placed (13.7, 11.4) 270   CKT-963fa1bea581
 ```
 
-With `--json`, it prints the placement diff record itself. It doesn't take `.kicad_pcb` files yet, because a board has to be imported into a layout input first. Until then, compare boards with `pcb textconv`.
+With `--json`, it prints the placement diff record itself.
 
 It makes **no LLM calls and no network requests**, doesn't run `kicad-cli`, and writes nothing.
 

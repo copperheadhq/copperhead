@@ -20,3 +20,4 @@ export {
 } from './diff.js';
 export { renderDiffText, type TextViewContext } from './textview.js';
 export { boardText, boardTextOfFile, nmOf } from './textconv.js';
+export { ADAPTER, Identifiers, importKicadBoard, uuid5, type ImportOptions } from './import-kicad.js';
