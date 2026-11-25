@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { CopperheadConfig } from '../config.js';
 import { routeBoard, type RouteRun } from './engines/route.js';
+import { applyIfUnchanged } from './engines/apply.js';
 import { boardHash, writeEvidence, evidenceContract, type LayoutEvidence, type ContractVerdict } from './evidence.js';
 
 export interface LayoutStageResult {
@@ -28,6 +29,7 @@ export async function routeForCreate(repoRoot: string, config: CopperheadConfig,
   const budget = pcb.budgetSeconds ?? 600;
   const runDir = opts.runDir ?? path.join(repoRoot, '.copperhead', 'runs', new Date().toISOString().replace(/[:.]/g, '-'), 'layout');
   await mkdir(runDir, { recursive: true });
+  const startText = await readFile(boardPath, 'utf8');
   const res = await routeBoard({
     repoRoot, boardPath, runDir, ...(pcb.routers ? { routers: pcb.routers } : {}), mode: pcb.mode ?? 'single', seed: 0, limits: { engineSeconds: budget, wallSeconds: budget },
     ...(pcb.profile ? { profile: pcb.profile } : {}), ...(pcb.scoring ? { scoring: pcb.scoring } : {}), ...(pcb.maxParallelEngines ? { maxParallel: pcb.maxParallelEngines } : {}),
@@ -37,8 +39,13 @@ export async function routeForCreate(repoRoot: string, config: CopperheadConfig,
   const selected = res.ranking.selected ? res.candidates.find((c) => c.engineId === res.ranking.selected) : undefined;
   let applied = false;
   if (selected && (res.outcome.status === 'PASS' || res.outcome.status === 'PARTIAL')) {
-    await copyFile(selected.pcbPath, boardPath);
-    applied = true;
+    // written only over the board the run started from: a save made meanwhile is kept
+    const done = await applyIfUnchanged(selected.pcbPath, boardPath, startText, path.relative(repoRoot, boardPath));
+    applied = done.applied;
+    if (done.reason) {
+      res.outcome = { ...res.outcome, status: 'HOLD', summary: `not applied: ${done.reason}; the board is unchanged`, detail: [res.outcome.summary, ...res.outcome.detail] };
+      log(`layout: ${res.outcome.summary}`);
+    }
   }
   const evidence = await evidenceFromRun(repoRoot, boardPath, res);
   const verdict = await recordEvidence(repoRoot, config.docs, boardPath, evidence);

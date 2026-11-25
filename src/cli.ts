@@ -399,6 +399,8 @@ pcbGroup
         if (!layerId || !['horizontal', 'vertical', 'any', 'off'].includes(m ?? '')) throw new Error(`--layer-pref: expected <layer>=<horizontal|vertical|any|off>, got "${spec}"`);
         return { layerId, mode: m as 'horizontal' | 'vertical' | 'any' | 'off' };
       });
+      // the board as the run found it: --apply writes only over these bytes
+      const startText = await (await import('node:fs/promises')).readFile(boardPath, 'utf8');
       const res = await routeBoard({
         repoRoot: repo, boardPath, runDir, ...(routers ? { routers } : {}), mode, ...(opts.nets ? { netNames: opts.nets.split(',').map((s) => s.trim()) } : {}), ...(opts.criticalNets ? { criticalNetNames: opts.criticalNets.split(',').map((s) => s.trim()) } : {}), ...(layerPreferences.length ? { layerPreferences } : {}), preserveExistingRoutes: opts.preserve, seed: Number(opts.seed), limits: { engineSeconds: budget, wallSeconds: budget }, ...(pcb.profile ? { profile: pcb.profile } : {}), ...(pcb.scoring ? { scoring: pcb.scoring } : {}), ...(pcb.maxParallelEngines ? { maxParallel: pcb.maxParallelEngines } : {}),
         policy: { network: pcb.allowRemoteEngines ? 'required' : 'optional', allowHarnessEngines: opts.allowHarnessEngines, denyLicenses: [] },
@@ -406,10 +408,11 @@ pcbGroup
       });
       if (opts.apply) {
         const sel = res.ranking.selected ? res.candidates.find((c) => c.engineId === res.ranking.selected) : undefined;
-        if (sel && (res.outcome.status === 'PASS' || res.outcome.status === 'PARTIAL')) {
-          await copyFile(sel.pcbPath, boardPath);
-          res.outcome.detail.push(`applied ${res.ranking.selected} to ${path.relative(repo, boardPath)}`);
-        } else res.outcome.detail.push('nothing applied; the board is unchanged');
+        const { applyIfUnchanged } = await import('./pcb/engines/apply.js');
+        const done = sel && (res.outcome.status === 'PASS' || res.outcome.status === 'PARTIAL') ? await applyIfUnchanged(sel.pcbPath, boardPath, startText, path.relative(repo, boardPath)) : { applied: false };
+        if (done.applied) res.outcome.detail.push(`applied ${res.ranking.selected} to ${path.relative(repo, boardPath)}`);
+        else if (done.reason) res.outcome = { ...res.outcome, status: 'HOLD', summary: `not applied: ${done.reason}; the board is unchanged`, detail: [res.outcome.summary, ...res.outcome.detail] };
+        else res.outcome.detail.push('nothing applied; the board is unchanged');
         // the evidence in docs/LAYOUT.md is what `check` re-verifies against (ADR 0009); a refusal is evidence too
         const { evidenceFromRun, recordEvidence } = await import('./pcb/layout-stage.js');
         const verdict = await recordEvidence(repo, config.docs, boardPath, await evidenceFromRun(repo, boardPath, res));
@@ -501,6 +504,8 @@ pcbGroup
           process.exit(EXIT_CODE.HOLD);
         }
       }
+      // the board as the run found it: --apply writes only over these bytes
+      const startText = await (await import('node:fs/promises')).readFile(boardPath, 'utf8');
       const res = await placeBoard({
         repoRoot: repo, boardPath, runDir, ...(placers ? { placers } : {}), ...(layoutPlan ? { layoutPlan } : {}), mode, ...(opts.movable ? { movableReferences: opts.movable.split(',').map((s) => s.trim()) } : {}), ...(reuse?.length ? { reuse } : {}), seed: Number(opts.seed), limits: { engineSeconds: budget, wallSeconds: budget }, ...(pcb.profile ? { profile: pcb.profile } : {}), ...(pcb.maxParallelEngines ? { maxParallel: pcb.maxParallelEngines } : {}),
         policy: { network: pcb.allowRemoteEngines ? 'required' : 'optional', allowHarnessEngines: opts.allowHarnessEngines || (pcb.allowHarnessEngines ?? false), denyLicenses: [] },
@@ -510,10 +515,11 @@ pcbGroup
       });
       if (opts.apply) {
         const sel = res.ranking.selected ? res.candidates.find((c) => c.engineId === res.ranking.selected) : undefined;
-        if (sel && (res.outcome.status === 'PASS' || res.outcome.status === 'PARTIAL')) {
-          await copyFile(sel.pcbPath, boardPath);
-          res.outcome.detail.push(`applied ${res.ranking.selected} to ${path.relative(repo, boardPath)}`);
-        } else res.outcome.detail.push('nothing applied; the board is unchanged');
+        const { applyIfUnchanged } = await import('./pcb/engines/apply.js');
+        const done = sel && (res.outcome.status === 'PASS' || res.outcome.status === 'PARTIAL') ? await applyIfUnchanged(sel.pcbPath, boardPath, startText, path.relative(repo, boardPath)) : { applied: false };
+        if (done.applied) res.outcome.detail.push(`applied ${res.ranking.selected} to ${path.relative(repo, boardPath)}`);
+        else if (done.reason) res.outcome = { ...res.outcome, status: 'HOLD', summary: `not applied: ${done.reason}; the board is unchanged`, detail: [res.outcome.summary, ...res.outcome.detail] };
+        else res.outcome.detail.push('nothing applied; the board is unchanged');
       }
       if (json) console.log(JSON.stringify({ ...res.outcome, diagnostics: res.outcome.diagnostics.map((d) => ({ code: d.code, severity: d.severity, message: d.message })), runDir: res.runDir, ranking: res.ranking, ineligible: res.ineligible, movable: res.movableIds.length, ...(res.plan ? { plan: { stages: res.plan.stages.map((st) => ({ name: st.name, engineId: st.engineId, parts: st.componentIds.length })), blocks: res.plan.blocks.map((b) => ({ id: b.id, members: b.members.length, region: !!b.region })) } } : {}) }, null, 2));
       else {

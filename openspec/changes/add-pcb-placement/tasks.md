@@ -58,6 +58,9 @@ Implements copperhead RFC 15 on the records of RFC 11 version 1.4.
       made during the run.
 - [x] 5.7 Copper is ripped up when an earlier placement stage moved a part,
       not only when the engine did.
+- [x] 5.8 `pcb place --apply`, `pcb route --apply`, and the create layout
+      stage write only over the bytes their run started from
+      (`src/pcb/engines/apply.ts`).
 
 ## 6. Next
 
@@ -69,3 +72,8 @@ Implements copperhead RFC 15 on the records of RFC 11 version 1.4.
       `--apply` through layout operations.
 - [ ] 6.4 Re-cite the ported changes against RFC 15: they cite its draft
       as "RFC 14".
+- [ ] 6.5 Routing checks the routing intent a board declares (a hard
+      minimum trace width): `routeBoard` loads no constraints today.
+- [ ] 6.6 Staged routing keeps a `--nets` scope in its bulk stages.
+- [ ] 6.7 A placement whose intent file has entries the loader cannot read
+      holds, instead of placing without them.
