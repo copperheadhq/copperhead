@@ -559,9 +559,9 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 ### AC-21 · KiCad board import (change: add-pcb-import)
 
 - **AC-21.1** Importing a `.kicad_pcb` yields a layout input that validates against the RFC 11 schema, with each footprint definition keyed by its content hash and shared by the parts that use it.
-- **AC-21.2** Identifiers are derived as RFC 3 Section 4.2 specifies: the derivation reproduces the RFC example's `PCB-217f1404b81d`, and a part keeps its identifier when it is renumbered.
-- **AC-21.3** The import does not depend on the order of the file, records every placement as owned by the import adapter, and lists in the board's `lossy` field what it could not represent.
-- **AC-21.4** `pcb diff` of two boards, or of a board and itself at a git revision (`HEAD:board.kicad_pcb`), shows a moved and turned part as one row with its distance and rotation.
+- **AC-21.2** Identifiers are derived as RFC 3 Section 4.2 specifies: the derivation reproduces the RFC example's `PCB-217f1404b81d`, and a part keeps its identifier when it is renumbered, whether it has a schematic symbol or is placed only on the board.
+- **AC-21.3** The import does not depend on the order of the file: not of its footprints, its routing, nor the edges of its outline. It records every placement as owned by the import adapter, and lists in the board's `lossy` field what it could not represent, including copper on no net.
+- **AC-21.4** `pcb diff` of two boards, even under different file names, or of a board and itself at a git revision (`HEAD:board.kicad_pcb`), shows a moved and turned part as one row with its distance and rotation, and prints the imports' `lossy` notes on standard error.
 
 ### AC-3 · `copperhead do` — core loop
 

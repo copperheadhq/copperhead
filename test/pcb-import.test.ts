@@ -70,6 +70,11 @@ describe('importing a KiCad board into a layout input', () => {
     expect(byRef(renumbered, 'R7')[0]).toBe(byRef(li, 'R1')[0]);
   });
 
+  it('keeps the identifier of a part placed only on the board when it is renumbered', () => {
+    const renumbered = imported(board.replace('(property "Reference" "H1"', '(property "Reference" "H2"'));
+    expect(byRef(renumbered, 'H2')[0]).toBe(byRef(li, 'H1')[0]);
+  });
+
   it('does not depend on the order of the file', () => {
     const start = board.indexOf('\t(footprint "Resistor_SMD');
     const end = board.indexOf('\t(footprint "MountingHole');
@@ -77,6 +82,45 @@ describe('importing a KiCad board into a layout input', () => {
     const a = { ...li, parent: null };
     const b = { ...imported(reordered), parent: null };
     expect(contentHash(b)).toBe(contentHash(a));
+  });
+
+  it('draws the same outline whatever order and direction its edges are in', () => {
+    const rect = board.slice(board.indexOf('\t(gr_rect'), board.indexOf('\t(segment'));
+    const line = (a: string, b: string) => `\t(gr_line (start ${a}) (end ${b}) (stroke (width 0.05) (type default)) (layer "Edge.Cuts"))\n`;
+    const one = board.replace(rect, line('0 0', '30 0') + line('30 0', '30 20') + line('30 20', '0 20') + line('0 20', '0 0'));
+    const other = board.replace(rect, line('0 20', '30 20') + line('0 0', '0 20') + line('30 0', '30 20') + line('30 0', '0 0'));
+    expect(imported(one).board.outline).toEqual(li.board.outline);
+    expect(imported(other).board.outline).toEqual(li.board.outline);
+    expect(li.board.outline[0]).toEqual({ x: 0, y: 0 });
+  });
+
+  it('knows routing by its KiCad identifier, or else by its content, never by file order', () => {
+    const lines = board.split('\n');
+    const s1 = lines.find((l) => l.startsWith('\t(segment (start 19.225 7)'))!;
+    const s2 = lines.find((l) => l.startsWith('\t(segment (start 9.9 8.6)'))!;
+    // Each identifier with the segment it names, so swapped identifiers show.
+    const traceIds = (text: string) =>
+      Object.entries(imported(text).routing.traces)
+        .map(([id, t]) => `${id} ${t.start.x},${t.start.y}`)
+        .sort();
+    const kicad5 = (s: string) => s.replace('(uuid', '(tstamp');
+    const anonymous = (s: string) => s.replace(/ \(uuid "[^"]+"\)/, '');
+    for (const variant of [kicad5, anonymous]) {
+      const [v1, v2] = [variant(s1), variant(s2)];
+      const text = board.replace(s1, v1).replace(s2, v2);
+      const swapped = text.replace(`${v1}\n${v2}`, `${v2}\n${v1}`);
+      expect(swapped).not.toBe(text);
+      expect(traceIds(text)).toHaveLength(2);
+      expect(traceIds(swapped)).toEqual(traceIds(text));
+    }
+  });
+
+  it('says that it leaves out copper on no net', () => {
+    const stray = '\t(segment (start 1 1) (end 2 1) (width 0.25) (layer "F.Cu") (net 0) (uuid "6f1d4a6e-1b2c-4d3e-9f40-5a6b7c8d9e69"))\n';
+    const withStray = imported(board.replace('\t(via', stray + '\t(via'));
+    expect(Object.keys(withStray.routing.traces)).toHaveLength(2);
+    expect(withStray.board.lossy).toContain('traces and vias on no net are not imported');
+    expect(li.board.lossy).not.toContain('traces and vias on no net are not imported');
   });
 });
 
@@ -108,6 +152,16 @@ describe('diffing two boards', () => {
     } finally {
       process.chdir(cwd);
     }
+  });
+
+  it('imports two differently named boards under one project, and says what neither could represent', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'pcb-diff-'));
+    writeFileSync(path.join(dir, 'old.kicad_pcb'), board);
+    writeFileSync(path.join(dir, 'new.kicad_pcb'), moveR1(board));
+    const res = await pcbDiff(path.join(dir, 'old.kicad_pcb'), path.join(dir, 'new.kicad_pcb'));
+    expect(res.diff.components.map((r) => [r.refdes, r.changes])).toEqual([['R1', ['moved', 'rotated']]]);
+    expect(res.text.split('\n')[0]).toMatch(/: 1 changed$/);
+    expect(res.notes).toContain('the fabrication profile is not in the board file');
   });
 });
 

@@ -35,6 +35,13 @@ rules of RFC 3 version 1.6, Section 4.2.
       - file order does not matter
       - two boards diff, and so does a board against its git revision
 - [x] 3.2 SPEC.md: the `pcb diff` surface, and AC-21; the CLI reference.
+- [x] 3.3 Review fixes, each with a test that fails without it:
+      - two boards under different names share one project
+      - a part placed only on the board is known by its KiCad identifier
+      - routing is known by `uuid`, then `tstamp`, then its content
+      - outline rings are normalized
+      - copper on no net is listed in `lossy`
+      - `pcb diff` prints the `lossy` notes on standard error
 
 ## 4. Next
 

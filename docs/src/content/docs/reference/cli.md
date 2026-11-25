@@ -173,8 +173,8 @@ Shows what the after side changes relative to the before side, as the placement 
 
 - **Each side** is a `.kicad_pcb` file, a board at a git revision written `<rev>:<path>`, or a layout input.
 - **The after side** may instead be a candidate produced against the before side. A candidate's block layouts are read from `--blocks`, or else from the candidate's own directory.
-- **Boards are imported first** into layout inputs, with identifiers derived from each part's schematic symbol path, so renumbering a part doesn't make it look removed and added. Both sides derive identifiers under one project, the board file's name unless `--project` names another.
-- **Anything the import can't represent faithfully** is listed in the layout input's `lossy` field (see `--json`).
+- **Boards are imported first** into layout inputs, with identifiers derived from each part's schematic symbol path, or from its KiCad identifier for a part placed only on the board, so renumbering a part doesn't make it look removed and added. Both sides derive identifiers under one project, the first board's file name unless `--project` names another.
+- **Anything the import can't represent faithfully** is listed in the layout input's `lossy` field and printed on standard error as `note:` lines, so `--json` output stays a single placement diff record.
 
 It prints one line per changed part:
 

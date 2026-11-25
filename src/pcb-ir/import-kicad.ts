@@ -87,14 +87,46 @@ function mmQuantity(text: string | undefined): Quantity | undefined {
   return text === undefined ? undefined : { kind: 'scalar', value: String(Number(text)), unit: 'mm' };
 }
 
-function ringOf(points: Pt[]): Array<{ x: number; y: number }> | undefined {
+/** A ring's points without repeats, and without a closing point equal to the first. */
+function distinctPoints(points: Pt[]): Pt[] {
   const out: Pt[] = [];
   for (const p of points) {
     const last = out[out.length - 1];
     if (!last || last[0] !== p[0] || last[1] !== p[1]) out.push(p);
   }
   if (out.length > 1 && out[0]![0] === out[out.length - 1]![0] && out[0]![1] === out[out.length - 1]![1]) out.pop();
+  return out;
+}
+
+function ringOf(points: Pt[]): Array<{ x: number; y: number }> | undefined {
+  const out = distinctPoints(points);
   return out.length >= 3 ? out.map(xy) : undefined;
+}
+
+/**
+ * A board ring in one form, whatever order the file drew its edges in:
+ * counter-clockwise as seen from the front, the sense of rotation of RFC 11
+ * Section 6.1, starting at its least point by x and then y. An outline keeps
+ * its order when hashed, so without this, reordering the edge cuts of the same
+ * board would change its layout input.
+ */
+function boardRing(points: Pt[]): Array<{ x: number; y: number }> | undefined {
+  let ring = distinctPoints(points);
+  if (ring.length < 3) return undefined;
+  let twiceArea = 0n;
+  for (let i = 0; i < ring.length; i++) {
+    const [x1, y1] = ring[i]!;
+    const [x2, y2] = ring[(i + 1) % ring.length]!;
+    twiceArea += BigInt(x1) * BigInt(y2) - BigInt(x2) * BigInt(y1);
+  }
+  // With y downward, a positive sum runs clockwise as seen from the front.
+  if (twiceArea > 0n) ring = ring.slice().reverse();
+  let k = 0;
+  ring.forEach(([x, y], i) => {
+    const [kx, ky] = ring[k]!;
+    if (x < kx || (x === kx && y < ky)) k = i;
+  });
+  return [...ring.slice(k), ...ring.slice(0, k)].map(xy);
 }
 
 /** Points along an arc, no chord farther than `tolerance` from the curve. */
@@ -305,6 +337,11 @@ function property(fp: List, name: string): string | undefined {
   return undefined;
 }
 
+/** An object's KiCad identifier: `uuid` since KiCad 6, `tstamp` before it. */
+function sourceId(node: List): string | undefined {
+  return atom(child(node, 'uuid'), 1) ?? atom(child(node, 'tstamp'), 1);
+}
+
 export interface ImportOptions {
   /** The project identifier identifiers are derived under (RFC 3 Section 4.2). */
   projectId: string;
@@ -371,8 +408,10 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
     footprints[hash] = def;
     const refdes = property(fp, 'Reference') ?? '?';
     const symbolPath = atom(child(fp, 'path'), 1);
-    const uuid = atom(child(fp, 'uuid'), 1) ?? atom(child(fp, 'tstamp'), 1);
-    const path = symbolPath ?? `refdes:${refdes}` + (uuid ? `@${uuid}` : '');
+    const uuid = sourceId(fp);
+    // A part placed only on the board, such as a mounting hole, is known by its
+    // KiCad identifier, so renumbering it keeps its identity too.
+    const path = symbolPath ?? (uuid ? `uuid:${uuid}` : `refdes:${refdes}`);
     const cid = ids.id('CMP', path);
     const at = child(fp, 'at');
     const pads: Component['pads'] = {};
@@ -400,18 +439,36 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
     };
   }
 
-  // Routed copper and zones.
-  const identity = (prefix: string, kind: string, uuid: string | undefined, index: number) => {
-    const path = `board.${kind}.${uuid ?? index}`;
+  // Routed copper and zones, known by their KiCad identifiers, or else by their
+  // content, so that the order of the file never decides an identity.
+  const seen = new Map<string, number>();
+  const identity = (prefix: string, kind: string, node: List) => {
+    const uuid = sourceId(node);
+    let key = uuid;
+    if (!key) {
+      const digest = createHash('sha256').update(JSON.stringify(node)).digest('hex').slice(0, 16);
+      const n = seen.get(`${kind}:${digest}`) ?? 0;
+      seen.set(`${kind}:${digest}`, n + 1);
+      key = `content-${digest}${n ? `-${n}` : ''}`;
+    }
+    const path = `board.${kind}.${key}`;
     const id = ids.id(prefix, path);
     return { id, identity: { id, origin: 'imported' as const, path, ...(uuid && { external_id: uuid }) } };
   };
   const traces: LayoutInput['routing']['traces'] = {};
-  [...children(root, 'segment'), ...children(root, 'arc')].forEach((s, i) => {
+  for (const s of [...children(root, 'segment'), ...children(root, 'arc')]) {
     const net = netId(child(s, 'net'));
     const layer = layerId.get(atom(child(s, 'layer'), 1) ?? '');
-    if (!net || !layer) return;
-    const { id, identity: ident } = identity('TRC', 'trace', atom(child(s, 'uuid'), 1), i);
+    // RFC 11's traces and vias each carry a net, so copper on none is not imported.
+    if (!net) {
+      notes.add('traces and vias on no net are not imported');
+      continue;
+    }
+    if (!layer) {
+      notes.add('traces on layers that are not copper layers of the board are not imported');
+      continue;
+    }
+    const { id, identity: ident } = identity('TRC', 'trace', s);
     const trace: Trace = {
       kind: 'trace',
       id,
@@ -424,13 +481,20 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
       end: xy(pt(child(s, 'end'))),
     } as Trace;
     traces[id] = trace;
-  });
+  }
   const vias: LayoutInput['routing']['vias'] = {};
-  children(root, 'via').forEach((v, i) => {
+  for (const v of children(root, 'via')) {
     const net = netId(child(v, 'net'));
     const pair = layerIds((child(v, 'layers') ?? []).slice(1).filter((x): x is string => typeof x === 'string'));
-    if (!net || pair.length !== 2) return;
-    const { id, identity: ident } = identity('VIA', 'via', atom(child(v, 'uuid'), 1), i);
+    if (!net) {
+      notes.add('traces and vias on no net are not imported');
+      continue;
+    }
+    if (pair.length !== 2) {
+      notes.add('vias that do not name two copper layers of the board are not imported');
+      continue;
+    }
+    const { id, identity: ident } = identity('VIA', 'via', v);
     vias[id] = {
       kind: 'via',
       id,
@@ -441,7 +505,7 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
       drill: nmOf(atom(child(v, 'drill'), 1)),
       layers: [pair[0]!, pair[1]!],
     } as Via;
-  });
+  }
   const zones: LayoutInput['routing']['zones'] = {};
   const zoneSpans = childSpans(source, source.indexOf('(kicad_pcb')).filter((s) => s.tag === 'zone');
   children(root, 'zone').forEach((z, i) => {
@@ -455,11 +519,14 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
         ? (child(z, 'layers') ?? []).slice(1).filter((x): x is string => typeof x === 'string')
         : [atom(child(z, 'layer'), 1) ?? ''],
     );
-    if (!outline || !zoneLayers.length) return;
+    if (!outline || !zoneLayers.length) {
+      notes.add('zones without an outline or a copper layer of the board are not imported');
+      return;
+    }
     const span = zoneSpans[i];
     const net = atom(child(z, 'net_name'), 1) ? netId(['net', 'x', atom(child(z, 'net_name'), 1)!]) : netId(child(z, 'net'));
     const fill = child(z, 'fill');
-    const { id, identity: ident } = identity('ZONE', 'zone', atom(child(z, 'uuid'), 1), i);
+    const { id, identity: ident } = identity('ZONE', 'zone', z);
     const clearance = mmQuantity(atom(child(child(z, 'connect_pads') ?? [], 'clearance'), 1));
     const gap = mmQuantity(atom(child(fill ?? [], 'thermal_gap'), 1));
     const bridge = mmQuantity(atom(child(fill ?? [], 'thermal_bridge_width'), 1));
@@ -481,11 +548,11 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
   const { rings, complete } = edgeRings(root, tolerance);
   if (!complete) notes.add('edge cuts that do not close into rings are not imported');
   rings.sort((a, b) => polygonArea(b) - polygonArea(a));
-  const outline = rings[0] ? ringOf(rings[0]) : undefined;
+  const outline = rings[0] ? boardRing(rings[0]) : undefined;
   if (!outline) throw new Error(`${options.path}: no closed board outline on Edge.Cuts`);
   const cutouts = rings
     .slice(1)
-    .map((r) => ringOf(r))
+    .map((r) => boardRing(r))
     .filter((r): r is NonNullable<typeof r> => !!r)
     .map((r) => ({ outline: r as never }));
   const thickness = atom(child(child(root, 'general') ?? [], 'thickness'), 1);

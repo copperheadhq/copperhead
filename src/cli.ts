@@ -298,6 +298,8 @@ pcbGroup
         ...(opts.blocks && { blocks: opts.blocks }),
         ...(opts.project && { project: opts.project }),
       });
+      // What an import could not represent goes to stderr, so --json stays one record.
+      for (const note of res.notes) console.error(`note: ${note}`);
       if (opts.json || program.opts().json) console.log(JSON.stringify(res.diff, null, 2));
       else process.stdout.write(res.text);
       process.exit(0);
