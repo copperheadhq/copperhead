@@ -123,6 +123,21 @@ describe('importing a KiCad board into a layout input', () => {
     expect(li.board.lossy).not.toContain('traces and vias on no net are not imported');
   });
 
+  it('keeps a zone fill out of the zone, so a refill changes nothing', () => {
+    const fill = '\t\t(filled_polygon (layer "B.Cu") (pts (xy 0.5 0.5) (xy 29.5 0.5) (xy 29.5 19.5)))\n';
+    const anchor = '\t\t(polygon\n\t\t\t(pts (xy 0 0) (xy 30 0) (xy 30 20) (xy 0 20))\n\t\t)\n';
+    expect(board).toContain(anchor);
+    const refilled = imported(board.replace(anchor, anchor + fill));
+    expect(refilled.routing.zones).toEqual(li.routing.zones);
+    expect(placementDiff(li, { input: refilled }).copper).toBeUndefined();
+  });
+
+  it('says that it leaves out edge cuts drawn inside footprints', () => {
+    const edge = '\t\t(fp_circle (center 0 0) (end 1.6 0) (stroke (width 0.05) (type default)) (fill none) (layer "Edge.Cuts"))\n';
+    const withEdge = imported(board.replace('\t\t(property "Reference" "H1"', edge + '\t\t(property "Reference" "H1"'));
+    expect(withEdge.board.lossy).toContain('edge cuts drawn inside footprints are not part of the imported outline or cutouts');
+  });
+
   it('says that it leaves out zones inside footprints', () => {
     const zone = '\t\t(zone (net 0) (net_name "") (layer "F.Cu") (hatch edge 0.5) (keepout (tracks not_allowed)) (polygon (pts (xy 2 2) (xy 4 2) (xy 4 4))))\n';
     const withZone = imported(board.replace('\t\t(property "Reference" "H1"', zone + '\t\t(property "Reference" "H1"'));

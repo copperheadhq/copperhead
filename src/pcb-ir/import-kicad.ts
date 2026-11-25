@@ -337,6 +337,24 @@ function property(fp: List, name: string): string | undefined {
   return undefined;
 }
 
+/**
+ * A zone's definition as the file writes it, less its fill: the cached
+ * `filled_polygon` and `fill_segments` are derived by refilling, never stored
+ * (RFC 11 Section 6.6), so a refill alone does not change the board.
+ */
+function zoneDefinition(source: string, span: { start: number; end: number }): string {
+  let text = source.slice(span.start, span.end);
+  const fills = childSpans(source, span.start).filter((c) => c.tag === 'filled_polygon' || c.tag === 'fill_segments');
+  for (const c of fills.reverse()) {
+    // Take the fill's own line with it: the whitespace before it, back to the line break.
+    let from = c.start - span.start;
+    while (from > 0 && (text[from - 1] === ' ' || text[from - 1] === '\t')) from--;
+    if (from > 0 && text[from - 1] === '\n') from--;
+    text = text.slice(0, from) + text.slice(c.end - span.start);
+  }
+  return text;
+}
+
 /** An object's KiCad identifier: `uuid` since KiCad 6, `tstamp` before it. */
 function sourceId(node: List): string | undefined {
   return atom(child(node, 'uuid'), 1) ?? atom(child(node, 'tstamp'), 1);
@@ -406,6 +424,9 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
     const def = footprintDefinition(fp, notes);
     // RFC 11's footprint definition has no zones, and a board's zones are its own.
     if (children(fp, 'zone').length) notes.add('zones inside footprints, keepouts among them, are not imported');
+    if (fp.some((g) => isList(g) && typeof g[0] === 'string' && g[0].startsWith('fp_') && atom(child(g, 'layer'), 1) === 'Edge.Cuts')) {
+      notes.add('edge cuts drawn inside footprints are not part of the imported outline or cutouts');
+    }
     const hash = contentHash(def);
     footprints[hash] = def;
     const refdes = property(fp, 'Reference') ?? '?';
@@ -542,7 +563,7 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
       priority: Number(atom(child(z, 'priority'), 1) ?? '0'),
       ...(clearance && { clearance }),
       ...((gap || bridge) && { thermal: { ...(gap && { gap }), ...(bridge && { bridge }) } }),
-      definition: span ? source.slice(span.start, span.end) : '',
+      definition: span ? zoneDefinition(source, span) : '',
     } as Zone;
   });
 

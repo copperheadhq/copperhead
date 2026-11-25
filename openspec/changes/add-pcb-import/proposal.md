@@ -25,7 +25,7 @@ revision.
     and keyed by hash. Each pad's angle is taken relative to its footprint.
   - **Board:** copper layers top to bottom, and nets.
   - **Routing:** traces, arcs and vias, and zones with their definitions
-    verbatim.
+    verbatim less their fill, which is derived and never stored.
   - **Outline:** the board outline and cutouts, chained from Edge.Cuts, with
     arcs within the arc tolerance. Each ring runs counter-clockwise from its
     least point, whatever order the file drew its edges in.
@@ -40,6 +40,7 @@ revision.
     - rule areas
     - traces and vias on no net, which RFC 11's records cannot hold
     - zones inside footprints, keepouts among them
+    - edge cuts drawn inside footprints
     - the fabrication profile
 - **`copperhead pcb diff`** takes `.kicad_pcb` files and `<rev>:<path>` boards
   on either side. `--project` names the project identifiers derive under; the
