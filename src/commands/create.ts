@@ -1539,6 +1539,11 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
         check = { ...check, brief: await inspectBriefFreshness(opts.repoRoot, config.docs), ok: false };
       }
     }
+    if (check.brief.status === 'current') {
+      opts.log(`brief ✓ current (${check.brief.currentSha256?.slice(0, 12) ?? 'hash unavailable'})`);
+    } else if (check.brief.status === 'legacy') {
+      opts.log(`brief legacy (${check.brief.path ?? 'external path'}): ${check.brief.detail ?? 'complete create to establish tracked provenance'}`);
+    }
   }
   opts.log(
     check.ok

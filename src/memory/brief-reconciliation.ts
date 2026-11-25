@@ -110,10 +110,15 @@ export async function resolveRepositoryLocalBriefPath(
     !path.isAbsolute(briefPath) && opts.fallbackToRepoRoot && !existsSync(cwdCandidate)
       ? repoCandidate
       : cwdCandidate;
-  if (!isWithinDirectory(rootPath, candidate)) return null;
-
-  const lexicalRelative = path.relative(rootPath, candidate);
-  let cursor = rootPath;
+  const rootAlias = await realpath(rootPath).catch(() => rootPath);
+  const walkRoot = isWithinDirectory(rootPath, candidate)
+    ? rootPath
+    : isWithinDirectory(rootAlias, candidate)
+      ? rootAlias
+      : null;
+  if (!walkRoot) return null;
+  const lexicalRelative = path.relative(walkRoot, candidate);
+  let cursor = walkRoot;
   try {
     for (const component of lexicalRelative.split(path.sep)) {
       cursor = path.join(cursor, component);

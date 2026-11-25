@@ -512,7 +512,8 @@ describe('create pipeline resilience (review F3)', () => {
       };
       mockRunCheck.mockResolvedValueOnce({ ...allChecksPass, ok: true, brief: { status: 'legacy', reasonCode } });
 
-      const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: () => {} });
+      const messages: string[] = [];
+      const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (message) => messages.push(message) });
       const { stdout: committedRecord } = await execa('git', ['show', 'HEAD:.copperhead/brief-reconciliation.json'], { cwd: repo });
       const freshness = await inspectBriefFreshness(repo, 'docs');
 
@@ -520,6 +521,50 @@ describe('create pipeline resilience (review F3)', () => {
       expect(mockRunCheck).toHaveBeenCalledTimes(1);
       expect(JSON.parse(committedRecord)).toMatchObject({ briefPath: 'docs/BRIEF.md', sha256: briefSha256(brief) });
       expect(freshness).toMatchObject({ status: 'current', ok: true, currentSha256: briefSha256(brief) });
+      expect(messages).toContain(`brief ✓ current (${briefSha256(brief).slice(0, 12)})`);
+    } finally {
+      STAGES.forEach((stage, index) => { stage.isComplete = originalChecks[index]!; });
+      await cleanup();
+    }
+  });
+
+  it('reports a legacy brief when create cannot record the initial reconciliation', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const originalChecks = STAGES.map((stage) => stage.isComplete);
+    try {
+      const briefPath = path.join(repo, 'docs', 'BRIEF.md');
+      await mkdir(path.dirname(briefPath), { recursive: true });
+      const brief = '# Create baseline\n';
+      await writeFile(briefPath, brief, 'utf8');
+      await writeBriefHash(repo, 'docs', { path: 'docs/BRIEF.md', sha256: briefSha256(brief) });
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-q', '-m', 'add tracked brief'], { cwd: repo });
+
+      STAGES.forEach((stage) => { stage.isComplete = () => true; });
+      mockRunCheck.mockImplementationOnce(async () => {
+        await writeFile(briefPath, '# Edited during create\n', 'utf8');
+        return {
+          ok: true,
+          erc: { ok: true, violations: 0 },
+          drc: { ok: true, violations: 0, unrouted: 0, intrinsic: 0 },
+          drift: { ok: true, mismatches: [] },
+          openspec: { ok: true, detail: '' },
+          constraints: { ok: true, violations: [] },
+          brief: {
+            status: 'legacy',
+            reasonCode: 'legacy-origin-without-reconciliation',
+            path: 'docs/BRIEF.md',
+            detail: 'legacy origin has no last-reconciled record',
+          },
+        } as never;
+      });
+      const messages: string[] = [];
+
+      const result = await runCreate({ repoRoot: repo, briefPath, model: 'gpt-5', log: (message) => messages.push(message) });
+
+      expect(result.ok).toBe(true);
+      expect(existsSync(path.join(repo, '.copperhead', 'brief-reconciliation.json'))).toBe(false);
+      expect(messages).toContain('brief legacy (docs/BRIEF.md): legacy origin has no last-reconciled record');
     } finally {
       STAGES.forEach((stage, index) => { stage.isComplete = originalChecks[index]!; });
       await cleanup();

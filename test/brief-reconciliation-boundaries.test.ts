@@ -19,7 +19,8 @@ vi.mock('execa', async (importOriginal) => {
 });
 
 import { existsSync } from 'node:fs';
-import { mkdir, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { execa } from 'execa';
 import { briefSha256, compareBrief, inspectBriefFreshness, resolveRepositoryLocalBriefPath, writeReconciliationRecord } from '../src/memory/brief-reconciliation.js';
@@ -34,6 +35,24 @@ async function installOrigin(repo: string, briefPath: string, brief: string): Pr
 }
 
 describe('brief reconciliation path and git boundaries', () => {
+  it('accepts the physical brief path when the repository is given through a link', async () => {
+    const base = await realpath(await mkdtemp(path.join(os.tmpdir(), 'brief-alias-')));
+    try {
+      const repo = path.join(base, 'repo');
+      await mkdir(path.join(repo, 'docs'), { recursive: true });
+      const brief = path.join(repo, 'docs', 'BRIEF.md');
+      await writeFile(brief, '# Brief\n', 'utf8');
+      const alias = path.join(base, 'alias');
+      const kind = process.platform === 'win32' ? 'junction' : 'dir';
+      await symlink(repo, alias, kind);
+      expect(await resolveRepositoryLocalBriefPath(alias, brief, { fallbackToRepoRoot: true })).toBe(brief);
+      await symlink(path.join(repo, 'docs'), path.join(repo, 'linked'), kind);
+      expect(await resolveRepositoryLocalBriefPath(alias, path.join(repo, 'linked', 'BRIEF.md'))).toBeNull();
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+
   it('reports unknown for an external origin whose conventional brief resolves outside the repo', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
