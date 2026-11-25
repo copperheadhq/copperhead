@@ -33,27 +33,36 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
  * last DRC result but does not go through `markTouched`: fill data cannot
  * affect drift or the changelog, so obligations the agent closed stay
  * closed. A board whose fills and rules are unchanged since the last
- * refresh is not refilled again. Returns a line for the tool result, or
- * null when there is nothing to say. A refresh failure leaves the board as
- * it was and is reported beside the plain DRC that follows.
+ * refresh is not refilled again. Returns a line for the tool result (null
+ * when there is nothing to say), and whether the refresh failed: that
+ * leaves the board as it was, so the DRC that follows counts its stored
+ * fills, and the failure is reported beside it.
  */
-export async function refillEditedBoard(ctx: RunContext, boardPath: string): Promise<string | null> {
+export async function refillEditedBoard(ctx: RunContext, boardPath: string): Promise<{ note: string | null; failed: boolean }> {
   const text = await readFile(boardPath, 'utf8');
   const key = await fillKey(boardPath, text);
-  if (ctx.fillsCurrent === key) return null;
+  if (ctx.fillsCurrent === key) return { note: null, failed: false };
   let fresh;
   try {
     fresh = await refreshZoneFills(boardPath, text);
   } catch (err) {
-    return `pour fills were not refreshed: ${(err as Error).message}. The DRC below checks the fills stored in the board.`;
+    return {
+      note: `pour fills were not refreshed: ${(err as Error).message}. The DRC below checks the fills stored in the board.`,
+      failed: true,
+    };
   }
   if (fresh.changed) {
     await writeFile(boardPath, fresh.text, 'utf8');
     ctx.lastDrc = null;
   }
   ctx.fillsCurrent = fresh.changed ? await fillKey(boardPath, fresh.text) : key;
-  if (!fresh.zones.length) return fresh.idsAssigned ? 'gave an id to each pour that had none; the fills were already current' : null;
-  return `refilled ${plural(fresh.zones.length, 'pour', 'pours')} with KiCad's filler before DRC: ${fresh.zones.join('; ')}`;
+  if (!fresh.zones.length) {
+    return { note: fresh.idsAssigned ? 'gave an id to each pour that had none; the fills were already current' : null, failed: false };
+  }
+  return {
+    note: `refilled ${plural(fresh.zones.length, 'pour', 'pours')} with KiCad's filler before DRC: ${fresh.zones.join('; ')}`,
+    failed: false,
+  };
 }
 
 /**
@@ -86,20 +95,24 @@ export async function fillZones(ctx: RunContext, rel: string, boardPath: string)
  * On a board `run_drc` may not write (D6, D8): when its DRC failed and a
  * refill would clear some of the findings, say so and how to refill. Never
  * writes the board. Null when the fills are current, a refill would not
- * help, or the DRC passed.
+ * help, or the DRC passed. The answer is kept per fill key, since the same
+ * board and rules give the same DRC, so an unchanged board is checked once.
  */
 export async function staleFillNote(ctx: RunContext, boardPath: string, report: CheckReport): Promise<string | null> {
   if (report.ok) return null;
   const text = await readFile(boardPath, 'utf8');
   const key = await fillKey(boardPath, text);
   if (ctx.fillsCurrent === key) return null;
-  let found;
-  try {
-    found = await staleFills(boardPath, report, text);
-  } catch (err) {
-    return `could not check whether stale pour fills cause these findings: ${(err as Error).message}`;
+  let found = ctx.staleFillsAt?.key === key ? ctx.staleFillsAt.found : undefined;
+  if (!found) {
+    try {
+      found = await staleFills(boardPath, report, text);
+    } catch (err) {
+      return `could not check whether stale pour fills cause these findings: ${(err as Error).message}`;
+    }
+    if (found.zones.length) ctx.staleFillsAt = { key, found };
+    else ctx.fillsCurrent = key;
   }
-  if (!found.zones.length) ctx.fillsCurrent = key;
   if (!found.stale) return null;
   const how = ctx.editsUnlocked ? 'fill_zones refreshes them' : 'once a change is approved, fill_zones refreshes them';
   return (
@@ -112,11 +125,13 @@ export async function staleFillNote(ctx: RunContext, boardPath: string, report: 
  * Why `export_outputs` must not run yet (D8), or null when it may: a copper
  * zone with no fill data, or stored fills that a refresh by this kicad-cli
  * would change. Fab outputs must hold the copper the committed board holds.
- * Without refill support, only zones with no fill data are caught (D10).
+ * Without refill support, only zones with no fill data are caught (D10),
+ * including a pour this run drew already marked filled. Nothing is written,
+ * so the refresh is not read back.
  */
 export async function exportFillGap(ctx: RunContext, boardPath: string): Promise<string | null> {
   const text = await readFile(boardPath, 'utf8');
-  const unfilled = unfilledZones(text).map((z) => z.label);
+  const unfilled = unfilledZones(text, ctx.boardAtStart ?? null).map((z) => z.label);
   const key = await fillKey(boardPath, text);
   if (!unfilled.length && ctx.fillsCurrent === key) return null;
   // a refresh names every pour it changes, unfilled ones included (with the id
@@ -124,7 +139,7 @@ export async function exportFillGap(ctx: RunContext, boardPath: string): Promise
   let zones = unfilled;
   let cannotFill = '';
   try {
-    zones = (await refreshZoneFills(boardPath, text)).zones;
+    zones = (await refreshZoneFills(boardPath, text, { verify: false })).zones;
     if (!zones.length) ctx.fillsCurrent = key;
   } catch (err) {
     if (!(err instanceof ZoneRefillUnavailableError)) {
@@ -134,7 +149,7 @@ export async function exportFillGap(ctx: RunContext, boardPath: string): Promise
   }
   if (!zones.length) return null;
   return (
-    `not exported, nothing written: ${plural(zones.length, 'copper pour has', 'copper pours have')} no fill or a fill ` +
+    `not exported, nothing written: ${plural(zones.length, 'pour has', 'pours have')} no fill or a fill ` +
     `that KiCad would now compute differently, so the gerbers would not match the board: ${zones.join('; ')}.` +
     (cannotFill || ' Call fill_zones (or run_drc after a board edit) to refresh them, then export again.')
   );

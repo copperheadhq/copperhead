@@ -2,7 +2,7 @@ import path from 'node:path';
 import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
-import { runErc, runDrc, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';
+import { runErc, runDrc, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile, unroutedCount } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
 import { listSymbols, listNets } from '../kicad/sexp.js';
 import { checkLegibility, formatLegibility } from '../kicad/legibility.js';
@@ -70,9 +70,21 @@ export function countRepairCycle(ctx: RunContext, kind: 'erc' | 'drc', report: C
  * `check`, and a violation for an agent run that raised it, since that means
  * the run broke a track or connection. The baseline is counted once, on the
  * board as the run found it, with its pours filled (refill-zone-fills D9).
+ * `storedFills`: this report counts fills that could not be refreshed, so
+ * it is held to the starting board's stored fills instead, like for like.
  */
-export async function unroutedGuard(ctx: RunContext, boardPath: string, report: CheckReport): Promise<CheckReport> {
+export async function unroutedGuard(
+  ctx: RunContext,
+  boardPath: string,
+  report: CheckReport,
+  opts: { storedFills?: boolean } = {},
+): Promise<CheckReport> {
   if (typeof ctx.boardAtStart !== 'string' || report.unrouted === undefined) return report;
+  if (opts.storedFills) {
+    const now = await readFile(boardPath, 'utf8').catch(() => null);
+    if (now === ctx.boardAtStart) return report;
+    return holdUnrouted(report, await unroutedCount(ctx.boardAtStart).catch(() => Infinity));
+  }
   if (ctx.unroutedBaseline === undefined) {
     const now = await readFile(boardPath, 'utf8').catch(() => null);
     if (now === ctx.boardAtStart) {
@@ -91,8 +103,12 @@ export async function unroutedGuard(ctx: RunContext, boardPath: string, report: 
       ctx.unroutedBaseline = Infinity;
     }
   }
-  const baseline = ctx.unroutedBaseline;
-  if (report.unrouted <= baseline) return report;
+  return holdUnrouted(report, ctx.unroutedBaseline);
+}
+
+/** The report, failed with `unrouted_increase` when it has more unrouted connections than `baseline`. */
+function holdUnrouted(report: CheckReport, baseline: number): CheckReport {
+  if (report.unrouted === undefined || report.unrouted <= baseline) return report;
   return {
     ...report,
     ok: false,
@@ -765,14 +781,15 @@ export const HANDLERS: HandlerDef[] = [
       if (!ctx.config.board)
         return 'no board configured; DRC does not apply yet — skip it until a board exists and is set in .copperhead/config.json';
       const boardPath = path.join(ctx.repoRoot, ctx.config.board);
-      const writable = ctx.editsUnlocked && boardTouched(ctx, boardPath);
-      const refilled = writable ? await refillEditedBoard(ctx, boardPath) : null;
-      const report = await unroutedGuard(ctx, boardPath, await runDrc(boardPath));
+      // a read-only skill (generate_report) never writes, even on a board the run edited
+      const writable = ctx.editsUnlocked && !ctx.readOnly && boardTouched(ctx, boardPath);
+      const refill = writable ? await refillEditedBoard(ctx, boardPath) : null;
+      const report = await unroutedGuard(ctx, boardPath, await runDrc(boardPath), { storedFills: refill?.failed ?? false });
       countRepairCycle(ctx, 'drc', report);
       ctx.lastDrc = report;
       if (report.ok) ctx.ledger.clear('drc');
       const stale = writable ? null : await staleFillNote(ctx, boardPath, report);
-      const text = [refilled, formatViolations(report), stale].filter((s): s is string => Boolean(s)).join('\n');
+      const text = [refill?.note, formatViolations(report), stale].filter((s): s is string => Boolean(s)).join('\n');
       return { ok: report.ok, text };
     },
   },

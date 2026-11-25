@@ -29,7 +29,7 @@ export interface FillFindings {
   staleAccountsFor: number;
   /** The pours a refill changes, when the fills are stale. */
   staleZones: string[];
-  /** Copper pours with an outline and no fill data. */
+  /** Pours (zones KiCad fills, on any layer) with an outline and no fill data. */
   unfilled: string[];
   /** Why stale fills could not be checked (refill unavailable, or the refresh failed). */
   notChecked?: string;
@@ -182,9 +182,17 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
  */
 async function checkFills(boardPath: string, drc: CheckReport, log: (s: string) => void): Promise<FillFindings> {
   const text = await readFile(boardPath, 'utf8');
-  const out: FillFindings = { stale: false, staleAccountsFor: 0, staleZones: [], unfilled: unfilledZones(text).map((z) => z.label) };
+  const out: FillFindings = { stale: false, staleAccountsFor: 0, staleZones: [], unfilled: [] };
+  try {
+    out.unfilled = unfilledZones(text).map((z) => z.label);
+  } catch (err) {
+    // KiCad ran the DRC, so a board copperhead's reader rejects is reported, not fatal
+    out.notChecked = (err as Error).message;
+    log(`fills: pour fills were not checked: ${out.notChecked}`);
+    return out;
+  }
   if (out.unfilled.length) {
-    log(`fills: ${out.unfilled.length} copper pour(s) have no fill, so they are not copper yet: ${out.unfilled.join('; ')}`);
+    log(`fills: ${out.unfilled.length} pour(s) have no fill, so they add nothing to the board yet: ${out.unfilled.join('; ')}`);
   }
   if (drc.ok) return out;
   try {

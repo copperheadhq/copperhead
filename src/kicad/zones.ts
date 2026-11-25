@@ -28,15 +28,27 @@ export class ZoneFillError extends Error {
   override name = 'ZoneFillError';
 }
 
+/** No refill here: this kicad-cli cannot refill, or this board cannot be refilled faithfully by it. */
 export class ZoneRefillUnavailableError extends ZoneFillError {
   override name = 'ZoneRefillUnavailableError';
-  constructor() {
+  constructor(message?: string) {
     super(
-      'this kicad-cli cannot refill zones (its `pcb drc` has no --refill-zones/--save-board; KiCad 9 or later has them), ' +
-        'so pour fills were not refreshed',
+      message ??
+        'this kicad-cli cannot refill zones (its `pcb drc` has no --refill-zones/--save-board; KiCad 9 or later has them)',
     );
   }
 }
+
+/**
+ * Why a board that stores teardrops as zones is not refilled: KiCad's refill
+ * regenerates teardrops from the pads, vias and tracks, while the board keeps
+ * the teardrops it stored, and KiCad 10 reads those back when it loads it.
+ * Fills computed against the regenerated teardrops can cut into the stored
+ * ones (26 clearance findings on KiCad's complex_hierarchy demo).
+ */
+const TEARDROP_ZONES =
+  'this board stores its teardrops as zones (KiCad 8 and 9 save them so), and a KiCad refill regenerates teardrops, ' +
+  'so fills computed here would not keep clear of the teardrops the board keeps';
 
 /** Fill data inside a zone: the only children a refresh replaces. */
 const FILL_TAGS = new Set(['filled_polygon', 'fill_segments']);
@@ -57,8 +69,10 @@ export interface ZoneInfo {
   fill?: Span;
   /** The `(filled_areas_thickness …)` child. */
   thickness?: Span;
-  /** KiCad fills it: any zone that is not a rule area. */
+  /** A pour KiCad fills: any zone that is neither a rule area nor a teardrop. */
   fillable: boolean;
+  /** A teardrop stored as a zone (KiCad 8 and 9). */
+  teardrop: boolean;
   /** For messages: `the GND zone on F.Cu (3c3c3c3c)`. */
   label: string;
 }
@@ -89,9 +103,24 @@ export function hasPours(text: string): boolean {
   }
 }
 
-/** Fillable zones that hold no fill: a pour that was drawn but never filled. */
-export function unfilledZones(text: string): ZoneInfo[] {
-  return listZones(text).filter((z) => z.fillable && !z.fills.length && !(z.fill && isFillYes(text, z.fill)));
+/**
+ * Fillable zones that hold no fill: a pour that was drawn but never filled.
+ * A zone marked `(fill yes` with no fill data is one KiCad filled to nothing
+ * (all clearance, or islands it removed), so on its own it does not count.
+ * Given `start`, the board as a run found it (null: there was none), such a
+ * zone counts unless the starting board held it exactly as it is now: a run
+ * that drew a pour, flag and all, put no copper there until something fills it.
+ */
+export function unfilledZones(text: string, start?: string | null): ZoneInfo[] {
+  const empty = listZones(text).filter((z) => z.fillable && !z.fills.length);
+  if (start === undefined) return empty.filter((z) => !(z.fill && isFillYes(text, z.fill)));
+  const before = new Set<string>();
+  try {
+    for (const z of listZones(start ?? '')) before.add(squash(start!.slice(z.span.start, z.span.end)));
+  } catch {
+    // no starting board, or one that does not parse: every empty pour is the run's
+  }
+  return empty.filter((z) => !(z.fill && isFillYes(text, z.fill)) || !before.has(squash(text.slice(z.span.start, z.span.end))));
 }
 
 function zoneInfo(text: string, span: Span, footprint: { id: string; ref: string | null } | null): ZoneInfo {
@@ -113,9 +142,25 @@ function zoneInfo(text: string, span: Span, footprint: { id: string; ref: string
     fills: kids.filter((k) => FILL_TAGS.has(k.tag)),
     ...withSpan('fill', kids.find((k) => k.tag === 'fill')),
     ...withSpan('thickness', kids.find((k) => k.tag === 'filled_areas_thickness')),
-    fillable: !kids.some((k) => RULE_AREA_TAGS.has(k.tag)),
+    fillable: !kids.some((k) => RULE_AREA_TAGS.has(k.tag)) && !isTeardrop(text, kids),
+    teardrop: isTeardrop(text, kids),
     label,
   };
+}
+
+/**
+ * A teardrop KiCad 8 and 9 store as a zone (`(attr (teardrop …))`, named
+ * `$teardrop_padvia$` or `$teardrop_track$`). KiCad generates teardrops from
+ * the pads, vias and tracks themselves, and KiCad 10 turns these zones into
+ * its own teardrops when it loads such a board: not a pour to refresh, and a
+ * board that holds them is not refilled at all (TEARDROP_ZONES).
+ */
+function isTeardrop(text: string, kids: Span[]): boolean {
+  return kids.some(
+    (k) =>
+      (k.tag === 'attr' && /\(teardrop\b/.test(text.slice(k.start, k.end))) ||
+      (k.tag === 'name' && /^\(name\s+"\$teardrop_/.test(text.slice(k.start, k.end))),
+  );
 }
 
 function withSpan<K extends string>(key: K, span: Span | undefined): Partial<Record<K, Span>> {
@@ -225,18 +270,19 @@ function stableUuid(seed: string): string {
 }
 
 /**
- * Give every zone a unique id. KiCad assigns a random uuid to a zone that has
- * none (or repeats one) when it loads the board, which would leave the
- * refilled copy's zone unmatchable; a hand-written pour often has none. The id
- * is derived from the zone's own text and position, so a second refresh gives
- * the same one. Uses the file's own id token (`tstamp` in KiCad 6/7 files).
- * Returns the text unchanged when every zone already has a unique id.
+ * Give every zone a unique id, and every footprint that holds a zone one too
+ * (a footprint zone is matched by both). KiCad assigns a random uuid to a zone
+ * or footprint that has none (or repeats one) when it loads the board, which
+ * would leave the refilled copy's zone unmatchable; a hand-written pour often
+ * has none. The id is derived from the item's own text and position, so a
+ * second refresh gives the same one. Uses the file's own id token (`tstamp`
+ * in KiCad 6/7 files). Returns the text unchanged when every id is in place.
  */
 export function assignZoneIds(text: string): string {
   const zones = listZones(text);
   const token = /\(uuid\s/.test(text) || !/\(tstamp\s/.test(text) ? 'uuid' : 'tstamp';
   const seen = new Set<string>();
-  const edits: Edit[] = [];
+  const edits: Edit[] = footprintIdEdits(text, token);
   zones.forEach((z, i) => {
     if (z.key && !seen.has(z.key)) {
       seen.add(z.key);
@@ -256,6 +302,37 @@ export function assignZoneIds(text: string): string {
     seen.add(z.key ? z.key.replace(/[^/]+$/, id) : id);
   });
   return edits.length ? applyEdits(text, edits) : text;
+}
+
+/** Ids for footprints that hold a zone and have no id, or one an earlier footprint already has. */
+function footprintIdEdits(text: string, token: 'uuid' | 'tstamp'): Edit[] {
+  const root = text.indexOf('(kicad_pcb');
+  const seen = new Set<string>();
+  const edits: Edit[] = [];
+  childSpans(text, root).forEach((top, i) => {
+    if (top.tag !== 'footprint') return;
+    const kids = childSpans(text, top.start);
+    const idSpan = kids.find((k) => k.tag === 'uuid' || k.tag === 'tstamp');
+    const id = idOf(text, idSpan);
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      return;
+    }
+    if (!kids.some((k) => k.tag === 'zone')) return;
+    const fresh = stableUuid(`footprint\n${i}\n${squash(text.slice(top.start, top.end))}`);
+    seen.add(fresh);
+    if (idSpan) {
+      const old = text.slice(idSpan.start, idSpan.end);
+      const tag = /^\(\s*(uuid|tstamp)/.exec(old)![1];
+      edits.push({ ...idSpan, text: old.includes('"') ? `(${tag} "${fresh}")` : `(${tag} ${fresh})` });
+      return;
+    }
+    // where KiCad writes it: after the footprint's layer, which follows its name
+    const layer = kids.find((k) => k.tag === 'layer');
+    if (!layer) return;
+    edits.push({ start: layer.end, end: layer.end, text: token === 'uuid' ? ` (uuid "${fresh}")` : ` (tstamp ${fresh})` });
+  });
+  return edits;
 }
 
 export interface ZoneSplice {
@@ -283,6 +360,8 @@ export function spliceZoneFills(original: string, refilled: string): ZoneSplice 
   const changed: string[] = [];
 
   for (const z of listZones(original)) {
+    // a rule area holds no fill, and a teardrop is KiCad's to regenerate: nothing to take for either
+    if (!z.fillable) continue;
     if (!z.key) throw new ZoneFillError(`${z.label} has no uuid; zones need ids before a refill can be matched (assignZoneIds)`);
     const r = fresh.get(z.key);
     if (!r) {
@@ -291,7 +370,6 @@ export function spliceZoneFills(original: string, refilled: string): ZoneSplice 
           'its outline is likely one KiCad cannot use (fewer than three points, or self-intersecting): fix or remove that zone',
       );
     }
-    if (!z.fillable) continue;
     const before = edits.length;
     const indent = childIndent(original, z);
     const header: string[] = [];
@@ -475,13 +553,21 @@ export async function fillKey(boardPath: string, text: string): Promise<string> 
  * DRC already is that count. Throws ZoneRefillUnavailableError like a refresh.
  */
 export async function refilledReport(boardPath: string, text: string): Promise<CheckReport | null> {
-  if (!listZones(text).some((z) => z.fillable)) return null;
+  const zones = listZones(text);
+  if (!zones.some((z) => z.fillable)) return null;
+  if (zones.some((z) => z.teardrop)) throw new ZoneRefillUnavailableError(TEARDROP_ZONES);
   if (!(await zoneRefillSupported())) throw new ZoneRefillUnavailableError();
   return inScratchProject(boardPath, assignZoneIds(text), refillAndSave);
 }
 
-/** Findings a refill can change: library checks depend on the tables beside the board, which a scratch copy lacks. */
-const fillSensitive = (r: CheckReport): number => r.violations.filter((v) => !v.type.startsWith('lib_')).length;
+/**
+ * Findings a refill can change, counted alike on both sides. Library checks
+ * depend on the tables beside the board, which a scratch copy lacks; without
+ * them a footprint's own clearances move from `intrinsic` to `violations`, so
+ * both lists count. `unrouted_increase` is the run's own finding, not KiCad's.
+ */
+export const fillSensitive = (r: CheckReport): number =>
+  [...r.violations, ...(r.intrinsic ?? [])].filter((v) => !v.type.startsWith('lib_') && v.type !== 'unrouted_increase').length;
 
 export interface StaleFills {
   /** A refill clears some of the in-place DRC's findings. */
@@ -498,10 +584,10 @@ export interface StaleFills {
  * failing, the fills are stale when the same board with refreshed fills has
  * fewer findings. A refill that changes coordinates but clears nothing (a
  * board filled by another KiCad version) is not stale. Never writes the
- * board; throws as refreshZoneFills does.
+ * board, so the splice is not read back; throws as refreshZoneFills does.
  */
 export async function staleFills(boardPath: string, inPlace: CheckReport, text?: string): Promise<StaleFills> {
-  const fresh = await refreshZoneFills(boardPath, text);
+  const fresh = await refreshZoneFills(boardPath, text, { verify: false });
   const accountsFor =
     fresh.zones.length && fresh.report ? Math.max(0, fillSensitive(inPlace) - fillSensitive(fresh.report)) : 0;
   return { stale: accountsFor > 0, zones: fresh.zones, accountsFor };
@@ -530,12 +616,20 @@ export interface ZoneFillRefresh {
  * now with the project's rules. Never writes `boardPath`. Throws
  * ZoneRefillUnavailableError when kicad-cli cannot refill, and ZoneFillError
  * when a zone cannot be matched or KiCad reads the spliced fills differently.
+ * `verify: false` skips that read-back, for a caller that only reads which
+ * pours change and the refilled DRC, and never writes the text.
  */
-export async function refreshZoneFills(boardPath: string, text?: string): Promise<ZoneFillRefresh> {
+export async function refreshZoneFills(
+  boardPath: string,
+  text?: string,
+  opts: { verify?: boolean } = {},
+): Promise<ZoneFillRefresh> {
   const original = text ?? (await readFile(boardPath, 'utf8'));
-  if (!listZones(original).some((z) => z.fillable)) {
+  const zones = listZones(original);
+  if (!zones.some((z) => z.fillable)) {
     return { text: original, changed: false, zones: [], idsAssigned: false, report: null };
   }
+  if (zones.some((z) => z.teardrop)) throw new ZoneRefillUnavailableError(TEARDROP_ZONES);
   if (!(await zoneRefillSupported())) throw new ZoneRefillUnavailableError();
   const withIds = assignZoneIds(original);
   return inScratchProject(boardPath, withIds, async (scratch) => {
@@ -543,7 +637,7 @@ export async function refreshZoneFills(boardPath: string, text?: string): Promis
     const refilled = await readFile(scratch, 'utf8');
     const splice = spliceZoneFills(withIds, refilled);
     // a splice that changed nothing returns the board's own fills, already as KiCad computes them
-    if (splice.text !== withIds) await verifySplice(scratch, splice.text, { text: refilled, report });
+    if (splice.text !== withIds && opts.verify !== false) await verifySplice(scratch, splice.text, { text: refilled, report });
     return {
       text: splice.text,
       changed: splice.text !== original,

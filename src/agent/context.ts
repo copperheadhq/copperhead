@@ -1,5 +1,6 @@
 import type { CopperheadConfig } from '../config.js';
 import type { CheckReport } from '../kicad/report.js';
+import type { StaleFills } from '../kicad/zones.js';
 import type { ObligationsLedger } from './ledger.js';
 import type { Transcript } from './transcript.js';
 
@@ -54,6 +55,10 @@ export interface RunContext {
    * again (refill-zone-fills D6).
    */
   fillsCurrent?: string;
+  /** The last stale-fill check `run_drc` made on a board it may not write, by fill key, so an unchanged board is not refilled again to repeat it. */
+  staleFillsAt?: { key: string; found: StaleFills };
+  /** Set while a skill with no mutation tool runs (`generate_report`): `run_drc` then never writes the board. */
+  readOnly?: boolean;
   /** The caller's completion contract, checked by `finish` (see RunOptions.stageGate). */
   stageGate?: () => Promise<string | null>;
   /** Last check_legibility counts; feeds the run summary's verification section. */

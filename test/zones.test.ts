@@ -21,6 +21,8 @@ import {
   assignZoneIds,
   boardVersion,
   fillMismatches,
+  fillSensitive,
+  hasPours,
   listZones,
   refreshZoneFills,
   spliceRegressions,
@@ -154,6 +156,19 @@ describe('zone listing', () => {
     expect(unfilledZones(text).map((z) => z.key)).toEqual([ID_A]);
   });
 
+  it('counts a pour marked filled with no fill data only when the run drew or changed it', () => {
+    const yesEmpty = zone8(ID_B, { fill: '    (fill yes (thermal_gap 0.5) (thermal_bridge_width 0.5))\n' });
+    const board = v8(`${zone8(ID_A, { fills: FILL8() })}\n${yesEmpty}`);
+    // KiCad filled it to nothing: no run to compare with, or the run found it so
+    expect(unfilledZones(board)).toEqual([]);
+    expect(unfilledZones(board, board)).toEqual([]);
+    // the run drew it with the flag, or there was no board when the run started
+    expect(unfilledZones(board, v8(zone8(ID_A, { fills: FILL8() }))).map((z) => z.key)).toEqual([ID_B]);
+    expect(unfilledZones(board, null).map((z) => z.key)).toEqual([ID_B]);
+    // a pour never filled counts either way
+    expect(unfilledZones(v8(zone8(ID_A)), v8(zone8(ID_A))).map((z) => z.key)).toEqual([ID_A]);
+  });
+
   it('reads the board format version', () => {
     expect(boardVersion(v8(''))).toBe(20240108);
     expect(boardVersion(v10(''))).toBe(20260206);
@@ -181,6 +196,29 @@ describe('zone ids (AC-22.5)', () => {
     expect(keys[0]).toBe(ID_A);
     expect(keys[1]).not.toBe(ID_A);
     expect(new Set(keys).size).toBe(2);
+  });
+
+  it('gives a footprint that holds a zone and has no id, or a repeated one, the same uuid every time', () => {
+    const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/;
+    const fp = (ref: string, id: string, zone: boolean): string =>
+      `  (footprint "x:Mod" (layer "F.Cu")${id ? ` (uuid "${id}")` : ''}\n` +
+      `    (property "Reference" "${ref}" (at 0 0 0) (layer "F.SilkS"))\n` +
+      (zone ? `    (zone (net 1) (net_name "GND") (layer "F.Cu") (uuid "${ID_B}") (hatch edge 0.5)\n      (polygon (pts (xy 0 0) (xy 1 0) (xy 1 1)))\n    )\n` : '') +
+      '  )';
+    const text = v8(`${zone8(ID_A)}\n${fp('U1', '', true)}`);
+    const once = assignZoneIds(text);
+    expect(once).toMatch(new RegExp(`\\(footprint "x:Mod" \\(layer "F\\.Cu"\\) \\(uuid "${UUID.source}"\\)\\n`));
+    expect(assignZoneIds(text)).toBe(once);
+    expect(assignZoneIds(once)).toBe(once);
+    expect(listZones(once)[1]!.key).toMatch(new RegExp(`^${UUID.source}/${ID_B}$`));
+    // the second footprint repeats the first one's id: KiCad would give it a random one
+    const repeated = v8(`${fp('U1', ID_A, false)}\n${fp('U2', ID_A, true)}`);
+    const fixed = listZones(assignZoneIds(repeated))[0]!.key!;
+    expect(fixed).toMatch(new RegExp(`^${UUID.source}/${ID_B}$`));
+    expect(fixed.startsWith(ID_A)).toBe(false);
+    // a footprint without a zone is left as it is
+    const plain = v8(fp('R1', '', false));
+    expect(assignZoneIds(plain)).toBe(plain);
   });
 
   it('uses tstamp in a KiCad 6/7 file', () => {
@@ -276,6 +314,27 @@ describe('fill splice', () => {
     );
   });
 
+  it('leaves teardrops to KiCad: not a pour, and no match needed when KiCad 10 drops them on load', () => {
+    const teardrop = (attr: boolean): string =>
+      `  (zone (net 1) (net_name "GND") (layer "F.Cu") (uuid "${ID_B}") (name "$teardrop_padvia$")\n` +
+      (attr ? '    (attr (teardrop (type padvia)))\n' : '') +
+      '    (fill yes (thermal_gap 0.5) (thermal_bridge_width 0.5))\n' +
+      `    (polygon (pts (xy 0 0) (xy 1 0) (xy 1 1)))${FILL8()}\n  )`;
+    for (const attr of [true, false]) {
+      const board = v8(`${zone8(ID_A)}\n${teardrop(attr)}`);
+      expect(listZones(board).map((z) => z.fillable)).toEqual([true, false]);
+      const { text, changed } = spliceZoneFills(board, v10(zone10(ID_A)));
+      expect(changed).toEqual(['the GND zone on F.Cu (aaaaaaaa)']);
+      expect(text).toContain(teardrop(attr));
+    }
+    expect(hasPours(v8(teardrop(true)))).toBe(false);
+  });
+
+  it('needs no match for a rule area, which holds no fill', () => {
+    const keepout = `  (zone (net 0) (net_name "") (layer "F.Cu") (uuid "${ID_B}")\n    (keepout (tracks not_allowed))\n    (polygon (pts (xy 0 0) (xy 1 0)))\n  )`;
+    expect(spliceZoneFills(v8(`${zone8(ID_A)}\n${keepout}`), v10(zone10(ID_A))).changed).toHaveLength(1);
+  });
+
   it('refuses a zone with no id', () => {
     expect(() => spliceZoneFills(v8(zone8(null)), v10(zone10(ID_A)))).toThrow(ZoneFillError);
   });
@@ -298,6 +357,22 @@ describe('splice check (AC-22.6)', () => {
     source: 'drc',
     violations: types.map((type) => ({ severity: 'error', type, description: type, items: [] })),
     unrouted,
+  });
+
+  it("counts a footprint's own findings alike whether a DRC excused them or not, and never the run's own", () => {
+    const v = (type: string): CheckReport['violations'][number] => ({ severity: 'error', type, description: type, items: [] });
+    // in place the library vouches for the footprint, so its hole clearance is intrinsic;
+    // the scratch copy cannot find the library, so the same finding is a violation there
+    const inPlace: CheckReport = { ok: false, source: 'drc', violations: [v('clearance')], intrinsic: [v('hole_clearance')], unrouted: 0 };
+    const scratch: CheckReport = {
+      ok: false,
+      source: 'drc',
+      violations: [v('lib_footprint_issues'), v('hole_clearance')],
+      intrinsic: [],
+      unrouted: 0,
+    };
+    expect(fillSensitive(inPlace) - fillSensitive(scratch)).toBe(1);
+    expect(fillSensitive({ ...inPlace, violations: [...inPlace.violations, v('unrouted_increase')] })).toBe(2);
   });
 
   it('without a resave, passes a splice whose DRC is no worse than KiCad, and names each type that is worse', () => {
@@ -367,19 +442,21 @@ describe('zone fill refresh with kicad-cli', { timeout: 180_000 }, () => {
     expect(again.changed).toBe(false);
     expect(again.text).toBe(refreshed.text);
     expect(refreshed.idsAssigned).toBe(true);
-    expect(refreshed.text).toBe(await fixture('fresh'));
+    // the committed fixture, ids and all, with its fills as this KiCad computes
+    // them: KiCad builds can round a fill coordinate a nanometre apart
+    expect(refreshed.text).toBe((await refreshZoneFills(board, await fixture('fresh'))).text);
   });
 
-  /** `fresh` with the F.Cu zone's thickness token removed: KiCad 8 reads its fill as legacy and inflates it. */
+  /** The refreshed board with the F.Cu zone's thickness token removed: KiCad 8 reads its fill as legacy and inflates it. */
   const legacyRead = async (): Promise<string> => {
-    const fresh = await fixture('fresh');
+    const fresh = refreshed.text;
     const legacy = fresh.replace('(min_thickness 0.25) (filled_areas_thickness no)', '(min_thickness 0.25)');
     expect(legacy).not.toBe(fresh);
     return legacy;
   };
 
   it('refuses a splice KiCad reads back differently, naming the pour: here a fill read as legacy (AC-22.6)', async () => {
-    const { scratch, ...kicads } = await kicadRefill(await fixture('fresh'));
+    const { scratch, ...kicads } = await kicadRefill(refreshed.text);
     expect(await boardResaveSupported()).toBe(true);
     const err = await verifySplice(scratch, await legacyRead(), kicads).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ZoneFillError);
@@ -388,7 +465,7 @@ describe('zone fill refresh with kicad-cli', { timeout: 180_000 }, () => {
     );
     expect((err as Error).message).not.toContain('B.Cu');
     // the same check passes the splice the refresh made
-    await expect(verifySplice(scratch, await fixture('fresh'), kicads)).resolves.toBeUndefined();
+    await expect(verifySplice(scratch, refreshed.text, kicads)).resolves.toBeUndefined();
   });
 
   it('plots the same copper as KiCad’s own refill, which a legacy-read fill does not', async () => {
@@ -404,7 +481,7 @@ describe('zone fill refresh with kicad-cli', { timeout: 180_000 }, () => {
 
   it('falls back to comparing DRC when kicad-cli cannot resave a board', async () => {
     if (process.platform === 'win32') return;
-    const { scratch, ...kicads } = await kicadRefill(await fixture('fresh'));
+    const { scratch, ...kicads } = await kicadRefill(refreshed.text);
     const real = resolveKicadCli();
     const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-zones-wrap-'));
     dirs.push(dir);
@@ -440,6 +517,42 @@ describe('zone fill refresh with kicad-cli', { timeout: 180_000 }, () => {
     expect(r.idsAssigned).toBe(false);
     expect(outsideZones(r.text)).toBe(outsideZones(stale));
     expect((await runDrc(await project(r.text))).ok).toBe(true);
+  });
+
+  it('refreshes a pour inside a footprint that has no id, which KiCad would give a random one', async () => {
+    const j2 = '    (uuid "2b2b2b2b-0000-4000-8000-000000000002")\n';
+    const pad = '(uuid "2b2b2b2b-0000-4000-8000-000000000024"))\n';
+    const pour =
+      '    (zone (net 1) (net_name "GND") (layer "B.Cu") (hatch edge 0.5)\n' +
+      '      (connect_pads (clearance 0.5))\n      (min_thickness 0.25) (filled_areas_thickness no)\n' +
+      '      (fill (thermal_gap 0.5) (thermal_bridge_width 0.5))\n' +
+      '      (polygon (pts (xy 121 114) (xy 129 114) (xy 129 118) (xy 121 118)))\n    )\n';
+    expect(unfilled.split(j2)).toHaveLength(2);
+    expect(unfilled.split(pad)).toHaveLength(2);
+    const withPour = unfilled.replace(j2, '').replace(pad, `${pad}${pour}`);
+    const r = await refreshZoneFills(await project(withPour));
+    expect(r.idsAssigned).toBe(true);
+    const inJ2 = listZones(r.text).find((z) => z.label.startsWith("J2's"))!;
+    expect(inJ2.key).toMatch(/^[0-9a-f-]{36}\/[0-9a-f-]{36}$/);
+    const again = await refreshZoneFills(await project(r.text));
+    expect(again.changed).toBe(false);
+  });
+
+  it('refuses a board that stores teardrops as zones, whose refill would cut into them, and runs no refill', async () => {
+    const teardrop =
+      '  (zone (net 1) (net_name "GND") (layer "F.Cu") (uuid "7e7e7e7e-0000-4000-8000-000000000001") (name "$teardrop_padvia$") (hatch full 0.1)\n' +
+      '    (priority 30001)\n    (attr (teardrop (type padvia)))\n    (connect_pads yes (clearance 0))\n' +
+      '    (min_thickness 0.0254) (filled_areas_thickness no)\n    (fill yes (thermal_gap 0.5) (thermal_bridge_width 0.5))\n' +
+      '    (polygon (pts (xy 112.54 110.5) (xy 112.84 111.5) (xy 112.24 111.5)))\n  )\n';
+    const anchor = '    (uuid "1a1a1a1a-0000-4000-8000-000000000001")\n  )\n';
+    expect(unfilled.split(anchor)).toHaveLength(2);
+    const board = await project(unfilled.replace(anchor, `${anchor}${teardrop}`));
+    const before = await readFile(board, 'utf8');
+    const err = await refreshZoneFills(board).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ZoneRefillUnavailableError);
+    expect((err as Error).message).toMatch(/stores its teardrops as zones.*would not keep clear of the teardrops the board keeps$/);
+    expect(await readFile(board, 'utf8')).toBe(before);
+    expect(existsSync(board.replace(/\.kicad_pcb$/, '-drc.json'))).toBe(false);
   });
 
   it('keeps a CRLF board CRLF', async () => {

@@ -9,9 +9,10 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { runAgentLoop } from '../src/agent/loop.js';
 import { ObligationsLedger } from '../src/agent/ledger.js';
 import { Transcript } from '../src/agent/transcript.js';
-import { availableTools, dispatchTool, type RunContext } from '../src/agent/tools.js';
+import { availableTools, dispatchTool, registry, runSkillSubRun, type RunContext } from '../src/agent/tools.js';
+import { flatten } from '../src/agent/envelope.js';
 import type { Msg, Provider, Turn } from '../src/agent/types.js';
-import { boardTouched, startingUnrouted } from '../src/capabilities/fills.js';
+import { boardTouched, exportFillGap, startingUnrouted } from '../src/capabilities/fills.js';
 import { runCheck } from '../src/commands/check.js';
 import { STAGES } from '../src/commands/create.js';
 import { buildSystemPrompt } from '../src/agent/prompts.js';
@@ -211,8 +212,9 @@ describe('run_drc refills a board the run edited', { timeout: 300_000 }, () => {
       await dispatchTool(ctx, 'move_footprint', { ref: 'J2', x: 125, y: 120 });
       await dispatchTool(ctx, 'run_drc', {});
       expect(await refills(log)).toBe(3);
-      // back where it started, filled the way the fixture was
-      expect(await boardOf(repo)).toBe(await fixture('fresh'));
+      // back where it started, filled as this KiCad fills the fixture (KiCad
+      // builds can round a fill coordinate a nanometre apart)
+      expect(await boardOf(repo)).toBe((await refreshZoneFills(path.join(repo, BOARD), await fixture('fresh'))).text);
     } finally {
       restore();
     }
@@ -229,6 +231,22 @@ describe('run_drc refills a board the run edited', { timeout: 300_000 }, () => {
       expect(res).toMatch(/the pour fills are stale: with fresh fills, \d+ findings? below clear \(the GND zone on F\.Cu \(3c3c3c3c\)/);
       expect(res).toContain(unlocked ? 'The board was not changed; fill_zones refreshes them.' : 'once a change is approved, fill_zones');
       expect(res).not.toContain('refilled');
+    }
+  });
+
+  it('on a board it may not write, checks stale fills once per board state, without reading a splice back', async () => {
+    const repo = await zonesRepo(await fixture('stale'));
+    const ctx = await makeCtx(repo, { unlocked: false });
+    const { log, restore } = await recordKicadCalls();
+    try {
+      const first = await dispatchTool(ctx, 'run_drc', {});
+      expect(first).toContain('the pour fills are stale');
+      expect(await refills(log)).toBe(1);
+      expect(await dispatchTool(ctx, 'run_drc', {})).toBe(first);
+      expect(await refills(log)).toBe(1);
+      expect(await readFile(log, 'utf8')).not.toContain('pcb upgrade');
+    } finally {
+      restore();
     }
   });
 
@@ -283,6 +301,26 @@ describe('the unrouted baseline counts filled pours (AC-22.14)', { timeout: 300_
     expect(res).not.toContain('unrouted_increase');
   });
 
+  it("a board whose fills could not be refreshed is held to the starting board's stored fills", async () => {
+    // the pours were never filled: J1's and J2's GND pads start as one unrouted
+    // connection, and none once filled, which is the usual baseline
+    const start = await fixture('unfilled');
+    const repo = await zonesRepo(start);
+    const ctx = await makeCtx(repo, { unlocked: true });
+    // a zone with an empty outline, which KiCad drops when it loads the board, stops the refill
+    const anchor = '    (uuid "1a1a1a1a-0000-4000-8000-000000000001")\n  )\n';
+    const broken =
+      '  (zone (net 1) (net_name "GND") (layer "F.Cu") (uuid "4d4d4d4d-0000-4000-8000-000000000001") (hatch edge 0.5)\n' +
+      '    (polygon (pts))\n  )\n';
+    expect(await dispatchTool(ctx, 'edit_file', { path: BOARD, old_string: anchor, new_string: `${anchor}${broken}` })).not.toMatch(
+      /REVERTED|error/i,
+    );
+    const res = await dispatchTool(ctx, 'run_drc', {});
+    expect(res).toMatch(/^pour fills were not refreshed: KiCad dropped the GND zone on F\.Cu \(4d4d4d4d\)/);
+    expect(ctx.lastDrc?.unrouted).toBe(1);
+    expect(ctx.lastDrc?.violations.map((v) => v.type)).not.toContain('unrouted_increase');
+  });
+
   it('a board without pours keeps its first count as the baseline', async () => {
     const start = bare(await fixture('fresh'));
     const repo = await zonesRepo(start);
@@ -297,7 +335,7 @@ describe('export_outputs and pour fills (AC-22.15)', { timeout: 300_000 }, () =>
     const repo = await zonesRepo(await fixture('unfilled'));
     const ctx = await makeCtx(repo, { unlocked: true });
     const res = await dispatchTool(ctx, 'export_outputs', {});
-    expect(res).toMatch(/^not exported, nothing written: 2 copper pours have no fill/);
+    expect(res).toMatch(/^not exported, nothing written: 2 pours have no fill/);
     expect(res).toContain('the GND zone on F.Cu (3c3c3c3c)');
     expect(res).toContain('Call fill_zones');
     expect(existsSync(path.join(repo, 'outputs'))).toBe(false);
@@ -306,7 +344,7 @@ describe('export_outputs and pour fills (AC-22.15)', { timeout: 300_000 }, () =>
   it('refuses stale fills, and exports once they are current', async () => {
     const repo = await zonesRepo(await fixture('stale'));
     const ctx = await makeCtx(repo, { unlocked: true });
-    expect(await dispatchTool(ctx, 'export_outputs', {})).toMatch(/^not exported, nothing written: 2 copper pours/);
+    expect(await dispatchTool(ctx, 'export_outputs', {})).toMatch(/^not exported, nothing written: 2 pours have/);
     await dispatchTool(ctx, 'fill_zones', {});
     const res = await dispatchTool(ctx, 'export_outputs', {});
     expect(res).not.toContain('not exported');
@@ -349,7 +387,7 @@ describe('check reports pour fills, read-only', { timeout: 300_000 }, () => {
       staleZones: [],
       unfilled: ['the GND zone on F.Cu (3c3c3c3c)', 'the GND zone on B.Cu (no uuid)'],
     });
-    expect(lines.join('\n')).toContain('fills: 2 copper pour(s) have no fill, so they are not copper yet');
+    expect(lines.join('\n')).toContain('fills: 2 pour(s) have no fill, so they add nothing to the board yet');
     expect(sha(await boardOf(repo))).toBe(sha(unfilled));
   });
 
@@ -364,6 +402,44 @@ describe('check reports pour fills, read-only', { timeout: 300_000 }, () => {
     } finally {
       restore();
     }
+  });
+});
+
+describe('a board that stores teardrops as zones', { timeout: 300_000 }, () => {
+  it('is never refilled: run_drc checks the stored fills and says why, and fill_zones fails', async () => {
+    const teardrop =
+      '  (zone (net 1) (net_name "GND") (layer "F.Cu") (uuid "7e7e7e7e-0000-4000-8000-000000000001") (name "$teardrop_padvia$") (hatch full 0.1)\n' +
+      '    (priority 30001)\n    (attr (teardrop (type padvia)))\n    (connect_pads yes (clearance 0))\n' +
+      '    (min_thickness 0.0254) (filled_areas_thickness no)\n    (fill yes (thermal_gap 0.5) (thermal_bridge_width 0.5))\n' +
+      '    (polygon (pts (xy 112.54 110.5) (xy 112.84 111.5) (xy 112.24 111.5)))\n  )\n';
+    const anchor = '    (uuid "1a1a1a1a-0000-4000-8000-000000000001")\n  )\n';
+    const repo = await zonesRepo((await fixture('fresh')).replace(anchor, `${anchor}${teardrop}`));
+    const ctx = await makeCtx(repo, { unlocked: true });
+    await dispatchTool(ctx, 'move_footprint', { ref: 'J2', x: 130, y: 110 });
+    const moved = await boardOf(repo);
+    const res = await dispatchTool(ctx, 'run_drc', {});
+    expect(res).toMatch(/^pour fills were not refreshed: this board stores its teardrops as zones.*The DRC below checks the fills stored in the board\./s);
+    expect(await boardOf(repo)).toBe(moved);
+    expect(await dispatchTool(ctx, 'fill_zones', {})).toMatch(/^not filled: this board stores its teardrops as zones/);
+    expect(await boardOf(repo)).toBe(moved);
+  });
+});
+
+describe('a read-only skill never writes fills', { timeout: 300_000 }, () => {
+  it("generate_report checks a board the run edited without refilling it; the run's own run_drc still refills", async () => {
+    const repo = await zonesRepo(await fixture('fresh'));
+    const ctx = await makeCtx(repo, { unlocked: true });
+    await dispatchTool(ctx, 'move_footprint', { ref: 'J2', x: 130, y: 110 });
+    const moved = await boardOf(repo);
+    const skill = registry.get('generate_report');
+    if (skill?.kind !== 'skill') throw new Error('generate_report is not a skill');
+    const provider = scriptedProvider([{ toolCalls: [{ id: '', name: 'run_drc', args: {} }] }, { text: 'done' }]);
+    const report = flatten(await runSkillSubRun({ ctx, skill, args: {}, provider }));
+    expect(report).toContain('the pour fills are stale');
+    expect(report).not.toContain('refilled');
+    expect(await boardOf(repo)).toBe(moved);
+    expect(ctx.readOnly).toBeUndefined();
+    expect(await dispatchTool(ctx, 'run_drc', {})).toContain('refilled 2 pours');
   });
 });
 
@@ -415,10 +491,19 @@ describe('with a kicad-cli that cannot refill (D10)', { timeout: 300_000 }, () =
       expect(res).toMatch(/^pour fills were not refreshed: this kicad-cli cannot refill zones .*The DRC below checks the fills stored in the board\.\nDRC: \d+ violation/s);
       expect(await boardOf(repo)).toBe(moved);
       expect(await dispatchTool(ctx, 'fill_zones', {})).toMatch(/not filled: this kicad-cli cannot refill zones/);
-      const bare = await zonesRepo(await fixture('unfilled'));
-      const exp = await dispatchTool(await makeCtx(bare, { unlocked: true }), 'export_outputs', {});
-      expect(exp).toMatch(/^not exported, nothing written: 2 copper pours have no fill.*cannot refill zones.*fill them in KiCad \(press B\)/s);
-      expect(existsSync(path.join(bare, 'outputs'))).toBe(false);
+      const unfilledRepo = await zonesRepo(await fixture('unfilled'));
+      const exp = await dispatchTool(await makeCtx(unfilledRepo, { unlocked: true }), 'export_outputs', {});
+      expect(exp).toMatch(/^not exported, nothing written: 2 pours have no fill.*cannot refill zones.*fill them in KiCad \(press B\)/s);
+      expect(existsSync(path.join(unfilledRepo, 'outputs'))).toBe(false);
+      // a pour the run drew already marked filled holds no copper either; one
+      // the run found that way is a pour KiCad filled to nothing, left alone
+      const anchor = '    (uuid "1a1a1a1a-0000-4000-8000-000000000001")\n  )\n';
+      const noPours = bare(await fixture('fresh'));
+      const drawn = (await fcuPour()).replace('(fill (thermal_gap', '(fill yes (thermal_gap');
+      const drew = await zonesRepo(noPours.replace(anchor, `${anchor}${drawn}\n`));
+      const gap = await exportFillGap(await makeCtx(drew, { unlocked: true, boardAtStart: noPours }), path.join(drew, BOARD));
+      expect(gap).toMatch(/^not exported, nothing written: 1 pour has no fill.*\(3c3c3c3c\).*cannot refill zones/s);
+      expect(await exportFillGap(await makeCtx(drew, { unlocked: true }), path.join(drew, BOARD))).toBeNull();
     } finally {
       if (saved === undefined) delete process.env.COPPERHEAD_KICAD_CLI;
       else process.env.COPPERHEAD_KICAD_CLI = saved;
