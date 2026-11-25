@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { mkdtemp, rm, readFile, writeFile, mkdir, cp } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -117,6 +117,34 @@ describe('layoutBoard', () => {
       expect(existsSync(path.join(res.runDir, 'cycle-0', 'routing', 'outcome.json'))).toBe(true);
       const check = await runCheck(dir, () => {});
       expect(check.layout).toMatchObject({ ok: true, status: 'PASS' });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 600_000);
+
+  it('keeps a save made while the run was going, and holds instead of applying', async () => {
+    if (!(await haveKicad())) return;
+    const dir = await repoWith('completion');
+    try {
+      const config = await loadConfig(dir);
+      const boardPath = path.join(dir, 'hardware', 'board.kicad_pcb');
+      const saved = (await readFile(boardPath, 'utf8')).replace('(kicad_pcb', '(kicad_pcb\n');
+      let done = false;
+      const res = await layoutBoard({
+        repoRoot: dir, config, boardPath, runDir: path.join(dir, '.copperhead', 'runs', 'l3', 'layout'), apply: true, probeRouter: 'router-reference',
+        policy: { network: 'none', allowHarnessEngines: true, denyLicenses: [] },
+        // a person saves the board in KiCad once the run is under way
+        log: () => {
+          if (!done) {
+            done = true;
+            writeFileSync(boardPath, saved, 'utf8');
+          }
+        },
+      });
+      expect(res.applied).toBe(false);
+      expect(res.outcome.status).toBe('HOLD');
+      expect(res.outcome.summary).toContain('changed while the run was going');
+      expect(await readFile(boardPath, 'utf8')).toBe(saved);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

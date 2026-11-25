@@ -51,6 +51,13 @@ Implements copperhead RFC 15 on the records of RFC 11 version 1.4.
       runs.
 - [x] 5.3 The published package ships `vendor/pyplacer` and `vendor/ipc`.
 - [x] 5.4 `pcb layout --no-route --apply` applies a placement that passed.
+- [x] 5.5 A hard intent violation of any placement kind, hot loops,
+      isolation and RF clearance included, fails the placement gate.
+- [x] 5.6 `pcb layout` places with the intent loaded from the user's board,
+      not looked up beside its working copy, and its `--apply` keeps a save
+      made during the run.
+- [x] 5.7 Copper is ripped up when an earlier placement stage moved a part,
+      not only when the engine did.
 
 ## 6. Next
 

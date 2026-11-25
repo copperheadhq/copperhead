@@ -90,6 +90,8 @@ export async function layoutBoard(opts: LayoutOptions): Promise<LayoutResult> {
   await mkdir(opts.runDir, { recursive: true });
   // the working board: a copy the cycles write to; the user's file changes only on apply
   const work = path.join(opts.runDir, 'board.kicad_pcb');
+  // the board as the run found it: --apply writes only over these bytes, so a save made during the run is kept
+  const startText = await readFile(opts.boardPath, 'utf8');
   await copyFile(opts.boardPath, work);
   const proSrc = opts.boardPath.replace(/\.kicad_pcb$/, '.kicad_pro');
   if (existsSync(proSrc)) await copyFile(proSrc, work.replace(/\.kicad_pcb$/, '.kicad_pro'));
@@ -142,7 +144,8 @@ export async function layoutBoard(opts: LayoutOptions): Promise<LayoutResult> {
     placement = await placeBoard({
       repoRoot: opts.repoRoot, boardPath: work, runDir: path.join(opts.runDir, `cycle-${n}`, 'placement'), ...(pcb.placers ? { placers: pcb.placers } : {}), mode: pcb.mode === 'staged' || !pcb.mode ? 'ensemble' : pcb.mode, seed: opts.seed ?? 0,
       limits: { engineSeconds: Math.max(10, Math.floor(remaining().engineSeconds / 2)), wallSeconds: Math.max(10, Math.floor(remaining().wallSeconds / 2)) }, policy, registry: placers, probe: { ...(opts.probeRouter ? { routerId: opts.probeRouter } : {}), registry: routers, budgetSeconds: Math.min(120, Math.max(10, Math.floor(remaining().engineSeconds / 4))) },
-      blocks, ...(reuse.length ? { reuse } : {}), ...(refAttached.length ? { attached: [...refAttached] } : {}), docsDir, intentPath: pcb.intentPath ?? null,
+      // the constraints loaded from the user's board, not looked up again beside the working copy
+      blocks, ...(reuse.length ? { reuse } : {}), ...(refAttached.length ? { attached: [...refAttached] } : {}), docsDir, constraints: loaded.registry,
       ...(moveGroup ? { movableReferences: importBoard({ boardText: await readFile(work, 'utf8'), boardPath: work }).design.components.filter((c) => !moveGroup.refs.includes(c.reference)).map((c) => c.reference) } : {}),
       log: (l) => log(`  place: ${l}`),
     });
@@ -278,9 +281,15 @@ export async function layoutBoard(opts: LayoutOptions): Promise<LayoutResult> {
     let evidence: LayoutEvidence | null = null;
     let verdict: ContractVerdict | null = null;
     const finalRouting = routing as RouteRun | null;
+    const wouldApply = Boolean(opts.apply) && (o.status === 'PASS' || o.status === 'PARTIAL');
+    const savedMidRun = wouldApply && (await readFile(opts.boardPath, 'utf8')) !== startText;
+    if (savedMidRun) {
+      o = { ...o, status: 'HOLD', summary: `not applied: ${path.relative(opts.repoRoot, opts.boardPath)} changed while the run was going; run again to lay out the board as it is now`, detail: [o.summary, ...o.detail] };
+    }
+    const apply = wouldApply && !savedMidRun;
     if (finalRouting) {
       // the evidence describes the routing run that produced the working board; the board hash is the working board's (or the user's, after apply)
-      const target = opts.apply && (o.status === 'PASS' || o.status === 'PARTIAL') ? opts.boardPath : work;
+      const target = apply ? opts.boardPath : work;
       if (target === opts.boardPath) {
         await copyFile(work, opts.boardPath);
         applied = true;
@@ -308,7 +317,7 @@ export async function layoutBoard(opts: LayoutOptions): Promise<LayoutResult> {
       }
       if (applied) verdict = await recordEvidence(opts.repoRoot, opts.config.docs, target, evidence);
       else await writeFile(path.join(opts.runDir, 'evidence.json'), JSON.stringify(evidence, null, 2), 'utf8');
-    } else if (opts.apply && placement && (o.status === 'PASS' || o.status === 'PARTIAL')) {
+    } else if (apply && placement) {
       // A placement-only run (--no-route) has no routing evidence to record,
       // but its placed board is still the result --apply asked for.
       await copyFile(work, opts.boardPath);

@@ -272,7 +272,8 @@ export async function placeBoard(opts: PlaceOptions): Promise<PlaceRun> {
       for (const n of legalizeNotes) log(`${inv.engineId}: legalized: ${n}`);
       await writeFile(path.join(inv.workDir, 'legalized.json'), JSON.stringify({ notes: legalizeNotes, placements: edge.placements }, null, 2), 'utf8');
     }
-    const before = new Map(design.components.map((c) => [c.id, c]));
+    // moved against the board as imported: the mechanical, anchor, and attachment stages may already have moved parts in `design`
+    const before = new Map(imported.design.components.map((c) => [c.id, c]));
     const moved = inv.result.placements.some((p) => {
       const c = before.get(p.id);
       return !c || c.at.x !== p.at.x || c.at.y !== p.at.y || c.rotation !== p.rotation || c.attributes.side !== p.side;

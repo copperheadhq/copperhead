@@ -23,7 +23,10 @@ export function placementGate(diags: Diagnostic[], profile: FabricationProfile):
     if (d.severity !== 'error') return false;
     const info = codeInfo(d.code);
     if (info?.gate === 'placement' || info?.gate === 'preflight') return true;
-    if (d.code.startsWith('intent.mechanical.') || d.code.startsWith('intent.manufacturing.keepout') || d.code.startsWith('intent.electrical-layout.creepage')) return true;
+    // A hard intent constraint is a gate (RFC 15 Section 11.1): an error from
+    // any placement intent, hot loops, isolation, and RF clearance included,
+    // makes the candidate ineligible. Routing intent gates routing.
+    if (d.code.startsWith('intent.') && !d.code.startsWith('intent.routing.')) return true;
     return isCriticalDrc(d, profile) && ['courtyards_overlap', 'pth_inside_courtyard', 'copper_edge_clearance', 'items_not_allowed', 'invalid_outline'].includes(d.code.slice(4));
   });
   return { passed: failures.length === 0, failures };
