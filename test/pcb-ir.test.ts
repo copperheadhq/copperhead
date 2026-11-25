@@ -154,7 +154,7 @@ describe('canonical form and content hashes (RFC 3 Section 17.1)', () => {
   });
 
   it('keeps the order of the declared ordered collections only', () => {
-    for (const key of ['outline', 'layers', 'preserved', 'provenance', 'args']) {
+    for (const key of ['outline', 'layers', 'preserved', 'provenance', 'args', 'branches', 'calls', 'phases', 'order']) {
       expect(canonical({ [key]: [{ r: 2 }, { r: 1 }] })).toBe(`{"${key}":[{"r":2},{"r":1}]}`);
     }
     expect(canonical({ members: ['b', 'a'] })).toBe('{"members":["a","b"]}');

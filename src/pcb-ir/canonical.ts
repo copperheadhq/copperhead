@@ -29,6 +29,9 @@ export const ORDERED_KEYS: ReadonlySet<string> = new Set([
   // RFC 12 Section 2.2
   'branches',
   'calls',
+  // RFC 15 Section 7.1
+  'phases',
+  'order',
 ]);
 
 export class NotCanonicalizable extends Error {}
