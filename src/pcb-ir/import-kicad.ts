@@ -404,6 +404,8 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
   const components: LayoutInput['components'] = {};
   for (const fp of children(root, 'footprint').concat(children(root, 'module'))) {
     const def = footprintDefinition(fp, notes);
+    // RFC 11's footprint definition has no zones, and a board's zones are its own.
+    if (children(fp, 'zone').length) notes.add('zones inside footprints, keepouts among them, are not imported');
     const hash = contentHash(def);
     footprints[hash] = def;
     const refdes = property(fp, 'Reference') ?? '?';

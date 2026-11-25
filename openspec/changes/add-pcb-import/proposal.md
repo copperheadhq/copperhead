@@ -39,6 +39,7 @@ revision.
     - courtyards drawn as lines
     - rule areas
     - traces and vias on no net, which RFC 11's records cannot hold
+    - zones inside footprints, keepouts among them
     - the fabrication profile
 - **`copperhead pcb diff`** takes `.kicad_pcb` files and `<rev>:<path>` boards
   on either side. `--project` names the project identifiers derive under; the

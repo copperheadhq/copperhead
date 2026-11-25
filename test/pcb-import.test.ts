@@ -122,6 +122,13 @@ describe('importing a KiCad board into a layout input', () => {
     expect(withStray.board.lossy).toContain('traces and vias on no net are not imported');
     expect(li.board.lossy).not.toContain('traces and vias on no net are not imported');
   });
+
+  it('says that it leaves out zones inside footprints', () => {
+    const zone = '\t\t(zone (net 0) (net_name "") (layer "F.Cu") (hatch edge 0.5) (keepout (tracks not_allowed)) (polygon (pts (xy 2 2) (xy 4 2) (xy 4 4))))\n';
+    const withZone = imported(board.replace('\t\t(property "Reference" "H1"', zone + '\t\t(property "Reference" "H1"'));
+    expect(withZone.board.lossy).toContain('zones inside footprints, keepouts among them, are not imported');
+    expect(li.board.lossy).not.toContain('zones inside footprints, keepouts among them, are not imported');
+  });
 });
 
 describe('diffing two boards', () => {
