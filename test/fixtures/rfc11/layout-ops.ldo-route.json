@@ -1,0 +1,53 @@
+{
+  "schema_version": "2.0",
+  "input": "sha256:f162b299c538b57cfddd5b09ca484a369acd7d02a23ce4bf755043b44c3d728b",
+  "candidate": "sha256:fd238cd1aa690c1f8d3dfbc400a904a20511825c7953ba4fa674f4f8e35d048a",
+  "operations": [
+    {
+      "op": "add_trace",
+      "trace": {
+        "kind": "trace",
+        "id": "TRC-12c3997d7bf3",
+        "identity": {
+          "id": "TRC-12c3997d7bf3",
+          "origin": "derived",
+          "path": "board.trace[0]",
+          "uuid": "12c3997d-7bf3-573a-ac2a-5ab0468a64a3"
+        },
+        "net": "NET-5971a826cfff",
+        "layer": "LYR-1b5141349514",
+        "width": 250000,
+        "start": {"x": 19225000, "y": 7000000},
+        "end": {"x": 9900000, "y": 8600000}
+      },
+      "source": "EVD-bd9392a12b2b"
+    },
+    {
+      "op": "add_via",
+      "via": {
+        "kind": "via",
+        "id": "VIA-6d6e9c5aa3b8",
+        "identity": {
+          "id": "VIA-6d6e9c5aa3b8",
+          "origin": "derived",
+          "path": "board.via[0]",
+          "uuid": "6d6e9c5a-a3b8-5bff-80a2-b6f6d3414173"
+        },
+        "net": "NET-6188f0638a57",
+        "at": {"x": 12000000, "y": 13000000},
+        "diameter": 600000,
+        "drill": 300000,
+        "layers": [
+          "LYR-1b5141349514",
+          "LYR-2d35b7c5bfd4"
+        ]
+      },
+      "source": "EVD-bd9392a12b2b"
+    },
+    {
+      "op": "remove_copper",
+      "entity": "TRC-a82a9d7ddee6",
+      "source": "EVD-bd9392a12b2b"
+    }
+  ]
+}

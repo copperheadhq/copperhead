@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/physical.schema.json",
+  "title": "Physical design record",
+  "description": "One physical record of the kernel graph: the physical key of the RFC 3 root (RFC 11 Section 6.8). These records carry no schema_version of their own; the root's RFC 3 schema version, 1.4 or later, covers them. Geometry is integer nanometres in the board frame; geometry derivable from a footprint definition and a pose is never stored here.",
+  "oneOf": [
+    {"$ref": "#/$defs/Board"},
+    {"$ref": "#/$defs/Stackup"},
+    {"$ref": "#/$defs/Layer"},
+    {"$ref": "#/$defs/Placement"},
+    {"$ref": "#/$defs/Pad"},
+    {"$ref": "#/$defs/Region"},
+    {"$ref": "#/$defs/Zone"},
+    {"$ref": "#/$defs/Trace"},
+    {"$ref": "#/$defs/Via"}
+  ],
+  "$defs": {
+    "Entity": {
+      "description": "The fields every RFC 3 entity record carries.",
+      "type": "object",
+      "required": ["kind", "id", "identity"],
+      "properties": {
+        "kind": {"type": "string"},
+        "id": {"$ref": "common.schema.json#/$defs/Id"},
+        "identity": {
+          "description": "RFC 3 Section 4: a derived identity records its canonical semantic path and its full UUIDv5, whose first twelve hexadecimal digits, or more after a collision, follow the prefix of its id.",
+          "type": "object",
+          "required": ["id", "origin"],
+          "if": {"properties": {"origin": {"const": "derived"}}},
+          "then": {"required": ["path", "uuid"]},
+          "properties": {
+            "id": {"$ref": "common.schema.json#/$defs/Id"},
+            "origin": {"enum": ["authored", "derived", "imported"]},
+            "path": {"type": "string", "minLength": 1},
+            "uuid": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "key": {"type": "string"},
+            "external_id": {"type": "string"},
+            "display_name": {"type": "string"}
+          }
+        },
+        "parameters": {"type": "object"},
+        "provenance": {"type": "array", "items": {"type": "object"}},
+        "source_location": {"type": "object"},
+        "extensions": {"type": "object"}
+      }
+    },
+    "Board": {
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "unit", "outline", "stackup"],
+      "properties": {
+        "kind": {"const": "board"},
+        "id": {"pattern": "^PCB-"},
+        "unit": {
+          "description": "The declared geometry unit of every physical record of this board.",
+          "const": "nm"
+        },
+        "outline": {"$ref": "common.schema.json#/$defs/Ring"},
+        "cutouts": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Outline"}},
+        "stackup": {"$ref": "common.schema.json#/$defs/Id"},
+        "thickness": {"$ref": "common.schema.json#/$defs/Quantity"},
+        "arc_tolerance": {
+          "description": "The largest deviation used when an arc of the source was written as a ring.",
+          "$ref": "common.schema.json#/$defs/PositiveNm"
+        },
+        "fabrication_profile": {"type": "string"},
+        "preserved": {
+          "description": "Records the adapter recognized but does not model, verbatim, in file order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["head", "text"],
+            "properties": {"head": {"type": "string"}, "text": {"type": "string"}}
+          }
+        },
+        "lossy": {
+          "description": "The fields a lossy import could not recover (RFC 3 Section 12).",
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "Stackup": {
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "layers"],
+      "properties": {
+        "kind": {"const": "stackup"},
+        "id": {"pattern": "^STK-"},
+        "layers": {
+          "description": "Layer records, top to bottom.",
+          "type": "array",
+          "items": {"$ref": "common.schema.json#/$defs/Id"},
+          "minItems": 1
+        }
+      }
+    },
+    "Layer": {
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "name", "layer_kind"],
+      "properties": {
+        "kind": {"const": "layer"},
+        "id": {"pattern": "^LYR-"},
+        "name": {"$ref": "common.schema.json#/$defs/LayerName"},
+        "layer_kind": {"enum": ["copper", "silk", "mask", "paste", "courtyard", "fab", "edge", "user", "adhesive"]},
+        "side": {"$ref": "common.schema.json#/$defs/Side"},
+        "function": {
+          "description": "For a copper layer: what the stackup uses it for.",
+          "enum": ["signal", "plane", "mixed"]
+        },
+        "plane_net": {"$ref": "common.schema.json#/$defs/Id"},
+        "thickness": {"$ref": "common.schema.json#/$defs/Quantity"},
+        "copper_weight": {"$ref": "common.schema.json#/$defs/Quantity"},
+        "dielectric": {
+          "type": "object",
+          "properties": {
+            "material": {"type": "string"},
+            "thickness": {"$ref": "common.schema.json#/$defs/Quantity"},
+            "permittivity": {"$ref": "common.schema.json#/$defs/Quantity"}
+          }
+        }
+      }
+    },
+    "Placement": {
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "component", "footprint", "pose", "side", "locked"],
+      "properties": {
+        "kind": {"const": "placement"},
+        "id": {"pattern": "^PLC-"},
+        "component": {"$ref": "common.schema.json#/$defs/Id"},
+        "footprint": {
+          "description": "The content hash of the footprint definition (RFC 11 Section 6.7).",
+          "$ref": "common.schema.json#/$defs/Hash"
+        },
+        "pose": {"$ref": "common.schema.json#/$defs/Pose"},
+        "side": {"$ref": "common.schema.json#/$defs/Side"},
+        "locked": {"type": "boolean"}
+      }
+    },
+    "Pad": {
+      "description": "A pad's identity and what it realizes; its geometry is derived from the placement and the footprint definition, never stored.",
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "pin", "placement", "pad_number"],
+      "properties": {
+        "kind": {"const": "pad"},
+        "id": {"pattern": "^PAD-"},
+        "pin": {"$ref": "common.schema.json#/$defs/Id"},
+        "placement": {"$ref": "common.schema.json#/$defs/Id"},
+        "pad_number": {"type": "string"}
+      },
+      "not": {"anyOf": [
+        {"required": ["at"]},
+        {"required": ["outline"]}
+      ]}
+    },
+    "Region": {
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "region_kind", "layers", "outline"],
+      "properties": {
+        "kind": {"const": "region"},
+        "id": {"pattern": "^REGION-"},
+        "region_kind": {"enum": ["keepout", "placement"]},
+        "layers": {"description": "In stackup order, top to bottom.", "type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}, "minItems": 1},
+        "outline": {"$ref": "common.schema.json#/$defs/Ring"},
+        "applies_to": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}},
+        "prohibits": {
+          "type": "array",
+          "items": {"enum": ["traces", "vias", "pads", "footprints", "copper"]}
+        }
+      }
+    },
+    "Zone": {
+      "description": "A copper zone's definition. Its fill is derived after every change and never stored (RFC 11 Section 6.6).",
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "layers", "outline", "priority", "definition"],
+      "properties": {
+        "kind": {"const": "zone"},
+        "id": {"pattern": "^ZONE-"},
+        "net": {"$ref": "common.schema.json#/$defs/Id"},
+        "layers": {"description": "In stackup order, top to bottom.", "type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}, "minItems": 1},
+        "outline": {"$ref": "common.schema.json#/$defs/Ring"},
+        "priority": {"type": "integer", "minimum": 0},
+        "clearance": {"$ref": "common.schema.json#/$defs/Quantity"},
+        "thermal": {
+          "type": "object",
+          "properties": {
+            "gap": {"$ref": "common.schema.json#/$defs/Quantity"},
+            "bridge": {"$ref": "common.schema.json#/$defs/Quantity"}
+          }
+        },
+        "definition": {
+          "description": "The source record verbatim, so the CAD file is written back unchanged.",
+          "type": "string"
+        }
+      }
+    },
+    "Trace": {
+      "description": "One routed segment, or an arc when mid is present.",
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "net", "layer", "width", "start", "end"],
+      "properties": {
+        "kind": {"const": "trace"},
+        "id": {"pattern": "^TRC-"},
+        "net": {"$ref": "common.schema.json#/$defs/Id"},
+        "layer": {"$ref": "common.schema.json#/$defs/Id"},
+        "width": {"$ref": "common.schema.json#/$defs/PositiveNm"},
+        "start": {"$ref": "common.schema.json#/$defs/Point"},
+        "mid": {"$ref": "common.schema.json#/$defs/Point"},
+        "end": {"$ref": "common.schema.json#/$defs/Point"}
+      }
+    },
+    "Via": {
+      "allOf": [{"$ref": "#/$defs/Entity"}],
+      "required": ["kind", "net", "at", "diameter", "drill", "layers"],
+      "properties": {
+        "kind": {"const": "via"},
+        "id": {"pattern": "^VIA-"},
+        "net": {"$ref": "common.schema.json#/$defs/Id"},
+        "at": {"$ref": "common.schema.json#/$defs/Point"},
+        "diameter": {"$ref": "common.schema.json#/$defs/PositiveNm"},
+        "drill": {"$ref": "common.schema.json#/$defs/PositiveNm"},
+        "layers": {
+          "description": "The first and last layer the via joins, in that order.",
+          "type": "array",
+          "items": {"$ref": "common.schema.json#/$defs/Id"},
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    }
+  }
+}

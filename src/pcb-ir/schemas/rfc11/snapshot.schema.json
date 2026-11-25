@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/snapshot.schema.json",
+  "title": "Board snapshot",
+  "description": "The immutable input of one engine run (RFC 11 Section 6.2). It names its layout input by content hash; the layout input is written beside it in the run, read-only.",
+  "type": "object",
+  "required": ["schema_version", "input", "scope", "constraints", "profile", "seed", "limits", "preserved", "reference_map"],
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/SchemaVersion"},
+    "input": {
+      "description": "The content hash of the layout input (RFC 11 Section 6.9).",
+      "$ref": "common.schema.json#/$defs/Hash"
+    },
+    "scope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "movable"],
+          "properties": {
+            "kind": {"const": "placement"},
+            "movable": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "preserve_existing"],
+          "properties": {
+            "kind": {"const": "routing"},
+            "nets": {
+              "description": "The nets to route; absent means every unrouted net.",
+              "type": "array",
+              "items": {"$ref": "common.schema.json#/$defs/Id"}
+            },
+            "region": {"$ref": "common.schema.json#/$defs/Outline"},
+            "preserve_existing": {"type": "boolean"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {"kind": {"const": "verify"}}
+        }
+      ]
+    },
+    "constraints": {
+      "description": "Identifiers of the layout input's constraints that are in scope for this run.",
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/Id"}
+    },
+    "profile": {
+      "description": "The ranking profile, by name (RFC 11 Section 11.3). Objective weights live in the profile, not here.",
+      "type": "string",
+      "minLength": 1
+    },
+    "seed": {"type": "integer", "minimum": 0},
+    "limits": {
+      "type": "object",
+      "required": ["engine_seconds", "wall_seconds", "memory_mb"],
+      "properties": {
+        "engine_seconds": {"type": "integer", "minimum": 1},
+        "wall_seconds": {"type": "integer", "minimum": 1},
+        "memory_mb": {"type": "integer", "minimum": 1}
+      }
+    },
+    "preserved": {
+      "type": "object",
+      "required": ["components", "nets"],
+      "properties": {
+        "components": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}},
+        "nets": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Id"}}
+      }
+    },
+    "reference_map": {
+      "description": "Reference designator to stable identifier (RFC 11 Section 6.3).",
+      "type": "object",
+      "additionalProperties": {"$ref": "common.schema.json#/$defs/Id"}
+    }
+  }
+}

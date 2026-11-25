@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/common.schema.json",
+  "title": "RFC 11 common definitions",
+  "description": "Identifiers, hashes, quantities, geometry, poses, and the placement basis shared by the physical records of RFC 11 Section 6. Geometry is integer nanometres in a declared frame; a value a document or a person stated is an RFC 3 quantity (RFC 11 Section 6.1).",
+  "$defs": {
+    "SchemaVersion": {
+      "description": "The version of the RFC 11 layout records this schema set defines (RFC 11 Section 6.13).",
+      "const": "2.0"
+    },
+    "Id": {
+      "description": "A stable identifier of RFC 3 Section 4: an upper-case prefix, a hyphen, and the rest, such as CMP-3f9a2c41d07e or REQ-PWR-001. Never a KiCad UUID (RFC 11 Section 6.1).",
+      "type": "string",
+      "pattern": "^[A-Z]+-[A-Za-z0-9._-]+$"
+    },
+    "Hash": {
+      "description": "A content hash: the algorithm, a colon, and the lowercase hexadecimal digest of the canonical bytes of RFC 3 Section 17.1, trailing newline included (RFC 11 Section 6.1).",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "Decimal": {
+      "description": "A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).",
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "Quantity": {
+      "description": "A physical quantity of RFC 3 Section 15.1: a value a document or a person stated, kept as stated.",
+      "type": "object",
+      "required": ["kind", "unit"],
+      "properties": {
+        "kind": {"enum": ["scalar", "range", "tolerance"]},
+        "unit": {"type": "string", "minLength": 1},
+        "value": {"$ref": "#/$defs/Decimal"},
+        "min": {"$ref": "#/$defs/Decimal"},
+        "max": {"$ref": "#/$defs/Decimal"},
+        "typical": {"$ref": "#/$defs/Decimal"},
+        "nominal": {"$ref": "#/$defs/Decimal"},
+        "tolerance": {
+          "type": "object",
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {"enum": ["relative", "absolute"]},
+            "value": {"$ref": "#/$defs/Decimal"}
+          }
+        },
+        "conditions": {"type": "object"}
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "scalar"}}},
+         "then": {"required": ["value"]}},
+        {"if": {"properties": {"kind": {"const": "range"}}},
+         "then": {"required": ["min", "max"]}},
+        {"if": {"properties": {"kind": {"const": "tolerance"}}},
+         "then": {"required": ["nominal", "tolerance"]}}
+      ]
+    },
+    "Nm": {
+      "description": "A coordinate or a drawn length, in integer nanometres.",
+      "type": "integer"
+    },
+    "PositiveNm": {
+      "description": "A drawn length greater than zero, in integer nanometres.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "Point": {
+      "description": "A point in integer nanometres, in the frame of the record that holds it.",
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": {"$ref": "#/$defs/Nm"},
+        "y": {"$ref": "#/$defs/Nm"}
+      }
+    },
+    "Ring": {
+      "description": "A closed ring of at least three points, without the first point repeated at the end. Always held under the key outline, whose order the canonical form preserves (RFC 11 Section 6.13).",
+      "type": "array",
+      "items": {"$ref": "#/$defs/Point"},
+      "minItems": 3
+    },
+    "Outline": {
+      "description": "A ring held under the key outline.",
+      "type": "object",
+      "required": ["outline"],
+      "properties": {
+        "outline": {"$ref": "#/$defs/Ring"}
+      }
+    },
+    "Polygon": {
+      "description": "An outer ring, counter-clockwise, and any holes, each clockwise. The holes are an unordered collection.",
+      "type": "object",
+      "required": ["outline"],
+      "properties": {
+        "outline": {"$ref": "#/$defs/Ring"},
+        "holes": {"type": "array", "items": {"$ref": "#/$defs/Outline"}}
+      }
+    },
+    "Rotation": {
+      "description": "Counter-clockwise as seen from the front of the board: a whole number of quarter turns, or integer millidegrees for any other angle. A multiple of 90 degrees is always written in quarter turns, so every angle has one form.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["q"],
+          "properties": {"q": {"enum": [0, 1, 2, 3]}},
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["mdeg"],
+          "properties": {
+            "mdeg": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 359999,
+              "not": {"multipleOf": 90000}
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Side": {
+      "enum": ["front", "back"]
+    },
+    "Pose": {
+      "description": "A position and a rotation in the frame of the record that holds it (RFC 11 Section 6.1).",
+      "type": "object",
+      "required": ["x", "y", "rot"],
+      "properties": {
+        "x": {"$ref": "#/$defs/Nm"},
+        "y": {"$ref": "#/$defs/Nm"},
+        "rot": {"$ref": "#/$defs/Rotation"}
+      }
+    },
+    "Basis": {
+      "description": "Where a pose came from (RFC 11 Section 6.10).",
+      "enum": ["golden-exact", "golden-adapted", "rule", "packed", "model", "manual"]
+    },
+    "LayerName": {
+      "description": "A layer's name, as its layer record names it. A footprint definition names front-side layers.",
+      "type": "string",
+      "minLength": 1
+    },
+    "ResultState": {
+      "description": "A check result state of RFC 6 Section 5.4.",
+      "enum": ["PASS", "FAIL", "WARN", "UNKNOWN", "NOT_APPLICABLE", "BLOCKED"]
+    },
+    "Binding": {
+      "description": "A circuit's binding of the pattern it references (RFC 3 Section 10).",
+      "type": "object",
+      "required": ["pattern", "anchor", "roles"],
+      "properties": {
+        "pattern": {
+          "type": "object",
+          "required": ["id", "hash"],
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "hash": {"$ref": "#/$defs/Hash"}
+          }
+        },
+        "anchor": {"$ref": "#/$defs/Id"},
+        "roles": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[a-z][a-z0-9-]*$"},
+          "additionalProperties": {
+            "type": "array",
+            "items": {"$ref": "#/$defs/Id"},
+            "minItems": 1
+          }
+        },
+        "deviations": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/Id"}
+        }
+      }
+    }
+  }
+}

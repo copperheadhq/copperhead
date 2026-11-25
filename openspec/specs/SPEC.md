@@ -83,6 +83,10 @@ copperhead/
 │   │   ├── draft/          # deterministic drafting engine: IR → placement → routing → emission
 │   │   ├── legibility.ts   # drawing-quality checker (read-only, no subprocess)
 │   │   └── score.ts        # quantitative sheet score: metrics, weights, composite
+│   ├── pcb-ir/             # RFC 11 layout records: types generated from the vendored
+│   │   │                   #   schemas, canonical form + content hashes, placement diff,
+│   │   │                   #   text view, board text (read-only)
+│   │   └── schemas/rfc11/  # the RFC 11 JSON Schemas, vendored unchanged
 │   ├── memory/
 │   │   ├── scaffold.ts     # `init`: generate docs skeleton from schematic
 │   │   └── drift.ts        # doc-vs-schematic consistency checker
@@ -345,6 +349,22 @@ copperhead explain <refdes|net|pin>
     structured hit. Unknown queries exit 1 with nearby-name suggestions.
     The REPL exposes the same lookup as `/explain`.
 
+copperhead pcb diff <before> <after> [--blocks <dir>] [--json]
+    What <after> changes relative to <before> (RFC 11 Section 6.11). The
+    before side is a layout input; the after side is a candidate, whose
+    block layouts are read from --blocks or from beside it, or a later
+    layout input. Prints the text view of RFC 11 Section 14.4 (one line per
+    changed component, ! where the change needs approval, then constraint,
+    finding, and copper lines); --json prints the placement diff record.
+    Given a .kicad_pcb it exits 1: boards are compared once imported into a
+    layout input. Read-only; no LLM, no network, no kicad-cli.
+
+copperhead pcb textconv <board>
+    Prints a .kicad_pcb as the board text of RFC 11 Section 14.4, one fact
+    per line, for git's diff driver: `*.kicad_pcb diff=copperhead-pcb` in
+    .gitattributes and `git config diff.copperhead-pcb.textconv
+    "copperhead pcb textconv"`. Read-only; no LLM, no network, no kicad-cli.
+
 copperhead watch                          # Phase 2
     Start the live viewer (see §6).
 ```
@@ -522,6 +542,16 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-17.4** `--json explain GND` is parseable with `ok: true` and `hit.kind === "net"`.
 - **AC-17.5** An unknown query exits 1 and suggests nearby names when they exist.
 - **AC-17.6** A dotted net such as `VDD1.8` resolves as a net when no part `VDD1` exists, and a pin name repeated on one part fails with "use REF.PIN" instead of "nothing named".
+
+### AC-20 · PCB layout records and change views (change: add-pcb-ir)
+
+- **AC-20.1** The TypeScript types in `src/pcb-ir/types.generated.ts` equal what `scripts/gen-pcb-ir-types.ts` generates from the vendored RFC 11 schemas, and every RFC 11 example record validates against its schema and type-checks against its generated type.
+- **AC-20.2** `contentHash` reproduces every hash the RFC 11 example records cite to one another, and each footprint key equals the hash of its definition (RFC 3 Section 17.1).
+- **AC-20.3** The placement diff of the RFC's example layout input against its example candidate equals the RFC's published placement diff, content hash included; a candidate diffed against a layout input it did not run against is refused.
+- **AC-20.4** A routing candidate's added and removed traces and vias appear in the diff's `copper` lists and in its text view.
+- **AC-20.5** The text view of the RFC's published diff equals the example in RFC 11 Section 14.4, line for line.
+- **AC-20.6** `pcb textconv` prints one fact per line; moving one footprint changes exactly one line, reordering footprints in the file changes none, a changed trace width or via changes its net's line, and a circular edge cut reports its full extent.
+- **AC-20.7** `pcb diff` and `pcb textconv` make no LLM, network, or kicad-cli call, and write nothing.
 
 ### AC-3 · `copperhead do` — core loop
 

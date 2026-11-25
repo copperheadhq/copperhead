@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/layout-input.schema.json",
+  "title": "Layout input",
+  "description": "The document every layout engine reads, compiled from a snapshot of the design layer (RFC 11 Section 6.9). Rebuilt, never edited; addressed by the content hash of its canonical form. Collections of entities are objects keyed by stable identifier.",
+  "type": "object",
+  "required": ["schema_version", "parent", "config", "packs", "board", "footprints", "components", "nets", "circuits", "constraints", "routing"],
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/SchemaVersion"},
+    "parent": {
+      "description": "What the input was compiled from: a kernel graph snapshot, or, for an import that did not pass through the kernel, the hashes of the files it read (RFC 11 Section 5.1).",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["graph"],
+          "properties": {"graph": {"$ref": "common.schema.json#/$defs/Hash"}},
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["imported"],
+          "properties": {
+            "imported": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["path", "hash"],
+                "properties": {
+                  "path": {"type": "string"},
+                  "hash": {"$ref": "common.schema.json#/$defs/Hash"}
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "config": {
+      "description": "The content hash of the compile configuration.",
+      "$ref": "common.schema.json#/$defs/Hash"
+    },
+    "packs": {
+      "description": "The content hashes of the part packs the circuits bind.",
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/Hash"}
+    },
+    "board": {"$ref": "#/$defs/Board"},
+    "footprints": {
+      "description": "Footprint definitions keyed by their content hash (RFC 11 Section 6.7).",
+      "type": "object",
+      "propertyNames": {"$ref": "common.schema.json#/$defs/Hash"},
+      "additionalProperties": {"$ref": "footprint.schema.json"}
+    },
+    "components": {
+      "type": "object",
+      "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+      "additionalProperties": {"$ref": "#/$defs/Component"}
+    },
+    "nets": {
+      "type": "object",
+      "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {"type": "string"},
+          "class": {"type": "string"}
+        }
+      }
+    },
+    "circuits": {
+      "description": "Block bindings (RFC 3 Section 10), keyed by circuit identifier.",
+      "type": "object",
+      "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+      "additionalProperties": {"$ref": "common.schema.json#/$defs/Binding"}
+    },
+    "constraints": {
+      "description": "The registry constraints in scope, as projections of the RFC 3 Section 11.3 record, keyed by identifier.",
+      "type": "object",
+      "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+      "additionalProperties": {
+        "type": "object",
+        "required": ["class", "kind", "targets", "expression", "enforcement"],
+        "properties": {
+          "class": {"type": "string"},
+          "kind": {"type": "string"},
+          "targets": {"type": "array", "items": {"type": "string"}},
+          "expression": {"type": "object"},
+          "enforcement": {"enum": ["hard", "soft", "advisory"]},
+          "source": {"type": "string"}
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "required": ["traces", "vias", "zones"],
+      "properties": {
+        "traces": {
+          "type": "object",
+          "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+          "additionalProperties": {"$ref": "physical.schema.json#/$defs/Trace"}
+        },
+        "vias": {
+          "type": "object",
+          "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+          "additionalProperties": {"$ref": "physical.schema.json#/$defs/Via"}
+        },
+        "zones": {
+          "type": "object",
+          "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+          "additionalProperties": {"$ref": "physical.schema.json#/$defs/Zone"}
+        }
+      }
+    },
+    "derived": {
+      "description": "World geometry computed by the one transform of RFC 11 Section 6.1, for engines that do not compute it. A reader that writes a design record ignores it.",
+      "type": "object",
+      "properties": {
+        "pads": {
+          "type": "object",
+          "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["number", "copper", "layers"],
+              "properties": {
+                "number": {"type": "string"},
+                "copper": {"$ref": "common.schema.json#/$defs/Polygon"},
+                "layers": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/LayerName"}}
+              }
+            }
+          }
+        },
+        "courtyards": {
+          "type": "object",
+          "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+          "additionalProperties": {"$ref": "common.schema.json#/$defs/Polygon"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "Board": {
+      "type": "object",
+      "required": ["unit", "outline", "layers", "fabrication_profile"],
+      "properties": {
+        "unit": {"const": "nm"},
+        "outline": {"$ref": "common.schema.json#/$defs/Ring"},
+        "cutouts": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/Outline"}},
+        "thickness": {"$ref": "common.schema.json#/$defs/Quantity"},
+        "arc_tolerance": {"$ref": "common.schema.json#/$defs/PositiveNm"},
+        "fabrication_profile": {"type": "string"},
+        "layers": {
+          "description": "Top to bottom.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "layer_kind"],
+            "properties": {
+              "id": {"$ref": "common.schema.json#/$defs/Id"},
+              "name": {"$ref": "common.schema.json#/$defs/LayerName"},
+              "layer_kind": {"enum": ["copper", "silk", "mask", "paste", "courtyard", "fab", "edge", "user", "adhesive"]},
+              "side": {"$ref": "common.schema.json#/$defs/Side"},
+              "function": {"enum": ["signal", "plane", "mixed"]},
+              "plane_net": {"$ref": "common.schema.json#/$defs/Id"}
+            }
+          }
+        },
+        "regions": {
+          "type": "object",
+          "propertyNames": {"$ref": "common.schema.json#/$defs/Id"},
+          "additionalProperties": {"$ref": "physical.schema.json#/$defs/Region"}
+        },
+        "preserved": {"$ref": "physical.schema.json#/$defs/Board/properties/preserved"},
+        "lossy": {"$ref": "physical.schema.json#/$defs/Board/properties/lossy"}
+      }
+    },
+    "Component": {
+      "type": "object",
+      "required": ["refdes", "footprint", "side", "locked", "pads"],
+      "dependentRequired": {"pose": ["owner"], "owner": ["pose"]},
+      "properties": {
+        "refdes": {"type": "string"},
+        "value": {"type": "string"},
+        "footprint": {"$ref": "common.schema.json#/$defs/Hash"},
+        "pose": {
+          "description": "Absent for a component no one has placed yet.",
+          "$ref": "common.schema.json#/$defs/Pose"
+        },
+        "side": {"$ref": "common.schema.json#/$defs/Side"},
+        "locked": {"type": "boolean"},
+        "owner": {
+          "description": "Who owns the placement, projected from its provenance (RFC 12 Section 9.5): a person, a layout engine, or an import adapter. An adapter compiling the input directly names itself (RFC 11 Section 6.9). Present exactly when the component is placed.",
+          "enum": ["person", "engine", "import"]
+        },
+        "pads": {
+          "description": "Explicit pad-to-net connectivity, keyed by pad number: the net each pad is on and the pin it realizes.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "net": {"$ref": "common.schema.json#/$defs/Id"},
+              "pin": {"$ref": "common.schema.json#/$defs/Id"}
+            }
+          }
+        },
+        "source_refs": {
+          "description": "External identifiers, held for matching and export; never identity (RFC 11 Section 6.3).",
+          "type": "object",
+          "properties": {
+            "kicad_uuid": {"type": "string"},
+            "symbol_path": {"type": "string"},
+            "sheet": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "2.0",
+  "id": "cand-ldo-01",
+  "input": "sha256:14fd43527bd5c642a3ae80cc67c4290cfa7c73b3f9c40d9d0943a8917067d96c",
+  "variant": "partition=intent/cleanup=none",
+  "status": "verified",
+  "blocks": [
+    {
+      "layout": "sha256:2858da5a969e48f275ff3448ebf985a3a1f85af2d7d46e86b6c5ec1da83244ed",
+      "transform": {"x": 11000000, "y": 10000000, "rot": {"q": 1}},
+      "side": "front"
+    }
+  ],
+  "loose": [
+    {
+      "component": "CMP-b29303b9e2bb",
+      "pose": {"x": 20000000, "y": 7000000, "rot": {"q": 0}},
+      "side": "front",
+      "basis": "packed",
+      "source": "placer-reuse-pack"
+    }
+  ],
+  "unplaced": [],
+  "findings": [],
+  "metrics": {
+    "courtyard_overlap_count": 0,
+    "outside_board_count": 0
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/footprint.schema.json",
+  "title": "Footprint definition",
+  "description": "The geometry of one footprint in its own frame, as the front-side view, identified by the content hash of its canonical form (RFC 11 Section 6.7). It carries no net, no reference designator, and no board position.",
+  "type": "object",
+  "required": ["schema_version", "lib_id", "mount", "pads"],
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/SchemaVersion"},
+    "lib_id": {
+      "description": "The library identifier the definition came from: a source reference, not an identity.",
+      "type": "string",
+      "minLength": 1
+    },
+    "mount": {"enum": ["smd", "through_hole", "other"]},
+    "pads": {
+      "description": "An unordered collection: the canonical form sorts it, so equal footprints hash equal.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/PadDefinition"}
+    },
+    "courtyard": {
+      "description": "Absent when the footprint draws none; never derived silently.",
+      "$ref": "common.schema.json#/$defs/Polygon"
+    },
+    "body": {"$ref": "common.schema.json#/$defs/Polygon"}
+  },
+  "$defs": {
+    "PadDefinition": {
+      "type": "object",
+      "required": ["number", "type", "shape", "size", "pose", "layers", "copper"],
+      "properties": {
+        "number": {
+          "description": "The pad number; empty for an unnumbered mechanical pad.",
+          "type": "string"
+        },
+        "type": {"enum": ["smd", "thru_hole", "np_thru_hole", "connect"]},
+        "shape": {"enum": ["circle", "rect", "oval", "roundrect", "trapezoid", "chamfered", "custom"]},
+        "size": {
+          "type": "object",
+          "required": ["w", "h"],
+          "properties": {
+            "w": {"$ref": "common.schema.json#/$defs/PositiveNm"},
+            "h": {"$ref": "common.schema.json#/$defs/PositiveNm"}
+          }
+        },
+        "pose": {
+          "description": "Relative to the footprint origin.",
+          "$ref": "common.schema.json#/$defs/Pose"
+        },
+        "layers": {
+          "description": "In stackup order, front to back.",
+          "type": "array",
+          "items": {"$ref": "common.schema.json#/$defs/LayerName"},
+          "minItems": 1
+        },
+        "drill": {
+          "type": "object",
+          "required": ["d"],
+          "properties": {
+            "d": {"$ref": "common.schema.json#/$defs/PositiveNm"},
+            "offset": {"$ref": "common.schema.json#/$defs/Point"},
+            "slot": {
+              "type": "object",
+              "required": ["w", "h"],
+              "properties": {
+                "w": {"$ref": "common.schema.json#/$defs/PositiveNm"},
+                "h": {"$ref": "common.schema.json#/$defs/PositiveNm"}
+              }
+            }
+          }
+        },
+        "copper": {
+          "description": "The pad's copper outline in the footprint frame, for every shape.",
+          "$ref": "common.schema.json#/$defs/Polygon"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/candidate.schema.json",
+  "title": "Candidate",
+  "description": "One complete placement or routing an engine returns against a layout input (RFC 11 Section 6.10). A component appears in exactly one of blocks, loose, and unplaced; a block moves as one unit, and no field moves a single member of a block.",
+  "type": "object",
+  "required": ["schema_version", "id", "input", "status", "blocks", "loose", "unplaced", "findings", "metrics"],
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/SchemaVersion"},
+    "id": {"type": "string", "minLength": 1},
+    "input": {
+      "description": "The content hash of the layout input it was produced against.",
+      "$ref": "common.schema.json#/$defs/Hash"
+    },
+    "variant": {"type": "string"},
+    "status": {"enum": ["candidate", "verified", "rejected"]},
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["layout", "transform", "side"],
+        "properties": {
+          "layout": {
+            "description": "The content hash of the block layout.",
+            "$ref": "common.schema.json#/$defs/Hash"
+          },
+          "transform": {
+            "description": "The pose of the block frame on the board.",
+            "$ref": "common.schema.json#/$defs/Pose"
+          },
+          "side": {"$ref": "common.schema.json#/$defs/Side"}
+        }
+      }
+    },
+    "loose": {
+      "description": "Components placed individually.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["component", "pose", "side", "basis", "source"],
+        "properties": {
+          "component": {"$ref": "common.schema.json#/$defs/Id"},
+          "pose": {"$ref": "common.schema.json#/$defs/Pose"},
+          "side": {"$ref": "common.schema.json#/$defs/Side"},
+          "basis": {"$ref": "common.schema.json#/$defs/Basis"},
+          "source": {
+            "description": "The pack rule or geometry, the constraint, or the run that produced the pose (RFC 11 Section 6.10).",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "unplaced": {
+      "description": "Components no engine placed.",
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/Id"}
+    },
+    "routing": {
+      "description": "Routed copper, for a routing candidate.",
+      "type": "object",
+      "properties": {
+        "traces": {"type": "array", "items": {"$ref": "physical.schema.json#/$defs/Trace"}},
+        "vias": {"type": "array", "items": {"$ref": "physical.schema.json#/$defs/Via"}}
+      }
+    },
+    "findings": {
+      "description": "Normalized diagnostics (RFC 11 Section 10.3).",
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "metrics": {
+      "description": "Raw metrics (RFC 11 Section 11).",
+      "type": "object"
+    }
+  }
+}

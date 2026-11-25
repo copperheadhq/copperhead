@@ -25,6 +25,8 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `sync` | Either | Verify phase no, resolve phase yes | Reconciles docs, files, and constraints. |
 | `draft` | [Design from a brief](/workflows/create-from-brief/) | No | Deterministically draws the schematic from `schematic.intent.json`. |
 | `score` | Either | No | Quantitative legibility score for the schematic (0-100, advisory). |
+| `pcb diff` | Either | No | What a layout candidate or later layout input changes on a board, one line per part. |
+| `pcb textconv` | Either | No | Prints a board one fact per line, so `git diff` shows layout changes readably. |
 
 ## Global options
 
@@ -158,6 +160,58 @@ Regenerates the configured schematic deterministically from the netlist-intent I
 | --- | --- |
 | `0` | Drafted and written (also writes the vendored `sym-lib-cache/`, `sym-lib-table`, and a minimal `.kicad_pro` when absent). |
 | `1` | Intent validation failed; the numbered findings are printed and the previous schematic is untouched. |
+
+## `copperhead pcb diff`
+
+```bash
+copperhead pcb diff layout-input.json candidate.json
+copperhead pcb diff layout-input.json candidate.json --blocks runs/blocks/
+copperhead pcb diff before-input.json after-input.json --json
+```
+
+Shows what the after side changes relative to the before side, as the placement diff of [RFC 11](https://github.com/copperheadhq/copperhead-rfcs) Section 6.11.
+
+- **The before side** is a layout input.
+- **The after side** is either a candidate produced against that input, or a later layout input. A candidate's block layouts are read from `--blocks`, or else from the candidate's own directory.
+
+It prints one line per changed part:
+
+- `+` means placed or added, `-` means unplaced or removed, and `~` means any other change.
+- `!` marks a change that needs approval, such as moving a part a person or the importer placed. `x` marks a change that is refused, such as moving a locked part.
+- Changed constraint results, findings, and added or removed copper follow the part lines.
+
+```text
+diff 14fd4352 -> candidate b9974acb: 4 changed, 1 needs approval
+! ~ R1 1k          moved 5.09902 mm (25, 6) -> (20, 7)   packed
+  + C1 1uF         placed (13.7, 11.4) 270   CKT-963fa1bea581
+```
+
+With `--json`, it prints the placement diff record itself. It doesn't take `.kicad_pcb` files yet, because a board has to be imported into a layout input first. Until then, compare boards with `pcb textconv`.
+
+It makes **no LLM calls and no network requests**, doesn't run `kicad-cli`, and writes nothing.
+
+## `copperhead pcb textconv`
+
+```bash
+copperhead pcb textconv hardware/board.kicad_pcb
+```
+
+Prints a board one fact per line, with fields in a fixed order:
+
+- the outline, including the true extent of any arcs and circles, and the copper layers
+- one line per footprint: position, rotation, side, and lock
+- one line per net's routed copper, with a digest of its geometry, widths, and drills
+- one line per zone
+
+Moving one footprint changes one line, and reordering the file changes none. A changed trace width or a moved via still changes its net's line. Use it as git's diff driver:
+
+```bash
+echo '*.kicad_pcb diff=copperhead-pcb' >> .gitattributes
+git config diff.copperhead-pcb.textconv "copperhead pcb textconv"
+git diff hardware/board.kicad_pcb
+```
+
+It makes **no LLM calls and no network requests**, doesn't run `kicad-cli`, and writes nothing.
 
 ## `copperhead score schematic`
 

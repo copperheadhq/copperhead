@@ -1,0 +1,61 @@
+{
+  "schema_version": "2.0",
+  "circuit": "CKT-963fa1bea581",
+  "pack": "sha256:2d0b4ba0b9e186197b804d1090c5d39c221a613f0efe52cce6ba5fc5a79dd464",
+  "fit": "exact",
+  "members": [
+    {
+      "component": "CMP-6c6bb6dce903",
+      "pose": {"x": 0, "y": -220000, "rot": {"q": 0}},
+      "basis": "golden-exact",
+      "source": "AP2112K-3.3/SOT-23-5#geometry"
+    },
+    {
+      "component": "CMP-940e54e6408c",
+      "pose": {"x": -1400000, "y": 2700000, "rot": {"q": 2}},
+      "basis": "golden-exact",
+      "source": "AP2112K-3.3/SOT-23-5#geometry"
+    },
+    {
+      "component": "CMP-aac7f645cf08",
+      "pose": {"x": -1400000, "y": -3100000, "rot": {"q": 0}},
+      "basis": "golden-exact",
+      "source": "AP2112K-3.3/SOT-23-5#geometry"
+    }
+  ],
+  "envelope": {
+    "outline": [
+      {"x": -2880000, "y": -3830000},
+      {"x": 1700000, "y": -3830000},
+      {"x": 1700000, "y": 3430000},
+      {"x": -2880000, "y": 3430000}
+    ]
+  },
+  "ports": [
+    {
+      "net": "NET-7c1efcdd57f6",
+      "at": {"x": -2880000, "y": 2700000},
+      "facing": {"q": 2}
+    },
+    {
+      "net": "NET-5971a826cfff",
+      "at": {"x": -2880000, "y": -3100000},
+      "facing": {"q": 2}
+    },
+    {
+      "net": "NET-6188f0638a57",
+      "at": {"x": 0, "y": 3430000},
+      "facing": {"q": 3}
+    }
+  ],
+  "results": [
+    {
+      "constraint": "RULE-8a4fc38a167e",
+      "state": "PASS"
+    },
+    {
+      "constraint": "RULE-9b1140645ad7",
+      "state": "PASS"
+    }
+  ]
+}

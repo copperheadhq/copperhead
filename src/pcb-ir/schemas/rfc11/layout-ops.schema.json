@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/copperheadhq/copperhead-rfcs/schemas/rfc11/2.0/layout-ops.schema.json",
+  "title": "Layout operations",
+  "description": "The operations that return one accepted candidate to the design layer as one transaction (RFC 11 Section 6.12, RFC 12 Section 9.1): placements, deviations, and a routing candidate's copper. The operations are an unordered collection; each changes a distinct record.",
+  "type": "object",
+  "required": ["schema_version", "input", "candidate", "operations"],
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/SchemaVersion"},
+    "input": {
+      "description": "The content hash of the layout input the candidate ran against; the transaction is proposed against the graph snapshot it names.",
+      "$ref": "common.schema.json#/$defs/Hash"
+    },
+    "candidate": {
+      "description": "The content hash of the accepted candidate.",
+      "$ref": "common.schema.json#/$defs/Hash"
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/Operation"}
+    }
+  },
+  "$defs": {
+    "Overrides": {
+      "description": "Present when the operation changes a placement, or removes copper, that a person or an import adapter owns (RFC 12 Section 9.5): the owner it overrides, so the commit gate's policy can require approval.",
+      "enum": ["person", "import"]
+    },
+    "Operation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["op", "component", "pose", "side", "basis", "source"],
+          "properties": {
+            "op": {"const": "place_component"},
+            "component": {"$ref": "common.schema.json#/$defs/Id"},
+            "pose": {"$ref": "common.schema.json#/$defs/Pose"},
+            "side": {"$ref": "common.schema.json#/$defs/Side"},
+            "basis": {"$ref": "common.schema.json#/$defs/Basis"},
+            "source": {"type": "string", "minLength": 1},
+            "overrides": {"$ref": "#/$defs/Overrides"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "circuit", "layout", "transform", "side"],
+          "properties": {
+            "op": {"const": "place_block"},
+            "circuit": {"$ref": "common.schema.json#/$defs/Id"},
+            "layout": {"$ref": "common.schema.json#/$defs/Hash"},
+            "transform": {"$ref": "common.schema.json#/$defs/Pose"},
+            "side": {"$ref": "common.schema.json#/$defs/Side"},
+            "overrides": {"$ref": "#/$defs/Overrides"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "circuit", "reason", "waiver"],
+          "properties": {
+            "op": {"const": "record_deviation"},
+            "circuit": {"$ref": "common.schema.json#/$defs/Id"},
+            "constraint": {"$ref": "common.schema.json#/$defs/Id"},
+            "component": {"$ref": "common.schema.json#/$defs/Id"},
+            "reason": {"type": "string", "minLength": 1},
+            "waiver": {"$ref": "common.schema.json#/$defs/Id"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "trace", "source"],
+          "properties": {
+            "op": {"const": "add_trace"},
+            "trace": {
+              "description": "The trace record of RFC 11 Section 6.8 the copper becomes.",
+              "$ref": "physical.schema.json#/$defs/Trace"
+            },
+            "source": {"description": "The run evidence that produced it.", "type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "via", "source"],
+          "properties": {
+            "op": {"const": "add_via"},
+            "via": {
+              "description": "The via record of RFC 11 Section 6.8 the copper becomes.",
+              "$ref": "physical.schema.json#/$defs/Via"
+            },
+            "source": {"description": "The run evidence that produced it.", "type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["op", "entity", "source"],
+          "properties": {
+            "op": {"const": "remove_copper"},
+            "entity": {
+              "description": "The trace or via the candidate's routing replaces.",
+              "type": "string",
+              "pattern": "^(TRC|VIA)-[A-Za-z0-9._-]+$"
+            },
+            "source": {"description": "The run evidence that produced it.", "type": "string", "minLength": 1},
+            "overrides": {"$ref": "#/$defs/Overrides"}
+          }
+        }
+      ]
+    }
+  }
+}
