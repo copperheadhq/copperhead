@@ -155,9 +155,10 @@ function polygonArea(ring: Pt[]): number {
 }
 
 /** Closed rings from edge-cut drawings, chained end to end. */
-function edgeRings(root: List, tolerance: number): { rings: Pt[][]; complete: boolean } {
+function edgeRings(root: List, tolerance: number): { rings: Pt[][]; complete: boolean; unsupported: string[] } {
   const rings: Pt[][] = [];
   const edges: Pt[][] = [];
+  const unsupported = new Set<string>();
   for (const node of root) {
     if (!isList(node) || typeof node[0] !== 'string' || !node[0].startsWith('gr_')) continue;
     if (atom(child(node, 'layer'), 1) !== 'Edge.Cuts') continue;
@@ -188,6 +189,9 @@ function edgeRings(root: List, tolerance: number): { rings: Pt[][]; complete: bo
       edges.push([pt(child(node, 'start')), pt(child(node, 'end'))]);
     } else if (kind === 'gr_arc' && child(node, 'mid')) {
       edges.push(sampleArc(pt(child(node, 'start')), pt(child(node, 'mid')), pt(child(node, 'end')), tolerance));
+    } else {
+      // A Bezier curve, or an arc written without its midpoint: not sampled yet.
+      unsupported.add(kind === 'gr_arc' ? 'gr_arc without a midpoint' : kind);
     }
   }
   // Chain open edges into rings: each step takes an edge that starts, or ends, where the chain ends.
@@ -209,7 +213,7 @@ function edgeRings(root: List, tolerance: number): { rings: Pt[][]; complete: bo
     if (closed) rings.push(chain.slice(0, -1));
     else complete = false;
   }
-  return { rings, complete };
+  return { rings, complete, unsupported: [...unsupported].sort() };
 }
 
 /** The copper of one pad in the footprint frame. */
@@ -476,7 +480,9 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
     const uuid = sourceId(node);
     let key = uuid;
     if (!key) {
-      const digest = createHash('sha256').update(JSON.stringify(node)).digest('hex').slice(0, 16);
+      // The record's content less any zone fill, which a refill rewrites (RFC 11 Section 6.6).
+      const content = node.filter((c) => !(isList(c) && (c[0] === 'filled_polygon' || c[0] === 'fill_segments')));
+      const digest = createHash('sha256').update(JSON.stringify(content)).digest('hex').slice(0, 16);
       const n = seen.get(`${kind}:${digest}`) ?? 0;
       seen.set(`${kind}:${digest}`, n + 1);
       key = `content-${digest}${n ? `-${n}` : ''}`;
@@ -575,8 +581,9 @@ export function importKicadBoard(source: string, options: ImportOptions): Layout
   });
 
   // The board outline: the largest edge-cut ring, and the others as cutouts.
-  const { rings, complete } = edgeRings(root, tolerance);
+  const { rings, complete, unsupported } = edgeRings(root, tolerance);
   if (!complete) notes.add('edge cuts that do not close into rings are not imported');
+  if (unsupported.length) notes.add(`edge cuts drawn as ${unsupported.join(', ')} are not imported`);
   rings.sort((a, b) => polygonArea(b) - polygonArea(a));
   const outline = rings[0] ? boardRing(rings[0]) : undefined;
   if (!outline) throw new Error(`${options.path}: no closed board outline on Edge.Cuts`);

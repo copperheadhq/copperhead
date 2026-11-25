@@ -132,6 +132,23 @@ describe('importing a KiCad board into a layout input', () => {
     expect(placementDiff(li, { input: refilled }).copper).toBeUndefined();
   });
 
+  it('keeps a zone without a KiCad identifier the same zone across a refill', () => {
+    const fill = '\t\t(filled_polygon (layer "B.Cu") (pts (xy 0.5 0.5) (xy 29.5 0.5) (xy 29.5 19.5)))\n';
+    const anchor = '\t\t(polygon\n\t\t\t(pts (xy 0 0) (xy 30 0) (xy 30 20) (xy 0 20))\n\t\t)\n';
+    const anonymous = board.replace('\t\t(uuid "6f1d4a6e-1b2c-4d3e-9f40-5a6b7c8d9e81")\n', '');
+    expect(anonymous).not.toBe(board);
+    const a = imported(anonymous);
+    const b = imported(anonymous.replace(anchor, anchor + fill));
+    expect(Object.keys(b.routing.zones)).toEqual(Object.keys(a.routing.zones));
+    expect(placementDiff(a, { input: b }).copper).toBeUndefined();
+  });
+
+  it('says that it leaves out edge cuts it cannot sample', () => {
+    const curve = '\t(gr_curve (pts (xy 5 5) (xy 6 4) (xy 8 4) (xy 9 5)) (stroke (width 0.05) (type default)) (layer "Edge.Cuts"))\n';
+    const withCurve = imported(board.replace('\t(segment', curve + '\t(segment'));
+    expect(withCurve.board.lossy).toContain('edge cuts drawn as gr_curve are not imported');
+  });
+
   it('says that it leaves out edge cuts drawn inside footprints', () => {
     const edge = '\t\t(fp_circle (center 0 0) (end 1.6 0) (stroke (width 0.05) (type default)) (fill none) (layer "Edge.Cuts"))\n';
     const withEdge = imported(board.replace('\t\t(property "Reference" "H1"', edge + '\t\t(property "Reference" "H1"'));
