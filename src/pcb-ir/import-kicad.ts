@@ -3,7 +3,7 @@ import { child, children, isList, parseSexp, type SexpNode } from '../kicad/sexp
 import { childSpans } from '../kicad/spans.js';
 import { contentHash } from './canonical.js';
 import { rotatePoint, rotationMdeg, rotationOf, type Rotation } from './geometry.js';
-import { arcCircle, nmOf, type Pt } from './textconv.js';
+import { arcCircle, arcExtremes, nmOf, type Pt } from './textconv.js';
 import type { FootprintDefinition, LayoutInput, Quantity } from './types.generated.js';
 
 /**
@@ -309,7 +309,18 @@ function footprintDefinition(fp: List, notes: Set<string>): Footprint {
       courtyard.push(...children(child(g, 'pts') ?? [], 'xy').map(pt));
       traced = true;
     } else {
-      for (const k of ['start', 'end', 'mid', 'center']) if (child(g, k)) courtyard.push(pt(child(g, k)));
+      // The points that bound the drawing: a circle's extent, an arc's ends and
+      // the axis extremes its sweep passes, a line's ends.
+      if (g[0] === 'fp_circle') {
+        const [cx, cy] = pt(child(g, 'center'));
+        const [ex, ey] = pt(child(g, 'end'));
+        const r = Math.round(Math.hypot(ex - cx, ey - cy));
+        courtyard.push([cx - r, cy - r], [cx + r, cy + r]);
+      } else if (g[0] === 'fp_arc' && child(g, 'mid')) {
+        courtyard.push(...arcExtremes(pt(child(g, 'start')), pt(child(g, 'mid')), pt(child(g, 'end'))));
+      } else {
+        for (const k of ['start', 'end']) if (child(g, k)) courtyard.push(pt(child(g, k)));
+      }
       notes.add('a courtyard drawn as lines or arcs is imported as its bounding rectangle');
     }
   }

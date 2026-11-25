@@ -78,7 +78,7 @@ function arcLength(start: Pt, mid: Pt, end: Pt): number {
 }
 
 /** The points that bound an arc: its ends, and each axis extreme its sweep passes. */
-function arcExtremes(start: Pt, mid: Pt, end: Pt): Pt[] {
+export function arcExtremes(start: Pt, mid: Pt, end: Pt): Pt[] {
   const c = arcCircle(start, mid, end);
   const out: Pt[] = [start, end];
   if (!c) return out;

@@ -138,6 +138,14 @@ describe('importing a KiCad board into a layout input', () => {
     expect(withEdge.board.lossy).toContain('edge cuts drawn inside footprints are not part of the imported outline or cutouts');
   });
 
+  it('bounds a circular courtyard by its whole circle', () => {
+    const circle = '\t\t(fp_circle (center 0 0) (end 3.45 0) (stroke (width 0.05) (type default)) (fill none) (layer "F.CrtYd"))\n';
+    const withCircle = imported(board.replace('\t\t(property "Reference" "H1"', circle + '\t\t(property "Reference" "H1"'));
+    const def = withCircle.footprints[byRef(withCircle, 'H1')[1].footprint]!;
+    const ring = JSON.stringify(def.courtyard);
+    for (const v of [-3_450_000, 3_450_000]) expect(ring).toContain(String(v));
+  });
+
   it('says that it leaves out zones inside footprints', () => {
     const zone = '\t\t(zone (net 0) (net_name "") (layer "F.Cu") (hatch edge 0.5) (keepout (tracks not_allowed)) (polygon (pts (xy 2 2) (xy 4 2) (xy 4 4))))\n';
     const withZone = imported(board.replace('\t\t(property "Reference" "H1"', zone + '\t\t(property "Reference" "H1"'));
