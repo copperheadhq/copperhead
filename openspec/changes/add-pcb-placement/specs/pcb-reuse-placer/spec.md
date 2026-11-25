@@ -51,3 +51,19 @@ each candidate's reason SHALL name what put it ahead of the next.
 - **WHEN** one candidate keeps its decoupling capacitors within their limits
   and another does not but routes more critical nets
 - **THEN** the first ranks higher
+
+### Requirement: Apply only what passed, over the board as it was
+`--apply` SHALL write an option only when it is eligible in the final
+ranking, and only when the board file still holds the bytes the run started
+from. Otherwise the run SHALL end HOLD, say why, and leave the board
+unchanged. A reuse run SHALL check the layout intent the board declares, as
+`pcb place` does.
+
+#### Scenario: A save during the run is kept
+- **WHEN** the board is saved in KiCad while `pcb reuse --apply` runs
+- **THEN** the run ends HOLD, and the saved board is left as it was
+
+#### Scenario: An unknown option is refused
+- **WHEN** `pcb reuse --apply --option zz` names no option
+- **THEN** the run ends HOLD naming the options there are, and the board is
+  unchanged

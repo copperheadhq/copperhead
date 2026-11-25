@@ -78,7 +78,7 @@ describe('evidence markers', () => {
 
 // The create pipeline's layout-draft stage does not yet require layout
 // evidence: wiring the harness into create stage 5 is a follow-up
-// (add-pcb-placement task 5.1), so this contract is skipped until then.
+// (add-pcb-placement task 6.1), so this contract is skipped until then.
 describe.skip('the layout-draft stage contract', () => {
   const stage = STAGES.find((s) => s.name === 'layout-draft')!;
   it('needs footprints, Draft quality, and evidence for exactly this board', async () => {
@@ -121,7 +121,7 @@ describe('routeForCreate and the check layout track', () => {
       expect(readEvidence(md)!.metrics.total_wirelength_nm).toBeGreaterThan(0);
       expect(readEvidence(md)!.metrics.via_count).toBeGreaterThanOrEqual(0);
       expect(existsSync(path.join(dir, '.copperhead', 'runs', 'r1', 'layout', 'outcome.json'))).toBe(true);
-      // The create stage contract's view of this evidence waits on add-pcb-placement task 5.1.
+      // The create stage contract's view of this evidence waits on add-pcb-placement task 6.1.
 
       const lines: string[] = [];
       const check = await runCheck(dir, (l) => lines.push(l));

@@ -612,6 +612,9 @@ pcbGroup
         boardPath,
         referencePath: path.resolve(repo, opts.reference),
         runDir,
+        // the layout intent the board declares, as pcb place reads it
+        docsDir: path.join(repo, config.docs),
+        intentPath: pcb.intentPath ?? null,
         ...(opts.movable ? { movableReferences: opts.movable.split(',').map((s) => s.trim()) } : {}),
         keep: Number(opts.keep),
         budget: opts.budget === 'quick' ? 'quick' : 'screen',

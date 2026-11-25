@@ -34,6 +34,7 @@ import { runPhases, type PhaseReport } from './phases.js';
 import { enumerateVariants, type VariantSpec } from './variants.js';
 import { criticalNetNames, routeCriticalNets, type CriticalRouteResult } from './critical-route.js';
 import { rank, type Ranking } from '../../verify/scoring.js';
+import { loadConstraints } from '../../intent/load.js';
 import { loadScoringProfile } from '../../verify/profiles/scoring/index.js';
 
 export interface ReuseRunOptions {
@@ -72,7 +73,15 @@ export interface ReuseRunOptions {
   seed?: number;
   limits?: Partial<ResourceLimits>;
   noKicad?: boolean;
+  /**
+   * The constraints the board declares. Absent, they are loaded from the
+   * intent file and the board's own rules, as pcb place loads them; null
+   * declares none.
+   */
   constraints?: Record<string, Constraint> | null;
+  /** Where the intent file is, as pcb place takes it. */
+  intentPath?: string | null;
+  docsDir?: string;
   /**
    * Called once the plan is final and before any variant is produced, so the
    * caller can write placement.md at plan time (RFC 11 Section 12.6).
@@ -231,7 +240,17 @@ export async function reuseRun(opts: ReuseRunOptions): Promise<ReuseRun> {
   if (opts.onPlan) await opts.onPlan(plan, planSource);
 
   // the checks a variant is screened against: what the board declares, plus what the rules derived
-  const declared = opts.constraints ?? {};
+  let declared: Record<string, Constraint> = opts.constraints ?? {};
+  if (opts.constraints === undefined) {
+    const loaded = await loadConstraints(design, opts.boardPath, {
+      ...(opts.intentPath !== undefined ? { intentPath: opts.intentPath } : {}),
+      ...(opts.docsDir ? { docsDir: opts.docsDir } : {}),
+      repoRoot: opts.repoRoot,
+    });
+    declared = loaded.registry;
+    for (const h of loaded.holds) log(`intent: ${h}`);
+    if (loaded.intentPath) log(`reuse: intent from ${path.relative(opts.repoRoot, loaded.intentPath)}, ${Object.keys(declared).filter((k) => k.startsWith('layout.')).length} declared constraint(s)`);
+  }
   const constraints: Record<string, Constraint> = { ...relationsToConstraints(classification.relations, declared), ...(parts[0] ? partitionToConstraints(design, parts[0]) : {}), ...declared };
 
   const variants = opts.variants ?? enumerateVariants({ partitions: parts.map((p) => p.key), hasReference: true, clearanceNm: design.board.rules.clearanceNm, ...(opts.budget ? { budget: opts.budget } : {}) });
@@ -332,7 +351,8 @@ export async function reuseRun(opts: ReuseRunOptions): Promise<ReuseRun> {
     ...(opts.movableReferences ? { movableReferences: opts.movableReferences } : {}),
     ...(opts.probe !== undefined ? { probe: opts.probe } : {}),
     ...(opts.profile ? { profile: opts.profile } : {}),
-    ...(opts.scoring ? { scoring: opts.scoring } : {}),
+    // RFC 15's tiers rank the candidates whether or not critical routing runs afterwards
+    scoring: opts.scoring ?? 'engineering-placement-2-layer',
     ...(opts.seed !== undefined ? { seed: opts.seed } : {}),
     ...(opts.limits ? { limits: opts.limits } : {}),
     ...(opts.noKicad ? { noKicad: true } : {}),

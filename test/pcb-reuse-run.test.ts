@@ -177,3 +177,98 @@ describe('the reuse run', () => {
     }
   }, 120_000);
 });
+
+describe('pcb reuse --apply', () => {
+  const setup = async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-reuse-apply-'));
+    await mkdir(path.join(dir, 'hardware'), { recursive: true });
+    const boardPath = path.join(dir, 'hardware', 'board.kicad_pcb');
+    const referencePath = path.join(dir, 'hardware', 'reference.kicad_pcb');
+    const text = await readFile(path.join(GOLDEN, 'completion', 'board.kicad_pcb'), 'utf8');
+    await writeFile(boardPath, text, 'utf8');
+    await writeFile(referencePath, text, 'utf8');
+    return { dir, boardPath, referencePath, text };
+  };
+  const quick = { keep: 3, budget: 'quick' as const, probe: false as const, criticalRoute: false as const, noKicad: true };
+
+  it('writes the selected option, its candidate and diff, and placement.md', async () => {
+    const { pcbReuse } = await import('../src/commands/pcb-reuse.js');
+    const { dir, boardPath, referencePath } = await setup();
+    try {
+      const res = await pcbReuse({ repoRoot: dir, boardPath, referencePath, runDir: path.join(dir, 'run'), apply: true, ...quick, log: () => {} });
+      expect(res.applied).not.toBeNull();
+      expect(res.outcome.status).not.toBe('HOLD');
+      const md = await readFile(path.join(dir, 'run', 'placement.md'), 'utf8');
+      expect(md).toContain('## 6. What remains');
+      for (const o of res.options) {
+        expect(JSON.parse(await readFile(path.join(o.dir, 'candidate.json'), 'utf8')).schema_version).toBe('2.0');
+        expect(await readFile(path.join(o.dir, 'placement-diff.txt'), 'utf8')).toMatch(/^diff [0-9a-f]{8} -> candidate [0-9a-f]{8}/);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it('refuses an option that does not exist, and leaves the board alone', async () => {
+    const { pcbReuse } = await import('../src/commands/pcb-reuse.js');
+    const { dir, boardPath, referencePath, text } = await setup();
+    try {
+      const res = await pcbReuse({ repoRoot: dir, boardPath, referencePath, runDir: path.join(dir, 'run'), apply: true, option: 'zz', ...quick, log: () => {} });
+      expect(res.applied).toBeNull();
+      expect(res.outcome.status).toBe('HOLD');
+      expect(res.outcome.summary).toMatch(/^not applied: there is no option zz/);
+      expect(await readFile(boardPath, 'utf8')).toBe(text);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it('keeps a save made while the run was going', async () => {
+    const { pcbReuse } = await import('../src/commands/pcb-reuse.js');
+    const { dir, boardPath, referencePath, text } = await setup();
+    const saved = text.replace('(kicad_pcb', '(kicad_pcb\n');
+    const { writeFileSync } = await import('node:fs');
+    try {
+      const res = await pcbReuse({
+        repoRoot: dir,
+        boardPath,
+        referencePath,
+        runDir: path.join(dir, 'run'),
+        apply: true,
+        ...quick,
+        // a person saves the board in KiCad once the plan is out
+        log: (l) => {
+          if (l.includes('plan validated')) writeFileSync(boardPath, saved, 'utf8');
+        },
+      });
+      expect(res.applied).toBeNull();
+      expect(res.outcome.status).toBe('HOLD');
+      expect(res.outcome.summary).toContain('changed while the run was going');
+      expect(await readFile(boardPath, 'utf8')).toBe(saved);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+});
+
+describe('pcb reuse reads the layout intent', () => {
+  it('loads an intent.yaml beside the board, as pcb place does', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-reuse-intent-'));
+    try {
+      await mkdir(path.join(dir, 'hardware'), { recursive: true });
+      const boardPath = path.join(dir, 'hardware', 'board.kicad_pcb');
+      const referencePath = path.join(dir, 'hardware', 'reference.kicad_pcb');
+      const text = await readFile(path.join(GOLDEN, 'completion', 'board.kicad_pcb'), 'utf8');
+      await writeFile(boardPath, text, 'utf8');
+      await writeFile(referencePath, text, 'utf8');
+      await writeFile(path.join(dir, 'hardware', 'intent.yaml'), 'placement:\n  fixed:\n    - component: U1\n      edge: north\n', 'utf8');
+      const lines: string[] = [];
+      await reuseRun({ repoRoot: dir, boardPath, referencePath, runDir: path.join(dir, 'run'), keep: 2, budget: 'quick', probe: false, criticalRoute: false, noKicad: true, log: (l) => lines.push(l) });
+      const line = lines.find((l) => l.startsWith('reuse: intent from hardware/intent.yaml'));
+      expect(line, lines.join('\n')).toBeDefined();
+      expect(Number(/(\d+) declared constraint/.exec(line!)![1])).toBeGreaterThan(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
+});

@@ -41,13 +41,24 @@ Implements copperhead RFC 15 on the records of RFC 11 version 1.4.
 - [x] 4.2 `pcb diff` reads paths and revisions in the `--repo` it is
       given, not the shell's directory.
 
-## 5. Next
+## 5. Review
 
-- [ ] 5.1 The create pipeline's stage 5 runs the harness, and its
+- [x] 5.1 `--apply` writes only an option eligible in the final ranking,
+      and only over the board the run started from; otherwise the run
+      holds and the board is unchanged.
+- [x] 5.2 A reuse run loads the declared layout intent, as `pcb place`
+      does, and ranks by RFC 15's tiers whether or not critical routing
+      runs.
+- [x] 5.3 The published package ships `vendor/pyplacer` and `vendor/ipc`.
+- [x] 5.4 `pcb layout --no-route --apply` applies a placement that passed.
+
+## 6. Next
+
+- [ ] 6.1 The create pipeline's stage 5 runs the harness, and its
       layout-draft stage asks for evidence; un-skip the two contract
       tests.
-- [ ] 5.2 Write the plan as RFC 15's plan record.
-- [ ] 5.3 Block layouts and layout operations from a reuse run, and
+- [ ] 6.2 Write the plan as RFC 15's plan record.
+- [ ] 6.3 Block layouts and layout operations from a reuse run, and
       `--apply` through layout operations.
-- [ ] 5.4 Re-cite the ported changes against RFC 15: they cite its draft
+- [ ] 6.4 Re-cite the ported changes against RFC 15: they cite its draft
       as "RFC 14".

@@ -308,6 +308,11 @@ export async function layoutBoard(opts: LayoutOptions): Promise<LayoutResult> {
       }
       if (applied) verdict = await recordEvidence(opts.repoRoot, opts.config.docs, target, evidence);
       else await writeFile(path.join(opts.runDir, 'evidence.json'), JSON.stringify(evidence, null, 2), 'utf8');
+    } else if (opts.apply && placement && (o.status === 'PASS' || o.status === 'PARTIAL')) {
+      // A placement-only run (--no-route) has no routing evidence to record,
+      // but its placed board is still the result --apply asked for.
+      await copyFile(work, opts.boardPath);
+      applied = true;
     }
     // the result, drawn: board.svg beside the working board, findings marked; a render failure never fails the run
     try {

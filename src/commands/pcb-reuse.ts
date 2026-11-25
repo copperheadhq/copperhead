@@ -193,7 +193,8 @@ export async function pcbReuse(opts: PcbReuseOptions): Promise<PcbReuseResult> {
   // parts are owned by the import, so moving one needs approval (RFC 12
   // Section 9.5); --apply is that approval.
   const projectId = path.basename(opts.boardPath, '.kicad_pcb');
-  const before: LayoutInput = importKicadBoard(await readFile(opts.boardPath, 'utf8'), { projectId, path: rel(opts.boardPath) });
+  const startText = await readFile(opts.boardPath, 'utf8');
+  const before: LayoutInput = importKicadBoard(startText, { projectId, path: rel(opts.boardPath) });
   const title = `pcb reuse of ${rel(opts.boardPath)} against ${rel(opts.referencePath)}`;
   const docPath = path.join(opts.runDir, 'placement.md');
   const run = await reuseRun({
@@ -288,18 +289,31 @@ export async function pcbReuse(opts: PcbReuseOptions): Promise<PcbReuseResult> {
   await writeFile(docPath, placementDoc, 'utf8');
 
   let applied: string | null = null;
+  let refused: string | null = null;
   if (opts.apply) {
+    // Only an option that passed verification is written, and only over the
+    // board the run started from: a save in KiCad during the run is kept.
     const wanted = opts.option ? `placer-reuse-${opts.option}` : selected;
+    const ranked = finalRanking?.candidates.find((c) => c.id === wanted);
     const cand = run.place?.candidates.find((c) => c.engineId === wanted);
-    if (cand && run.place && (run.place.outcome.status === 'PASS' || run.place.outcome.status === 'PARTIAL')) {
+    const name = wanted?.replace('placer-reuse-', '') ?? null;
+    if (!wanted || !ranked || !cand) {
+      refused = opts.option
+        ? `there is no option ${opts.option}; the options are ${options.map((o) => o.id).join(', ') || 'none'}`
+        : 'no option was selected';
+    } else if (!ranked.eligible) {
+      refused = `option ${name} failed verification (${ranked.reason})`;
+    } else if ((await readFile(opts.boardPath, 'utf8')) !== startText) {
+      refused = `${rel(opts.boardPath)} changed while the run was going; run again to place the board as it is now`;
+    } else {
       await copyFile(cand.pcbPath, opts.boardPath);
-      applied = cand.engineId.replace('placer-reuse-', '');
+      applied = name;
     }
   }
 
   const legal = run.screened.filter((v) => v.metrics.legal).length;
   const base = run.place?.outcome;
-  const outcome: Outcome<Diagnostic> = base
+  let outcome: Outcome<Diagnostic> = base
     ? {
         ...base,
         summary: `${base.summary}; ${legal}/${run.screened.length} variant(s) legal before materialising`,
@@ -311,5 +325,7 @@ export async function pcbReuse(opts: PcbReuseOptions): Promise<PcbReuseResult> {
         ],
       }
     : { status: 'PARTIAL', summary: 'no variant was worth materialising', detail: run.screened.map((v) => `${v.id}: ${v.metrics.legal ? 'legal' : 'illegal'}, score ${v.score.toFixed(1)}`), diagnostics: [] };
+  // An --apply that could not be honoured holds for a person: the board is as it was.
+  if (refused) outcome = { ...outcome, status: 'HOLD', summary: `not applied: ${refused}; the board is unchanged`, detail: [outcome.summary, ...outcome.detail] };
   return { outcome, run, options, applied, placementDoc };
 }

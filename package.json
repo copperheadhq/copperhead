@@ -35,6 +35,8 @@
   "files": [
     "dist",
     "src",
+    "vendor/pyplacer",
+    "vendor/ipc",
     "LICENSE",
     "NOTICE",
     "README.md"
