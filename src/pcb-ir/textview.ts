@@ -74,6 +74,7 @@ export function renderDiffText(diff: PlacementDiff, context: TextViewContext): s
   let header = `diff ${short(diff.before.input)} -> ${afterLabel}: ${rows.length} changed`;
   if (required) header += `, ${required} ${required === 1 ? 'needs' : 'need'} approval`;
   if (refused) header += `, ${refused} refused`;
+  if (diff.copper) header += `, copper +${diff.copper.added.length} -${diff.copper.removed.length}`;
   const lines = [header];
 
   const names = new Map(rows.map((r) => [r.component, `${r.refdes} ${value(r.component)}`.trimEnd()]));

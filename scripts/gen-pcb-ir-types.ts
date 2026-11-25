@@ -34,6 +34,56 @@ const RECORDS = [
   'intent',
 ];
 
+/**
+ * json-schema-to-typescript predates two things draft 2020-12 schemas say, so
+ * each schema is rewritten for it, never for validation:
+ * - a tuple is `prefixItems` (with `items: false` closing it); the generator
+ *   reads the draft-07 spelling, `items` as an array with `additionalItems`
+ * - a schema that only narrows a string (`{"pattern": ...}`, as a record's
+ *   `id` does over the entity base) has no `type`, and would otherwise become
+ *   an object
+ */
+export function forGenerator(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(forGenerator);
+  if (!node || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node)) out[k] = forGenerator(v);
+  if (Array.isArray(out.prefixItems)) {
+    const rest = out.items;
+    out.items = out.prefixItems;
+    out.additionalItems = rest === undefined ? true : rest;
+    delete out.prefixItems;
+  }
+  // Rules that only constrain which fields appear together (an anyOf of bare
+  // `required` lists, if/then, dependentRequired, not) say nothing about a
+  // field's type, and the generator turns them into loose index signatures.
+  for (const key of ['anyOf', 'oneOf'] as const) {
+    const parts = out[key];
+    if (
+      Array.isArray(parts) &&
+      parts.every((p) => p && typeof p === 'object' && Object.keys(p).every((k) => k === 'required'))
+    ) {
+      delete out[key];
+    }
+  }
+  for (const key of ['if', 'then', 'else', 'dependentRequired', 'not']) delete out[key];
+  if (Array.isArray(out.allOf)) {
+    const kept = out.allOf.filter((p) => !(p && typeof p === 'object' && Object.keys(p).length === 0));
+    if (kept.length) out.allOf = kept;
+    else delete out.allOf;
+  }
+  const shapes = ['type', '$ref', 'allOf', 'anyOf', 'oneOf', 'enum', 'const', 'properties', 'items'];
+  if (('pattern' in out || 'minLength' in out) && !shapes.some((k) => k in out)) out.type = 'string';
+  return out;
+}
+
+function vendoredName(url: string): string | null {
+  const bare = url.split('#')[0]!;
+  if (bare.startsWith(ID_BASE)) return bare.slice(ID_BASE.length);
+  if (path.dirname(bare) === SCHEMA_DIR) return path.basename(bare);
+  return null;
+}
+
 export async function generate(): Promise<string> {
   const root = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -55,10 +105,10 @@ export async function generate(): Promise<string> {
       resolve: {
         vendored: {
           order: 1,
-          canRead: (file: { url: string }) => file.url.startsWith(ID_BASE),
+          canRead: (file: { url: string }) => vendoredName(file.url) !== null,
           read: async (file: { url: string }) => {
-            const name = file.url.slice(ID_BASE.length).split('#')[0]!;
-            return readFile(path.join(SCHEMA_DIR, name), 'utf8');
+            const text = await readFile(path.join(SCHEMA_DIR, vendoredName(file.url)!), 'utf8');
+            return JSON.stringify(forGenerator(JSON.parse(text)));
           },
         },
         http: false,

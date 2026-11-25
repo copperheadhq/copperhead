@@ -38,12 +38,30 @@ and RFC 3 version 1.6, Section 17.1
 - [x] 3.5 Check by hand that git shows a moved footprint as one changed line,
       through the textconv driver.
 
-## 4. Next
+## 4. Review fixes
 
-- [ ] 4.1 Import a KiCad board into a layout input (RFC 11 Section 5.1), so
+- [x] 4.1 Validate only `*.schema.json` files, not the schemas folder's
+      README.
+- [x] 4.2 Generator rewrites the schemas for itself:
+      - a 2020-12 tuple becomes a fixed-length array type
+      - a pattern-only schema becomes a string
+      - field-combination rules, which carry no types, are dropped
+      - every example now type-checks against its generated type, through the
+        TypeScript compiler
+- [x] 4.3 The placement diff lists copper added and removed, and so does the
+      text view.
+- [x] 4.4 The board text measures circles and arcs at their extremes, and
+      digests each net's and zone's geometry and settings. RFC 11 Section
+      14.4 was revised first, in copperhead-rfcs#15.
+- [x] 4.5 `SPEC.md`: the module in the repo layout, both commands in the CLI
+      surface, and AC-20.
+
+## 5. Next
+
+- [ ] 5.1 Import a KiCad board into a layout input (RFC 11 Section 5.1), so
       that `pcb diff` takes board files and git revisions.
-- [ ] 4.2 The SVG overlay image of Section 14.4 (`pcb diff --render`).
-- [ ] 4.3 Move `feat/pcb-layout-framework` onto `pcb-ir`, replacing
+- [ ] 5.2 The SVG overlay image of Section 14.4 (`pcb diff --render`).
+- [ ] 5.3 Move `feat/pcb-layout-framework` onto `pcb-ir`, replacing
       `PcbDesign`.
-- [ ] 4.4 When copperhead-rfcs#15 merges, vendor the schemas and examples
+- [ ] 5.4 When copperhead-rfcs#15 merges, vendor the schemas and examples
       again if they changed, and archive this change.

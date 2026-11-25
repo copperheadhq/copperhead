@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { child, children, isList, parseSexp, type SexpNode } from '../kicad/sexp.js';
+import { contentHash } from './canonical.js';
 import { compareRefdes } from './diff.js';
 import { degrees, distanceNm, mm, rotationOf } from './geometry.js';
 
@@ -10,10 +11,13 @@ import { degrees, distanceNm, mm, rotationOf } from './geometry.js';
  *
  *   board outline (x, y) to (x, y) layers F.Cu B.Cu
  *   footprint R1 1k Resistor_SMD:R_0603_1608Metric (20, 7) 0 front locked
- *   net GND layers B.Cu F.Cu segments 3 length 12.5 vias 2
- *   zone GND B.Cu priority 0 vertices 4
+ *   net GND layers B.Cu F.Cu segments 3 length 12.5 vias 2 digest 1f3a9c02
+ *   zone GND B.Cu priority 0 vertices 4 digest 7be0d415
  *
- * Positions are millimetres and angles degrees, written exactly. The reader
+ * Positions are millimetres and angles degrees, written exactly. A digest is
+ * the first eight hex digits of the content hash of the geometry and settings
+ * a line summarizes, so that a new trace width or a moved via still changes
+ * the line even when the counts do not. The reader
  * makes no CAD-tool, model, or network call. Enable it for git with
  * `*.kicad_pcb diff=copperhead-pcb` in .gitattributes and
  * `git config diff.copperhead-pcb.textconv "copperhead pcb textconv"`.
@@ -48,22 +52,53 @@ function angle(text: string | undefined): string {
   return degrees(rotationOf(Math.round(Number(text ?? '0') * 1000)));
 }
 
-function arcLength(start: [number, number], mid: [number, number], end: [number, number]): number {
+type Pt = [number, number];
+const TURN = 2 * Math.PI;
+const norm = (a: number): number => ((a % TURN) + TURN) % TURN;
+
+/** The circle through an arc's start, mid, and end, with the arc's angles; null when the three are collinear. */
+function arcCircle(start: Pt, mid: Pt, end: Pt) {
   const [ax, ay] = start;
   const [bx, by] = mid;
   const [cx, cy] = end;
   const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
-  if (d === 0) return distanceNm(ax, ay, cx, cy);
+  if (d === 0) return null;
   const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
   const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
-  const r = Math.hypot(ax - ux, ay - uy);
   const a0 = Math.atan2(ay - uy, ax - ux);
-  const a1 = Math.atan2(by - uy, bx - ux);
-  const a2 = Math.atan2(cy - uy, cx - ux);
-  const norm = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-  const sweepCcw = norm(a2 - a0);
-  const throughMid = norm(a1 - a0) <= sweepCcw;
-  return r * (throughMid ? sweepCcw : 2 * Math.PI - sweepCcw);
+  const sweep = norm(Math.atan2(cy - uy, cx - ux) - a0);
+  // The arc runs from the start through the mid to the end: one way round or the other.
+  const forward = norm(Math.atan2(by - uy, bx - ux) - a0) <= sweep;
+  return { ux, uy, r: Math.hypot(ax - ux, ay - uy), a0, sweep: forward ? sweep : TURN - sweep, forward };
+}
+
+function arcLength(start: Pt, mid: Pt, end: Pt): number {
+  const c = arcCircle(start, mid, end);
+  return c ? c.r * c.sweep : distanceNm(start[0], start[1], end[0], end[1]);
+}
+
+/** The points that bound an arc: its ends, and each axis extreme its sweep passes. */
+function arcExtremes(start: Pt, mid: Pt, end: Pt): Pt[] {
+  const c = arcCircle(start, mid, end);
+  const out: Pt[] = [start, end];
+  if (!c) return out;
+  for (const theta of [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]) {
+    const along = c.forward ? norm(theta - c.a0) : norm(c.a0 - theta);
+    if (along <= c.sweep) out.push([Math.round(c.ux + c.r * Math.cos(theta)), Math.round(c.uy + c.r * Math.sin(theta))]);
+  }
+  return out;
+}
+
+/** The first eight hex digits of the content hash of what a line summarizes. */
+function digest(facts: unknown): string {
+  return contentHash(facts).slice(7, 15);
+}
+
+const xy = ([x, y]: Pt) => ({ x, y });
+
+/** An s-expression written back as text, in its own order, for a digest of settings. */
+function sx(node: SexpNode): string {
+  return isList(node) ? '(' + node.map(sx).join(' ') + ')' : node;
 }
 
 function reference(fp: List): string {
@@ -117,13 +152,25 @@ export function boardText(source: string): string {
   for (const node of root) {
     if (!isList(node) || typeof node[0] !== 'string' || !node[0].startsWith('gr_')) continue;
     if (atom(child(node, 'layer'), 1) !== 'Edge.Cuts') continue;
+    const add = ([x, y]: Pt) => {
+      xs.push(x);
+      ys.push(y);
+    };
+    if (node[0] === 'gr_circle') {
+      const [cx, cy] = point(child(node, 'center'));
+      const [ex, ey] = point(child(node, 'end'));
+      const r = distanceNm(cx, cy, ex, ey);
+      add([cx - r, cy - r]);
+      add([cx + r, cy + r]);
+      continue;
+    }
+    if (node[0] === 'gr_arc' && child(node, 'mid')) {
+      arcExtremes(point(child(node, 'start')), point(child(node, 'mid')), point(child(node, 'end'))).forEach(add);
+      continue;
+    }
     for (const key of ['start', 'end', 'mid', 'center']) {
       const p = child(node, key);
-      if (p) {
-        const [x, y] = point(p);
-        xs.push(x);
-        ys.push(y);
-      }
+      if (p) add(point(p));
     }
     for (const xy of children(child(node, 'pts') ?? [], 'xy')) {
       const [x, y] = point(xy);
@@ -158,36 +205,59 @@ export function boardText(source: string): string {
   lines.push(...footprints.map((f) => f.text));
 
   // Routed copper per net.
-  const nets = new Map<string, { layers: Set<string>; segments: number; length: number; vias: number }>();
+  const nets = new Map<
+    string,
+    { layers: Set<string>; segments: number; length: number; vias: number; facts: unknown[] }
+  >();
   const entry = (name: string) => {
     let e = nets.get(name);
-    if (!e) nets.set(name, (e = { layers: new Set(), segments: 0, length: 0, vias: 0 }));
+    if (!e) nets.set(name, (e = { layers: new Set(), segments: 0, length: 0, vias: 0, facts: [] }));
     return e;
   };
   for (const seg of children(root, 'segment')) {
     const e = entry(netOf(seg));
-    const [x1, y1] = point(child(seg, 'start'));
-    const [x2, y2] = point(child(seg, 'end'));
+    const start = point(child(seg, 'start'));
+    const end = point(child(seg, 'end'));
+    const layer = atom(child(seg, 'layer'), 1) ?? '';
     e.segments++;
-    e.length += distanceNm(x1, y1, x2, y2);
-    const layer = atom(child(seg, 'layer'), 1);
+    e.length += distanceNm(start[0], start[1], end[0], end[1]);
     if (layer) e.layers.add(layer);
+    e.facts.push({ kind: 'segment', start: xy(start), end: xy(end), width: nmOf(atom(child(seg, 'width'), 1)), layer });
   }
   for (const arc of children(root, 'arc')) {
     const e = entry(netOf(arc));
+    const [start, mid, end] = [point(child(arc, 'start')), point(child(arc, 'mid')), point(child(arc, 'end'))];
+    const layer = atom(child(arc, 'layer'), 1) ?? '';
     e.segments++;
-    e.length += Math.round(arcLength(point(child(arc, 'start')), point(child(arc, 'mid')), point(child(arc, 'end'))));
-    const layer = atom(child(arc, 'layer'), 1);
+    e.length += Math.round(arcLength(start, mid, end));
     if (layer) e.layers.add(layer);
+    e.facts.push({
+      kind: 'arc',
+      start: xy(start),
+      mid: xy(mid),
+      end: xy(end),
+      width: nmOf(atom(child(arc, 'width'), 1)),
+      layer,
+    });
   }
-  for (const via of children(root, 'via')) entry(netOf(via)).vias++;
+  for (const via of children(root, 'via')) {
+    const e = entry(netOf(via));
+    e.vias++;
+    e.facts.push({
+      kind: 'via',
+      at: xy(point(child(via, 'at'))),
+      size: nmOf(atom(child(via, 'size'), 1)),
+      drill: nmOf(atom(child(via, 'drill'), 1)),
+      layers: (child(via, 'layers') ?? []).slice(1).filter((x): x is string => typeof x === 'string'),
+    });
+  }
   const netLines = [...nets.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(
       ([name, e]) =>
         `net ${field(name)} layers ${[...e.layers].sort().join(' ') || '-'} segments ${e.segments} length ${mm(
           e.length,
-        )} vias ${e.vias}`,
+        )} vias ${e.vias} digest ${digest(e.facts)}`,
     );
   lines.push(...netLines);
 
@@ -196,8 +266,15 @@ export function boardText(source: string): string {
     const net = atom(child(z, 'net_name'), 1) ?? netOf(z);
     const layer = atom(child(z, 'layer'), 1) ?? (child(z, 'layers') ?? []).slice(1).filter((x) => typeof x === 'string').join(',');
     const priority = atom(child(z, 'priority'), 1) ?? '0';
-    const vertices = children(child(child(z, 'polygon') ?? [], 'pts') ?? [], 'xy').length;
-    return `zone ${field(net)} ${layer || '-'} priority ${priority} vertices ${vertices}`;
+    const pts = children(child(child(z, 'polygon') ?? [], 'pts') ?? [], 'xy').map((p) => xy(point(p)));
+    const settings = z
+      .slice(1)
+      .filter((c) => !(isList(c) && ['uuid', 'filled_polygon', 'fill_segments', 'polygon'].includes(String(c[0]))))
+      .map(sx);
+    return `zone ${field(net)} ${layer || '-'} priority ${priority} vertices ${pts.length} digest ${digest({
+      outline: pts,
+      settings,
+    })}`;
   });
   zones.sort();
   lines.push(...zones);

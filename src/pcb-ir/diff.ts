@@ -177,5 +177,36 @@ export function placementDiff(before: LayoutInput, after: DiffAfter, options: Di
       .filter((c) => (cb[c] ?? 'UNKNOWN') !== (ca[c] ?? 'UNKNOWN'))
       .map((c) => ({ constraint: c, before: cb[c] ?? 'UNKNOWN', after: ca[c] ?? 'UNKNOWN' }));
   }
+
+  // Copper: traces, vias, and zones present on one side only, by identifier.
+  // A record that keeps its identifier but changes is listed on both sides.
+  const beforeCopper = copperOf(before.routing);
+  let afterCopper: Map<string, string> | undefined;
+  if (isCandidate) {
+    const routing = after.candidate.routing;
+    if (routing) {
+      // A routing candidate's copper is its complete routing (RFC 11 Section
+      // 6.10). Zones are preserved from the input, never generated (Section 6.6).
+      afterCopper = new Map();
+      for (const t of routing.traces ?? []) afterCopper.set(t.id, contentHash(t));
+      for (const v of routing.vias ?? []) afterCopper.set(v.id, contentHash(v));
+      for (const [id, z] of Object.entries(before.routing.zones ?? {})) afterCopper.set(id, contentHash(z));
+    }
+  } else {
+    afterCopper = copperOf(after.input.routing);
+  }
+  if (afterCopper) {
+    const added = [...afterCopper].filter(([id, h]) => beforeCopper.get(id) !== h).map(([id]) => id);
+    const removed = [...beforeCopper].filter(([id, h]) => afterCopper!.get(id) !== h).map(([id]) => id);
+    if (added.length || removed.length) diff.copper = { added: added.sort(), removed: removed.sort() };
+  }
   return diff;
+}
+
+function copperOf(routing: LayoutInput['routing'] | undefined): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const group of [routing?.traces, routing?.vias, routing?.zones]) {
+    for (const [id, record] of Object.entries(group ?? {})) out.set(id, contentHash(record));
+  }
+  return out;
 }

@@ -17,9 +17,7 @@ export type Ring = [Point, Point, Point, ...Point[]];
 export type PhysicalDesignRecord = Board | Stackup | Layer | Placement | Pad | Region | Zone | Trace | Via;
 export type Board = Entity & {
   kind: 'board';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * The declared geometry unit of every physical record of this board.
    */
@@ -40,43 +38,6 @@ export type Board = Entity & {
   lossy?: Lossy;
 };
 /**
- * A physical quantity of RFC 3 Section 15.1: a value a document or a person stated, kept as stated.
- */
-export type Quantity = {
-  [k: string]: unknown;
-} & {
-  kind: 'scalar' | 'range' | 'tolerance';
-  unit: string;
-  /**
-   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
-   */
-  value?: string;
-  /**
-   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
-   */
-  min?: string;
-  /**
-   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
-   */
-  max?: string;
-  /**
-   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
-   */
-  typical?: string;
-  /**
-   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
-   */
-  nominal?: string;
-  tolerance?: {
-    kind: 'relative' | 'absolute';
-    /**
-     * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
-     */
-    value: string;
-  };
-  conditions?: {};
-};
-/**
  * Records the adapter recognized but does not model, verbatim, in file order.
  */
 export type Preserved = {
@@ -89,9 +50,7 @@ export type Preserved = {
 export type Lossy = string[];
 export type Stackup = Entity & {
   kind: 'stackup';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * Layer records, top to bottom.
    *
@@ -101,9 +60,7 @@ export type Stackup = Entity & {
 };
 export type Layer = Entity & {
   kind: 'layer';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * A layer's name, as its layer record names it. A footprint definition names front-side layers.
    */
@@ -128,9 +85,7 @@ export type Layer = Entity & {
 };
 export type Placement = Entity & {
   kind: 'placement';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * A stable identifier of RFC 3 Section 4: an upper-case prefix, a hyphen, and the rest, such as CMP-3f9a2c41d07e or REQ-PWR-001. Never a KiCad UUID (RFC 11 Section 6.1).
    */
@@ -148,9 +103,7 @@ export type Placement = Entity & {
  */
 export type Pad = Entity & {
   kind: 'pad';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * A stable identifier of RFC 3 Section 4: an upper-case prefix, a hyphen, and the rest, such as CMP-3f9a2c41d07e or REQ-PWR-001. Never a KiCad UUID (RFC 11 Section 6.1).
    */
@@ -163,9 +116,7 @@ export type Pad = Entity & {
 };
 export type Region = Entity & {
   kind: 'region';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   region_kind: 'keepout' | 'placement';
   /**
    * In stackup order, top to bottom.
@@ -182,9 +133,7 @@ export type Region = Entity & {
  */
 export type Zone = Entity & {
   kind: 'zone';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * A stable identifier of RFC 3 Section 4: an upper-case prefix, a hyphen, and the rest, such as CMP-3f9a2c41d07e or REQ-PWR-001. Never a KiCad UUID (RFC 11 Section 6.1).
    */
@@ -212,9 +161,7 @@ export type Zone = Entity & {
  */
 export type Trace = Entity & {
   kind: 'trace';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * A stable identifier of RFC 3 Section 4: an upper-case prefix, a hyphen, and the rest, such as CMP-3f9a2c41d07e or REQ-PWR-001. Never a KiCad UUID (RFC 11 Section 6.1).
    */
@@ -233,9 +180,7 @@ export type Trace = Entity & {
 };
 export type Via = Entity & {
   kind: 'via';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * A stable identifier of RFC 3 Section 4: an upper-case prefix, a hyphen, and the rest, such as CMP-3f9a2c41d07e or REQ-PWR-001. Never a KiCad UUID (RFC 11 Section 6.1).
    */
@@ -262,9 +207,7 @@ export type Via = Entity & {
  */
 export type Trace1 = Entity & {
   kind: 'trace';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * A stable identifier of RFC 3 Section 4: an upper-case prefix, a hyphen, and the rest, such as CMP-3f9a2c41d07e or REQ-PWR-001. Never a KiCad UUID (RFC 11 Section 6.1).
    */
@@ -286,9 +229,7 @@ export type Trace1 = Entity & {
  */
 export type Via1 = Entity & {
   kind: 'via';
-  id?: {
-    [k: string]: unknown;
-  };
+  id?: string;
   /**
    * A stable identifier of RFC 3 Section 4: an upper-case prefix, a hyphen, and the rest, such as CMP-3f9a2c41d07e or REQ-PWR-001. Never a KiCad UUID (RFC 11 Section 6.1).
    */
@@ -476,6 +417,41 @@ export interface Entity {
   provenance?: {}[];
   source_location?: {};
   extensions?: {};
+}
+/**
+ * A physical quantity of RFC 3 Section 15.1: a value a document or a person stated, kept as stated.
+ */
+export interface Quantity {
+  kind: 'scalar' | 'range' | 'tolerance';
+  unit: string;
+  /**
+   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
+   */
+  value?: string;
+  /**
+   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
+   */
+  min?: string;
+  /**
+   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
+   */
+  max?: string;
+  /**
+   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
+   */
+  typical?: string;
+  /**
+   * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
+   */
+  nominal?: string;
+  tolerance?: {
+    kind: 'relative' | 'absolute';
+    /**
+     * A magnitude as a decimal string, never binary floating point (RFC 3 Section 15.1).
+     */
+    value: string;
+  };
+  conditions?: {};
 }
 /**
  * A position and a rotation in the frame of the record that holds it (RFC 11 Section 6.1).
@@ -749,6 +725,7 @@ export interface Binding {
     [k: string]: [string, ...string[]];
   };
   deviations?: string[];
+  type?: 'string';
 }
 /**
  * The immutable input of one engine run (RFC 11 Section 6.2). It names its layout input by content hash; the layout input is written beside it in the run, read-only.
@@ -1355,7 +1332,22 @@ export interface LayoutOperations {
 export interface IntentFile {
   placement?: {
     fixed?: {
-      [k: string]: unknown;
+      /**
+       * A reference designator, resolved to a stable identifier through the reference map (RFC 11 Section 6.3).
+       */
+      component: string;
+      edge?: 'north' | 'south' | 'east' | 'west';
+      /**
+       * Which way the mating face points, such as outward.
+       */
+      orientation?: string;
+      /**
+       * The position, [x, y] in millimetres, in the board frame.
+       *
+       * @minItems 2
+       */
+      at?: [number, number];
+      rotation_deg?: number;
     }[];
     attachments?: {
       /**
@@ -1394,7 +1386,7 @@ export interface IntentFile {
        *
        * @minItems 4
        */
-      region?: never[];
+      region?: [number, number, number, number];
     }[];
     separation?: {
       /**

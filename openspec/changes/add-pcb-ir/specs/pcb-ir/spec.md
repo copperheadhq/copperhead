@@ -50,13 +50,22 @@ record its approval class:
   default policy
 - automatic otherwise
 
-It SHALL refuse a candidate produced against a different layout input.
+It SHALL list in `copper` the traces, vias, and zones present on one side
+only, by identifier, treating a routing candidate's copper as its complete
+routing and the input's zones as preserved. It SHALL refuse a candidate
+produced against a different layout input.
 
 #### Scenario: The RFC's published diff reproduces
 - **WHEN** the diff of the example layout input against the example candidate
   is computed, with the block layout's constraint results as the after side
 - **THEN** it equals the RFC's published placement diff, including its content
   hash
+
+#### Scenario: A routing candidate's copper appears
+- **WHEN** the example routing candidate is diffed against the layout input it
+  ran against
+- **THEN** its new trace and via are listed as added and the trace it replaces
+  as removed, and the text view says so
 
 #### Scenario: A stale candidate is refused
 - **WHEN** a candidate is diffed against a layout input it did not run against
@@ -73,14 +82,27 @@ The text view SHALL print one line per row of a placement diff:
 The board text SHALL print a `.kicad_pcb` one fact per line, in this order:
 - the outline and copper layers
 - each footprint, sorted by reference designator
-- each net's routed copper
-- each zone
+- each net's routed copper, with a digest of its segments' and vias'
+  geometry, widths, and drills
+- each zone, with a digest of its outline and settings
+
+The outline SHALL be the extent of the edge cuts with every arc and circle at
+its true extremes.
 
 Neither view SHALL call a model, the network, or a CAD tool.
 
 #### Scenario: The RFC's text view reproduces
 - **WHEN** the text view of the RFC's published diff is rendered
 - **THEN** it equals the example in RFC 11 Section 14.4, line for line
+
+#### Scenario: A change no count shows still changes its line
+- **WHEN** a trace's width, a via's position or drill, or a zone's vertex
+  changes in a board file
+- **THEN** that net's or zone's line changes
+
+#### Scenario: A curved board reports its extent
+- **WHEN** a board's edge is a circle or an arc
+- **THEN** the outline spans the curve's extremes, not only its stored points
 
 #### Scenario: A moved footprint is one changed line
 - **WHEN** one footprint's position changes in a board file
