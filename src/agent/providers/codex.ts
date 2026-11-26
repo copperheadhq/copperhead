@@ -1,6 +1,5 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { mkdir, rm } from 'node:fs/promises';
+import { createCopperheadTempDir } from '../../util/tmp.js';
 import type { ThreadOptions, TurnOptions, Usage } from '@openai/codex-sdk';
 import type { ChatOpts, Msg, Provider, ToolCall, ToolSchema, Turn } from '../types.js';
 
@@ -164,7 +163,7 @@ export class CodexProvider implements Provider {
       await mkdir(this.workingDirectory, { recursive: true });
       return this.workingDirectory;
     }
-    this.workingDirectory = await mkdtemp(path.join(tmpdir(), 'copperhead-codex-'));
+    this.workingDirectory = await createCopperheadTempDir('codex-');
     return this.workingDirectory;
   }
 

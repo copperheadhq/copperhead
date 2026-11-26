@@ -1,9 +1,9 @@
 import { execa } from 'execa';
-import { access, constants, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, constants, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PreflightError } from './preflight.js';
+import { createCopperheadTempDir } from './tmp.js';
 
 /**
  * Paths copperhead must keep out of `git add -A`. KiCad ≥9 writes a
@@ -258,7 +258,7 @@ export async function restore(repo: string, snap: GitSnapshot): Promise<void> {
   let backup: string | null = null;
   try {
     try {
-      backupRoot = await mkdtemp(path.join(tmpdir(), 'copperhead-runs-'));
+      backupRoot = await createCopperheadTempDir('runs-');
       backup = path.join(backupRoot, 'runs');
       if (existsSync(runs)) await cp(runs, backup, { recursive: true });
     } catch (err) {
