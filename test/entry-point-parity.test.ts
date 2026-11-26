@@ -23,13 +23,18 @@ const cli = (repo: string, args: string[]) =>
   });
 
 describe('entry-point results are byte-identical to the CLI --json output', () => {
-  it('runCheck matches `check --json`', async () => {
+  it('runCheck matches `check --json` and `check --fab --json`', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
       await runInit({ repoRoot: repo, force: false, installHooks: false });
       const direct = JSON.stringify(await runCheck(repo, () => {}), null, 2);
       const res = await cli(repo, ['check']);
       expect(res.stdout.trim()).toBe(direct.trim());
+
+      const directFab = JSON.stringify(await runCheck(repo, () => {}, { fab: true }), null, 2);
+      const resFab = await cli(repo, ['check', '--fab']);
+      expect(resFab.stdout.trim()).toBe(directFab.trim());
+      expect(JSON.parse(resFab.stdout).fab?.docs).toBeDefined();
     } finally {
       await cleanup();
     }

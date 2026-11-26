@@ -15,9 +15,12 @@
 
 ## 3. CLI wiring
 
-- [ ] 3.1 Add `--fab` and `--strict` flags to `check`/`verify`; run the gate after base checks; aggregate exit code (warnings non-fatal unless `--strict`)
-- [ ] 3.2 Extend `--json` output with the `fab` object (`routing`, `bom`, `schPcbMatch`, `outputs`, `docs`, each `{status, violations}`)
-- [ ] 3.3 Human-readable output: per-check ✓/⚠/✗ lines with claim/actual/location, matching the drift-report voice
+- [x] 3.1a Add `--fab` flag to `check`/`verify` and wire the `docs` gate check into `runCheck` exit status
+- [ ] 3.1b Wire `routing`, `bom`, `schPcbMatch`, and `outputs` checks plus `--strict` warning escalation into `check`/`verify`
+- [x] 3.2a Extend `--json` output with `fab.docs` (`{status, violations}`) when `--fab` is set
+- [ ] 3.2b Extend `--json` `fab` object with `routing`, `bom`, `schPcbMatch`, and `outputs`
+- [x] 3.3a Human-readable output for `fab docs` (`fab docs ✓` or claim/actual/location lines, plus disclosure of checks not yet wired)
+- [ ] 3.3b Human-readable per-check ✓/⚠/✗ lines for `routing`, `bom`, `schPcbMatch`, and `outputs`
 
 ## 4. Fixtures and tests
 
