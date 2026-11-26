@@ -182,7 +182,6 @@ program
   .action(checkAction);
 
 program
-
   .command('diff')
   .description('summarize electrical changes (components, connections, nets, affected constraints) since a git revision')
   .option('--base <rev>', 'git revision to compare against (default: HEAD when dirty, else HEAD~1)')
@@ -203,7 +202,7 @@ program
     }
   });
 
-
+program
   .command('explain')
   .description('look up a refdes, net, or pin in the schematic and docs; no LLM, no network')
   .argument('<query>', 'refdes (U1), net (GND), or pin (U1.GPIO14 / R2.1)')
