@@ -1,0 +1,35 @@
+{
+  "lastUpdated": "2026-07-22T21:38:00Z",
+  "acceptanceCriteria": {
+    "AC-3.1": {
+      "openai": { "status": "pass", "lastGreen": "2026-07-18T16:30:00Z" },
+      "anthropic": { "status": "pending", "lastGreen": null },
+      "codex": { "status": "pending", "lastGreen": null }
+    },
+    "AC-3.2": {
+      "openai": { "status": "pending", "lastGreen": null },
+      "anthropic": { "status": "pending", "lastGreen": null },
+      "codex": { "status": "pending", "lastGreen": null }
+    },
+    "AC-3.3": {
+      "openai": { "status": "pending", "lastGreen": null },
+      "anthropic": { "status": "pending", "lastGreen": null },
+      "codex": { "status": "pending", "lastGreen": null }
+    },
+    "AC-3.4": {
+      "openai": { "status": "pass", "lastGreen": "2026-07-18T16:30:00Z" },
+      "anthropic": { "status": "pending", "lastGreen": null },
+      "codex": { "status": "pending", "lastGreen": null }
+    },
+    "AC-3.5": {
+      "openai": { "status": "pass", "lastGreen": "2026-07-18T16:30:00Z" },
+      "anthropic": { "status": "pending", "lastGreen": null },
+      "codex": { "status": "pending", "lastGreen": null }
+    },
+    "AC-3.6": {
+      "openai": { "status": "pass", "lastGreen": "2026-07-18T16:30:00Z" },
+      "anthropic": { "status": "pending", "lastGreen": null },
+      "codex": { "status": "pending", "lastGreen": null }
+    }
+  }
+}
