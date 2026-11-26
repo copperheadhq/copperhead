@@ -18,8 +18,8 @@ When `docs/parts.intent.json` exists, BOM.md SHALL be the deterministic render o
 
 #### Scenario: GFM table escaping preserves cell delimiters
 
-- **WHEN** a manifest part carries characters that require GFM table escaping (pipes or backslashes)
-- **THEN** the rendered BOM table escapes pipes without splitting columns, preserving all columns and Symbol identity across readers
+- **WHEN** a manifest part carries pipes, backslashes, or inline code spans
+- **THEN** the rendered BOM table writes each literal pipe with one backslash before it (the GitHub table rule), and readers split only on a pipe with no backslash right before it and drop that one backslash (inside and outside code spans), so every cell reads back unchanged subject to newline-to-space and trim normalization, preserving all columns and Symbol identity across readers
 
 ### Requirement: Drift covers manifest-to-BOM.md agreement
 

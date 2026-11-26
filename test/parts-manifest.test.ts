@@ -516,40 +516,50 @@ describe('validatePartsManifest', () => {
       expect(v2.findings.filter((f) => f.detail.includes('substitution'))).toHaveLength(0);
     });
 
-    it('rejects an odd number of backslashes immediately preceding a pipe inside code span in part fields', async () => {
-      const R1 = { ref: 'R1', value: '`10k\\|1%`', group: 'Power', package: '0603' };
-      const v = await validate(manifest([R1]));
-      expect(v.ok).toBe(false);
-      expect(v.findings.map((f) => f.detail)).toContain(
-        'R1: field "value" has an unrepresentable code-span pipe sequence ("`10k\\\\|1%`"); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table',
-      );
-    });
-
-    it('rejects an odd number of backslashes before pipe inside code span in substitution fields', async () => {
-      const R1 = { ref: 'R1', value: '10k', group: 'Power', package: '0603' };
-      const v = await validate(
+    it('accepts backslash-pipe sequences inside and outside code spans in part and substitution fields', async () => {
+      const R1 = { ref: 'R1', value: '`10k\\|1%`', group: 'Power', package: '0603', rationale: 'C:\\tools\\bin | rev' };
+      const v1 = await validate(
         manifest([R1], {
-          substitutions: [{ ref: 'R1', wanted: '10k', chosen: '`10k\\|1%`', reason: 'stock shortage' }],
+          substitutions: [{ ref: 'R1', wanted: '10k', chosen: '`10k\\|1%`', reason: 'matched | `a\\|b`' }],
         }),
       );
-      expect(v.ok).toBe(false);
-      expect(v.findings.map((f) => f.detail)).toContain(
-        'substitution for R1: field "chosen" has an unrepresentable code-span pipe sequence ("`10k\\\\|1%`"); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table',
-      );
-    });
+      expect(v1.ok).toBe(true);
+      expect(v1.findings).toEqual([]);
 
-    it('accepts even backslashes before pipe or pipes outside code spans', async () => {
-      const R1 = { ref: 'R1', value: '10k | 1%', group: 'Power', package: '0603' };
-      const v = await validate(manifest([R1]));
-      expect(v.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
-
-      const R2 = { ref: 'R2', value: '`10k | 1%`', group: 'Power', package: '0603' };
+      const R2 = { ref: 'R2', value: '10k | 1%', group: 'Power', package: '0603' };
       const v2 = await validate(manifest([R2]));
-      expect(v2.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
+      expect(v2.ok).toBe(true);
 
       const R3 = { ref: 'R3', value: '`10k\\\\|1%`', group: 'Power', package: '0603' };
       const v3 = await validate(manifest([R3]));
-      expect(v3.findings.filter((f) => f.detail.includes('unrepresentable'))).toHaveLength(0);
+      expect(v3.ok).toBe(true);
+    });
+
+    it('accepts rating-bearing substitutions and rejects standalone libId in full manifest validation', async () => {
+      const C100n = { ref: 'C1', value: '100nF', group: 'Power', package: '0402' };
+      const C10u = { ref: 'C2', value: '10uF', group: 'Power', package: '0603' };
+      const R10k = { ref: 'R1', value: '10k', group: 'Power', package: '0603' };
+      const vClean = await validate(
+        manifest([C100n, C10u, R10k], {
+          substitutions: [
+            { ref: 'C1', wanted: '100nF 10V', chosen: '100nF 6.3V', reason: 'stock voltage rating' },
+            { ref: 'C2', wanted: '10uF 10V X7R', chosen: '10uF 6.3V X5R', reason: 'dielectric and voltage rating' },
+            { ref: 'R1', wanted: '10k 0.1%', chosen: '10k 1% 100mW', reason: 'tolerance and power rating' },
+          ],
+        }),
+      );
+      expect(vClean.ok).toBe(true);
+      expect(vClean.findings).toEqual([]);
+
+      const vLibId = await validate(
+        manifest([U1], {
+          substitutions: [{ ref: 'U1', wanted: 'DRV8701', chosen: 'CopperMCU:MCU8', reason: 'libId only' }],
+        }),
+      );
+      expect(vLibId.ok).toBe(false);
+      expect(vLibId.findings.map((f) => f.detail)).toContain(
+        'substitution for U1: "chosen" is "CopperMCU:MCU8" but the entry carries value "MCU8", mpn "MCU8-SOIC"; they must agree',
+      );
     });
   });
 
@@ -607,5 +617,29 @@ describe('"noPart": a board feature with nothing to buy (AC-19.9)', () => {
     const { manifest: m, findings } = parseManifest(manifest([{ ...H1, noPart: 'yes' }]));
     expect(m).toBeNull();
     expect(findings[0]!.detail).toMatch(/H1: "noPart" must be true or false/);
+  });
+});
+
+describe('substitution chosen: value plus a rating word', () => {
+  it('accepts common ratings after the exact value', () => {
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF 6.3V')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10uF' }, '10uF 6.3V X5R')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF X7S')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k ±1%')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1% 100mW')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1/4W')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 0.25W')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 0.5%')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF C0G')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF NP0')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF 50V')).toBe(true);
+  });
+  it('still rejects a different value, libId-only match, or SI prefix', () => {
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k5')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '1k' }, '1k2 1%')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '0' }, '0.1uF')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '100M' }, '100m 1%')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '100mΩ' }, '100MΩ 1%')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k', libId: 'Device:R' }, 'Device:R')).toBe(false);
   });
 });

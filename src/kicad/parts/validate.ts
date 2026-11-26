@@ -14,7 +14,7 @@
 import { SymbolResolutionError, type ResolvedSymbol } from '../draft/symsource.js';
 import { looksLikeDescription, unitPlacementFinding } from '../draft/ir.js';
 import type { FootprintResolver, MissingFootprint } from '../footprints.js';
-import { normalizeValue, hasUnrepresentableCodeSpanPipe } from '../../memory/bom-table.js';
+import { normalizeValue } from '../../memory/bom-table.js';
 import { checkPinsAgainstPads } from './pads.js';
 import { isPassivePrefix, knownPackages, passiveDefault } from './passives.js';
 import { refPrefix, type ManifestFinding, type PartsManifest } from './manifest.js';
@@ -90,19 +90,20 @@ export function getSiPrefixM(s: string): 'm' | 'M' | null {
  * Checks whether a manifest part entry carries the substitution's chosen part.
  *
  * Per SPEC.md AC-19.1:
- * "substitutions carry ref, wanted, chosen and reason (at most one substitution
- * per refdes; chosen agrees with value or MPN)."
+ * "at most one substitution per refdes; its chosen equals that entry's mpn or value,
+ * and a tolerance, rating or dielectric may follow the value (a libId alone does not agree)."
  *
  * This performs syntactic consistency validation against the manifest entry's
  * declared fields. It verifies that the substitution's chosen string agrees with:
  * 1. The entry's manufacturer part number (exact string match, case-insensitive).
  * 2. The entry's component value:
  *    - Exact string match or normalized value match (preserving SI prefix sensitivity, e.g. 100m != 100M).
- *    - Legitimate passive tolerance or rating descriptor (e.g. value '10k' agrees with chosen '10k 1%').
+ *    - The value followed by a tolerance, rating or dielectric descriptor (e.g. '100nF 6.3V',
+ *      '10uF 6.3V X5R', '10k ±1%', '10k 1% 100mW'); additional trailing text is permitted.
  *
  * Liberal substring heuristics, generic prefix/delimiter splitting (e.g. startsWith),
- * and fake manufacturer aliases are strictly avoided: string matching validates field
- * consistency, not electrical compatibility or procurement correctness.
+ * standalone libId matches, and fake manufacturer aliases are rejected: string matching
+ * checks field consistency, not electrical compatibility or procurement suitability.
  */
 export function substitutionCarriesChosen(
   part: { value: string; mpn?: string | null; libId?: string | null },
@@ -121,33 +122,22 @@ export function substitutionCarriesChosen(
 
   // 2. Value agreement
   const partVal = part.value.trim();
-
   // SI unit sensitivity: 'm' (milli) != 'M' (mega)
-  const prefixPart = getSiPrefixM(partVal);
-  const prefixChosen = getSiPrefixM(chosen);
-  const prefixesConflict = (prefixPart !== null || prefixChosen !== null) && prefixPart !== prefixChosen;
-  if (prefixesConflict) return false;
-
+  const samePrefix = (a: string, b: string): boolean => getSiPrefixM(a) === getSiPrefixM(b);
   const valNorm = normalizeValue(part.value);
   const chosenNorm = normalizeValue(chosenStr);
+  if (samePrefix(partVal, chosen) && (partVal.toLowerCase() === chosenLower || (!!valNorm && !!chosenNorm && valNorm === chosenNorm))) return true;
 
-  const isValueMatch =
-    partVal.toLowerCase() === chosenLower ||
-    partVal === chosen ||
-    (valNorm && chosenNorm && valNorm === chosenNorm);
-
-  if (isValueMatch) return true;
-
-  // Legitimate passive value with tolerance or rating descriptor in chosen
-  // (e.g. part.value is "10k", chosen is "10k 1%" or "10k 50V")
-  // MUST NOT match numeric digits (e.g. "10k" must NOT match "10k5", "1k" must NOT match "1k2", "0" must NOT match "0.1uF")
-  if (valNorm && chosenNorm) {
-    const escapedVal = partVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const descRegex = new RegExp(`^${escapedVal}\\s+(?:1%|2%|5%|10%|0\\.1%|0\\.5%|20%|\\d+V|\\d+W|X7R|X5R|C0G|NP0)(?:\\s.*)?$`, 'i');
-    if (descRegex.test(chosen)) return true;
-  }
-
-  return false;
+  // The value, then a tolerance, rating or dielectric word ("10k 1%", "100nF 6.3V X5R",
+  // "10k 1% 100mW"). The prefix check reads only the value part, so a "100mW" rating
+  // is not taken for a milli value; "10k5", "1k2" and "0.1uF" still never match.
+  const head = chosen.slice(0, partVal.length);
+  const rest = chosen.slice(partVal.length);
+  return (
+    head.toLowerCase() === partVal.toLowerCase() &&
+    samePrefix(partVal, head) &&
+    /^\s+(?:±?\d+(?:\.\d+)?%|\d+(?:\.\d+)?V|\d+(?:\.\d+)?m?W|\d+\/\d+W|[XYZ]\d[A-Z]|C0G|NP0)(?:\s.*)?$/i.test(rest)
+  );
 }
 
 export async function validatePartsManifest(manifest: PartsManifest, opts: ValidateOptions): Promise<ManifestValidation> {
@@ -252,23 +242,6 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
       if (pads.finding) add(e.ref, pads.finding);
       if (pads.warning) warnings.push(pads.warning);
     }
-
-    // GFM table representability: odd backslashes before pipe inside code span cannot be represented losslessly
-    const stringFields: Array<[string, string | undefined | null]> = [
-      ['value', e.value],
-      ['mpn', e.mpn],
-      ['footprint', part.footprint],
-      ['libId', part.libId],
-      ['rationale', e.rationale],
-    ];
-    for (const [fieldName, val] of stringFields) {
-      if (hasUnrepresentableCodeSpanPipe(val)) {
-        add(
-          e.ref,
-          `${e.ref}: field "${fieldName}" has an unrepresentable code-span pipe sequence (${JSON.stringify(val)}); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table`,
-        );
-      }
-    }
   }
 
   // substitutions: point at a real entry, and the entry carries the chosen part
@@ -285,20 +258,6 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
       continue;
     }
     seenSubRefs.add(s.ref);
-
-    const subFields: Array<[string, string | undefined | null]> = [
-      ['wanted', s.wanted],
-      ['chosen', s.chosen],
-      ['reason', s.reason],
-    ];
-    for (const [fieldName, val] of subFields) {
-      if (hasUnrepresentableCodeSpanPipe(val)) {
-        add(
-          s.ref,
-          `substitution for ${s.ref}: field "${fieldName}" has an unrepresentable code-span pipe sequence (${JSON.stringify(val)}); an odd number of backslashes immediately preceding a pipe inside an inline code span cannot be represented losslessly in a GFM table`,
-        );
-      }
-    }
 
     if (!substitutionCarriesChosen(p, s.chosen)) {
       add(s.ref, `substitution for ${s.ref}: "chosen" is ${JSON.stringify(s.chosen)} but the entry carries value ${JSON.stringify(p.value)}${p.mpn ? `, mpn ${JSON.stringify(p.mpn)}` : ''}; they must agree`);

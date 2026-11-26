@@ -16,7 +16,7 @@ import { MANIFEST_FILENAME, type PartsManifest, type Substitution } from './mani
 import { resolveParts, loadManifest, invalidManifestDetail, type ResolvedPart } from './resolve.js';
 
 export { readManifest, manifestPath } from './resolve.js';
-export { escapeCell, unescapeCell, hasUnrepresentableCodeSpanPipe } from '../../memory/bom-table.js';
+export { escapeCell, unescapeCell } from '../../memory/bom-table.js';
 
 export const RENDER_HEADER = `<!-- rendered from ${MANIFEST_FILENAME} by copperhead draft_bom; edit the manifest, not this table -->`;
 
