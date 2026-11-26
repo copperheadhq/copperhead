@@ -6,7 +6,7 @@ import path from 'node:path';
 import { resolveInRepo, SandboxError, isKicadFile } from '../src/util/paths.js';
 import { redactSecrets } from '../src/util/redact.js';
 import { withRetry } from '../src/util/retry.js';
-import { toolReadFile, toolWriteFile, toolEditFile, toolSearch, globToRegex } from '../src/agent/filetools.js'; upstream/main
+import { toolReadFile, toolWriteFile, toolEditFile, toolSearch, globToRegex } from '../src/agent/filetools.js';
 import { Transcript } from '../src/agent/transcript.js';
 import { isDirty, hasCommits, snapshot, restore } from '../src/util/git.js';
 import { PreflightError } from '../src/util/preflight.js';
