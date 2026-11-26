@@ -352,7 +352,28 @@ describe('kicad-cli binary resolution', () => {
 
       // Verify fallbackAfterMissing() passed macosBinaries=[] so no macOS candidate paths were probed
       const probedPaths = existsSyncMock.mock.calls.map(([p]) => String(p));
+      // the spy saw the resolver's probes, so the absence check below is not vacuous
+      expect(probedPaths).toContain(winRoot);
       expect(probedPaths.some((p) => p.startsWith('/Applications/'))).toBe(false);
+    } finally {
+      process.env.PATH = savedPath;
+    }
+  });
+
+  // The production arm of the same switch: with no override set, the macOS
+  // app bundles must still be probed (a KiCad.app install off PATH relies on it).
+  it('keeps the macOS app-bundle candidates in the production fallback (no override set)', async () => {
+    delete process.env.COPPERHEAD_KICAD_CLI;
+    const fs = await import('node:fs');
+    const existsSyncMock = vi.mocked(fs.existsSync);
+    existsSyncMock.mockClear();
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir; // empty directory: forces fallbackAfterMissing() with no override
+    try {
+      // resolves on a host with KiCad.app (or a default Windows install), rejects elsewhere
+      await kicadCliVersion().catch(() => undefined);
+      const probedPaths = existsSyncMock.mock.calls.map(([p]) => String(p));
+      expect(probedPaths.some((p) => p.startsWith('/Applications/'))).toBe(true);
     } finally {
       process.env.PATH = savedPath;
     }
