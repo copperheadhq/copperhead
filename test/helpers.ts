@@ -14,6 +14,7 @@ export async function tempFixtureRepo(): Promise<{ repo: string; cleanup: () => 
   // the target-repo convention (AC-4.3): .env and the run audit trail ignored
   await writeFile(path.join(repo, '.gitignore'), '.env\n.copperhead/runs/\n', 'utf8');
   await execa('git', ['init', '-q'], { cwd: repo });
+  await execa('git', ['config', 'core.autocrlf', 'false'], { cwd: repo });
   await execa('git', ['config', 'user.email', 'test@copperhead.local'], { cwd: repo });
   await execa('git', ['config', 'user.name', 'copperhead-test'], { cwd: repo });
   await execa('git', ['add', '-A'], { cwd: repo });
