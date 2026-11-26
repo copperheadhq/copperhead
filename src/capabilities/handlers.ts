@@ -14,7 +14,7 @@ import { MANIFEST_FILENAME } from '../kicad/parts/manifest.js';
 import { formatManifestFindings } from '../kicad/parts/validate.js';
 import { manifestDrift } from '../kicad/parts/render.js';
 import { moveFootprint } from '../kicad/populate.js';
-import { verifySchematicSymbols, searchInstalledSymbols, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
+import { verifySchematicSymbols, searchInstalledSymbols, searchInstalledSymbolsRanked, matchTierLabel, symbolSearchDirs, resolveLibrarySymbol, comparePinNumbers } from '../kicad/symlib.js';
 import { checkDrift } from '../memory/drift.js';
 import { saveConstraint, classifyAffectsTarget, affectsTargetExists, loadConstraints } from '../memory/constraints.js';
 import { openspecValidate } from '../openspec/cli.js';
@@ -435,7 +435,7 @@ export const HANDLERS: HandlerDef[] = [
     schema: {
       name: 'search_symbols',
       description:
-        'Search EVERY installed KiCad symbol library for a part or symbol name; returns matching lib_ids as Lib:Name, exact matches first. Library nicknames rarely follow from the part number (TPS61165DBV is in Driver_LED, AudioJack3 in Connector_Audio, INA226 in Sensor_Energy), so a failed single-library probe proves nothing about availability — use this before concluding a part has no symbol, and before committing any active part to the BOM: a part is only drawable if its symbol appears here.',
+        'Search EVERY installed KiCad symbol library for a part or symbol name; returns exact matches, then approximate candidates in a separately labelled section; only an exact match proves the named part is drawable. Library nicknames rarely follow from the part number (TPS61165DBV is in Driver_LED, AudioJack3 in Connector_Audio, INA226 in Sensor_Energy), so a failed single-library probe proves nothing about availability — use this before concluding a part has no symbol, and before committing any active part to the BOM.',
       parameters: {
         type: 'object',
         properties: {
@@ -449,11 +449,24 @@ export const HANDLERS: HandlerDef[] = [
       const query = str(args, 'query');
       const dirs = await symbolSearchDirs();
       if (!dirs.length) return 'no installed KiCad symbol library directories found on this machine';
-      const hits = await searchInstalledSymbols(query, dirs);
+      const hits = await searchInstalledSymbolsRanked(query, dirs);
       if (!hits.length) {
         return `no installed symbol matches "${query}" (searched every library in: ${dirs.join(', ')}). The part is not capturable on this machine as named — choose a part whose symbol exists, or a same-family variant that does.`;
       }
-      return `installed symbols matching "${query}":\n${hits.map((h) => `  - ${h}`).join('\n')}`;
+
+      const exact = hits.filter((h) => h.rank === 0);
+      const approx = hits.filter((h) => h.rank > 0);
+      const sections: string[] = [];
+      if (exact.length) {
+        sections.push(`installed symbols matching "${query}":\n${exact.map((h) => `  - ${h.libId}`).join('\n')}`);
+      }
+      if (approx.length) {
+        const header = exact.length
+          ? 'approximate / near-miss candidates (different part or package wildcard; confirm pinout with symbol_pins before committing to BOM.md):'
+          : `no exact installed symbol matches "${query}"; approximate / near-miss candidates only (different part or package wildcard; confirm pinout with symbol_pins before committing to BOM.md):`;
+        sections.push(`${header}\n${approx.map((h) => `  - ${h.libId} (${matchTierLabel(h.rank)})`).join('\n')}`);
+      }
+      return sections.join('\n');
     },
   },
   {

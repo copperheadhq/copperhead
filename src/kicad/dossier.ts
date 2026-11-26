@@ -23,10 +23,12 @@ import { isPassivePrefix } from './parts/passives.js';
 import { resolveParts } from './parts/resolve.js';
 import {
   resolveLibrarySymbol,
-  searchInstalledSymbols,
+  searchInstalledSymbolsRanked,
+  matchTierLabel,
   listInstalledLibraries,
   comparePinNumbers,
   type LibPin,
+  type RankedInstalledSymbol,
 } from './symlib.js';
 
 /** R/C/L refdes (with optional multi-part suffix like R12A) draw from their
@@ -154,27 +156,32 @@ export async function bomSymbolDossier(
       }
       let line: string;
       try {
-        let hits = exact ? [exact] : await searchInstalledSymbols(query, dirs, searchCap);
+        let hits: RankedInstalledSymbol[] = exact
+          ? [{ libId: exact, rank: 0, name: exact.split(':').slice(1).join(':') }]
+          : await searchInstalledSymbolsRanked(query, dirs, searchCap);
         let matchedBy = '';
         if (!hits.length && fallback) {
-          hits = await searchInstalledSymbols(fallback, dirs, searchCap);
+          hits = await searchInstalledSymbolsRanked(fallback, dirs, searchCap);
           if (hits.length) matchedBy = ` (matched by Value "${fallback}")`;
         }
         const top = hits[0];
+
         if (!top) {
           line = `- ${who}: NO INSTALLED SYMBOL matches — not capturable as named; substitute a part whose symbol exists (search_symbols to find one)`;
+        } else if (top.rank !== 0) {
+          line = `- ${who}: NO EXACT SYMBOL; closest approximate: ${top.libId} (${matchTierLabel(top.rank)}), a different part or package; confirm with symbol_pins before wiring`;
         } else {
-          const r = await resolveLibrarySymbol(top, dirs);
+          const r = await resolveLibrarySymbol(top.libId, dirs);
           if (r.status !== 'ok' && exact) {
             line = `- ${who}: ${exact} does NOT resolve on this machine — the manifest's lib_id is stale (a library changed since draft_bom ran); confirm with symbol_pins`;
           } else if (r.status !== 'ok') {
             // A hit that fails to re-resolve is a library race or parse quirk;
             // report the candidates without claiming pins we could not read.
-            line = `- ${who}: candidates ${hits.join(', ')} — pins unreadable here; confirm with symbol_pins`;
+            line = `- ${who}: candidates ${hits.map((h) => h.libId).join(', ')} — pins unreadable here; confirm with symbol_pins`;
           } else {
             const multi = r.units >= 2 ? ` — MULTI-UNIT (${r.units} units): the drafting engine places each unit separately under this refdes` : '';
-            const also = hits.length > 1 ? `\n  also installed: ${hits.slice(1).join(', ')}` : '';
-            line = `- ${who}: ${top}${matchedBy} — ${r.pins.length} pin(s): ${pinTable(r.pins)}${multi}${also}`;
+            const also = hits.length > 1 ? `\n  also installed: ${hits.slice(1).map((h) => h.libId).join(', ')}` : '';
+            line = `- ${who}: ${top.libId}${matchedBy} — ${r.pins.length} pin(s): ${pinTable(r.pins)}${multi}${also}`;
           }
         }
       } catch {
