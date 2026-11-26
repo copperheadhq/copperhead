@@ -130,8 +130,24 @@ async function verifyRevision(repoRoot: string, rev: string): Promise<string> {
   return res.stdout.trim();
 }
 
+/**
+ * True when a `Sheetfile` ref would resolve outside the repository.
+ *
+ * `path.win32.isAbsolute` demands a separator, so a drive-relative ref
+ * (`C:../../x.kicad_sch`) is neither POSIX nor win32 absolute and slips past
+ * an isAbsolute pair. It does not stay inside the repo though: on Windows
+ * `path.win32.resolve('C:/repo/sheets', 'C:../../x.kicad_sch')` is
+ * `C:\x.kicad_sch`. No legitimate KiCad project names a sub-sheet with a
+ * drive prefix — a real absolute path already trips win32.isAbsolute — so
+ * the drive letter is rejected outright. Callers that walk a tree skip such
+ * a ref; callers that are told it is the schematic fail the run.
+ */
+function subsheetRefEscapes(sub: string): boolean {
+  return /^[A-Za-z]:/.test(sub) || path.posix.isAbsolute(sub) || path.win32.isAbsolute(sub);
+}
+
 function assertSafeSubsheetRef(sub: string): void {
-  if (path.posix.isAbsolute(sub) || path.win32.isAbsolute(sub)) {
+  if (subsheetRefEscapes(sub)) {
     throw new DiffError(`schematic sub-sheet path escapes repository: ${sub}`);
   }
 }
@@ -155,7 +171,7 @@ async function collectSheetRelPaths(
     if (!existsSync(full)) return;
     const text = await readFile(full, 'utf8');
     for (const sub of sheetSubfiles(text)) {
-      if (path.posix.isAbsolute(sub) || path.win32.isAbsolute(sub)) continue;
+      if (subsheetRefEscapes(sub)) continue;
       const subRel = path.posix.join(path.posix.dirname(norm), sub.split('\\').join('/'));
       await walkWork(subRel);
     }
@@ -176,7 +192,7 @@ async function collectSheetRelPaths(
     if (text === null) return;
     paths.add(norm);
     for (const sub of sheetSubfiles(text)) {
-      if (path.posix.isAbsolute(sub) || path.win32.isAbsolute(sub)) continue;
+      if (subsheetRefEscapes(sub)) continue;
       const subRel = path.posix.join(path.posix.dirname(norm), sub.split('\\').join('/'));
       await walkHead(subRel);
     }
@@ -426,6 +442,7 @@ function matchAffectedConstraints(
   touchedRefs: Set<string>,
   touchedNets: Set<string>,
   touchedPins: Set<string>,
+  rewiredRefs: Set<string>,
 ): string[] {
   const matched: string[] = [];
   for (const [key, constraint] of Object.entries(registry)) {
@@ -448,6 +465,20 @@ function matchAffectedConstraints(
       if (hit) break;
       for (const pin of touchedPins) {
         if (hasTokenMatch(target, pin)) {
+          hit = true;
+          break;
+        }
+      }
+      if (hit) break;
+      // A constraint written against a bare ref (`affects: ['U1']`) targets the
+      // part, so a rewire of any of its pins has to reach it. `touchedPins`
+      // alone cannot: `hasTokenMatch` refuses to match through `.`, which is
+      // exactly what keeps a target of `U1.14` from claiming a `U1.3` rewire.
+      // Matching the rewired refs with that same matcher keeps both halves
+      // right: the bare target `U1` equals the ref `U1` and hits, while the
+      // pin target `U1.14` cannot match the ref `U1`.
+      for (const ref of rewiredRefs) {
+        if (hasTokenMatch(target, ref)) {
           hit = true;
           break;
         }
@@ -499,6 +530,10 @@ export function diffSnapshots(
   const touchedRefs = new Set<string>();
   const touchedNets = new Set<string>();
   const touchedPins = new Set<string>();
+  // Refs whose *connectivity* changed (a pin was rewired, merged, split, or
+  // renamed) but whose symbol did not. Kept apart from `touchedRefs`, which
+  // carries symbol-level changes and feeds the component matcher.
+  const rewiredRefs = new Set<string>();
 
   const allRefs = [...new Set([...beforeSyms.keys(), ...afterSyms.keys()])].sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true }),
@@ -585,6 +620,7 @@ export function diffSnapshots(
       touchedNets.add(aNet);
       touchedPins.add(label);
       touchedPins.add(`${ap.ref}.${ap.pinNumber}`);
+      rewiredRefs.add(ap.ref);
     }
     if (bp && bNet !== null) {
       const label = formatPinLabel(bp);
@@ -599,6 +635,7 @@ export function diffSnapshots(
       touchedNets.add(bNet);
       touchedPins.add(label);
       touchedPins.add(`${bp.ref}.${bp.pinNumber}`);
+      rewiredRefs.add(bp.ref);
     }
   }
 
@@ -710,6 +747,7 @@ export function diffSnapshots(
     touchedRefs,
     touchedNets,
     touchedPins,
+    rewiredRefs,
   );
 
   const hasChanges =

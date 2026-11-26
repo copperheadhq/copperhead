@@ -316,9 +316,97 @@ describe('diffSnapshots (normalized electrical comparison)', () => {
     expect(res.connections.mergedNets).toEqual([]);
     expect(res.affectedConstraints).toEqual(['pin.u1_2']);
   });
+
+  // Finding 2 from the #415 review: a constraint written against a bare ref
+  // targets the part, so rewiring one of its pins has to flag it. Before the
+  // fix `U1` never landed in `touchedRefs` (the symbol did not change) and
+  // `hasTokenMatch` refuses to match through `.`, so `affects: ['U1']` was
+  // silently dropped from "affected constraints" — a false negative in the
+  // command's headline output.
+  it('flags a bare-ref constraint when one of that part\'s pins is rewired', () => {
+    const symbols = [
+      { ref: 'U1', value: 'MCU', footprint: 'FP', libId: 'L:U', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: '1', unit: 1 },
+      { ref: 'R1', value: '10k', footprint: 'FP', libId: 'L:R', sheet: '/', at: { x: 0, y: 0, rot: 0 }, uuid: '2', unit: 1 },
+    ];
+    const before = {
+      symbols,
+      nets: ['GND', 'SPI_MOSI'],
+      pins: [
+        { ref: 'U1', pinNumber: '1', pinName: 'GND', net: 'GND' },
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: 'GND' },
+        { ref: 'U1', pinNumber: '3', pinName: 'MOSI', net: 'SPI_MOSI' },
+      ],
+    };
+    const after = {
+      symbols,
+      nets: ['GND'],
+      pins: [
+        { ref: 'U1', pinNumber: '1', pinName: 'GND', net: 'GND' },
+        { ref: 'R1', pinNumber: '1', pinName: '~', net: 'GND' },
+        // same part, same symbol, only the pin's net moved
+        { ref: 'U1', pinNumber: '3', pinName: 'MOSI', net: 'GND' },
+      ],
+    };
+    const constraints = {
+      'part.u1_pinout_frozen': { source: 'docs/PINOUT.md', affects: ['U1'] },
+      // a pin-level target must NOT be woken by a different pin on the same
+      // part: U1.14 is untouched, so this stays out of the report
+      'pin.u1_14': { source: 'docs/PINOUT.md', affects: ['U1.14'] },
+      'part.r1_value': { source: 'docs/BOM.md', affects: ['R1'] },
+    };
+
+    const res = diffSnapshots('HEAD~1', 'board.kicad_sch', before, after, constraints);
+
+    // the rewire itself is reported as usual
+    expect(res.connections.changes).toEqual([
+      {
+        kind: 'connected',
+        ref: 'U1',
+        pinNumber: '3',
+        pinName: 'MOSI',
+        pinLabel: 'U1.MOSI',
+        net: 'GND',
+      },
+      {
+        kind: 'disconnected',
+        ref: 'U1',
+        pinNumber: '3',
+        pinName: 'MOSI',
+        pinLabel: 'U1.MOSI',
+        net: 'SPI_MOSI',
+      },
+    ]);
+    // bare U1 now reaches the part-level constraint; R1 did not move; U1.14
+    // did not move even though U1 did.
+    expect(res.affectedConstraints).toEqual(['part.u1_pinout_frozen']);
+  });
+
+  // Finding 3 from the #415 review: `path.win32.isAbsolute` demands a
+  // separator, so `C:../../x.kicad_sch` is neither POSIX nor win32 absolute
+  // and used to slip past assertSafeSubsheetRef. It still resolves outside
+  // the repo on Windows (path.win32.resolve('C:/repo/sheets', 'C:../../x.kicad_sch')
+  // is C:\\x.kicad_sch), so the drive letter is now rejected outright.
+  it('rejects a drive-relative sub-sheet path that would escape the repo on Windows', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo, force: false, installHooks: false });
+      const schPath = path.join(repo, 'hardware', 'open-key.kicad_sch');
+      const raw = await readFile(schPath, 'utf8');
+      const malicious = raw.replace(
+        /\)\s*$/,
+        '  (sheet (at 0 0) (size 10 10) (property "Sheetfile" "C:../../outside.kicad_sch" (at 0 0 0)))\n)\n',
+      );
+      await writeFile(schPath, malicious, 'utf8');
+      await execa('git', ['add', '-A'], { cwd: repo });
+      await execa('git', ['commit', '-m', 'drive-relative subsheet'], { cwd: repo });
+      await expect(runDiff(repo, { base: 'HEAD' })).rejects.toThrow(/escapes repository/);
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
-
+describe('diff snapshot semantics', () => {
   it('treats SI value prefixes case-sensitively (1M vs 1m) and sorts mergedNets deterministically', () => {
     const symR1 = {
       ref: 'R1',
@@ -580,4 +668,6 @@ describe('runDiff and `copperhead diff` CLI integration', () => {
       await cleanup();
     }
   }, 60_000);
+});
+
 });
