@@ -1,4 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+vi.mock('node:fs', async (orig) => {
+  const m = await orig<typeof import('node:fs')>();
+  return { ...m, existsSync: vi.fn(m.existsSync) };
+});
 import { mkdir, mkdtemp, rm, writeFile, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -319,6 +324,35 @@ describe('kicad-cli binary resolution', () => {
     process.env.PATH = dir;
     try {
       expect(await kicadCliVersion()).toBe('9.0.1');
+    } finally {
+      process.env.PATH = savedPath;
+    }
+  });
+
+  it('isolates Windows-root discovery from host macOS fallback candidates (Issue #428)', async () => {
+    delete process.env.COPPERHEAD_KICAD_CLI;
+    const winRoot = path.join(dir, 'KiCad-empty');
+    await mkdir(winRoot, { recursive: true });
+
+    // Direct candidate list assertion: passing macosBinaries=[] strips macOS fallbacks
+    expect(defaultFallbackBinaries([winRoot], []).some((c) => c.startsWith('/Applications/'))).toBe(false);
+    expect(defaultFallbackBinaries([winRoot]).some((c) => c.startsWith('/Applications/'))).toBe(true);
+
+    const fs = await import('node:fs');
+    const existsSyncMock = vi.mocked(fs.existsSync);
+    existsSyncMock.mockClear();
+
+    // When Windows roots are configured for testing, macOS fallbacks must not be probed
+    setKicadFallbackWinRoots([winRoot]);
+    const savedPath = process.env.PATH;
+    process.env.PATH = dir; // empty directory
+    try {
+      // Must reject with missing error rather than resolving host /Applications/KiCad/KiCad.app
+      await expect(kicadCliVersion()).rejects.toBeInstanceOf(KicadCliMissingError);
+
+      // Verify fallbackAfterMissing() passed macosBinaries=[] so no macOS candidate paths were probed
+      const probedPaths = existsSyncMock.mock.calls.map(([p]) => String(p));
+      expect(probedPaths.some((p) => p.startsWith('/Applications/'))).toBe(false);
     } finally {
       process.env.PATH = savedPath;
     }
