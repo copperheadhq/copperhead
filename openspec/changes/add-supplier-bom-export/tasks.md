@@ -12,6 +12,7 @@
 - [x] 2.1 Add `src/commands/export.ts` with `export bom --supplier --boards --spares --include-unverified`; validate supplier values with a helpful error
 - [x] 2.2 Refuse export with a drift hint when the parsed BOM.md disagrees with the schematic parse
 - [x] 2.3 Wire the JLCPCB emitter into `create` stage 6 outputs — `emitCreateJlcpcbBom`, called whenever the outputs stage is confirmed complete
+- [x] 2.4 Commit the emitted JLCPCB BOM under the outputs stage when it is the only changed path, so stage 7 or a resume's `commit completed stage spec-seed` cannot sweep it in (#379)
 
 ## 3. Tests
 
@@ -19,6 +20,7 @@
 - [x] 3.2 Exclusion and `--include-unverified` behavior tests
 - [x] 3.3 Drift-refusal test (edited BOM.md value → non-zero exit, drift hint)
 - [x] 3.4 Network guard: no api.* connections during export (global `fetch` spy asserts zero calls)
+- [x] 3.5 Create-stage BOM commit (#379): committed alone under the outputs stage, no commit for an unchanged CSV, left uncommitted beside other dirty paths, and a commit a pre-commit hook rejects is logged without stopping the run
 
 ## 4. Docs
 
