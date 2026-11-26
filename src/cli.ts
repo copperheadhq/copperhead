@@ -152,6 +152,10 @@ program
         for (const f of res.created) console.log(`created ${f}`);
         for (const f of res.skipped) console.log(`unchanged ${f}`);
         for (const f of res.refused) console.log(`REFUSED (hand-edited; use --force): ${f}`);
+        // A foreign hook is a warning, not an error: everything init was asked
+        // to write was written, and no flag would change the outcome. Failing
+        // here would break init for every husky/pre-commit user (#103).
+        if (res.hookSkipped) console.log(`WARNING: pre-commit hook not installed: ${res.hookSkipped}`);
       }
       process.exit(res.refused.length ? 1 : 0);
     } catch (err) {

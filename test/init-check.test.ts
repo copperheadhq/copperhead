@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { readFile, writeFile, rm, mkdtemp, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, rm, mkdtemp, mkdir, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import { runInit, InitError } from '../src/memory/scaffold.js';
 import { runCheck } from '../src/commands/check.js';
@@ -153,6 +154,222 @@ describe('copperhead check (AC-2)', () => {
       await cleanup();
     }
   }, 60_000);
+});
+
+describe('init reports when the pre-commit hook was not installed (#103)', () => {
+  it('installs the hook and reports no skip on a fresh repo', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const res = await runInit({ repoRoot: repo });
+      expect(res.hookSkipped).toBeNull();
+      const hook = await readFile(path.join(repo, '.git', 'hooks', 'pre-commit'), 'utf8');
+      expect(hook).toContain('# installed by copperhead init');
+      expect(res.created).toContain(path.join('.git', 'hooks', 'pre-commit'));
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('is idempotent: re-running reports no skip and does not re-create', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await runInit({ repoRoot: repo });
+      const before = await readFile(path.join(repo, '.git', 'hooks', 'pre-commit'), 'utf8');
+      const res = await runInit({ repoRoot: repo });
+      expect(res.hookSkipped).toBeNull();
+      expect(await readFile(path.join(repo, '.git', 'hooks', 'pre-commit'), 'utf8')).toBe(before);
+      expect(res.created).not.toContain(path.join('.git', 'hooks', 'pre-commit'));
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports the skip when the user\'s own hook is in the way, and preserves it', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const hookPath = path.join(repo, '.git', 'hooks', 'pre-commit');
+      await writeFile(hookPath, '#!/bin/sh\nnpm run lint\n', 'utf8');
+      const res = await runInit({ repoRoot: repo });
+      expect(res.hookSkipped).toMatch(/already exists.*was not written by copperhead.*gate is NOT active/);
+      expect(res.hookSkipped).toContain('Add "copperhead check" to your existing hook');
+      // the foreign hook is never clobbered
+      expect(await readFile(hookPath, 'utf8')).toBe('#!/bin/sh\nnpm run lint\n');
+      // docs still scaffold normally; the skip fails nothing
+      expect(res.refused).toEqual([]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports the skip when there is no .git/hooks directory', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await rm(path.join(repo, '.git', 'hooks'), { recursive: true, force: true });
+      const res = await runInit({ repoRoot: repo });
+      expect(res.hookSkipped).toMatch(/no .git\/hooks directory.*gate is NOT active/);
+      // docs still scaffold normally
+      expect(existsSync(path.join(repo, 'docs', 'SPEC.md'))).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('follows core.hooksPath: a husky-managed foreign hook is reported, nothing written under .git/hooks', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await mkdir(path.join(repo, '.husky', '_'), { recursive: true });
+      await writeFile(path.join(repo, '.husky', '_', 'pre-commit'), '#!/bin/sh\nnpx husky test\n', 'utf8');
+      await execa('git', ['config', 'core.hooksPath', '.husky/_'], { cwd: repo });
+      const res = await runInit({ repoRoot: repo });
+      // the managed location is named, so the advice points at the right file
+      expect(res.hookSkipped).toMatch(/\.husky\/_\/pre-commit already exists.*gate is NOT active/);
+      expect(existsSync(path.join(repo, '.git', 'hooks', 'pre-commit'))).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('installs into the shared hooks dir from a linked worktree', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const wt = `${repo}-wt`;
+    await execa('git', ['worktree', 'add', wt], { cwd: repo });
+    try {
+      const res = await runInit({ repoRoot: wt });
+      expect(res.hookSkipped).toBeNull();
+      expect(await readFile(path.join(repo, '.git', 'hooks', 'pre-commit'), 'utf8')).toContain(
+        '# installed by copperhead init',
+      );
+    } finally {
+      await execa('git', ['worktree', 'remove', '--force', wt], { cwd: repo });
+      await cleanup();
+    }
+  });
+
+  it('reports not-a-git-repo outside a git repository', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await rm(path.join(repo, '.git'), { recursive: true, force: true });
+      const res = await runInit({ repoRoot: repo });
+      expect(res.hookSkipped).toMatch(/not a git repository.*gate is NOT active/);
+      expect(existsSync(path.join(repo, 'docs', 'SPEC.md'))).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('prints the warning on the CLI surface, not only in the result object', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const hookPath = path.join(repo, '.git', 'hooks', 'pre-commit');
+      await writeFile(hookPath, '#!/bin/sh\nnpm run lint\n', 'utf8');
+      // `init` gates on kicad-cli; stub only the version preflight (no KiCad
+      // tooling is exercised by this path).
+      const bin = await mkdtemp(path.join(tmpdir(), 'copperhead-kicad-stub-'));
+      try {
+        await writeFile(path.join(bin, 'kicad-cli'), '#!/bin/sh\necho "kicad-cli 10.0.4"\n', { mode: 0o755 });
+        const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+        const res = await execa('npx', ['tsx', 'src/cli.ts', '--repo', repo, 'init'], {
+          cwd: ROOT,
+          env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` },
+          reject: false,
+        });
+        expect(res.exitCode).toBe(0);
+        expect(res.stdout).toMatch(/WARNING: pre-commit hook not installed/);
+        expect(await readFile(hookPath, 'utf8')).toBe('#!/bin/sh\nnpm run lint\n');
+      } finally {
+        await rm(bin, { recursive: true, force: true });
+      }
+    } finally {
+      await cleanup();
+    }
+  }, 120_000);
+
+  it('scopes the hook to the project when it lives in a monorepo subdirectory', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      await mkdir(path.join(repo, 'hw'));
+      await rename(path.join(repo, 'hardware'), path.join(repo, 'hw', 'hardware'));
+      const sub = path.join(repo, 'hw');
+      const res = await runInit({ repoRoot: sub });
+      expect(res.hookSkipped).toBeNull();
+      // git runs hooks from the worktree top, so the hook must name the subdir
+      const hook = await readFile(path.join(repo, '.git', 'hooks', 'pre-commit'), 'utf8');
+      expect(hook).toContain('copperhead --repo "hw" check');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('refuses to write into a core.hooksPath outside the repository', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const shared = await mkdtemp(path.join(tmpdir(), 'ch-shared-hooks-'));
+    const globalConfig = path.join(shared, 'gitconfig');
+    const savedGlobal = process.env.GIT_CONFIG_GLOBAL;
+    const savedSystem = process.env.GIT_CONFIG_SYSTEM;
+    try {
+      await writeFile(globalConfig, `[core]\n\thooksPath = ${shared}/hooks\n`, 'utf8');
+      process.env.GIT_CONFIG_GLOBAL = globalConfig;
+      process.env.GIT_CONFIG_SYSTEM = '/dev/null';
+      const res = await runInit({ repoRoot: repo });
+      expect(res.hookSkipped).toMatch(/outside this repository.*gate is NOT active/);
+      expect(res.hookSkipped).toContain('Add "copperhead check"');
+      expect(existsSync(path.join(shared, 'hooks', 'pre-commit'))).toBe(false);
+      expect(existsSync(path.join(repo, '.git', 'hooks', 'pre-commit'))).toBe(false);
+    } finally {
+      if (savedGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+      else process.env.GIT_CONFIG_GLOBAL = savedGlobal;
+      if (savedSystem === undefined) delete process.env.GIT_CONFIG_SYSTEM;
+      else process.env.GIT_CONFIG_SYSTEM = savedSystem;
+      await rm(shared, { recursive: true, force: true });
+      await cleanup();
+    }
+  });
+
+  it('reports unwritable hooks dirs instead of throwing', async () => {
+    if (process.platform === 'win32') return;
+    if (typeof process.getuid === 'function' && process.getuid() === 0) return;
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const hooksDir = path.join(repo, '.git', 'hooks');
+      await execa('chmod', ['555', hooksDir]);
+      try {
+        const res = await runInit({ repoRoot: repo });
+        expect(res.hookSkipped).toMatch(/could not be written.*gate is NOT active/);
+        expect(existsSync(path.join(hooksDir, 'pre-commit'))).toBe(false);
+      } finally {
+        await execa('chmod', ['755', hooksDir]);
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('falls back to .git/hooks when git cannot resolve the hooks dir', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    const savedPath = process.env.PATH;
+    try {
+      process.env.PATH = await mkdtemp(path.join(tmpdir(), 'ch-empty-path-'));
+      const res = await runInit({ repoRoot: repo });
+      expect(res.hookSkipped).toBeNull();
+      expect(await readFile(path.join(repo, '.git', 'hooks', 'pre-commit'), 'utf8')).toContain(
+        '# installed by copperhead init',
+      );
+    } finally {
+      process.env.PATH = savedPath;
+      await cleanup();
+    }
+  });
+
+  it('stays silent about the hook when --no-hooks asked for no hook', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const res = await runInit({ repoRoot: repo, installHooks: false });
+      expect(res.hookSkipped).toBeNull();
+      expect(existsSync(path.join(repo, '.git', 'hooks', 'pre-commit'))).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe('check is LLM-free by construction (AC-2.1)', () => {

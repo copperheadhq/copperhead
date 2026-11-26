@@ -321,12 +321,16 @@ export function createMcpServer(opts: ServerOptions): McpServer {
           installHooks: true,
         });
         const refused = res.refused.length > 0;
+        // The host acts on the summary, not on data: a skipped hook must be
+        // loud here too, since the tool promises a pre-commit hook (#103).
+        // ok stays as is, to match the CLI's unchanged exit 0.
+        const hookWarning = res.hookSkipped ? `; WARNING: pre-commit hook not installed: ${res.hookSkipped}` : '';
         return toMcp(
           seal({
             ok: !refused,
             summary: refused
               ? `init refused ${res.refused.length} hand-edited doc(s)`
-              : `init wrote ${res.created.length} file(s)`,
+              : `init wrote ${res.created.length} file(s)${hookWarning}`,
             viewHint: 'mutation',
             data: res,
           }),
