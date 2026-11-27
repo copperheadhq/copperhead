@@ -535,6 +535,21 @@ export class SymbolSource {
  */
 export const powerNetToken = (net: string): string => net.replace(/[^A-Za-z0-9_+.-]/g, '_');
 
+/**
+ * Supply-name shapes for last-resort net classification (classifyNet in
+ * engine.ts, isPowerClass in ir.ts). Deliberately narrow, and narrow in ONE
+ * direction: a rail misread as a signal draws labels (exactly what the engine
+ * did before the fallback existed), while a signal misread as a rail draws a
+ * power symbol and makes the sheet assert a supply the design does not have.
+ * So an underscore may join a VOLTAGE suffix (VDD_3V3, VCC_1V8) and nothing
+ * else — VBUS_DET, VCC_SENSE and VDD_MON are measurement nodes on real boards
+ * and stay signals. Anything the shapes miss is still correctable with an IR
+ * `kind` declaration, which outranks all of this, and the report names the basis
+ * so a miss is visible.
+ */
+export const GROUND_NAME = /^([adp]?gnd[0-9a-z]*|vss[0-9a-z]*)$/i;
+export const RAIL_NAME = /^(?:[+-]?[0-9]+(?:\.[0-9]+)?v[0-9]*|(?:vcc|vdd|vbus|vee)[0-9a-z]*(?:_[0-9]+v[0-9]*)?)$/i;
+
 /** Escape a string for embedding inside a quoted s-expression atom. Defense in
  * depth: `validateIntent` already refuses net names containing `"` or `\`, but
  * this template must not be able to corrupt a schematic even if called raw. */

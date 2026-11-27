@@ -87,7 +87,13 @@ An array of `"REF.PIN"` strings. Each pin must exist on its part and must not ap
 ## `hints{}`
 
 ```json
-"hints": { "groupOrder": ["Power", "MCU"], "paper": "A4", "date": "2026-07-31" }
+"hints": {
+  "groupOrder": ["Power", "MCU"],
+  "paper": "A4",
+  "date": "2026-07-31",
+  "near": [{ "ref": "C4", "pin": "SW1.1" }],
+  "labels": ["TIMING"]
+}
 ```
 
 | Field | Type | Rules |
@@ -95,8 +101,10 @@ An array of `"REF.PIN"` strings. Each pin must exist on its part and must not ap
 | `groupOrder` | array of strings | Left-to-right (then top-to-bottom, after shelf-wrapping) group order, matched case-insensitively. Wins over SUBSYSTEMS.md heading order; groups listed nowhere sort last by name. |
 | `paper` | string | Pins the sheet to a standard size (`A5`, `A4`, `A3`, `A2`, `A1`, `A0`). A non-standard name is not an error: the engine notes it in the report and derives the paper from content, which is also the default when the hint is absent. |
 | `date` | string | The title-block date. Part of the intent rather than the wall clock, so the same intent emits the same bytes on any day; when absent the engine stamps the fixed epoch `2020-01-01`. |
+| `near` | array of objects | Anchors a two-lead part or test point near a specified anchor pin (`REF.PIN`) on their shared net (signal pins only). The part is placed on the pin's row with a short, straight wire (no bends), falling back to a lane when neighbouring pins prevent a straight placement. Both parts must be in the same subsystem group. |
+| `labels` | array of strings | Forces the named declared signal nets to be emitted as net-label pairs instead of long wires. Drawing-only; does not alter the netlist. |
 
-Hints steer, they never override a rule: the engine will not accept a hint that would break the grid, the gating families, or connectivity.
+An unknown hint key is rejected as a validation finding (e.g. `hints.placement`). Hints steer, they never override a rule: the engine will not accept a hint that would break the grid, the gating families, or connectivity.
 
 ## Validation contract
 
