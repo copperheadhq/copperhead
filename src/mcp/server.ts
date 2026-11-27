@@ -308,12 +308,12 @@ export function createMcpServer(opts: ServerOptions): McpServer {
       _meta: { schemaVersion: TOOL_SCHEMA_VERSIONS.copperhead_init },
     },
     async ({ path: searchPath }) => {
-      const kicad = await requireKicad();
-      if ('error' in kicad) return toMcp(kicad.error);
       if (!locks.tryAcquire(repoRoot)) {
         return toMcp(failure('unavailable', 'another copperhead run is in progress for this repo; retry shortly'));
       }
       try {
+        const kicad = await requireKicad();
+        if ('error' in kicad) return toMcp(kicad.error);
         const res = await runInit({
           repoRoot,
           ...(searchPath ? { searchPath } : {}),
@@ -361,26 +361,26 @@ export function createMcpServer(opts: ServerOptions): McpServer {
       _meta: { schemaVersion: TOOL_SCHEMA_VERSIONS.copperhead_do },
     },
     async ({ request, dry_run: dryRun }, extra) => {
-      const kicad = await requireKicad();
-      if ('error' in kicad) return toMcp(kicad.error);
-      const resolved = await resolveModelOrFail(repoRoot);
-      if ('error' in resolved) return toMcp(resolved.error);
       if (!locks.tryAcquire(repoRoot)) {
         return toMcp(failure('unavailable', 'another copperhead run is in progress for this repo; retry shortly'));
       }
-      const progressToken = extra?._meta?.progressToken;
-      const sink: ProgressSink = (update): void => {
-        if (progressToken === undefined) return;
-        void extra
-          ?.sendNotification({
-            method: 'notifications/progress',
-            params: { progressToken, progress: update.progress, message: update.message },
-          })
-          .catch(() => {
-            // A host that stopped listening must not fail the run.
-          });
-      };
       try {
+        const kicad = await requireKicad();
+        if ('error' in kicad) return toMcp(kicad.error);
+        const resolved = await resolveModelOrFail(repoRoot);
+        if ('error' in resolved) return toMcp(resolved.error);
+        const progressToken = extra?._meta?.progressToken;
+        const sink: ProgressSink = (update): void => {
+          if (progressToken === undefined) return;
+          void extra
+            ?.sendNotification({
+              method: 'notifications/progress',
+              params: { progressToken, progress: update.progress, message: update.message },
+            })
+            .catch(() => {
+              // A host that stopped listening must not fail the run.
+            });
+        };
         const res = await runAgentLoop({
           repoRoot,
           request,
@@ -467,41 +467,40 @@ export function createMcpServer(opts: ServerOptions): McpServer {
       }
       if (!report.resolvable.length) return toMcp(verdict('design state is consistent; nothing to resolve'));
 
-      const resolved = await resolveModelOrFail(repoRoot);
-      if ('error' in resolved) return toMcp(resolved.error);
       if (!locks.tryAcquire(repoRoot)) {
         return toMcp(failure('unavailable', 'another copperhead run is in progress for this repo; retry shortly'));
       }
-      // The report above was computed before the lock was held, so another run
-      // may have rewritten the tree in between. Re-verify now that nothing else
-      // can move, rather than asking the loop to fix drift that is already gone.
-      const fresh = await syncVerify(repoRoot);
-      if (fresh.violations.length || !fresh.resolvable.length) {
-        locks.release(repoRoot);
-        return toMcp(
-          seal({
-            ok: !fresh.violations.length,
-            summary: fresh.violations.length
-              ? `${fresh.violations.length} requirement violation(s) found; these are never auto-resolved.`
-              : 'design state is consistent; nothing to resolve',
-            viewHint: 'diagnostic',
-            data: fresh,
-          }),
-        );
-      }
-      const progressToken = extra?._meta?.progressToken;
-      const sink: ProgressSink = (update): void => {
-        if (progressToken === undefined) return;
-        void extra
-          ?.sendNotification({
-            method: 'notifications/progress',
-            params: { progressToken, progress: update.progress, message: update.message },
-          })
-          .catch(() => {
-            // A host that stopped listening must not fail the run.
-          });
-      };
       try {
+        const resolved = await resolveModelOrFail(repoRoot);
+        if ('error' in resolved) return toMcp(resolved.error);
+        // The report above was computed before the lock was held, so another run
+        // may have rewritten the tree in between. Re-verify now that nothing else
+        // can move, rather than asking the loop to fix drift that is already gone.
+        const fresh = await syncVerify(repoRoot);
+        if (fresh.violations.length || !fresh.resolvable.length) {
+          return toMcp(
+            seal({
+              ok: !fresh.violations.length,
+              summary: fresh.violations.length
+                ? `${fresh.violations.length} requirement violation(s) found; these are never auto-resolved.`
+                : 'design state is consistent; nothing to resolve',
+              viewHint: 'diagnostic',
+              data: fresh,
+            }),
+          );
+        }
+        const progressToken = extra?._meta?.progressToken;
+        const sink: ProgressSink = (update): void => {
+          if (progressToken === undefined) return;
+          void extra
+            ?.sendNotification({
+              method: 'notifications/progress',
+              params: { progressToken, progress: update.progress, message: update.message },
+            })
+            .catch(() => {
+              // A host that stopped listening must not fail the run.
+            });
+        };
         const res = await syncResolve(
           repoRoot,
           fresh,
