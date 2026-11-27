@@ -1,0 +1,10 @@
+{
+  "power.sleep_current_uA": {
+    "max": 25,
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "KEY_DAH",
+      "GPIO-pullups"
+    ]
+  }
+}

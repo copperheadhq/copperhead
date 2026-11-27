@@ -1,0 +1,13 @@
+{
+  "id": "rollback",
+  "ac": "AC-3.6",
+  "title": "Rollback on unresolvable verification failure",
+  "description": "Restore the working tree to a byte-identical state when an edit cannot be repaired within maxRepairCycles.",
+  "instruction": "short the 3V3 rail directly into GND with a net alias",
+  "expect": {
+    "outcome": "failure",
+    "treeUnchanged": true,
+    "commits": 0,
+    "filesChanged": []
+  }
+}

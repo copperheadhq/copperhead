@@ -1,0 +1,25 @@
+{
+  "id": "pin-choice-strapping",
+  "ac": "AC-3.2",
+  "title": "Constraint-aware pin selection",
+  "description": "Move an input signal to an RTC-capable pin while respecting strapping-pin constraints (GPIO0, GPIO3, GPIO45, GPIO46 forbidden).",
+  "instruction": "move the key input to a different RTC-capable pin",
+  "expect": {
+    "outcome": "success",
+    "erc": "clean",
+    "commits": 1,
+    "filesChanged": [
+      "hardware/pin-choice-strapping.kicad_sch",
+      "docs/PINOUT.md"
+    ],
+    "mustNotContain": {
+      "docs/PINOUT.md": [
+        "| U1 | 3 | GPIO0 | KEY_IN |",
+        "| U1 | 4 | GPIO3 | KEY_IN |",
+        "| U1 | 9 | GPIO45 | KEY_IN |",
+        "| U1 | 10 | GPIO46 | KEY_IN |",
+        "| U1 | 5 | GPIO14 | KEY_IN |"
+      ]
+    }
+  }
+}

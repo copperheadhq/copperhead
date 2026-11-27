@@ -1,0 +1,22 @@
+{
+  "pinout.strapping": {
+    "forbidden": [
+      "GPIO0",
+      "GPIO3",
+      "GPIO45",
+      "GPIO46"
+    ],
+    "source": "docs/SPEC.md#strapping-pins",
+    "affects": [
+      "U1",
+      "KEY_IN"
+    ]
+  },
+  "pinout.rtc_required": {
+    "value": "RTC-capable",
+    "source": "docs/SPEC.md#rtc-capable-gpios",
+    "affects": [
+      "KEY_IN"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schematic": "hardware/rollback.kicad_sch",
+  "board": "hardware/rollback.kicad_pcb",
+  "docs": "docs",
+  "model": null,
+  "maxTurns": 40,
+  "maxRepairCycles": 5,
+  "budgets": {},
+  "turnTimeoutMs": 300000,
+  "turnMaxMs": 3600000,
+  "heartbeatMs": 30000,
+  "maxStageRetries": 2
+}

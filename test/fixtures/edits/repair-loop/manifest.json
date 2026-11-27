@@ -1,0 +1,24 @@
+{
+  "id": "repair-loop",
+  "ac": "AC-3.5",
+  "title": "Repair loop recovery on ERC violation",
+  "description": "Exercise the ERC violation parse-and-repair cycle where a proposed edit initially triggers an ERC violation and is repaired within maxRepairCycles.",
+  "instruction": "add a 10k pull-down resistor R3 on GPIO21 to GND",
+  "expect": {
+    "outcome": "success",
+    "erc": "clean",
+    "commits": 1,
+    "repairCycles": {
+      "min": 1,
+      "max": 5
+    },
+    "filesChanged": [
+      "hardware/repair-loop.kicad_sch",
+      "docs/BOM.md"
+    ],
+    "mustContain": {
+      "docs/BOM.md": "R3",
+      "hardware/repair-loop.kicad_sch": "R3"
+    }
+  }
+}

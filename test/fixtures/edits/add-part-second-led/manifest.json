@@ -1,0 +1,20 @@
+{
+  "id": "add-part-second-led",
+  "ac": "AC-3.3",
+  "title": "Add part with verified footprint and UNVERIFIED BOM row",
+  "description": "Add a second RGB LED with a unique refdes, valid footprint from existing libraries, and BOM row flagged UNVERIFIED.",
+  "instruction": "add a second RGB LED",
+  "expect": {
+    "outcome": "success",
+    "erc": "clean",
+    "commits": 1,
+    "filesChanged": [
+      "hardware/add-part-second-led.kicad_sch",
+      "docs/BOM.md"
+    ],
+    "mustContain": {
+      "docs/BOM.md": "UNVERIFIED",
+      "hardware/add-part-second-led.kicad_sch": "D2"
+    }
+  }
+}

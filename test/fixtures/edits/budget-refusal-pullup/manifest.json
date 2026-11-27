@@ -1,0 +1,16 @@
+{
+  "id": "budget-refusal-pullup",
+  "ac": "AC-3.4",
+  "title": "Power budget violation refusal",
+  "description": "Refuse an edit that would violate a documented sleep current budget (25 µA hard limit vs ~33 µA leakage from 100k pullup).",
+  "instruction": "add a 100kΩ pullup to 3V3 on KEY_DAH",
+  "expect": {
+    "outcome": "refused",
+    "treeUnchanged": true,
+    "commits": 0,
+    "refusalCitesBudget": "sleep_current_uA",
+    "mustNotContain": {
+      "hardware/budget-refusal-pullup.kicad_sch": "\"100k\""
+    }
+  }
+}
