@@ -365,16 +365,19 @@ describe('kicad-cli binary resolution', () => {
   it('keeps the macOS app-bundle candidates in the production fallback (no override set)', async () => {
     delete process.env.COPPERHEAD_KICAD_CLI;
     const fs = await import('node:fs');
+    const { existsSync: realExistsSync } = await vi.importActual<typeof import('node:fs')>('node:fs');
     const existsSyncMock = vi.mocked(fs.existsSync);
     existsSyncMock.mockClear();
+    // every probe misses, so a KiCad install on the host is never resolved or spawned
+    existsSyncMock.mockImplementation(() => false);
     const savedPath = process.env.PATH;
     process.env.PATH = dir; // empty directory: forces fallbackAfterMissing() with no override
     try {
-      // resolves on a host with KiCad.app (or a default Windows install), rejects elsewhere
-      await kicadCliVersion().catch(() => undefined);
+      await expect(kicadCliVersion()).rejects.toBeInstanceOf(KicadCliMissingError);
       const probedPaths = existsSyncMock.mock.calls.map(([p]) => String(p));
       expect(probedPaths.some((p) => p.startsWith('/Applications/'))).toBe(true);
     } finally {
+      existsSyncMock.mockImplementation(realExistsSync);
       process.env.PATH = savedPath;
     }
   });
