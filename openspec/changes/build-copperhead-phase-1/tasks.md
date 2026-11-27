@@ -97,7 +97,7 @@
 - [x] 10.2 Implement `sync --dry-run`: print the full report (doc, claim, actual, proposed resolution), write nothing (AC-7.4)
 - [x] 10.3 Implement the resolve phase: spec-gated agent run seeded with the report, truth precedence (KiCad = as-built facts, specs/budgets = requirements), single commit with DECISIONS/CHANGELOG entries (AC-7.1, AC-7.2)
 - [x] 10.4 Implement violation flagging: inconsistencies that imply a requirement violation are reported with both sides and the governing spec, never rewritten, exit non-zero (AC-7.3)
-- [ ] 10.5 Tests: doc-drift fixture resolved then `check` clean; dual-write gap repaired both directions; violation fixture flagged not rewritten; clean repo no-op and double-run idempotence (AC-7.5)
+- [x] 10.5 Tests: doc-drift fixture resolved then `check` clean; dual-write gap repaired both directions; violation fixture flagged not rewritten; clean repo no-op and double-run idempotence (AC-7.5). In `test/sync-resolve.test.ts`, the resolve runs driven by a scripted provider through an optional `provider` test seam on `syncResolve`
 
 ## 11. Submission readiness
 
