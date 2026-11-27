@@ -159,7 +159,7 @@ copperhead never reads, copies, or logs the credential; the CLI owns authenticat
 
 ### Ordering (`export bom`)
 
-`copperhead export bom` turns the drift-checked `docs/BOM.md` into a file a supplier accepts without hand-editing. It is deterministic, LLM-free, and network-free, safe anywhere `check` is, and it reads `BOM.md` (never the schematic) so it inherits the drift guarantee; it refuses to export while `BOM.md` disagrees with the schematic.
+`copperhead export bom` turns the drift-checked `docs/BOM.md` into a file a supplier accepts without hand-editing. It is deterministic, LLM-free, and network-free, safe anywhere `check` is, and it reads `BOM.md` (never the schematic) so it inherits the drift guarantee; it refuses to export while `BOM.md` disagrees with the schematic, a parts manifest is invalid, or `BOM.md` is not that manifest’s render (the same drift `check` reports, even without a schematic).
 
 ```bash
 copperhead export bom --supplier jlcpcb                 # JLCPCB assembly CSV → outputs/jlcpcb-bom.csv
