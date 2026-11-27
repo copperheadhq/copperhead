@@ -9,7 +9,6 @@ export type ObligationKind =
   | 'drift'
   | 'legibility'
   | 'changelog'
-  | 'decision-log'
   | 'constraint-dual-write'
   | 'affects-revisit';
 
@@ -82,10 +81,6 @@ export class ObligationsLedger {
     for (const item of affects) {
       this.add('affects-revisit', `${constraintKey} affects ${item}`, constraintKey);
     }
-  }
-
-  onDecision(summary: string): void {
-    this.add('decision-log', summary, 'decision');
   }
 
   get openObligations(): readonly Obligation[] {
