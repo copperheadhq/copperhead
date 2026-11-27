@@ -12,10 +12,12 @@ describe('sync-obligations ledger (design D13)', () => {
     expect(kinds).not.toContain('drc');
   });
 
-  it('a board edit additionally opens drc', () => {
+  it('a board edit opens drc, not erc', () => {
     const l = new ObligationsLedger();
     l.onKicadEdit('hardware/x.kicad_pcb');
-    expect(l.openObligations.map((o) => o.kind)).toContain('drc');
+    const kinds = l.openObligations.map((o) => o.kind);
+    expect(kinds).toContain('drc');
+    expect(kinds).not.toContain('erc');
   });
 
   it('a constraint change opens dual-write and one revisit per affected item', () => {
