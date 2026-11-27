@@ -243,6 +243,8 @@ async function runKicad(args: string[], opts?: { reject?: boolean }): Promise<Aw
 export function resetKicadCliCache(): void {
   cachedBinary = undefined;
   cachedMajor = undefined;
+  cachedRefill = undefined;
+  cachedResave = undefined;
 }
 
 /**
@@ -361,6 +363,71 @@ export async function kicadLoadError(filePath: string): Promise<string | null> {
 
 export function runDrc(pcbPath: string): Promise<CheckReport> {
   return runCheck('drc', pcbPath);
+}
+
+let cachedRefill: Promise<boolean> | undefined;
+
+/** Whether `pcb drc --help` text offers both flags zone refill needs. */
+export function hasZoneRefillFlags(helpText: string): boolean {
+  return /--refill-zones\b/.test(helpText) && /--save-board\b/.test(helpText);
+}
+
+/**
+ * Whether this kicad-cli can refill zones during DRC and save the result
+ * (`pcb drc --refill-zones --save-board`, KiCad 9 and later). Without both,
+ * callers keep plain DRC. Cached per process; `resetKicadCliCache` clears it.
+ */
+export function zoneRefillSupported(): Promise<boolean> {
+  cachedRefill ??= runKicad(['pcb', 'drc', '--help'], { reject: false }).then(
+    (res) => hasZoneRefillFlags(`${String(res.stdout ?? '')}\n${String(res.stderr ?? '')}`),
+    () => false,
+  );
+  return cachedRefill;
+}
+
+/**
+ * DRC after KiCad refills every zone, then saves the refilled board over
+ * `scratchPath`. kicad-cli saves the whole file in its own format (a KiCad 8
+ * board comes back as a KiCad 10 one), so this is for a scratch copy only:
+ * src/kicad/zones.ts splices the fills from it back into the design file's
+ * own text. Never point it at a design file.
+ */
+export function refillAndSave(scratchPath: string): Promise<CheckReport> {
+  return runCheck('drc', scratchPath, ['--refill-zones', '--save-board']);
+}
+
+let cachedResave: Promise<boolean> | undefined;
+
+/** Whether `pcb upgrade --help` text offers `--force`, which resaves a board already in the current format. */
+export function hasBoardResaveFlag(helpText: string): boolean {
+  return /--force\b/.test(helpText);
+}
+
+/**
+ * Whether this kicad-cli can load a board and save it back unchanged
+ * (`pcb upgrade --force`). Cached per process; `resetKicadCliCache` clears it.
+ */
+export function boardResaveSupported(): Promise<boolean> {
+  cachedResave ??= runKicad(['pcb', 'upgrade', '--help'], { reject: false }).then(
+    (res) => hasBoardResaveFlag(`${String(res.stdout ?? '')}\n${String(res.stderr ?? '')}`),
+    () => false,
+  );
+  return cachedResave;
+}
+
+/**
+ * Load the board at `scratchPath` and save it over itself in kicad-cli's own
+ * format, without refilling zones: the board exactly as KiCad reads it. The
+ * zone filler compares the fills in this copy with the ones KiCad computed.
+ * It rewrites the whole file, so it is for a scratch copy only. Throws with
+ * kicad-cli's output when the board does not load or save.
+ */
+export async function resaveBoard(scratchPath: string): Promise<void> {
+  const res = await runKicad(['pcb', 'upgrade', '--force', scratchPath], { reject: false });
+  if (res.exitCode !== 0) {
+    const detail = [res.stderr, res.stdout].filter(Boolean).join('\n').trim();
+    throw new Error(`kicad-cli could not load and save the board: ${detail || `exit ${res.exitCode}`}`);
+  }
 }
 
 /**

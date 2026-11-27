@@ -120,12 +120,14 @@ Runs ERC, DRC, doc-drift detection, constraint checks, and OpenSpec validation. 
 
 ERC and DRC are skipped when no schematic or board is configured, rather than failing.
 
+`check` also reports copper pour fills, without ever writing the board. It names each pour that has an outline but no fill. When DRC fails, it refills a scratch copy of the board with KiCad's own filler and, if that clears some of the findings, says the pour fills are stale and how many findings they cause. Refill them in KiCad (press B) and save. A board whose pours were filled by another KiCad version is not flagged unless a refill clears a finding. Neither finding changes the exit code, which DRC already decides.
+
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Everything agrees. |
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code. The `drc` object carries a `fills` object: `stale`, `staleAccountsFor`, `staleZones`, `unfilled`, and `notChecked` when stale fills could not be checked (a kicad-cli without zone refill).
 
 ## `copperhead explain`
 

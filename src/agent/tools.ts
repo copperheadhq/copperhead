@@ -63,7 +63,12 @@ export async function runSkillSubRun(opts: {
 }): Promise<ToolResult> {
   const { ctx, skill, args, provider } = opts;
   const savedFinish = ctx.finishRequest;
+  const savedReadOnly = ctx.readOnly;
   const only = new Set(skill.tools.filter((n) => n !== 'finish'));
+  // a skill that holds no mutation tool is read-only all through: run_drc
+  // in it never writes refilled pours, even on a board the parent run edited
+  const catalogHint = new Map(registry.all().map((e) => [e.name, e.viewHint]));
+  if (![...only].some((n) => catalogHint.get(n) === 'mutation')) ctx.readOnly = true;
   const results: { name: string; result: ToolResult }[] = [];
   const messages: Msg[] = [
     { role: 'system', content: skill.prompt(ctx, args) },
@@ -141,6 +146,7 @@ export async function runSkillSubRun(opts: {
     }
   } finally {
     ctx.finishRequest = savedFinish;
+    ctx.readOnly = savedReadOnly;
   }
 
   const detail = results.map(({ name, result }) => `${name}:\n${flatten(result)}`).join('\n\n') || 'no tool results';

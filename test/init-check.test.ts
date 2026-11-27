@@ -86,7 +86,13 @@ describe('copperhead check (AC-2)', () => {
       const res = await runCheck(repo, silent);
       expect(res.ok).toBe(true);
       expect(res.erc).toEqual({ ok: true, violations: 0 });
-      expect(res.drc).toEqual({ ok: true, violations: 0, unrouted: 0, intrinsic: 0 });
+      expect(res.drc).toEqual({
+        ok: true,
+        violations: 0,
+        unrouted: 0,
+        intrinsic: 0,
+        fills: { stale: false, staleAccountsFor: 0, staleZones: [], unfilled: [] },
+      });
       expect(res.drift.ok).toBe(true);
       expect(Object.keys(res).sort()).toEqual(['constraints', 'drc', 'drift', 'erc', 'legibility', 'ok', 'openspec']);
       expect(res.legibility.counts.error).toBe(0);

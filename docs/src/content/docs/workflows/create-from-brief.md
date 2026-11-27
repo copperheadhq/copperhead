@@ -88,6 +88,8 @@ The pipeline is resumable. Stage completion is inferred from repo state, so if a
 
 Stage 5 writes a `## Draft quality` section into `LAYOUT.md` saying exactly what is fine and what a human or a specialist tool should redo. Non-optimal is acceptable; unlabeled non-optimal is not.
 
+Copper pours are filled by KiCad's own zone filler, never written by the model. Whenever the agent checks a board it has changed, it refills every pour with the project's design rules and writes back only the fill data, so the rest of the board file stays byte-for-byte as it was. Stage 6 refuses to export gerbers while a pour is unfilled or out of date.
+
 ## 4. Read the output
 
 ```bash

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { libraryCache } from '../kicad/cache.js';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
@@ -11,15 +12,33 @@ import { pinNets, readSheetGeometry } from '../kicad/sexp.js';
 import { scoreFromGeometry, type ScoreReport } from '../kicad/score.js';
 import { checkLegibility, formatLegibility, LEGIBILITY_FAMILIES, type LegibilityFinding } from '../kicad/legibility.js';
 import { openspecValidate } from '../openspec/cli.js';
+import { staleFills, unfilledZones } from '../kicad/zones.js';
 
 /**
  * `copperhead check` (alias `verify`): deterministic, zero LLM calls, CI-safe
  * (AC-2). This module must never import a provider.
  */
+/**
+ * Pour fills on the board (change refill-zone-fills): read-only findings that
+ * never change the exit code, which DRC already decides.
+ */
+export interface FillFindings {
+  /** DRC failed and a refill clears some of its findings (design D8). */
+  stale: boolean;
+  /** How many DRC findings a refill clears. */
+  staleAccountsFor: number;
+  /** The pours a refill changes, when the fills are stale. */
+  staleZones: string[];
+  /** Pours (zones KiCad fills, on any layer) with an outline and no fill data. */
+  unfilled: string[];
+  /** Why stale fills could not be checked (refill unavailable, or the refresh failed). */
+  notChecked?: string;
+}
+
 export interface CheckResult {
   ok: boolean;
   erc: { ok: boolean; violations: number } | null;
-  drc: { ok: boolean; violations: number; unrouted: number; intrinsic: number } | null;
+  drc: { ok: boolean; violations: number; unrouted: number; intrinsic: number; fills: FillFindings } | null;
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
@@ -44,6 +63,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   libraryCache.attach(repoRoot);
   let erc: CheckReport | null = null;
   let drc: CheckReport | null = null;
+  let fills: FillFindings | null = null;
 
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
     erc = await runErc(path.join(repoRoot, config.schematic));
@@ -55,6 +75,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   if (config.board && existsSync(path.join(repoRoot, config.board))) {
     drc = await runDrc(path.join(repoRoot, config.board));
     log(drc.ok && !drc.intrinsic?.length ? `DRC ✓${drc.unrouted ? ` (${drc.unrouted} unrouted)` : ''}` : formatViolations(drc));
+    fills = await checkFills(path.join(repoRoot, config.board), drc, log);
   } else {
     log('DRC skipped (no board configured)');
   }
@@ -142,10 +163,52 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   return {
     ok,
     erc: erc ? { ok: erc.ok, violations: erc.violations.length } : null,
-    drc: drc ? { ok: drc.ok, violations: drc.violations.length, unrouted: drc.unrouted ?? 0, intrinsic: drc.intrinsic?.length ?? 0 } : null,
+    drc:
+      drc && fills
+        ? { ok: drc.ok, violations: drc.violations.length, unrouted: drc.unrouted ?? 0, intrinsic: drc.intrinsic?.length ?? 0, fills }
+        : null,
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
     legibility,
   };
+}
+
+/**
+ * Pour fills, read-only (refill-zone-fills): pours with no fill are read from
+ * the text; when DRC failed, a refilled scratch copy decides whether stale
+ * fills cause some of its findings. Never writes the board, and runs no
+ * kicad-cli for a board without pours or with a passing DRC.
+ */
+async function checkFills(boardPath: string, drc: CheckReport, log: (s: string) => void): Promise<FillFindings> {
+  const text = await readFile(boardPath, 'utf8');
+  const out: FillFindings = { stale: false, staleAccountsFor: 0, staleZones: [], unfilled: [] };
+  try {
+    out.unfilled = unfilledZones(text).map((z) => z.label);
+  } catch (err) {
+    // KiCad ran the DRC, so a board copperhead's reader rejects is reported, not fatal
+    out.notChecked = (err as Error).message;
+    log(`fills: pour fills were not checked: ${out.notChecked}`);
+    return out;
+  }
+  if (out.unfilled.length) {
+    log(`fills: ${out.unfilled.length} pour(s) have no fill, so they add nothing to the board yet: ${out.unfilled.join('; ')}`);
+  }
+  if (drc.ok) return out;
+  try {
+    const found = await staleFills(boardPath, drc, text);
+    if (found.stale) {
+      out.stale = true;
+      out.staleAccountsFor = found.accountsFor;
+      out.staleZones = found.zones;
+      log(
+        `fills: the pour fills are stale: with fresh fills, ${found.accountsFor} of the DRC findings clear (${found.zones.join('; ')}). ` +
+          'Refill zones in KiCad (press B) and save, or let a copperhead run refill them.',
+      );
+    }
+  } catch (err) {
+    out.notChecked = (err as Error).message;
+    log(`fills: stale pour fills were not checked: ${out.notChecked}`);
+  }
+  return out;
 }

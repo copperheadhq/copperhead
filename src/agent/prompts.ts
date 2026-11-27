@@ -19,6 +19,7 @@ const WORKFLOW = `Workflow for every run:
 2. Call propose_change with a change id (kebab-case), why, what changes, and tasks. Then call validate_change. Edit tools (edit_file, write_file) unlock only after validation passes.
 3. Make the edits. Use the exact same net names and refdes everywhere. For .kicad_sch/.kicad_pcb use edit_file with unique anchors from the actual file text (read the file first). For renaming a net or refdes across a file, one edit_file call with replace_all: true beats many small edits.
 4. Run run_erc after schematic edits (and run_drc after board edits). If violations: read them, fix, re-run.
+   run_drc fills the copper pours (zones) of a board this run changed with KiCad's own filler, so a moved part or a new zone needs no manual refill. Never write filled_polygon data by hand; when asked to refill pours on a board you have not edited, call fill_zones.
 5. After schematic edits also run check_legibility and reconcile every error-severity finding (advisories inform, they do not block). An electrically correct sheet that reads badly is not done: finish refuses while error findings are outstanding, the same way it refuses on a failing ERC.
 6. Run check_drift; update any doc that references a changed value/part/pin in the same run.
 7. Record every non-trivial decision with record_decision, and every stated/assumed/discovered constraint with record_constraint.
