@@ -35,6 +35,7 @@
   "files": [
     "dist",
     "src",
+    "examples/simple/usb-c-breakout.md",
     "LICENSE",
     "NOTICE",
     "README.md"
