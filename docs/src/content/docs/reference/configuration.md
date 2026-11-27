@@ -36,6 +36,7 @@ sidebar:
 | `budgets` | `{}` | Free-form hard constraints, surfaced verbatim into every run's system prompt. |
 | `baseURL` | unset | Base URL of an OpenAI-compatible endpoint. Read **only** by the `compat` model route. |
 | `apiKeyEnv` | `OPENAI_API_KEY` | Name of the environment variable holding that endpoint's key. The name, never the key itself. |
+| `spice` | unset | Optional SPICE gate plumbing for `check --spice`. `spice.ngspice` is an absolute path to the ngspice binary (`COPPERHEAD_NGSPICE` overrides it). `spice.timeoutMs` is the per-run ngspice batch timeout (default 30000). This block never turns the gate on by itself; pass `--spice`. |
 
 There is also a `generatedHashes` key, maintained by copperhead. It records content hashes of the generated docs so `init` can tell an untouched file from a hand-edited one. Do not edit it by hand.
 
@@ -73,6 +74,7 @@ The names are yours. copperhead passes them through verbatim and expects the uni
 | `COPPERHEAD_BASE_URL` | Optional. Overrides `baseURL`. Only the `compat` route reads it, so it never redirects a `gpt-5` run. |
 | `COPPERHEAD_API_KEY_ENV` | Optional. Overrides `apiKeyEnv`, e.g. `GROQ_API_KEY`. |
 | `NO_COLOR` | Optional. Disables ANSI colors in `doctor` output; colors are also skipped automatically when stdout is not a terminal. |
+| `COPPERHEAD_NGSPICE` | Optional. Absolute path to the ngspice binary used by `check --spice`. Overrides `spice.ngspice`. A path that does not exist fails the gate rather than falling back to `PATH`. |
 
 A `.env` file in the working directory is read at startup, before any command resolves a model or a provider. A real environment variable always wins over the file. Copy `.env.example` to get started.
 

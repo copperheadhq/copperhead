@@ -1,0 +1,7 @@
+Error: unknown subckt: xu1 vin vout unk_reg
+    in line no. 5 from file gate.cir
+    Simulation interrupted due to error!
+
+Error: incomplete or empty netlist
+       or no ".plot", ".print", or ".fourier" lines in batch mode;
+no simulations run!

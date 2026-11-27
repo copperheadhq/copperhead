@@ -7,6 +7,13 @@ import path from 'node:path';
  * overrides (`off` disables a family). Unknown keys and invalid values are
  * ignored by the checker's own sanitizer, so a config typo cannot crash a run.
  */
+export interface SpiceUserConfig {
+  /** Absolute path to ngspice. Overridden by COPPERHEAD_NGSPICE. */
+  ngspice?: string;
+  /** Per-run timeout for one ngspice batch invocation. Default 30000. */
+  timeoutMs?: number;
+}
+
 export interface LegibilityUserConfig {
   thresholds?: {
     gridPitch?: number;
@@ -28,6 +35,8 @@ export interface CopperheadConfig {
   board: string | null;
   /** Schematic legibility checker thresholds and severity overrides. */
   legibility?: LegibilityUserConfig;
+  /** Opt-in SPICE gate (`check --spice`): ngspice path and timeout. */
+  spice?: SpiceUserConfig;
   docs: string;
   model: string | null;
   maxTurns: number;
@@ -154,7 +163,23 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
+    ...spiceConfig(raw.spice),
   };
+}
+
+/**
+ * Keep only well-typed `spice` fields: a string `ngspice` path and a finite
+ * positive `timeoutMs`. Anything else is dropped, so a typo such as
+ * `"ngspice": 1` falls back to the defaults instead of crashing `check --spice`.
+ */
+function spiceConfig(raw: unknown): { spice?: SpiceUserConfig } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const { ngspice, timeoutMs } = raw as Record<string, unknown>;
+  const spice: SpiceUserConfig = {
+    ...(typeof ngspice === 'string' && ngspice.trim() ? { ngspice: ngspice.trim() } : {}),
+    ...(typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {}),
+  };
+  return Object.keys(spice).length ? { spice } : {};
 }
 
 /** Which level of the model-selection precedence chain won. */
