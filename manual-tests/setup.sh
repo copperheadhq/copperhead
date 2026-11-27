@@ -50,6 +50,8 @@ if [ "$VARIANT" = "create" ]; then
   "maxRepairCycles": 5
 }
 JSON
+  mkdir -p "$DIR/docs"
+  cp "$ROOT/examples/simple/usb-c-breakout.md" "$DIR/docs/BRIEF.md"
 else
   cat > "$DIR/.copperhead/config.json" <<'JSON'
 {
@@ -70,7 +72,7 @@ if [ "$VARIANT" = "create" ]; then
   cat <<EOF
 Next, from the repo root:
 
-  npm run dev -- --repo $REL create --brief examples/simple/usb-c-breakout.md
+  npm run dev -- --repo $REL create --brief $REL/docs/BRIEF.md
 
 Requires kicad-cli on PATH and an API key in the environment.
 EOF

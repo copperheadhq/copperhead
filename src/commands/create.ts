@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { readFile, mkdir, writeFile, readdir } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { readFile, mkdir, writeFile, readdir, rm, realpath } from 'node:fs/promises';
+import { execa } from 'execa';
 import { loadConfig, resolveCompatSettings } from '../config.js';
 import { bootstrapKicadProject, markCreateOrigin } from '../kicad/bootstrap.js';
 import { exportNetlist, exportSvg, runDrc, runErc } from '../kicad/cli.js';
@@ -21,7 +21,7 @@ import type { MissingFootprint } from '../kicad/footprints.js';
 import { listSymbols } from '../kicad/sexp.js';
 import { checkLegibility } from '../kicad/legibility.js';
 import { draftSchematicToText, defaultIntentPath } from '../kicad/draft/draft.js';
-import { isDirty, commitAll, changedFiles, fileAtCommit, headCommit, applyFailedRun, snapshot, restore, preserveFailedRun, hasFailedRun } from '../util/git.js';
+import { isDirty, commitAll, commitPaths, changedFiles, fileAtCommit, headCommit, applyFailedRun, snapshot, restore, preserveFailedRun, hasFailedRun } from '../util/git.js';
 import { loadConstraints } from '../memory/constraints.js';
 import { classifyAttempt, causeNote, nextBudget, isDocsOnlyStage, renderDecisionStop, appendSummaryNote, type AttemptCause } from './stage-recovery.js';
 import type { RefusalBlocker } from '../agent/context.js';
@@ -42,6 +42,7 @@ import { symbolSearchDirs } from '../kicad/symlib.js';
 import { draftQualitySection, isDraftQualityHeading, isFilledDraftQuality } from '../kicad/fab.js';
 import { assertDiskSpace, DEFAULT_MIN_FREE_BYTES } from '../util/preflight.js';
 import { runCheck } from './check.js';
+import { briefSha256, initialReconciliationRecord, inspectBriefFreshness, resolveRepositoryLocalBriefPath, writeReconciliationRecord } from '../memory/brief-reconciliation.js';
 import { emitCreateJlcpcbBom } from './export.js';
 
 /**
@@ -60,6 +61,28 @@ interface Stage {
 }
 
 const docExists = (repoRoot: string, rel: string) => existsSync(path.join(repoRoot, rel));
+
+export const EXTERNAL_BRIEF_ERROR =
+  'create requires a brief inside the target repository so its freshness can be checked';
+export const IGNORED_BRIEF_ERROR = 'brief is ignored by git; it must be committable';
+
+export async function isRepositoryLocalBrief(repoRoot: string, briefPath: string): Promise<boolean> {
+  return Boolean(await resolveRepositoryLocalBriefPath(repoRoot, briefPath, { fallbackToRepoRoot: true }));
+}
+
+export async function resolveCreateBriefPath(
+  repoRoot: string,
+  briefPath: string,
+): Promise<{ path: string | null; error?: string }> {
+  const resolvedRepo = await realpath(repoRoot).catch(() => path.resolve(repoRoot));
+  const resolved = await resolveRepositoryLocalBriefPath(repoRoot, briefPath, { fallbackToRepoRoot: true });
+  if (!resolved) return { path: null, error: `${EXTERNAL_BRIEF_ERROR}; move it into the repository and rerun.` };
+  const relative = path.relative(resolvedRepo, resolved).split(path.sep).join('/');
+  if (relative.split('/')[0]?.toLowerCase() === '.git') return { path: null, error: IGNORED_BRIEF_ERROR };
+  const ignored = await execa('git', ['check-ignore', '-q', '--', relative], { cwd: resolvedRepo, reject: false });
+  if (ignored.exitCode === 0) return { path: null, error: IGNORED_BRIEF_ERROR };
+  return { path: resolved };
+}
 
 async function docHasContent(repoRoot: string, rel: string, marker: string): Promise<boolean> {
   const p = path.join(repoRoot, rel);
@@ -1047,18 +1070,24 @@ export interface CreateResult {
 }
 
 export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
-  const brief = await readFile(path.resolve(opts.briefPath), 'utf8');
+  const briefResolution = await resolveCreateBriefPath(opts.repoRoot, opts.briefPath);
+  if (!briefResolution.path) {
+    opts.log(briefResolution.error ?? EXTERNAL_BRIEF_ERROR);
+    return { ok: false, completed: [] };
+  }
+  const resolvedRepo = await realpath(opts.repoRoot);
+  const resolvedBrief = briefResolution.path;
+  const brief = await readFile(resolvedBrief, 'utf8');
   // Hashed from the content already in hand: a brief edited mid-pipeline shows
   // up as a different sha256 in the next stage's metadata (AC-8.1).
-  const resolvedBrief = path.resolve(opts.briefPath);
-  const relativeBrief = path.relative(opts.repoRoot, resolvedBrief);
+  const relativeBrief = path.relative(resolvedRepo, resolvedBrief);
   const briefPath =
     relativeBrief.startsWith('..') || path.isAbsolute(relativeBrief)
       ? `external:${path.basename(resolvedBrief)}`
       : relativeBrief;
   const briefMeta = {
     path: briefPath,
-    sha256: createHash('sha256').update(brief).digest('hex'),
+    sha256: briefSha256(brief),
   };
   const config = await loadConfig(opts.repoRoot);
   // Fail fast on a nearly-full disk (4.1): a create run writes fab outputs and
@@ -1468,7 +1497,54 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
     logCumulative(opts, stageCosts);
   }
 
-  const check = await runCheck(opts.repoRoot, opts.log);
+  let check = await runCheck(opts.repoRoot, opts.log, { suppressLegacyBriefLog: true });
+  const stateFile = path.join(opts.repoRoot, '.copperhead', 'brief-reconciliation.json');
+  const onlyInitialBriefIsUnverified =
+    check.brief?.status === 'legacy' &&
+    (check.brief.reasonCode === 'legacy-origin-without-reconciliation' || check.brief.reasonCode === 'legacy-external-origin') &&
+    !existsSync(stateFile) &&
+    (check.erc?.ok ?? true) &&
+    (check.drc?.ok ?? true) &&
+    check.drift.ok &&
+    (check.openspec?.ok ?? true) &&
+    check.constraints.ok;
+  if (onlyInitialBriefIsUnverified) {
+    const record = await initialReconciliationRecord(opts.repoRoot, config.docs, briefMeta);
+    if (record) {
+      try {
+        await writeReconciliationRecord(opts.repoRoot, record);
+        const brief = await inspectBriefFreshness(opts.repoRoot, config.docs);
+        const verified = { ...check, brief, ok: check.ok && brief.ok };
+        if (verified.ok) {
+          try {
+            await commitPaths(
+              opts.repoRoot,
+              ['.copperhead/brief-reconciliation.json'],
+              'copperhead: record initial brief reconciliation',
+            );
+            check = verified;
+          } catch (err) {
+            await rm(stateFile, { force: true });
+            await execa('git', ['reset', '--quiet', '--', '.copperhead/brief-reconciliation.json'], { cwd: opts.repoRoot }).catch(() => {});
+            opts.log(`brief reconciliation record was not committed: ${(err as Error).message}`);
+            check = { ...verified, brief: await inspectBriefFreshness(opts.repoRoot, config.docs), ok: false };
+          }
+        } else {
+          await rm(stateFile, { force: true });
+          check = verified;
+        }
+      } catch (err) {
+        await rm(stateFile, { force: true }).catch(() => {});
+        opts.log(`brief reconciliation record could not be written: ${(err as Error).message}`);
+        check = { ...check, brief: await inspectBriefFreshness(opts.repoRoot, config.docs), ok: false };
+      }
+    }
+    if (check.brief.status === 'current') {
+      opts.log(`brief ✓ current (${check.brief.currentSha256?.slice(0, 12) ?? 'hash unavailable'})`);
+    } else if (check.brief.status === 'legacy') {
+      opts.log(`brief legacy (${check.brief.path ?? 'external path'}): ${check.brief.detail ?? 'complete create to establish tracked provenance'}`);
+    }
+  }
   opts.log(
     check.ok
       ? ok('create pipeline complete; all checks green')

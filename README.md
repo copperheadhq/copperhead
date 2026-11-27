@@ -225,11 +225,12 @@ npm run demo:simple
 The script creates or resumes a git repo at `demo-runs/usb-c-breakout/` and runs:
 
 ```bash
-copperhead create --brief examples/simple/usb-c-breakout.md
+copperhead create --brief docs/BRIEF.md
 ```
 
 Pass normal create flags after `--`, for example `npm run demo:simple -- --model claude`.
 If a stage fails, rerun the same command; the demo repo keeps a baseline commit and ignores run transcripts so retries start from the last committed design state.
+The demo copies the packaged brief to `docs/BRIEF.md` and refuses to overwrite different existing content.
 
 More briefs, including medium and hard tiers, live in [examples/](examples/).
 

@@ -64,10 +64,14 @@ Six ready-made briefs ship in [`examples/`](https://github.com/copperheadhq/copp
 ```bash
 mkdir usb-c-breakout && cd usb-c-breakout
 git init && git commit --allow-empty -m "baseline"
-copperhead create --brief ../brief.md
+mkdir -p docs
+cp ../brief.md docs/BRIEF.md
+git add docs/BRIEF.md && git commit -m "add product brief"
+copperhead create --brief docs/BRIEF.md
 ```
 
 The empty baseline commit matters: rollback snapshots need somewhere to roll back to.
+The `--brief` path must be inside the target repository. Copy an external brief into the repository before starting create.
 
 ## 3. What runs
 

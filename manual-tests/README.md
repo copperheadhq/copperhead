@@ -26,7 +26,7 @@ An empty repository plus the USB-C breakout brief from `examples/simple/`. Tests
 
 ```bash
 ./manual-tests/setup.sh create
-npm run dev -- --repo manual-tests/runs/create create --brief examples/simple/usb-c-breakout.md
+npm run dev -- --repo manual-tests/runs/create create --brief manual-tests/runs/create/docs/BRIEF.md
 ```
 
 ### edit: task on an existing project
