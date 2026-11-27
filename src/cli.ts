@@ -160,6 +160,31 @@ program
     }
   });
 
+program
+  .command('ingest')
+  .description('parse the KiCad project into a normalized design graph; LLM-free, network-free')
+  .action(async () => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { loadConfig } = await import('./config.js');
+      const { extractDesignGraph, writeDesignGraph } = await import('./kicad/design-graph.js');
+      const config = await loadConfig(repo);
+      if (!config.schematic) {
+        console.error('no schematic configured in .copperhead/config.json (run copperhead init first)');
+        process.exit(1);
+      }
+      const graph = await extractDesignGraph(repo, config.schematic);
+      const out = await writeDesignGraph(repo, graph);
+      if (json) console.log(JSON.stringify(graph, null, 2));
+      else console.log(`wrote ${out} (${graph.parts.length} parts, ${graph.nets.length} nets${graph.generated.partial ? `, partial: s-expression fallback (${(graph.generated.partialReason ?? 'no reason recorded').replace(/\s+/g, ' ')})` : ''})`);
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
 const checkAction = async (): Promise<void> => {
   const repo = repoOf(program.opts());
   const json = Boolean(program.opts().json);

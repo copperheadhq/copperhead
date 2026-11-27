@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { emitSchematic } from '../emit.js';
-import { parseSexp, child, isList } from '../sexp.js';
+import { parseSexp, child, isList, listSymbols } from '../sexp.js';
 import { childSpans, listEnd } from '../spans.js';
 import { SymbolSource } from './symsource.js';
 import type { FootprintResolver } from '../footprints.js';
@@ -68,6 +68,19 @@ export async function draftSchematicToText(opts: SchematicDraftOptions): Promise
   // docsDir may arrive repo-relative (config.docs); resolve against the repo
   const docsDir =
     opts.docsDir === undefined || opts.docsDir === null ? null : path.resolve(opts.repoRoot, opts.docsDir);
+  // The emitter writes every symbol as (dnp no) (in_bom yes), so redrawing a part the schematic marks
+  // DNP or BOM-excluded would silently drop that flag. Refuse until the emitter carries the flags over.
+  const flagged = new Set<string>();
+  try {
+    for (const s of await listSymbols(path.join(opts.repoRoot, opts.schematic))) if (s.dnp || !s.inBom) flagged.add(s.ref);
+  } catch {
+    // no schematic yet (create pipeline): nothing is flagged
+  }
+  const dropped = intent.parts.map((p) => p.ref).filter((r) => flagged.has(r));
+  if (dropped.length) {
+    const msg = `${dropped.join(', ')} ${dropped.length > 1 ? 'are' : 'is'} marked DNP or excluded from the BOM in the current schematic, and a redraft would reset that flag; remove ${dropped.length > 1 ? 'them' : 'it'} from the intent or clear the flag in KiCad first`;
+    return { ok: false, findings: [{ detail: msg }], message: msg };
+  }
   const { ok, findings, validated } = await validateIntent(intent, symsource, docsDir, opts.footprints);
   if (!ok || !validated) return { ok: false, findings, message: formatIrFindings(findings) };
 

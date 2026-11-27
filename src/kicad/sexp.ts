@@ -94,6 +94,14 @@ export interface SchematicSymbol {
   uuid: string;
   /** `(unit N)` of the placed instance; 1 for single-unit symbols. */
   unit: number;
+  /** Datasheet URL from the symbol properties (`~` and empty become ''). */
+  datasheet: string;
+  /** All extra symbol properties beyond Reference/Value/Footprint/Datasheet (MPN, Manufacturer, LCSC, Description, custom fields). */
+  fields: Record<string, string>;
+  /** True when the placed instance carries `(dnp yes)`. */
+  dnp: boolean;
+  /** False when the instance carries `(in_bom no)` (excluded from BOM). */
+  inBom: boolean;
 }
 
 export interface PinDef {
@@ -231,6 +239,17 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
     if (!libId) continue; // lib_symbols entries have no lib_id child
     const at = child(s, 'at');
     const mirrorAtom = atomAt(child(s, 'mirror'), 1);
+    const rawDatasheet = property(s, 'Datasheet') ?? '';
+    const fields: Record<string, string> = {};
+    for (const p of children(s, 'property')) {
+      const k = atomAt(p, 1);
+      const v = atomAt(p, 2);
+      if (!k || v === undefined) continue;
+      if (k === 'Reference' || k === 'Value' || k === 'Footprint' || k === 'Datasheet') continue;
+      fields[k] = v;
+    }
+    const dnpRaw = atomAt(child(s, 'dnp'), 1);
+    const inBomRaw = atomAt(child(s, 'in_bom'), 1);
     out.push({
       node: s,
       mirror: mirrorAtom === 'x' || mirrorAtom === 'y' ? mirrorAtom : null,
@@ -247,6 +266,10 @@ function symbolsOf(sheet: ParsedSheet): { node: SexpNode[]; sym: SchematicSymbol
         },
         uuid: atomAt(child(s, 'uuid'), 1) ?? '',
         unit: parseInt(atomAt(child(s, 'unit'), 1) ?? '1', 10) || 1,
+        datasheet: rawDatasheet === '~' ? '' : rawDatasheet,
+        fields,
+        dnp: dnpRaw?.toLowerCase() === 'yes',
+        inBom: inBomRaw?.toLowerCase() !== 'no',
       },
     });
   }
@@ -271,6 +294,11 @@ function collectPowerSymbols(sheets: ParsedSheet[]): Set<string> {
 
 const isPowerSymbol = (libId: string, powerSyms: Set<string>): boolean =>
   libId.startsWith('power:') || powerSyms.has(libId);
+
+/** Every sheet file of the hierarchy (root first, each once), as absolute paths. */
+export async function listSheetFiles(rootSch: string): Promise<string[]> {
+  return (await loadSheets(rootSch)).map((s) => s.filePath);
+}
 
 /** One row per real component (power symbols excluded), across all sheets. */
 export async function listSymbols(rootSch: string): Promise<SchematicSymbol[]> {
