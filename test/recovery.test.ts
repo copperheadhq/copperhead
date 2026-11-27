@@ -214,6 +214,33 @@ describe('diagnoseStageFailure', () => {
 });
 
 describe('CachingProvider', () => {
+  it('fails loudly on a cache miss in cache-only mode', async () => {
+    const previous = process.env.COPPERHEAD_CACHE_ONLY;
+    process.env.COPPERHEAD_CACHE_ONLY = '1';
+    const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-cache-only-'));
+    let calls = 0;
+    try {
+      const cached = new CachingProvider(
+        {
+          name: 'test',
+          chat: async () => {
+            calls++;
+            return turn('live');
+          },
+        },
+        dir,
+      );
+      await expect(cached.chat([{ role: 'user', content: 'uncached' }], [])).rejects.toThrow(
+        /COPPERHEAD_CACHE_ONLY/,
+      );
+      expect(calls).toBe(0);
+    } finally {
+      if (previous === undefined) delete process.env.COPPERHEAD_CACHE_ONLY;
+      else process.env.COPPERHEAD_CACHE_ONLY = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('caches a response and replays it (no second model call), reporting zero usage', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-cache-'));
     try {

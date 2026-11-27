@@ -15,6 +15,31 @@ const readTool: ToolSchema = {
 };
 
 describe('CodexProvider', () => {
+  it.each(['command_execution', 'file_change', 'mcp_tool_call', 'web_search'])(
+    'rejects a native %s instead of accepting its structured answer', async (type) => {
+      const run = vi.fn().mockResolvedValue({
+        finalResponse: JSON.stringify({ text: 'done', toolCalls: [] }),
+        usage: null,
+        items: [{ type }],
+      });
+      const provider = new CodexProvider({ workingDirectory: process.cwd(), client: { startThread: () => ({ run }) } });
+      await expect(provider.chat([{ role: 'user', content: 'inspect' }], [readTool])).rejects.toThrow('reasoning-only invariant violated');
+      expect(run).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('explains that an empty toolCalls array never submits an action', async () => {
+    const run = vi.fn().mockResolvedValue({
+      finalResponse: JSON.stringify({ text: 'Validation submitted, waiting.', toolCalls: [] }),
+      usage: null,
+    });
+    const provider = new CodexProvider({ workingDirectory: process.cwd(), client: { startThread: () => ({ run }) } });
+    const result = await provider.chat([{ role: 'user', content: 'inspect' }], [readTool]);
+    expect(result.toolCalls).toEqual([]);
+    expect(result.nudge).toContain('executed nothing');
+    expect(run.mock.calls[0]![0]).toContain('ONLY action queue');
+  });
+
   it('is selected by the codex model namespace without an API key', async () => {
     expect((await makeProvider('codex')).name).toBe('codex');
     expect((await makeProvider('codex:gpt-test')).name).toBe('codex');

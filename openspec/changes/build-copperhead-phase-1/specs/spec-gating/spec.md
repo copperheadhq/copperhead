@@ -13,6 +13,14 @@ The agent SHALL NOT have `edit_file` or `write_file` in its tool list until an O
 - **WHEN** `openspec validate --change <id>` exits 0
 - **THEN** subsequent turns include the edit tools, and the transcript records the unlock event
 
+#### Scenario: Proposal carries capability deltas
+- **WHEN** a fresh OpenSpec workspace requires a spec delta before validation
+- **THEN** `propose_change` accepts capability Markdown deltas confined to the current change's specs directory without unlocking general edits
+
+#### Scenario: Revised proposal requires revalidation
+- **WHEN** the agent submits another proposal after a previous one validated
+- **THEN** edit tools are locked again until the revised proposal validates
+
 ### Requirement: Change workflow lifecycle
 Each `do` run SHALL create `openspec/changes/<id>/` (proposal, spec deltas, tasks) as its plan step, and the same code path that makes the ERC/DRC-clean commit SHALL run `openspec archive <id>`. In autonomous mode the proposal is auto-approved with an `AUTO` marker; in `--interactive` mode a human y/n gate sits between validation and edit unlock.
 
@@ -29,7 +37,7 @@ copperhead SHALL drive the OpenSpec CLI as a subprocess (never user-triggered): 
 
 #### Scenario: First-run scaffold
 - **WHEN** `copperhead init` runs in a repo without `openspec/`
-- **THEN** `openspec init` is executed once and `openspec/` exists afterward
+- **THEN** `openspec init --tools none` is executed once without interactive editor selection and `openspec/` exists afterward
 
 ### Requirement: Constraint registry with same-turn dual write
 The agent SHALL maintain `.copperhead/constraints.json` (value bounds, source, `affects[]`); whenever a constraint is stated, assumed, or discovered, the doc entry and registry entry MUST be written in the same tool turn. The registry SHALL be loaded into every run's system prompt, and `check` SHALL validate mechanically checkable constraints (leakage sums, forbidden pins).
