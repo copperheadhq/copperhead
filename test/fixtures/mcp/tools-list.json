@@ -1,0 +1,118 @@
+{
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list"
+  },
+  "response": {
+    "result": {
+      "tools": [
+        {
+          "name": "copperhead_check",
+          "title": "Verify the KiCad project",
+          "description": "Run ERC, DRC, doc-drift and spec validation on the project. Makes no model call and no network call, and changes nothing. Safe to call at any time, including concurrently.",
+          "inputSchema": {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {}
+          },
+          "execution": {
+            "taskSupport": "forbidden"
+          },
+          "_meta": {
+            "schemaVersion": 1
+          }
+        },
+        {
+          "name": "copperhead_doctor",
+          "title": "Check that this host can run copperhead",
+          "description": "Probe the environment copperhead needs: node, kicad-cli, git, openspec, and whether a model credential resolves. Makes no model call and no network call, and changes nothing. Call this first when another tool reports that something is unavailable.",
+          "inputSchema": {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {}
+          },
+          "execution": {
+            "taskSupport": "forbidden"
+          },
+          "_meta": {
+            "schemaVersion": 1
+          }
+        },
+        {
+          "name": "copperhead_init",
+          "title": "Scaffold design docs from the schematic",
+          "description": "Generate the docs/ memory scaffold from an existing schematic. Also installs a git pre-commit hook that runs copperhead check before each commit. Idempotent, and refuses rather than overwriting docs a human has hand-edited.",
+          "inputSchema": {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+              "path": {
+                "description": "where to look for KiCad files, relative to the repo root",
+                "type": "string"
+              }
+            }
+          },
+          "execution": {
+            "taskSupport": "forbidden"
+          },
+          "_meta": {
+            "schemaVersion": 1
+          }
+        },
+        {
+          "name": "copperhead_do",
+          "title": "Make a verified change to the project",
+          "description": "Run the full gated pipeline for a change request: propose, spec-gate, edit, verify with ERC/DRC, repair, and commit — or roll back to the pre-run state if verification cannot be satisfied. This is the only way to change the project. Long-running; progress is streamed. Requires an API key in the environment.",
+          "inputSchema": {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+              "request": {
+                "type": "string",
+                "minLength": 1,
+                "description": "the change request, in natural language"
+              },
+              "dry_run": {
+                "description": "propose the change and write nothing",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "request"
+            ]
+          },
+          "execution": {
+            "taskSupport": "forbidden"
+          },
+          "_meta": {
+            "schemaVersion": 1
+          }
+        },
+        {
+          "name": "copperhead_sync",
+          "title": "Verify design-state consistency, and optionally resolve drift",
+          "description": "Run the deterministic consistency check across docs, constraints and the KiCad files. With resolve=true, additionally run the gated loop to fix the drift it found. Requirement violations are always reported and never auto-resolved — those are for a human. resolve=true requires an API key in the environment.",
+          "inputSchema": {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+              "resolve": {
+                "description": "run the LLM resolve phase for resolvable drift",
+                "type": "boolean"
+              }
+            }
+          },
+          "execution": {
+            "taskSupport": "forbidden"
+          },
+          "_meta": {
+            "schemaVersion": 1
+          }
+        }
+      ]
+    },
+    "jsonrpc": "2.0",
+    "id": 2
+  }
+}

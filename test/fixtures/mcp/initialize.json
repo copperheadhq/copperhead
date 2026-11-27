@@ -1,0 +1,32 @@
+{
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-11-25",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "golden",
+        "version": "1"
+      }
+    }
+  },
+  "response": {
+    "result": {
+      "protocolVersion": "2025-11-25",
+      "capabilities": {
+        "tools": {
+          "listChanged": true
+        }
+      },
+      "serverInfo": {
+        "name": "copperhead",
+        "version": "0.1.0"
+      },
+      "instructions": "EXPERIMENTAL, UNSTABLE SURFACE: tool names, inputs and result shapes may change in any release. Use these tools to change or verify a KiCad project instead of editing .kicad_sch / .kicad_pcb files directly. Every mutation runs a spec-gated, verified, rollback-on-failure pipeline; editing the files yourself bypasses all of it."
+    },
+    "jsonrpc": "2.0",
+    "id": 1
+  }
+}
