@@ -139,8 +139,11 @@ docs in the same tool turn (dual write).
 ## runs/
 
 One directory per \`do\`/\`create\`/\`sync\` run: \`transcript.jsonl\` (full audit
-trail) and \`summary.md\` (human-readable: request, plan, files touched,
-verification results, decisions, open obligations). Both redact secrets at
+
+trail), \`summary.md\` (human-readable: request, plan, files touched,
+verification results, decisions, open obligations), and \`metrics.json\`
+(running token/turn/duration totals, rewritten atomically after every LLM
+call, so it survives a stalled or killed run). All redact secrets at
 write time. This directory is gitignored. A run that fails or refuses after
 touching files leaves that work in a git stash entry named
 \`copperhead failed run <run-id>\` (the run dir's name); a docs-only \`create\`
