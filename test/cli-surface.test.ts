@@ -130,6 +130,21 @@ describe('demo --tour honours --json', () => {
     expect(res.stdout).not.toMatch(/\x1b\[/);
   }, 60_000);
 
+  it('delivers the whole JSON payload through a shell pipe', async () => {
+    // A piped stdout is asynchronous on POSIX, so a process.exit() right after
+    // the write used to cut the payload at the first chunk (1024 bytes here,
+    // 512 for `check --json`). `| cat` makes stdout a real pipe; the payload
+    // must still parse in full.
+    const res = await execa('sh', ['-c', 'npx tsx src/cli.ts --json demo --tour | cat'], {
+      cwd: ROOT,
+      reject: false,
+      env: { NO_COLOR: '1' },
+    });
+    expect(res.exitCode).toBe(0);
+    const parsed = JSON.parse(res.stdout) as { tour: string[] };
+    expect(parsed.tour.join('\n')).toContain('copperhead');
+  }, 60_000);
+
   it('still prints prose without --json', async () => {
     const res = await execa('npx', ['tsx', 'src/cli.ts', 'demo', '--tour'], {
       cwd: ROOT,
