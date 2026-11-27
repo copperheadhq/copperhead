@@ -927,6 +927,37 @@ const segCrossesBody = (x1: number, y1: number, x2: number, y2: number, b: Bound
   return inX && inY; // conservative for diagonals (the engine never draws them)
 };
 
+/** Is (x, y) on the (axis-aligned) segment, endpoints included? */
+const segContains = (w: { x1: number; y1: number; x2: number; y2: number }, x: number, y: number): boolean =>
+  x >= Math.min(w.x1, w.x2) - 0.01 &&
+  x <= Math.max(w.x1, w.x2) + 0.01 &&
+  y >= Math.min(w.y1, w.y2) - 0.01 &&
+  y <= Math.max(w.y1, w.y2) + 0.01 &&
+  (Math.abs(w.x1 - w.x2) < 0.01 ? Math.abs(x - w.x1) <= 0.01 : Math.abs(y - w.y1) <= 0.01);
+
+/**
+ * Test whether candidate point `pt` (and label text at `rot`) is clear to serve
+ * as a wired net's label anchor. The anchor must not lie on a foreign wire or
+ * pending foreign stub (which would electrically merge nets in KiCad), and the
+ * text box must not overlap component bodies/leads or neighbouring labels.
+ */
+export function isLabelAnchorClear(
+  pt: { x: number; y: number },
+  rot: number,
+  netName: string,
+  wires: readonly { x1: number; y1: number; x2: number; y2: number; net: string }[],
+  pendingStubs: readonly { x1: number; y1: number; x2: number; y2: number; net: string }[],
+  obstacleBodies: readonly Bounds[],
+  placedLabels: readonly { name: string; x: number; y: number; rot: number }[],
+  pad = TEXT_PAD,
+): boolean {
+  if (wires.some((w) => w.net !== netName && segContains(w, pt.x, pt.y))) return false;
+  if (pendingStubs.some((st) => st.net !== netName && segContains(st, pt.x, pt.y))) return false;
+  const b = labelTextBox(netName, pt.x, pt.y, rot);
+  if (obstacleBodies.some((body) => boundsOverlap(b, body))) return false;
+  return !placedLabels.some((o) => o.name !== netName && boundsOverlap(padBox(b, pad), labelTextBox(o.name, o.x, o.y, o.rot)));
+}
+
 /**
  * Draft, then check the drawn group boxes against one another: a box grows
  * past its tiling estimate when the text it must hold (a flag on a hung
@@ -4743,8 +4774,14 @@ function draftOnce(
     });
   }
 
-  // signal nets: local nets wired, everything else labelled at a stub
   const bodies = [...placed.values()].map((p) => p.body);
+  const placedList = [...placed.values()].map((pl) => ({
+    body: pl.body,
+    pins: pl.sym.pins.map((pin) => ({
+      pt: pinAt(pl, pin),
+      out: outward(pin),
+    })),
+  }));
   // Every signal pin's stub, drawn or not yet: a route is judged against the
   // stubs of nets drafted after it as well as the wires of those before. A
   // stub is taken two units longer than drawn, the room its label needs: a
@@ -4786,7 +4823,14 @@ function draftOnce(
     pl.sym.pins.map((pin) => {
       const p = pinAt(pl, pin);
       const o = outward(pin);
-      const end = o.dx > 0 ? { x: pl.body.maxX, y: p.y } : o.dx < 0 ? { x: pl.body.minX, y: p.y } : o.dy > 0 ? { x: p.x, y: pl.body.maxY } : { x: p.x, y: pl.body.minY };
+      const end =
+        o.dx > 0
+          ? { x: Math.min(p.x, pl.body.maxX), y: p.y }
+          : o.dx < 0
+            ? { x: Math.max(p.x, pl.body.minX), y: p.y }
+            : o.dy > 0
+              ? { x: p.x, y: Math.min(p.y, pl.body.maxY) }
+              : { x: p.x, y: Math.max(p.y, pl.body.minY) };
       return { p, end };
     }),
   ).filter((l) => Math.abs(l.p.x - l.end.x) + Math.abs(l.p.y - l.end.y) > 0.01);
@@ -4825,8 +4869,29 @@ function draftOnce(
       const xs = subset.map((s) => s.end.x).sort((a, b) => a - b);
       const ys = subset.map((s) => s.end.y);
       const admit = (candidate: RouteSeg[]): boolean => {
-        if (candidate.some((c) => bodies.some((b) => segCrossesBody(c.x1, c.y1, c.x2, c.y2, b)))) return false;
-        if (candidate.some(touchesLead)) return false;
+        for (const c of candidate) {
+          for (const pl of placedList) {
+            let touchesOwnedPin = false;
+            for (const p of pl.pins) {
+              const at1 = sameCoord(p.pt.x, c.x1) && sameCoord(p.pt.y, c.y1);
+              const at2 = sameCoord(p.pt.x, c.x2) && sameCoord(p.pt.y, c.y2);
+              if (at1 || at2) {
+                touchesOwnedPin = true;
+                const vx = at1 ? c.x2 - c.x1 : c.x1 - c.x2;
+                const vy = at1 ? c.y2 - c.y1 : c.y1 - c.y2;
+                // A segment terminating at a pin must approach from the pin's
+                // legal outward direction into free space. A wire heading inward
+                // into the symbol body is refused; perpendicular arrivals are allowed.
+                const outwardDot = vx * p.out.dx + vy * p.out.dy;
+                if (outwardDot < -0.01) return false;
+              }
+            }
+            if (!touchesOwnedPin && segCrossesBody(c.x1, c.y1, c.x2, c.y2, pl.body)) {
+              return false;
+            }
+          }
+          if (touchesLead(c)) return false;
+        }
         return !touchesForeign(candidate, net.name, new Set(net.pins));
       };
       const found: Route[] = [];
@@ -4875,6 +4940,37 @@ function draftOnce(
           candidate.push({ x1: meetXs[i - 1]!, y1: trunkY, x2: meetXs[i]!, y2: trunkY });
         }
         if (admit(candidate)) found.push({ segs: candidate, trunkX: meetXs[0]!, trunkY });
+      }
+      // A direct straight wire for two collinear facing pins:
+      // When two endpoints lie on the same coordinate axis and their outward
+      // directions face directly toward one another, the natural human
+      // schematic connection is a single straight wire segment between them.
+      // Because their fixed stub vectors (STUB * U) may overshoot past the
+      // opposite pin into its body when the distance is under 2 * STUB * U,
+      // trunk/comb routing rejects the overshooting stubs. A direct segment
+      // connects the facing pins cleanly with zero bends, zero junctions, and
+      // zero crossings.
+      if (subset.length === 2) {
+        const [a, b] = subset as [Stub, Stub];
+        const vertFacing =
+          sameCoord(a.ep.at.x, b.ep.at.x) &&
+          a.o.dx === 0 &&
+          b.o.dx === 0 &&
+          ((a.ep.at.y < b.ep.at.y && a.o.dy > 0 && b.o.dy < 0) ||
+            (a.ep.at.y > b.ep.at.y && a.o.dy < 0 && b.o.dy > 0));
+        const horizFacing =
+          sameCoord(a.ep.at.y, b.ep.at.y) &&
+          a.o.dy === 0 &&
+          b.o.dy === 0 &&
+          ((a.ep.at.x < b.ep.at.x && a.o.dx > 0 && b.o.dx < 0) ||
+            (a.ep.at.x > b.ep.at.x && a.o.dx < 0 && b.o.dx > 0));
+        const dist = vertFacing ? Math.abs(a.ep.at.y - b.ep.at.y) : Math.abs(a.ep.at.x - b.ep.at.x);
+        if ((vertFacing || horizFacing) && dist <= STUB * U + 1e-6) {
+          const directCandidate: RouteSeg[] = [{ x1: a.ep.at.x, y1: a.ep.at.y, x2: b.ep.at.x, y2: b.ep.at.y }];
+          if (admit(directCandidate)) {
+            found.push({ segs: directCandidate, trunkX: a.ep.at.x, trunkY: a.ep.at.y });
+          }
+        }
       }
       // A hook, for two stubs where one lies on a row and the other is a
       // lead below or above it on an axis the row would have to cross: run
@@ -5004,7 +5100,16 @@ function draftOnce(
       // candidate clears every body wins; the run's top-left point is the
       // last resort.
       const vertTops = r.segs.filter((c) => sameCoord(c.x1, c.x2)).map((c) => ({ x: c.x1, y: Math.min(c.y1, c.y2) }));
-      const candidates = [...vertTops.sort((a, b) => a.y - b.y || a.x - b.x), pts[0]!];
+      const horizSegs = r.segs.filter((c) => sameCoord(c.y1, c.y2));
+      const horizPts: { x: number; y: number }[] = [];
+      for (const seg of horizSegs) {
+        const minX = Math.min(seg.x1, seg.x2);
+        const maxX = Math.max(seg.x1, seg.x2);
+        for (let x = minX; x <= maxX + 1e-6; x += U) {
+          horizPts.push({ x: onGridLine(x), y: seg.y1 });
+        }
+      }
+      const candidates = [...vertTops.sort((a, b) => a.y - b.y || a.x - b.x), ...horizPts.sort((a, b) => a.x - b.x), pts[0]!];
       // a part is its body and its leads: the leads run from the body out to
       // the pins' connection points, and a name anchored at a lead's end
       // stood on it (VREF_RAW over R3's lower lead)
@@ -5017,13 +5122,21 @@ function draftOnce(
           maxY: Math.max(pl.body.maxY, ...pts.map((q) => q.y)),
         };
       };
-      const clearOfBodies = (pt: { x: number; y: number }): boolean => {
-        const b = labelTextBox(net.name, pt.x, pt.y, 0);
-        if ([...placed.values()].some((pl) => boundsOverlap(b, withLeads(pl)))) return false;
-        return !labels.some((o) => o.name !== net.name && boundsOverlap(padBox(b), labelTextBox(o.name, o.x, o.y, o.rot)));
-      };
-      const at = candidates.find(clearOfBodies) ?? pts[0]!;
-      labels.push({ name: net.name, x: at.x, y: at.y, rot: 0, kind: 'local' });
+      const clearOfBodies = (pt: { x: number; y: number }, rot = 0): boolean =>
+        isLabelAnchorClear(
+          pt,
+          rot,
+          net.name,
+          wires,
+          pendingStubs,
+          [...placed.values()].map(withLeads),
+          labels,
+        );
+      const at0 = candidates.find((p) => clearOfBodies(p, 0));
+      const at180 = !at0 ? candidates.find((p) => clearOfBodies(p, 180)) : undefined;
+      const at = at0 ? { ...at0, rot: 0 } : at180 ? { ...at180, rot: 180 } : undefined;
+      const chosenAt = at ?? { ...pts[0]!, rot: 0 };
+      labels.push({ name: net.name, x: chosenAt.x, y: chosenAt.y, rot: chosenAt.rot, kind: 'local' });
       netWired.push(labels.length - 1);
       wiredLabels.push({ label: labels.length - 1, pts, segs: r.segs.map((c) => ({ ...c })) });
       wired++;
@@ -5562,13 +5675,6 @@ function draftOnce(
     Math.max(w.x1, w.x2) > b.minX + 0.01 &&
     Math.min(w.y1, w.y2) < b.maxY - 0.01 &&
     Math.max(w.y1, w.y2) > b.minY + 0.01;
-  /** Is (x, y) on the (axis-aligned) segment, endpoints included? */
-  const segContains = (w: { x1: number; y1: number; x2: number; y2: number }, x: number, y: number): boolean =>
-    x >= Math.min(w.x1, w.x2) - 0.01 &&
-    x <= Math.max(w.x1, w.x2) + 0.01 &&
-    y >= Math.min(w.y1, w.y2) - 0.01 &&
-    y <= Math.max(w.y1, w.y2) + 0.01 &&
-    (Math.abs(w.x1 - w.x2) < 0.01 ? Math.abs(x - w.x1) <= 0.01 : Math.abs(y - w.y1) <= 0.01);
 
   // Wired-net labels first: the single label naming a wired run used to be
   // pinned at the topmost-leftmost wire point with no clearance check, and on
