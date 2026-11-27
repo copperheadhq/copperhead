@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "parts": [
+    {
+      "ref": "U1",
+      "libId": "fixture:ESP32-S3-MINI",
+      "value": "ESP32-S3-MINI",
+      "footprint": "RF_Module:ESP32-S3-MINI-1",
+      "group": "MCU"
+    },
+    {
+      "ref": "R1",
+      "libId": "Device:R",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "MCU"
+    },
+    {
+      "ref": "R2",
+      "libId": "Device:R",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "Keyer"
+    },
+    {
+      "ref": "D1",
+      "libId": "Device:LED_RGBA",
+      "value": "LED_RGBA",
+      "footprint": "LED_SMD:LED_RGB_1210",
+      "group": "Indicator"
+    },
+    {
+      "ref": "R3",
+      "libId": "Device:R",
+      "value": "330",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "Indicator"
+    },
+    {
+      "ref": "R4",
+      "libId": "Device:R",
+      "value": "330",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "Indicator"
+    },
+    {
+      "ref": "R5",
+      "libId": "Device:R",
+      "value": "330",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "group": "Indicator"
+    }
+  ],
+  "nets": [
+    {
+      "name": "3V3",
+      "pins": [
+        "U1.1",
+        "R1.1",
+        "D1.4"
+      ]
+    },
+    {
+      "name": "EN",
+      "pins": [
+        "U1.2",
+        "R1.2"
+      ]
+    },
+    {
+      "name": "KEY_DAH",
+      "pins": [
+        "U1.5",
+        "R2.1"
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        "U1.8",
+        "R2.2"
+      ]
+    },
+    {
+      "name": "LED_R",
+      "pins": [
+        "U1.9",
+        "R3.1"
+      ]
+    },
+    {
+      "name": "LED_G",
+      "pins": [
+        "U1.10",
+        "R4.1"
+      ]
+    },
+    {
+      "name": "LED_B",
+      "pins": [
+        "U1.11",
+        "R5.1"
+      ]
+    },
+    {
+      "name": "LED_RK",
+      "pins": [
+        "R3.2",
+        "D1.1"
+      ]
+    },
+    {
+      "name": "LED_GK",
+      "pins": [
+        "R4.2",
+        "D1.2"
+      ]
+    },
+    {
+      "name": "LED_BK",
+      "pins": [
+        "R5.2",
+        "D1.3"
+      ]
+    }
+  ],
+  "noConnect": [
+    "U1.3",
+    "U1.4",
+    "U1.6",
+    "U1.7",
+    "U1.12",
+    "U1.13",
+    "U1.14"
+  ],
+  "hints": {
+    "date": "2026-10-23"
+  }
+}
