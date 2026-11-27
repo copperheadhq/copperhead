@@ -200,6 +200,8 @@ function envOverride(): string | null {
  * override re-check here could never fire.
  */
 function fallbackAfterMissing(): string {
+  // Fixture Windows roots replace the whole probe: a real KiCad.app on the
+  // host must not shadow them.
   const candidates =
     fallbackBinariesOverride ??
     defaultFallbackBinaries(
@@ -254,7 +256,8 @@ export function setKicadFallbackBinaries(paths?: readonly string[]): void {
 
 /**
  * Test helper: point the Windows installation discovery probe at fixture roots, or call
- * with no argument to restore the default search roots.
+ * with no argument to restore the default search roots. While set, the macOS app-bundle
+ * paths are not probed, so a KiCad.app on the host cannot shadow the fixtures.
  */
 export function setKicadFallbackWinRoots(roots?: readonly string[]): void {
   fallbackWinRootsOverride = roots ?? null;
