@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { writeFile, readFile } from 'node:fs/promises';
+import { writeFile, readFile, rm } from 'node:fs/promises';
 import { runInit } from '../src/memory/scaffold.js';
 import { loadConfig } from '../src/config.js';
 import { availableTools, dispatchTool, dispatchToolResult, registry, type RunContext } from '../src/agent/tools.js';
@@ -41,6 +41,71 @@ async function makeCtx(repo: string): Promise<RunContext> {
 }
 
 describe('spec gating: structural edit lock (invariant 1)', () => {
+  it.each(['first-change', 'second-change'])('relocks before writing a replacement proposal %s', async (id) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      const proposal = { id: 'first-change', why: 'test', what_changes: '- test', tasks: '- [ ] test' };
+      await dispatchTool(ctx, 'propose_change', proposal);
+      await dispatchTool(ctx, 'validate_change', {});
+      expect(ctx.editsUnlocked).toBe(true);
+      expect(availableTools(ctx).some((tool) => tool.name === 'write_file')).toBe(true);
+      await dispatchTool(ctx, 'propose_change', { ...proposal, id, what_changes: '- replacement' });
+      expect(ctx.editsUnlocked).toBe(false);
+      expect(ctx.proposalValidated).toBe(false);
+      expect(availableTools(ctx).some((tool) => tool.name === 'write_file')).toBe(false);
+      await dispatchTool(ctx, 'validate_change', {});
+      expect(ctx.editsUnlocked).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.each(['denied', 'input error', 'invalid'] as const)('revalidation cannot retain a previous unlock when %s', async (reason) => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      ctx.interactive = true;
+      await dispatchTool(ctx, 'propose_change', { id: 'approval-test', why: 'test', what_changes: '- test', tasks: '- [ ] test' });
+      await dispatchTool(ctx, 'validate_change', {});
+      expect(ctx.editsUnlocked).toBe(true);
+      if (reason === 'invalid') await rm(path.join(repo, 'openspec', 'changes', 'approval-test', 'tasks.md'));
+      else ctx.confirm = async () => {
+        if (reason === 'input error') throw new Error('input closed');
+        return false;
+      };
+      await dispatchTool(ctx, 'validate_change', {});
+      expect(ctx.editsUnlocked).toBe(false);
+      expect(ctx.proposalValidated).toBe(reason !== 'invalid');
+      expect(availableTools(ctx).some((tool) => tool.name === 'write_file')).toBe(false);
+      const blocked = await dispatchTool(ctx, 'write_file', { path: 'unapproved.txt', content: 'must not be written' });
+      expect(blocked).toContain('not available');
+      await expect(readFile(path.join(repo, 'unapproved.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a rejected replacement cannot inherit the first proposal approval', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const ctx = await makeCtx(repo);
+      ctx.interactive = true;
+      const proposal = { id: 'proposal-a', why: 'test', what_changes: '- test', tasks: '- [ ] test' };
+      await dispatchTool(ctx, 'propose_change', proposal);
+      await dispatchTool(ctx, 'validate_change', {});
+      expect(availableTools(ctx).some((tool) => tool.name === 'write_file')).toBe(true);
+      await dispatchTool(ctx, 'propose_change', { ...proposal, id: 'proposal-b' });
+      ctx.confirm = async () => false;
+      expect(await dispatchTool(ctx, 'validate_change', {})).toContain('human declined');
+      expect(availableTools(ctx).some((tool) => tool.name === 'write_file')).toBe(false);
+      expect(await dispatchTool(ctx, 'write_file', { path: 'unapproved.txt', content: 'denied' })).toContain('not available');
+      await expect(readFile(path.join(repo, 'unapproved.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('edit tools are absent until the proposal validates, then present', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {
