@@ -221,6 +221,24 @@ describe('normalizeValue (#I11 — semantic value equality, not byte-exact)', ()
     expect(eq('10k', '4k7')).toBe(false);
     expect(eq('Ihold≥3A', 'Ihold≥5A')).toBe(false);
   });
+
+  it('keeps SI mega (M) and milli (m) apart (#483)', () => {
+    expect(eq('1M', '1m')).toBe(false);
+    expect(eq('4M7', '4m7')).toBe(false);
+    expect(eq('2.2MHz', '2.2mHz')).toBe(false);
+    expect(eq('1MΩ', '1mΩ')).toBe(false);
+    expect(eq('100mA', '100MA')).toBe(false);
+  });
+
+  it('still folds the case of every other letter, and the SPICE Meg spelling (#483)', () => {
+    expect(eq('4.7K', '4.7k')).toBe(true);
+    expect(eq('1M', '1 M')).toBe(true);
+    expect(eq('1MΩ', '1Mohm')).toBe(true);
+    expect(eq('1Meg', '1M')).toBe(true);
+    expect(eq('1MEG', '1M')).toBe(true);
+    expect(eq('10uF X7R', '10UF x7r')).toBe(true);
+    expect(eq('Molex 1M', 'molex 1M')).toBe(true);
+  });
 });
 
 describe('normalizeFootprint (F6 — encoding/space folded, case preserved)', () => {
