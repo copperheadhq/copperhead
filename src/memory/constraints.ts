@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -21,6 +21,7 @@ export interface Constraint {
    * exists (reopenDeferredAffects), then the marker is removed.
    */
   deferred?: string[];
+  evidence?: ConstraintEvidence;
 }
 
 export type ConstraintRegistry = Record<string, Constraint>;
@@ -156,5 +157,324 @@ export function checkForbiddenPins(
       }
     }
   }
+  return violations;
+}
+
+/**
+ * Evidence citation attached to a general engineering constraint (#232).
+ * Validated deterministically against locally cached/committed files with
+ * zero network calls.
+ */
+export interface ConstraintEvidence {
+  /** Repo-relative path to the cached datasheet, app note, or spec document. */
+  path: string;
+  /** Optional expected SHA-256 hex digest of the cached evidence file (or verified via .copperhead/datasheets/index.json). */
+  sha256?: string;
+  /** Optionalexpected SHA-256 hex digest of the extracted `.pdf.txt` sidecar when `path` is a PDF. */
+  sidecarSha256?: string;
+  /** Optional section or page locator (for diagnostics). */
+  section?: string;
+  /** Verbatim quote from the cached evidence that mentions the constraint bound. */
+  quote: string;
+  /** Optional explicit numeric literals cited from the quote. */
+  numbers?: (string | number)[];
+}
+
+export type EvidenceBackedConstraint = Constraint;
+
+export interface VerifyEvidenceOptions {
+  /** Repo-relative directories allowed for evidence reads (defaults to ['.copperhead/datasheets', 'docs/datasheets']). */
+  allowedDirs?: string[];
+}
+
+const DEFAULT_EVIDENCE_DIRS = ['.copperhead/datasheets', 'docs/datasheets'];
+
+function normalizeWs(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function resolveCanonicalOrLexical(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+function isWithinAllowedEvidenceDirs(
+  repoRoot: string,
+  candidatePath: string,
+  allowedDirs: string[],
+): boolean {
+  const canonicalRoot = resolveCanonicalOrLexical(repoRoot);
+  const lexicalTarget = path.resolve(canonicalRoot, candidatePath);
+  let canonicalTarget = lexicalTarget;
+  if (existsSync(lexicalTarget)) {
+    try {
+      canonicalTarget = realpathSync(lexicalTarget);
+    } catch {
+      return false;
+    }
+  }
+  for (const relDir of allowedDirs) {
+    const allowedAbs = resolveCanonicalOrLexical(path.resolve(canonicalRoot, relDir));
+    if (canonicalTarget === allowedAbs || canonicalTarget.startsWith(allowedAbs + path.sep)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The leading number of a constraint value, or null when it has none.
+ *
+ * `record_constraint` declares `value` as a string, so an agent reaching for
+ * it naturally records "3.3 V" rather than 3.3. Reading that as non-numeric
+ * produced a permanent red `check` on a board whose datasheet quote plainly
+ * states 3.3 V. Normalizes the same way extractNumericTokens does, so the
+ * value and the quote it is checked against are read identically.
+ */
+function leadingNumber(raw: string): number | null {
+  const normalized = raw.replace(/\u2212/g, '-').replace(/(\d),(?=\d{3}\b)/g, '$1');
+  const m = normalized.match(/^\s*[-+]?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+function extractNumericTokens(text: string): number[] {
+  const normalized = text
+    .replace(/\u2212/g, '-')
+    .replace(/(\d),(?=\d{3}\b)/g, '$1')
+    // Treat hyphen directly after a digit (e.g. "1.8-3.6 V" or "1.8 - 3.6 V") as a range separator, not a negative sign
+    .replace(/(\d)\s*-\s*(?=\d)/g, '$1 .. ');
+  const matches = normalized.match(/(?<![\d.])-?\d+(?:\.\d+)?/g) ?? [];
+  return matches.map((m) => Number(m)).filter((n) => Number.isFinite(n));
+}
+
+async function loadDatasheetIndexHashes(repoRoot: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const idxPath = path.join(repoRoot, '.copperhead', 'datasheets', 'index.json');
+  if (!existsSync(idxPath)) return map;
+  try {
+    const raw = JSON.parse(await readFile(idxPath, 'utf8')) as unknown;
+    const entries = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === 'object' && Array.isArray((raw as { entries?: unknown[] }).entries)
+        ? (raw as { entries: unknown[] }).entries
+        : raw && typeof raw === 'object'
+          ? Object.entries(raw as Record<string, unknown>).map(([p, v]) => ({ path: p, ...(v as object) }))
+          : [];
+    for (const item of entries) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const p = typeof rec.path === 'string' ? rec.path.split(path.sep).join('/') : '';
+      const sha = typeof rec.sha256 === 'string' ? rec.sha256 : '';
+      if (p && sha) map.set(p, sha);
+    }
+  } catch {
+    // Ignore unreadable index.json here; individual sha256 checks still run.
+  }
+  return map;
+}
+
+/**
+ * Deterministic, offline verification of general constraint evidence (#232).
+ * Checks that every constraint carrying `evidence` resolves inside the allowed
+ * evidence cache directories under `repoRoot` (following symlinks via realpath),
+ * refers to a regular file, matches its `sha256` digest (and/or `.copperhead/datasheets/index.json`),
+ * requires an extracted `.pdf.txt` sidecar when `path` is a PDF, contains the
+ * verbatim `quote`, and mentions the constraint's numeric bounds.
+ */
+export async function verifyConstraintEvidence(
+  repoRoot: string,
+  registry: ConstraintRegistry,
+  opts?: VerifyEvidenceOptions,
+): Promise<ConstraintViolation[]> {
+  const { createHash } = await import('node:crypto');
+  const allowedDirs = opts?.allowedDirs ?? DEFAULT_EVIDENCE_DIRS;
+  const indexHashes = await loadDatasheetIndexHashes(repoRoot);
+  const violations: ConstraintViolation[] = [];
+
+  for (const [key, rawConstraint] of Object.entries(registry)) {
+    if (!rawConstraint || typeof rawConstraint !== 'object') continue;
+    const c = rawConstraint as Constraint;
+    const ev = c.evidence as unknown as Record<string, unknown> | undefined;
+    if (!ev) continue;
+
+    if (
+      typeof ev.path !== 'string' ||
+      typeof ev.quote !== 'string' ||
+      (ev.sha256 !== undefined && typeof ev.sha256 !== 'string') ||
+      (ev.sidecarSha256 !== undefined && typeof ev.sidecarSha256 !== 'string')
+    ) {
+      violations.push({
+        key,
+        description: `malformed evidence entry (path, quote, and optional sha256 must be strings)`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    const evPath = ev.path.trim();
+    if (!evPath || !isWithinAllowedEvidenceDirs(repoRoot, evPath, allowedDirs)) {
+      violations.push({
+        key,
+        description: `evidence path "${ev.path}" escapes the allowed evidence cache (${allowedDirs.join(', ')}) or is empty`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    const fullPath = path.resolve(repoRoot, evPath);
+    let isRegularFile = false;
+    try {
+      isRegularFile = statSync(fullPath).isFile();
+    } catch {
+      isRegularFile = false;
+    }
+    if (!isRegularFile) {
+      violations.push({
+        key,
+        description: `cached evidence file "${evPath}" does not exist on disk or is not a regular file`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    let buf: Buffer;
+    try {
+      buf = await readFile(fullPath);
+    } catch (err) {
+      violations.push({
+        key,
+        description: `failed to read cached evidence file "${evPath}": ${(err as Error).message}`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    const normEvPath = evPath.split(path.sep).join('/');
+    const expectedSha = ev.sha256 ?? indexHashes.get(normEvPath);
+    if (expectedSha) {
+      const actualHash = createHash('sha256').update(buf).digest('hex');
+      if (actualHash.toLowerCase() !== expectedSha.toLowerCase()) {
+        violations.push({
+          key,
+          description: `evidence file "${evPath}" sha256 mismatch (expected ${expectedSha}, got ${actualHash})`,
+          source: c.source,
+        });
+        continue;
+      }
+    }
+
+    let textSourceBuf = buf;
+    if (evPath.toLowerCase().endsWith('.pdf')) {
+      const sidecarRel = `${evPath}.txt`;
+      const sidecarAbs = `${fullPath}.txt`;
+      if (!existsSync(sidecarAbs) || !isWithinAllowedEvidenceDirs(repoRoot, sidecarRel, allowedDirs)) {
+        violations.push({
+          key,
+          description: `PDF evidence has no extracted-text sidecar (${sidecarRel})`,
+          source: c.source,
+        });
+        continue;
+      }
+      try {
+        textSourceBuf = await readFile(sidecarAbs);
+      } catch (err) {
+        violations.push({
+          key,
+          description: `failed to read PDF extracted-text sidecar "${sidecarRel}": ${(err as Error).message}`,
+          source: c.source,
+        });
+        continue;
+      }
+      if (ev.sidecarSha256) {
+        const actualSidecarHash = createHash('sha256').update(textSourceBuf).digest('hex');
+        if (actualSidecarHash.toLowerCase() !== ev.sidecarSha256.toLowerCase()) {
+          violations.push({
+            key,
+            description: `PDF sidecar "${sidecarRel}" sha256 mismatch (expected ${ev.sidecarSha256}, got ${actualSidecarHash})`,
+            source: c.source,
+          });
+          continue;
+        }
+      }
+    }
+
+    const text = textSourceBuf.toString('utf8');
+    const normDoc = normalizeWs(text);
+    const normQuote = normalizeWs(ev.quote);
+    const sectionSuffix = typeof ev.section === 'string' && ev.section ? ` (${ev.section})` : '';
+    if (!normQuote || !normDoc.includes(normQuote)) {
+      violations.push({
+        key,
+        description: `cited quote not found verbatim in "${evPath}"${sectionSuffix}`,
+        source: c.source,
+      });
+      continue;
+    }
+
+    const requiredNumbers: number[] = [];
+    if (ev.numbers !== undefined) {
+      if (!Array.isArray(ev.numbers) || ev.numbers.length === 0) {
+        violations.push({
+          key,
+          description: `evidence.numbers for "${evPath}" must be a non-empty array of finite numbers`,
+          source: c.source,
+        });
+        continue;
+      }
+      let badEntry = false;
+      for (const n of ev.numbers) {
+        const parsed = typeof n === 'string' && n.trim() === '' ? Number.NaN : Number(n);
+        if (!Number.isFinite(parsed)) {
+          badEntry = true;
+          break;
+        }
+        requiredNumbers.push(parsed);
+      }
+      if (badEntry || requiredNumbers.length === 0) {
+        violations.push({
+          key,
+          description: `evidence.numbers for "${evPath}" contains non-numeric entries`,
+          source: c.source,
+        });
+        continue;
+      }
+    } else {
+      if (typeof c.min === 'number') requiredNumbers.push(c.min);
+      if (typeof c.max === 'number') requiredNumbers.push(c.max);
+      if (typeof c.value === 'number') {
+        requiredNumbers.push(c.value);
+      } else if (typeof c.value === 'string') {
+        const parsed = leadingNumber(c.value);
+        if (parsed !== null) {
+          requiredNumbers.push(parsed);
+        }
+        // No leading number means the constraint is qualitative —
+        // "external-xtal", "shielded", "low-ESR". There is no bound to hold
+        // against the quote, and the verbatim quote match above is already
+        // the evidence. Reporting a violation here made such a constraint
+        // permanently unsatisfiable: `numbers: []` is rejected above, and any
+        // non-empty `numbers` must then appear in a quote that has no numbers
+        // at all. The only escape was deleting the evidence, which throws
+        // away the one thing that made the constraint trustworthy.
+      }
+    }
+
+    const quoteNumbers = extractNumericTokens(normQuote);
+    for (const boundNum of requiredNumbers) {
+      if (!quoteNumbers.some((qn) => qn === boundNum)) {
+        violations.push({
+          key,
+          description: `constraint bound "${boundNum}" is not present in the cited quote from "${evPath}"`,
+          source: c.source,
+        });
+      }
+    }
+  }
+
   return violations;
 }
