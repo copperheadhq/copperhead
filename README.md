@@ -130,7 +130,7 @@ Global flags: `--repo <path>` (default: cwd) and `--json` for machine-readable o
 
 `copperhead create` still uses its own hardcoded stages; those are not yet skills.
 
-`--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), and `codex` / `codex:<id>` (Codex CLI, saved login). Routing is by prefix; `claude-code` is matched before the `claude` prefix. `compat:<id>` targets any OpenAI-compatible endpoint (Groq, OpenRouter, Gemini, or a local Ollama) via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV` - worked examples for each in [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
+`--model` accepts `gpt-5` (OpenAI), `claude` / `claude-<id>` (Anthropic API), `claude-code` / `claude-code:<id>` (Claude Code, saved login), `cursor` / `cursor:<id>` (Cursor Agent CLI, saved login), `codex` / `codex:<id>` (Codex CLI, saved login), `lmstudio` / `lmstudio:<id>` (LM Studio, no cloud key), and `compat:<id>` (an OpenAI-compatible endpoint via `COPPERHEAD_BASE_URL` and `COPPERHEAD_API_KEY_ENV`). Routing is by prefix; `compat` and `lmstudio` are matched before the OpenAI catch-all. `lmstudio` sends prompts to `LMSTUDIO_BASE_URL`: it stays on your machine at the default localhost endpoint, while a remote endpoint receives that content. Bare `lmstudio` discovers a model from `/v1/models`; use `lmstudio:<id>` to pin one or bypass discovery. See [`.env.example`](.env.example) and the [configuration reference](https://docs.copperhead.sh/reference/configuration/#model-selection).
 
 ### Saved login (Cursor Agent)
 

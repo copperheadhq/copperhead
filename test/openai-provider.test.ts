@@ -41,7 +41,7 @@ async function withStubApi(
   const previous = process.env.OPENAI_BASE_URL;
   process.env.OPENAI_BASE_URL = `http://127.0.0.1:${port}/v1`;
   try {
-    await run(new OpenAIProvider('gpt-5', undefined, { OPENAI_API_KEY: 'sk-test' }));
+    await run(new OpenAIProvider({ model: 'gpt-5', apiKey: 'sk-test' }));
   } finally {
     if (previous === undefined) delete process.env.OPENAI_BASE_URL;
     else process.env.OPENAI_BASE_URL = previous;
@@ -68,7 +68,7 @@ describe('OpenAIProvider — wire contract', () => {
   });
 
   it('refuses to construct without a key rather than failing mid-run', () => {
-    expect(() => new OpenAIProvider('gpt-5', undefined)).toThrow('OPENAI_API_KEY is not set');
+    expect(() => new OpenAIProvider({ model: 'gpt-5', apiKey: undefined })).toThrow('OPENAI_API_KEY is not set');
   });
 
   it('posts chat completions with the key, model, token cap, roles, and tools', async () => {
