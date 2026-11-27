@@ -1,5 +1,6 @@
+import { mkdir, writeFile, appendFile } from '../util/worktree-ownership.js';
 import path from 'node:path';
-import { writeFile, mkdir, appendFile, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { toolReadFile, toolWriteFile, toolEditFile, toolSearch } from '../agent/filetools.js';
 import { resolveInRepo, isKicadFile } from '../util/paths.js';
 import { runErc, runDrc, unroutedCount, exportSvg, exportFab, kicadLoadError, isProbeableKicadFile } from '../kicad/cli.js';

@@ -558,6 +558,8 @@ describe('liveness heartbeat distinguishes slow from hung (5.1)', () => {
       await mkdir(path.join(repo, '.copperhead'), { recursive: true });
       // Tiny interval so the test does not have to wait a real 30s.
       await writeFile(path.join(repo, '.copperhead', 'config.json'), JSON.stringify({ heartbeatMs: 25 }), 'utf8');
+      await execa('git', ['add', '.copperhead/config.json'], { cwd: repo });
+      await execa('git', ['commit', '-qm', 'timing configuration'], { cwd: repo });
 
       // Reports streamed output immediately, then stays "in flight" long enough
       // for several heartbeat intervals to fire before returning.
@@ -618,6 +620,8 @@ describe('turn watchdog: inactivity deadline + hard cap', () => {
     try {
       await mkdir(path.join(repo, '.copperhead'), { recursive: true });
       await writeFile(path.join(repo, '.copperhead', 'config.json'), JSON.stringify({ heartbeatMs: 0, ...config }), 'utf8');
+      await execa('git', ['add', '.copperhead/config.json'], { cwd: repo });
+      await execa('git', ['commit', '-qm', 'timing configuration'], { cwd: repo });
       const lines: string[] = [];
       const res = await runAgentLoop(loopOpts(repo, provider, lines, { maxTurns: 1, allowDirty: true }));
       return { res, lines };

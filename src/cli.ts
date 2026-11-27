@@ -4,6 +4,7 @@ import { setMaxListeners } from 'node:events';
 import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
 import { loadConfig, resolveModel, type ModelSource } from './config.js';
+import { withRunLock } from './util/run-lock.js';
 import { pickModel } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
@@ -74,7 +75,10 @@ program
   .argument('[request...]', 'optional first change request before the prompt loop')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code (or a provider-specific model id)')
   .option('--max-turns <n>', 'turn budget per request')
-  .option('--allow-dirty', 'let turns run on a dirty working tree')
+  .option(
+    '--allow-dirty',
+    'allow unrelated uncommitted files; design inputs (schematic, board, docs, config) must be committed',
+  )
   .option('--interactive', 'pause for approval after each proposal validates')
   .action(
     async (
@@ -222,12 +226,13 @@ draftGroup
         console.error('no schematic configured in .copperhead/config.json');
         process.exit(1);
       }
-      const res = await draftSchematic({
+      const schematic = config.schematic;
+      const res = await withRunLock(repo, 'copperhead draft schematic', () => draftSchematic({
         repoRoot: repo,
-        schematic: config.schematic,
-        intentPath: opts.intent ?? defaultIntentPath(config.schematic),
+        schematic,
+        intentPath: opts.intent ?? defaultIntentPath(schematic),
         docsDir: config.docs,
-      });
+      }));
       if (!res.ok) {
         if (json) console.log(JSON.stringify({ ok: false, findings: res.findings }, null, 2));
         else console.error(res.message);
@@ -347,7 +352,10 @@ program
   .argument('<request>', 'the change request in natural language')
   .option('--model <model>', 'codex | cursor | gpt-5 | claude | claude-code | compat:<id> (or a provider-specific model id)')
   .option('--max-turns <n>', 'turn budget for this run')
-  .option('--allow-dirty', 'allow a dirty tree (snapshot via git stash create)')
+  .option(
+    '--allow-dirty',
+    'allow unrelated uncommitted files; design inputs (schematic, board, docs, config) must be committed',
+  )
   .option('--dry-run', 'propose the diff, write nothing')
   .option('--interactive', 'pause for approval after the proposal validates')
   .action(

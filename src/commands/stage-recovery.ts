@@ -1,5 +1,6 @@
+import { appendFile } from '../util/worktree-ownership.js';
 import path from 'node:path';
-import { appendFile } from 'node:fs/promises';
+import {  } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { redactSecrets } from '../util/redact.js';
 import type { RunResult } from '../agent/loop.js';

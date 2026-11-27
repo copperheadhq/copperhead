@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, cp, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, cp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { execa } from 'execa';
+import { withRunLock } from '../src/util/run-lock.js';
 
 /**
  * The `draft` and `score` commander actions through the real entry point: exit
@@ -45,6 +46,28 @@ const cli = (repo: string, ...args: string[]) =>
   execa('npx', ['tsx', 'src/cli.ts', '--repo', repo, ...args], { cwd: ROOT, reject: false, env: { NO_COLOR: '1' } });
 
 describe('copperhead draft schematic (CLI)', () => {
+  it('refuses while a run holds the lock and preserves every draft output', async () => {
+    const { repo, cleanup } = await fixtureRepo();
+    try {
+      await execa('git', ['init', '-q'], { cwd: repo });
+      const outputs = ['board.kicad_sch', 'board.kicad_pro', 'sym-lib-table'];
+      const before = await Promise.all(outputs.map((file) => readFile(path.join(repo, file))));
+      await withRunLock(repo, 'copperhead do', async () => {
+        const owner = JSON.parse(await readFile(path.join(repo, '.git', 'copperhead-run.lock'), 'utf8'));
+        const result = await cli(repo, 'draft', 'schematic');
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain('in progress');
+        expect(result.stderr).toContain(`PID ${process.pid}`);
+        expect(result.stderr).toContain(owner.startedAt);
+        expect(await Promise.all(outputs.map((file) => readFile(path.join(repo, file))))).toEqual(before);
+      });
+      const result = await cli(repo, 'draft', 'schematic');
+      expect(result.exitCode).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  }, 120_000);
+
   it('exits 0 and prints the report on a good intent; --json is machine-readable', async () => {
     const { repo, cleanup } = await fixtureRepo();
     try {

@@ -1,3 +1,4 @@
+import { withRunLock } from '../util/run-lock.js';
 /**
  * End-to-end demo: scaffold a tiny git repo and run `create` against the
  * USB-C power breakout brief (same path as `npm run demo:simple`).
@@ -61,7 +62,11 @@ const DEMO_MARKER = path.join('.copperhead', 'demo-repo');
  * Prepare a clean-enough git repo for the create pipeline (git init, ignore
  * runs/, baseline config + commit). Mirrors scripts/demo-simple.sh.
  */
-export async function scaffoldDemoRepo(demoDir: string): Promise<void> {
+export function scaffoldDemoRepo(demoDir: string): Promise<void> {
+  return withRunLock(demoDir, 'copperhead demo scaffold', () => scaffoldDemoRepoUnlocked(demoDir));
+}
+
+async function scaffoldDemoRepoUnlocked(demoDir: string): Promise<void> {
   await mkdir(demoDir, { recursive: true });
 
   // Fail closed before touching git: only scaffold into an empty directory

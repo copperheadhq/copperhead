@@ -1,3 +1,4 @@
+import { withWorktreeOwnership, adoptOwnedPaths } from '../src/util/worktree-ownership.js';
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -167,9 +168,13 @@ describe('inherited constraints reopen their revisit obligations (AC-18.14)', ()
         { toolCalls: [{ name: 'finish', args: { outcome: 'done', summary: 'looks done' } }] },
         { toolCalls: [{ name: 'finish', args: { outcome: 'refuse', summary: 'stop' } }] },
       ]);
-      const res = await runAgentLoop({
-        repoRoot: repo, request: 'resume', model: 'gpt-5', provider, maxTurns: 3, allowDirty: true,
-        preTouched: ['.copperhead/constraints.json'], log: () => {},
+      // A create retry explicitly adopts the restored draft before the nested loop.
+      const res = await withWorktreeOwnership(repo, async () => {
+        await adoptOwnedPaths(repo, ['.copperhead/constraints.json']);
+        return runAgentLoop({
+          repoRoot: repo, request: 'resume', model: 'gpt-5', provider, maxTurns: 3, allowDirty: true,
+          preTouched: ['.copperhead/constraints.json'], log: () => {},
+        });
       });
       const tools = await events(res.transcriptDir, 'tool');
       const first = String(tools.find((t) => t.name === 'finish')?.result);
