@@ -325,7 +325,11 @@ export class MissingFootprintsError extends Error {
   }
 }
 
-/** (ref, footprint id) pairs of the footprints already on a board. */
+/**
+ * (ref, footprint id) pairs of the footprints already on a board in source order.
+ * Note: missing references stay `''` (unlike `footprintsOf` in `src/kicad/sexp.ts`,
+ * which maps missing/blank references to `'?'` and sorts by ref).
+ */
 export function boardFootprints(boardText: string): { ref: string; footprint: string }[] {
   const root = parseSexp(boardText)[0];
   if (!root || !isList(root)) return [];

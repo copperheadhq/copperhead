@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
-import { listSymbols, listNets, pinNets, parseSexp } from '../src/kicad/sexp.js';
+import { listSymbols, listFootprints, footprintsOf, listNets, pinNets, parseSexp } from '../src/kicad/sexp.js';
 import { FIXTURE, tempFixtureRepo } from './helpers.js';
 
 const SCH = path.join(FIXTURE, 'hardware', 'open-key.kicad_sch');
+const PCB = path.join(path.dirname(FIXTURE), 'boards', 'open-key-populated.kicad_pcb');
+const BLANK_PCB = path.join(FIXTURE, 'hardware', 'open-key.kicad_pcb');
 
 describe('sexp parser', () => {
   it('parses quoted strings with escapes', () => {
@@ -19,6 +21,68 @@ describe('sexp parser', () => {
     expect(r1.footprint).toBe('Resistor_SMD:R_0603_1608Metric');
     const u1 = syms.find((s) => s.ref === 'U1')!;
     expect(u1.value).toBe('ESP32-S3-MINI');
+  });
+
+
+  it('lists board footprints from the fixture board with refdes, footprint id, position, and side (#8)', async () => {
+    expect(await listFootprints(BLANK_PCB)).toEqual([]);
+    const fps = await listFootprints(PCB);
+    const syms = await listSymbols(SCH);
+    expect(fps.map((f) => f.ref)).toEqual(['R1', 'R2', 'U1']);
+    expect(fps.map((f) => ({ ref: f.ref, footprint: f.footprint }))).toEqual(
+      syms.map((s) => ({ ref: s.ref, footprint: s.footprint })),
+    );
+    const r2 = fps.find((f) => f.ref === 'R2')!;
+    expect(r2.value).toBe('1k');
+    expect(r2.layer).toBe('F.Cu');
+    expect(r2.side).toBe('front');
+    expect(r2.at).toEqual({ x: 116, y: 110, rot: 90 });
+    expect(r2.uuid).toBe('2a2a2a2a-0000-4000-8000-000000000002');
+  });
+
+  it('gracefully handles footprints without a Reference property and back-side / legacy fp_text footprints (#8)', () => {
+    const boardText = `(kicad_pcb
+      (version 20240108)
+      (footprint "MountingHole:MountingHole_3.2mm_M3"
+        (layer "F.Cu")
+        (at 10 20)
+      )
+      (footprint "Capacitor_SMD:C_0402_1005Metric"
+        (layer "B.Cu")
+        (at 30 40 180)
+        (fp_text reference "C10" (at 0 0) (layer "B.SilkS"))
+        (fp_text value "100n" (at 0 0) (layer "B.Fab"))
+      )
+      (footprint "TestPoint:TestPoint_Pad_D1.0mm"
+        (at 5 8)
+        (property "Reference" "" (at 0 0 0))
+      )
+      (footprint "Resistor_SMD:R_0402_1005Metric"
+        (at 15 25)
+        (tstamp "legacy-tstamp-r2")
+        (property "Reference" "R2" (at 0 0 0))
+      )
+    )`;
+    const fps = footprintsOf(boardText);
+    expect(fps.map((f) => f.ref)).toEqual(['?', '?', 'C10', 'R2']);
+    const missingRef = fps.find((f) => f.footprint === 'MountingHole:MountingHole_3.2mm_M3')!;
+    expect(missingRef.ref).toBe('?');
+    expect(missingRef.side).toBe('front');
+    expect(missingRef.at).toEqual({ x: 10, y: 20, rot: 0 });
+    const blankRef = fps.find((f) => f.footprint === 'TestPoint:TestPoint_Pad_D1.0mm')!;
+    expect(blankRef.ref).toBe('?');
+    expect(blankRef.layer).toBe('F.Cu');
+    expect(blankRef.side).toBe('front');
+    const backFp = fps.find((f) => f.ref === 'C10')!;
+    expect(backFp.side).toBe('back');
+    expect(backFp.layer).toBe('B.Cu');
+    expect(backFp.value).toBe('100n');
+    expect(backFp.at).toEqual({ x: 30, y: 40, rot: 180 });
+    const r2 = fps.find((f) => f.ref === 'R2')!;
+    expect(r2.layer).toBe('F.Cu');
+    expect(r2.side).toBe('front');
+    expect(r2.uuid).toBe('legacy-tstamp-r2');
+    expect(() => footprintsOf('(kicad_sch (version 20231120))')).toThrow(/not a KiCad PCB/);
   });
 
   it('lists nets from labels', async () => {
