@@ -82,22 +82,22 @@ function eq(a: string, b: string): boolean {
   return a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0;
 }
 
-function wordRe(query: string): RegExp {
+function wordRe(query: string, caseSensitive = false): RegExp {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^A-Za-z0-9_])${escaped}([^A-Za-z0-9_]|$)`, 'i');
+  return new RegExp(`(^|[^A-Za-z0-9_])${escaped}([^A-Za-z0-9_]|$)`, caseSensitive ? '' : 'i');
 }
 
 async function loadDocs(
   docsDir: string,
-): Promise<{ bom: BomRow[]; pinout: Array<{ ref: string; pin: string; net: string }>; mentionsOf: (query: string) => Promise<ExplainMention[]> }> {
+): Promise<{ bom: BomRow[]; pinout: Array<{ ref: string; pin: string; net: string }>; mentionsOf: (query: string, caseSensitive?: boolean) => Promise<ExplainMention[]> }> {
   const bomPath = path.join(docsDir, 'BOM.md');
   const pinoutPath = path.join(docsDir, 'PINOUT.md');
   const bom = existsSync(bomPath) ? parseBomTable(await readFile(bomPath, 'utf8')) : [];
   const pinout = existsSync(pinoutPath) ? parsePinoutRows(await readFile(pinoutPath, 'utf8')) : [];
 
-  const mentionsOf = async (query: string): Promise<ExplainMention[]> => {
+  const mentionsOf = async (query: string, caseSensitive = false): Promise<ExplainMention[]> => {
     if (!existsSync(docsDir)) return [];
-    const re = wordRe(query);
+    const re = wordRe(query, caseSensitive);
     const out: ExplainMention[] = [];
     let files: string[] = [];
     try {
@@ -177,7 +177,7 @@ function netHit(
   mentions: ExplainMention[],
 ): ExplainNetHit {
   const attached = pins
-    .filter((p) => p.net !== null && eq(p.net, name))
+    .filter((p) => p.net === name)
     .map((p) => ({ ref: p.ref, number: p.pinNumber, name: p.pinName }))
     .sort((a, b) => a.ref.localeCompare(b.ref, undefined, { numeric: true }) || a.number.localeCompare(b.number, undefined, { numeric: true }));
   return {
@@ -185,7 +185,7 @@ function netHit(
     query,
     name,
     pins: attached,
-    pinout: pinout.filter((r) => eq(r.net, name)).map((r) => ({ ref: r.ref, pin: r.pin })),
+    pinout: pinout.filter((r) => r.net === name).map((r) => ({ ref: r.ref, pin: r.pin })),
     mentions,
   };
 }
@@ -276,11 +276,19 @@ export async function explainQuery(repoRoot: string, query: string): Promise<Exp
     };
   }
 
-  const byNet = nets.find((n) => eq(n, q)) ?? pins.map((p) => p.net).find((n): n is string => n !== null && eq(n, q));
+  // Query convenience must not merge electrically distinct, case-sensitive
+  // net names. Prefer the exact spelling; only fold an unambiguous lookup.
+  const netNames = [...new Set([...nets, ...pins.map((p) => p.net).filter((n): n is string => n !== null)])];
+  const foldedNets = netNames.filter((n) => eq(n, q));
+  const exactNet = netNames.find((n) => n === q);
+  if (exactNet === undefined && foldedNets.length > 1) {
+    return { ok: false, error: `ambiguous net ${q}: use an exact net name (${foldedNets.join(', ')})`, suggestions: foldedNets.slice(0, 5) };
+  }
+  const byNet = exactNet ?? foldedNets[0];
   if (byNet) {
     return {
       ok: true,
-      hit: netHit(q, byNet, pins, docs.pinout, await docs.mentionsOf(byNet)),
+      hit: netHit(q, byNet, pins, docs.pinout, await docs.mentionsOf(byNet, foldedNets.length > 1)),
     };
   }
 

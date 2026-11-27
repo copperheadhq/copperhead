@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { execa } from 'execa';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,46 @@ const cli = (repo: string, ...args: string[]) =>
   });
 
 describe('explainQuery (schematic lookup)', () => {
+  it('keeps case-distinct nets separate and refuses an ambiguous case-folded query', async () => {
+    const { repo, cleanup } = await tempFixtureRepo();
+    try {
+      const sch = path.join(repo, 'hardware/open-key.kicad_sch');
+      await writeFile(sch, (await readFile(sch, 'utf8')).replaceAll('(global_label "EN"', '(global_label "key_dah"'));
+      await runInit({ repoRoot: repo, installHooks: false });
+      await writeFile(path.join(repo, 'docs/NETS.md'),
+        'KEY_DAH is the input signal.\nkey_dah enables the module.\ngnd is the return.\n');
+      await writeFile(path.join(repo, 'docs/PINOUT.md'),
+        '| Refdes | Pin | Net |\n| --- | --- | --- |\n' +
+        '| R2 | 1 | KEY_DAH |\n| U1 | 5 | KEY_DAH |\n' +
+        '| R1 | 2 | key_dah |\n| U1 | 2 | key_dah |\n');
+      for (const [name, expected] of [
+        ['KEY_DAH', ['R2.1', 'U1.5']],
+        ['key_dah', ['R1.2', 'U1.2']],
+      ] as const) {
+        const res = await explainQuery(repo, name);
+        expect(res.ok).toBe(true);
+        if (!res.ok || res.hit.kind !== 'net') throw new Error('expected net hit');
+        expect(res.hit.name).toBe(name);
+        expect(res.hit.pins.map((p) => `${p.ref}.${p.number}`).sort()).toEqual([...expected]);
+        expect(res.hit.pinout.map((p) => `${p.ref}.${p.pin}`).sort()).toEqual([...expected]);
+        const other = name === 'KEY_DAH' ? 'key_dah' : 'KEY_DAH';
+        expect(res.hit.mentions.some((m) => m.excerpt.includes(name))).toBe(true);
+        expect(res.hit.mentions.some((m) => m.excerpt.includes(other))).toBe(false);
+      }
+      const ambiguous = await explainQuery(repo, 'Key_Dah');
+      expect(ambiguous.ok).toBe(false);
+      if (ambiguous.ok) throw new Error('expected ambiguity');
+      expect(ambiguous.error).toMatch(/ambiguous/i);
+      expect(ambiguous.suggestions).toEqual(expect.arrayContaining(['KEY_DAH', 'key_dah']));
+      // A uniquely matched net still supports convenient case-insensitive lookup.
+      const ground = await explainQuery(repo, 'gnd');
+      expect(ground.ok && ground.hit.kind === 'net' && ground.hit.name).toBe('GND');
+      expect(ground.ok && ground.hit.mentions.some((m) => m.excerpt === 'gnd is the return.')).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it('explains a refdes with pins, nets, and BOM after init', async () => {
     const { repo, cleanup } = await tempFixtureRepo();
     try {

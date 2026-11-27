@@ -347,6 +347,9 @@ copperhead explain <refdes|net|pin>
     net when no such part exists. Also pulls matching rows from BOM.md / PINOUT.md
     and mentions in docs/. No LLM, no network. `--json` emits the same
     structured hit. Unknown queries exit 1 with nearby-name suggestions.
+    Net lookup prefers exact spelling, then a unique case-insensitive match;
+    ambiguous case variants exit 1 with exact-name suggestions. Attached pins
+    are matched to the resolved net name exactly, never merged across case.
     The REPL exposes the same lookup as `/explain`.
 
 copperhead pcb diff <before> <after> [--blocks <dir>] [--project <id>] [--json]

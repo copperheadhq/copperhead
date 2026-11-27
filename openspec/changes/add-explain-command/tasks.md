@@ -17,3 +17,5 @@
 - [x] 3.1 Fixture tests: part, net, pin-by-number, pin-by-name, unique pin name, case fold, miss-with-suggestion, no-schematic
 - [x] 3.2 CLI contract test for prose and `--json`
 - [x] 3.3 SPEC.md, README, CLI reference, verify-and-sync, manual-tests edit sandbox
+
+- [x] 3.4 Regress case-distinct nets: exact-name pin and PINOUT membership, ambiguous folded lookup, unique folded lookup; verify with the CLI.
