@@ -53,6 +53,8 @@ See proposal.md — Why, and #459 for the audit. Stage 4 already has the shape t
 
 **D16. `check` and `sync` run the manifest check without a schematic.** `checkDrift` needs a schematic and both commands skipped it without one, so in a docs-only repo (a create run between part selection and the schematic stage) a broken manifest or a hand-edited render passed `check`. Both now call the manifest comparison alone in that case. It reads two files in `docs/`, so `check` stays LLM-free and network-free, and a repo with no manifest prints and returns what it did before.
 
+**D17. Crystal load capacitors are declared, not inferred.** Stage 3 runs before any schematic, so the manifest has no nets and cannot find a crystal's capacitors: the crystal's `crystal` record names them, with its datasheet CL. The record is optional because some designs have no external capacitors and because a required figure invites an invented one; a crystal without it is noted. `CL = (C1 × C2) / (C1 + C2) + Cs` (ST AN2867 section 3.3) gives the load, and the load is what is compared, so unequal capacitors work. Stray capacitance defaults to the guide's 5 pF and the record can override it. The 1.5 pF tolerance is ours, since the guide gives none: half the widest E12 step in the range, so the nearest stock value passes and fine tuning stays on the bench, where the guide puts it.
+
 ## Risks / Trade-offs
 
 - [A large manifest is one big write, the single-point-of-failure pattern of #145] → The prompt tells the model to write it per subsystem with `edit_file`; `draft_bom` validates whatever is present and reports which SUBSYSTEMS.md headings have no parts yet, so partial progress is checkable.

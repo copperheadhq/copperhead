@@ -45,6 +45,15 @@ const CLEAN = {
 };
 const SLIP = { ...CLEAN, parts: [{ ...CLEAN.parts[0], footprint: 'Package_SO:SOIC-8_3.9x4.9mm_P1.37mm' }, ...CLEAN.parts.slice(1)] };
 const UNINSTALLED = { ...CLEAN, parts: [{ ...CLEAN.parts[0], footprint: 'Vendor_QFN:QFN-8_Special' }, ...CLEAN.parts.slice(1)] };
+const crystalWith = (capValue: string): object => ({
+  ...CLEAN,
+  parts: [
+    ...CLEAN.parts,
+    { ref: 'Y1', value: '8MHz', package: '5032', group: 'MCU', crystal: { loadPf: 15, loadCaps: ['C1', 'C2'] } },
+    { ref: 'C1', value: capValue, package: '0402', group: 'MCU' },
+    { ref: 'C2', value: capValue, package: '0402', group: 'MCU' },
+  ],
+});
 const render = (m: object): string => renderManifest(parseManifest(JSON.stringify(m)).manifest!);
 
 let stock: string;
@@ -55,6 +64,10 @@ beforeAll(async () => {
   await writeFile(path.join(stock, 'Resistor_SMD.pretty', 'R_0603_1608Metric.kicad_mod'), mod('R_0603_1608Metric', ['1', '2']));
   await mkdir(path.join(stock, 'Package_SO.pretty'), { recursive: true });
   await writeFile(path.join(stock, 'Package_SO.pretty', 'SOIC-8_3.9x4.9mm_P1.27mm.kicad_mod'), mod('SOIC-8_3.9x4.9mm_P1.27mm', ['1', '2', '3', '4', '5', '6', '7', '8']));
+  await mkdir(path.join(stock, 'Capacitor_SMD.pretty'), { recursive: true });
+  await writeFile(path.join(stock, 'Capacitor_SMD.pretty', 'C_0402_1005Metric.kicad_mod'), mod('C_0402_1005Metric', ['1', '2']));
+  await mkdir(path.join(stock, 'Crystal.pretty'), { recursive: true });
+  await writeFile(path.join(stock, 'Crystal.pretty', 'Crystal_SMD_5032-2Pin_5.0x3.2mm.kicad_mod'), mod('Crystal_SMD_5032-2Pin_5.0x3.2mm', ['1', '2']));
   kicadCfg = await mkdtemp(path.join(tmpdir(), 'copperhead-stage-cfg-'));
   vi.stubEnv('KICAD_SYMBOL_DIR', SYMLIB);
   vi.stubEnv('KICAD_FOOTPRINT_DIR', stock);
@@ -86,6 +99,14 @@ describe('part-selection isComplete with a manifest', () => {
     try { expect(await isComplete(stale.root, DOCS)).toBe(false); } finally { await stale.cleanup(); }
     const absent = await tmpRepo({ 'docs/parts.intent.json': JSON.stringify(CLEAN) });
     try { expect(await isComplete(absent.root, DOCS)).toBe(false); } finally { await absent.cleanup(); }
+  });
+  it('is not complete with load capacitors that miss the crystal, until they are right', async () => {
+    const wrong = crystalWith('15pF');
+    const r = await tmpRepo({ 'docs/parts.intent.json': JSON.stringify(wrong), 'docs/BOM.md': render(wrong) });
+    try { expect(await isComplete(r.root, DOCS)).toBe(false); } finally { await r.cleanup(); }
+    const right = crystalWith('20pF');
+    const fixed = await tmpRepo({ 'docs/parts.intent.json': JSON.stringify(right), 'docs/BOM.md': render(right) });
+    try { expect(await isComplete(fixed.root, DOCS)).toBe(true); } finally { await fixed.cleanup(); }
   });
   it('is not complete on a model-fixable footprint slip, even with a rendered BOM.md', async () => {
     const r = await tmpRepo({ 'docs/parts.intent.json': JSON.stringify(SLIP), 'docs/BOM.md': render(SLIP) });
@@ -137,6 +158,14 @@ describe('part-selection contractGapDetail', () => {
       const d = await contractGapDetail('part-selection', r.root, await loadConfig(r.root));
       expect(d).toMatch(/^the part-selection contract is not met: docs\/parts.intent.json: 1 finding\(s\)/);
       expect(d).toContain('U1: footprint "Package_SO:SOIC-8_3.9x4.9mm_P1.37mm" is not in library "Package_SO"; installed: Package_SO:SOIC-8_3.9x4.9mm_P1.27mm');
+    } finally { await r.cleanup(); }
+  });
+  it('tells the retry which capacitor value a crystal needs', async () => {
+    const r = await tmpRepo({ 'docs/parts.intent.json': JSON.stringify(crystalWith('15pF')) });
+    try {
+      const d = await contractGapDetail('part-selection', r.root, await loadConfig(r.root));
+      expect(d).toContain('Y1: C1 (15pF) and C2 (15pF) load the crystal with 12.5 pF');
+      expect(d).toContain('use about 20 pF for both');
     } finally { await r.cleanup(); }
   });
   it('says to render when the manifest is clean but BOM.md is not its render', async () => {

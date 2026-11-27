@@ -26,6 +26,25 @@ The part-selection stage SHALL produce a parts manifest at `docs/parts.intent.js
 - **WHEN** an entry sets `noPart: true` and also gives an `mpn`, or sets both `noPart` and `offBoard`
 - **THEN** validation reports a finding naming the refdes and the two fields that contradict each other
 
+### Requirement: Crystal load capacitors are checked
+
+A crystal entry MAY carry a `crystal` record naming its load capacitance, its two load capacitors and optionally the stray capacitance (5 pF when omitted). The validator SHALL work out the load the capacitors present and report a finding, with the capacitor value that works, when it is more than 1.5 pF from the crystal's. A crystal with no record SHALL be noted, not refused.
+
+#### Scenario: Capacitors set to the crystal's load
+
+- **WHEN** Y1 declares a 15 pF load and its capacitors C1 and C2 are both 15 pF, with no stray capacitance given
+- **THEN** validation reports a finding on Y1 that the capacitors present 12.5 pF and that about 20 pF is needed, and the stage does not complete
+
+#### Scenario: Capacitors that reach the load
+
+- **WHEN** Y1 declares a 15 pF load and C1 and C2 are both 20 pF
+- **THEN** validation reports no finding on Y1
+
+#### Scenario: No record
+
+- **WHEN** a crystal entry carries no `crystal` record
+- **THEN** validation accepts it and reports a note that its load capacitors were not checked
+
 ### Requirement: Stage-3 completion is the validator's verdict
 
 The part-selection stage SHALL be complete only when the manifest exists, validates clean against the installed symbol and footprint libraries of the machine running the pipeline, and BOM.md equals the manifest's render. A manifest with no parts SHALL NOT validate clean. The same validator SHALL answer the stage's completion check, a finish-time stage gate, and the contract-gap message, so the three never disagree. The completion check SHALL NOT read the MPN column, and the previous "at least one MPN not flagged UNVERIFIED" test SHALL be removed. A library that is not installed anywhere remains the user's stop and SHALL NOT be reported as a gap the model can fix.
