@@ -215,6 +215,39 @@ describe('crystal flanking: load caps mirror about the crystal (7.5)', () => {
       await cleanup();
     }
   }, 30000);
+
+  it('a crystal with ground pins flanks the same way: only its signal pins count', async () => {
+    const { syms, cleanup } = await draftRepo(
+      {
+        version: 1,
+        parts: [
+          { ref: 'U1', libId: 'CopperMCU:MCU8', value: 'MCU8', group: 'Main' },
+          // the symbol the passive table gives a 3225 crystal (parts/passives.ts)
+          { ref: 'Y1', libId: 'Device:Crystal_GND24', value: '16MHz', group: 'Main' },
+          { ref: 'C1', libId: 'Device:C', value: '22p', group: 'Main' },
+          { ref: 'C2', libId: 'Device:C', value: '22p', group: 'Main' },
+        ],
+        nets: [
+          { name: 'OSC1', pins: ['U1.4', 'Y1.1', 'C1.1'] },
+          { name: 'OSC2', pins: ['U1.5', 'Y1.3', 'C2.1'] },
+          { name: 'GND', pins: ['C1.2', 'C2.2', 'U1.2', 'Y1.2', 'Y1.4'] },
+        ],
+      },
+      ['Main'],
+    );
+    try {
+      const y1 = at(syms, 'Y1');
+      const c1 = at(syms, 'C1');
+      const c2 = at(syms, 'C2');
+      expect(c1.y).toBeCloseTo(c2.y, 5); // common height, not a column
+      expect(Math.abs(c1.x - y1.x)).toBeCloseTo(Math.abs(c2.x - y1.x), 5); // equal offsets, mirrored
+      expect(c1.x).toBeLessThan(y1.x);
+      expect(c2.x).toBeGreaterThan(y1.x);
+      expect(c1.y).toBeGreaterThan(y1.y); // hanging below their crystal
+    } finally {
+      await cleanup();
+    }
+  }, 30000);
 });
 
 describe('alignment holds where the columns already provide it (7.5a pins)', () => {
