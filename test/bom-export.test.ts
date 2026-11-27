@@ -140,6 +140,17 @@ describe('supplier format emitters (golden, supplier-bom-export)', () => {
 describe('exclusion rules (supplier-bom-export)', () => {
   const rows = parseBom(FIXTURE_BOM);
 
+  it.each(['jlcpcb', 'digikey', 'mouser'] as const)('excludes N/A placeholders from %s even with --include-unverified', (supplier) => {
+    const bom = '| Refdes | Value | Footprint | MPN |\n| --- | --- | --- | --- |\n' +
+      '| R1 | 10k | R_0603 | N/A |\n| R2 | 1k | R_0603 | n/a (UNVERIFIED) |\n' +
+      '| U1 | device | Package:Device | REAL/PART-123 |\n';
+    const res = buildExport(parseBom(bom), supplier, { boards: 1, spares: 10, includeUnverified: true });
+    expect(res.included.map((r) => r.refdes)).toEqual(['U1']);
+    expect(res.excluded.map((e) => `${e.row.refdes}:${e.reason}`)).toEqual(['R1:no MPN', 'R2:no MPN']);
+    expect(res.warnings.join('\n')).toMatch(/EXCLUDED \(no MPN\): R1/);
+    expect(res.warnings.join('\n')).toMatch(/EXCLUDED \(no MPN\): R2/);
+  });
+
   it('excludes MPN-less rows and UNVERIFIED rows by default, and names them', () => {
     const res = buildExport(rows, 'digikey', { boards: 1, spares: 10, includeUnverified: false });
     expect(res.included.map((r) => r.refdes)).toEqual(['R1']);
