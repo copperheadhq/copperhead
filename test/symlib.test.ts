@@ -364,6 +364,28 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
     expect(await searchInstalledSymbols('TLP2361', [dir])).toEqual([]);
   });
 
+  it('does not hide valid matches behind a per-library cap', async () => {
+    const many = await mkdtemp(path.join(tmpdir(), 'copperhead-symsearch-many-'));
+    try {
+      await writeFile(
+        path.join(many, 'Connector_USB.kicad_sym'),
+        lib('USB_C_Receptacle', 'USB_C_Plug', 'USB_C_Micro', 'USB_C_Mini', 'USB_C_Angled'),
+        'utf8',
+      );
+      const hits = await searchInstalledSymbols('USB_C', [many]);
+      expect(hits).toHaveLength(5);
+      expect(hits).toEqual(expect.arrayContaining([
+        'Connector_USB:USB_C_Receptacle',
+        'Connector_USB:USB_C_Plug',
+        'Connector_USB:USB_C_Micro',
+        'Connector_USB:USB_C_Mini',
+        'Connector_USB:USB_C_Angled',
+      ]));
+    } finally {
+      await rm(many, { recursive: true, force: true }).catch(() => {});
+    }
+  });
+
   it('finds a family-variant spelling instead of declaring it absent', async () => {
     // Before the edit-distance tier, search returned [] here while
     // findSymbolAcrossLibraries found the part, and the dossier rendered the
