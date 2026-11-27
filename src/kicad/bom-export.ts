@@ -321,14 +321,41 @@ function emitJlcpcb(lines: Line[]): string {
 }
 
 function emitCart(lines: Line[], opts: ExportOptions, mpnHeader: string): string {
-  // DigiKey / Mouser cart upload: one line per MPN with a computed order
-  // quantity and the designators as the customer reference.
+  // DigiKey / Mouser cart upload: one line per MPN (or MPN + manufacturer for
+  // DigiKey) with a computed order quantity and the designators as the customer
+  // reference.
   const header = `${mpnHeader},Manufacturer,Quantity,Customer Reference`;
   const body = lines.map((l) => {
     const qty = orderQuantity(l.designators.length, opts.boards, opts.spares, isPassiveFootprint(l.head.footprint));
-    return csvRow([l.head.mpn, l.head.manufacturer, String(qty), l.designators.join(',')]);
+    const mfr = l.rows.find((r) => r.manufacturer)?.manufacturer ?? '';
+    return csvRow([l.head.mpn, mfr, String(qty), l.designators.join(',')]);
   });
   return [header, ...body].join('\n') + '\n';
+}
+
+function groupDigikey(rows: BomRow[]): Line[] {
+  const mfrsByMpn = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (r.manufacturer) {
+      let set = mfrsByMpn.get(r.mpn);
+      if (!set) {
+        set = new Set<string>();
+        mfrsByMpn.set(r.mpn, set);
+      }
+      set.add(r.manufacturer.toLowerCase());
+    }
+  }
+
+  return groupBy(rows, (r) => {
+    let mfr = r.manufacturer.toLowerCase();
+    if (!mfr) {
+      const set = mfrsByMpn.get(r.mpn);
+      if (set && set.size === 1) {
+        mfr = set.values().next().value!;
+      }
+    }
+    return `${r.mpn}\0${mfr}`;
+  });
 }
 
 /**
@@ -339,8 +366,10 @@ export function buildExport(rows: BomRow[], supplier: Supplier, opts: ExportOpti
   const { included, excluded } = partition(rows, supplier, opts.includeUnverified);
   const lines =
     supplier === 'jlcpcb'
-      ? groupBy(included, (r) => `${r.value} ${r.footprint} ${r.lcsc}`)
-      : groupBy(included, (r) => r.mpn);
+      ? groupBy(included, (r) => `${r.value}\0${r.footprint}\0${r.lcsc}`)
+      : supplier === 'digikey'
+        ? groupDigikey(included)
+        : groupBy(included, (r) => r.mpn);
 
   let csv: string;
   if (supplier === 'jlcpcb') csv = emitJlcpcb(lines);
