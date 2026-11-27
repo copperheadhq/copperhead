@@ -59,10 +59,13 @@ export async function resolveTools(flag?: string, env = process.env): Promise<To
           reject(new ToolsError(`copperhead-tools ${tool}: cancelled`));
         };
         opts.signal?.addEventListener('abort', onAbort, { once: true });
+        // Decode as a stream: a multi-byte character can straddle two pipe chunks.
+        child.stdout.setEncoding('utf8');
+        child.stderr.setEncoding('utf8');
         let out = '';
         let err = '';
-        child.stdout.on('data', (d: Buffer) => (out += d.toString()));
-        child.stderr.on('data', (d: Buffer) => (err += d.toString()));
+        child.stdout.on('data', (d: string) => (out += d));
+        child.stderr.on('data', (d: string) => (err += d));
         // A child that died before reading its request must not crash the review with EPIPE.
         child.stdin.on('error', () => undefined);
         child.on('error', (e) => reject(new ToolsError(`cannot start copperhead-tools (${command.join(' ')}): ${e.message}`)));
