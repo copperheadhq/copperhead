@@ -1,0 +1,21 @@
+{
+  "case": "clearance",
+  "fault": "SIG1 and SIG2 tracks end 0.05 mm apart, under the 0.2 mm rule",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "drc.clearance",
+      "entityReferences": [
+        "SIG1",
+        "SIG2"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [
+      "clearance"
+    ],
+    "unconnected": 4
+  }
+}

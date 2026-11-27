@@ -1,0 +1,19 @@
+{
+  "case": "decoupling-far",
+  "fault": "C1 decouples U1 pin 8 but sits 20 mm away",
+  "generator": "bench/golden/generate.ts",
+  "status": "REFUSE",
+  "diagnostics": [
+    {
+      "code": "intent.relative.attached",
+      "entityReferences": [
+        "C1",
+        "U1"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 2
+  }
+}

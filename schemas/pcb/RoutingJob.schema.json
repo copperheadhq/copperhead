@@ -1,0 +1,1323 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/RoutingJob",
+  "definitions": {
+    "RoutingJob": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "snapshot": {
+          "$ref": "#/definitions/BoardSnapshot"
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "netIds": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Polygon"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "preserveExistingRoutes": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "netIds",
+            "region",
+            "preserveExistingRoutes"
+          ],
+          "additionalProperties": false
+        },
+        "strategy": {
+          "$ref": "#/definitions/RoutingStrategy"
+        },
+        "hardConstraints": {
+          "type": "array",
+          "items": {}
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WeightedObjective"
+          }
+        },
+        "seed": {
+          "type": "number"
+        },
+        "limits": {
+          "$ref": "#/definitions/ResourceLimits"
+        }
+      },
+      "required": [
+        "runId",
+        "snapshot",
+        "scope",
+        "strategy",
+        "hardConstraints",
+        "objectives",
+        "seed",
+        "limits"
+      ],
+      "additionalProperties": false
+    },
+    "BoardSnapshot": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "hash": {
+          "type": "string"
+        },
+        "design": {
+          "$ref": "#/definitions/PcbDesign"
+        },
+        "scope": {
+          "$ref": "#/definitions/SnapshotScope"
+        },
+        "hardConstraints": {
+          "type": "array",
+          "items": {},
+          "description": "Layout constraints in scope; the registry entries themselves (typed in agent/constraints, opaque here)."
+        },
+        "objectives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "metric": {
+                "type": "string"
+              },
+              "weight": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "metric",
+              "weight"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "seed": {
+          "type": "number"
+        },
+        "limits": {
+          "$ref": "#/definitions/ResourceLimits"
+        },
+        "referenceMap": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "preserved": {
+          "type": "object",
+          "properties": {
+            "componentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "netIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "componentIds",
+            "netIds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "hash",
+        "design",
+        "scope",
+        "hardConstraints",
+        "objectives",
+        "seed",
+        "limits",
+        "referenceMap",
+        "preserved"
+      ],
+      "additionalProperties": false
+    },
+    "PcbDesign": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "designId": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/definitions/SourceProvenance"
+        },
+        "board": {
+          "$ref": "#/definitions/BoardDefinition"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ComponentInstance"
+          }
+        },
+        "nets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NetDefinition"
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConstraintRef"
+          }
+        },
+        "placement": {
+          "$ref": "#/definitions/PlacementState"
+        },
+        "routing": {
+          "$ref": "#/definitions/RoutingState"
+        },
+        "preserved": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PreservedBlock"
+          }
+        },
+        "lossy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields a lossy import could not recover (RFC 11 §6.1)."
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "designId",
+        "source",
+        "board",
+        "components",
+        "nets",
+        "constraints",
+        "placement",
+        "routing",
+        "preserved",
+        "lossy"
+      ],
+      "additionalProperties": false
+    },
+    "SourceProvenance": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "object",
+          "properties": {
+            "board": {
+              "type": "string"
+            },
+            "project": {
+              "type": "string"
+            },
+            "dru": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "board"
+          ],
+          "additionalProperties": false,
+          "description": "Repo-relative paths of the files the design was imported from."
+        },
+        "kicadVersion": {
+          "type": "string"
+        },
+        "boardFileVersion": {
+          "type": "number"
+        },
+        "netDialect": {
+          "type": "string",
+          "enum": [
+            "code",
+            "name"
+          ],
+          "description": "How the source file names nets: a `(net N \"name\")` table with codes (KiCad 8/9), or `(net \"name\")` on every object with no table (KiCad 10.0.4's 20260206 format). Export follows the source."
+        },
+        "importedAt": {
+          "type": "string"
+        },
+        "contentHash": {
+          "type": "string",
+          "description": "hashDesign() of this design, excluding importedAt."
+        }
+      },
+      "required": [
+        "files",
+        "kicadVersion",
+        "boardFileVersion",
+        "netDialect",
+        "importedAt",
+        "contentHash"
+      ],
+      "additionalProperties": false
+    },
+    "BoardDefinition": {
+      "type": "object",
+      "properties": {
+        "outline": {
+          "$ref": "#/definitions/Polygon"
+        },
+        "cutouts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Polygon"
+          }
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LayerDefinition"
+          }
+        },
+        "thicknessNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "keepouts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Keepout"
+          }
+        },
+        "fabricationProfile": {
+          "type": "string"
+        },
+        "rules": {
+          "$ref": "#/definitions/DesignRules"
+        }
+      },
+      "required": [
+        "outline",
+        "cutouts",
+        "layers",
+        "keepouts",
+        "fabricationProfile",
+        "rules"
+      ],
+      "additionalProperties": false
+    },
+    "Polygon": {
+      "type": "object",
+      "properties": {
+        "outer": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Point"
+          }
+        },
+        "holes": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/Point"
+            }
+          }
+        }
+      },
+      "required": [
+        "outer",
+        "holes"
+      ],
+      "additionalProperties": false,
+      "description": "A polygon: one outer ring plus holes. Rings are closed implicitly (last != first)."
+    },
+    "Point": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/definitions/Nm"
+        },
+        "y": {
+          "$ref": "#/definitions/Nm"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    "Nm": {
+      "type": "number",
+      "description": "Length in integer nanometres."
+    },
+    "LayerDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "KiCad's canonical name, e.g. \"F.Cu\"; every item in the file references this."
+        },
+        "ordinal": {
+          "type": "number"
+        },
+        "kind": {
+          "$ref": "#/definitions/LayerKind"
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "front",
+            "back"
+          ]
+        },
+        "userName": {
+          "type": "string",
+          "description": "The user's display name when the board renamed the layer (e.g. \"top_cu\"); KiCad's Specctra exporter emits this one."
+        }
+      },
+      "required": [
+        "id",
+        "ordinal",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "LayerKind": {
+      "type": "string",
+      "enum": [
+        "copper",
+        "silk",
+        "mask",
+        "paste",
+        "courtyard",
+        "fab",
+        "edge",
+        "user",
+        "adhesive"
+      ]
+    },
+    "Keepout": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "polygon": {
+          "$ref": "#/definitions/Polygon"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prohibits": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "tracks",
+              "vias",
+              "pads",
+              "footprints",
+              "copper"
+            ]
+          }
+        }
+      },
+      "required": [
+        "id",
+        "polygon",
+        "layers",
+        "prohibits"
+      ],
+      "additionalProperties": false
+    },
+    "DesignRules": {
+      "type": "object",
+      "properties": {
+        "severities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "ignore",
+              "exclusion"
+            ]
+          },
+          "description": "The project's DRC rule severities (`rule_severities` in the .kicad_pro): the designer's own settings, honoured like any ECAD-authored rule (RFC 11 §7.5)."
+        },
+        "clearanceNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "trackWidthNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "viaDiameterNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "viaDrillNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "copperEdgeClearanceNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "minTrackWidthNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "minViaDiameterNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "minViaDrillNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "netClasses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "nets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "clearanceNm": {
+                "$ref": "#/definitions/DesignRules"
+              },
+              "trackWidthNm": {
+                "$ref": "#/definitions/DesignRules"
+              },
+              "viaDiameterNm": {
+                "$ref": "#/definitions/DesignRules"
+              },
+              "viaDrillNm": {
+                "$ref": "#/definitions/DesignRules"
+              }
+            }
+          },
+          "description": "Per net class overrides from the project file, keyed by class name."
+        }
+      },
+      "required": [
+        "severities",
+        "clearanceNm",
+        "trackWidthNm",
+        "viaDiameterNm",
+        "viaDrillNm",
+        "copperEdgeClearanceNm",
+        "netClasses"
+      ],
+      "additionalProperties": false
+    },
+    "ComponentInstance": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "footprint": {
+          "$ref": "#/definitions/FootprintDefinition"
+        },
+        "pads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PadDefinition"
+          }
+        },
+        "at": {
+          "$ref": "#/definitions/Point"
+        },
+        "rotation": {
+          "$ref": "#/definitions/Mdeg"
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "side": {
+              "type": "string",
+              "enum": [
+                "front",
+                "back"
+              ]
+            },
+            "locked": {
+              "type": "boolean"
+            },
+            "throughHole": {
+              "type": "boolean"
+            },
+            "excludeFromBom": {
+              "type": "boolean"
+            },
+            "dnp": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "side",
+            "locked",
+            "throughHole",
+            "excludeFromBom",
+            "dnp"
+          ],
+          "additionalProperties": false
+        },
+        "semanticRoles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "symbolPath": {
+          "type": "string",
+          "description": "The schematic symbol path (`(path …)`), stable across revisions when the footprint UUID is not (add-reuse-placer)."
+        },
+        "sheet": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false,
+          "description": "The hierarchical sheet the symbol sits on (`(sheetname …)`, `(sheetfile …)`), when the board carries it."
+        }
+      },
+      "required": [
+        "id",
+        "reference",
+        "value",
+        "footprint",
+        "pads",
+        "at",
+        "rotation",
+        "attributes",
+        "semanticRoles"
+      ],
+      "additionalProperties": false
+    },
+    "FootprintDefinition": {
+      "type": "object",
+      "properties": {
+        "libId": {
+          "type": "string"
+        },
+        "courtyard": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Polygon"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Courtyard in board coordinates, or null when the footprint draws none."
+        },
+        "body": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Polygon"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Fab-layer body outline in board coordinates, or null."
+        }
+      },
+      "required": [
+        "libId",
+        "courtyard",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "PadDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "number": {
+          "type": "string"
+        },
+        "netId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/definitions/PadType"
+        },
+        "shape": {
+          "$ref": "#/definitions/PadShape"
+        },
+        "at": {
+          "$ref": "#/definitions/Point",
+          "description": "Absolute board position and absolute rotation (KiCad stores pad rotation absolute)."
+        },
+        "rotation": {
+          "$ref": "#/definitions/Mdeg"
+        },
+        "size": {
+          "type": "object",
+          "properties": {
+            "w": {
+              "$ref": "#/definitions/Nm"
+            },
+            "h": {
+              "$ref": "#/definitions/Nm"
+            }
+          },
+          "required": [
+            "w",
+            "h"
+          ],
+          "additionalProperties": false
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "drill": {
+          "type": "object",
+          "properties": {
+            "d": {
+              "$ref": "#/definitions/Nm"
+            },
+            "offset": {
+              "$ref": "#/definitions/Point"
+            },
+            "slot": {
+              "type": "object",
+              "properties": {
+                "w": {
+                  "$ref": "#/definitions/Nm"
+                },
+                "h": {
+                  "$ref": "#/definitions/Nm"
+                }
+              },
+              "required": [
+                "w",
+                "h"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "d"
+          ],
+          "additionalProperties": false
+        },
+        "copper": {
+          "$ref": "#/definitions/Polygon",
+          "description": "Copper outline in board coordinates, computed at import for every shape."
+        },
+        "pinFunction": {
+          "type": "string",
+          "description": "The schematic pin's name (`(pinfunction …)`), when the board carries it (add-reuse-placer)."
+        },
+        "pinType": {
+          "type": "string",
+          "description": "The schematic pin's electrical type (`(pintype …)`), when the board carries it."
+        }
+      },
+      "required": [
+        "id",
+        "number",
+        "netId",
+        "type",
+        "shape",
+        "at",
+        "rotation",
+        "size",
+        "layers",
+        "copper"
+      ],
+      "additionalProperties": false
+    },
+    "PadType": {
+      "type": "string",
+      "enum": [
+        "smd",
+        "thru_hole",
+        "np_thru_hole",
+        "connect"
+      ]
+    },
+    "PadShape": {
+      "type": "string",
+      "enum": [
+        "circle",
+        "rect",
+        "oval",
+        "roundrect",
+        "trapezoid",
+        "chamfered",
+        "custom"
+      ]
+    },
+    "Mdeg": {
+      "type": "number",
+      "description": "Angle in integer millidegrees, counter-clockwise positive in KiCad's Y-down frame."
+    },
+    "NetDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "code": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "padIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "netClass": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "name",
+        "padIds",
+        "netClass"
+      ],
+      "additionalProperties": false
+    },
+    "ConstraintRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "registryPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "registryPath"
+      ],
+      "additionalProperties": false
+    },
+    "PlacementState": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlacedComponent"
+          }
+        },
+        "lockedComponentIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "components",
+        "lockedComponentIds"
+      ],
+      "additionalProperties": false
+    },
+    "PlacedComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/definitions/Point"
+        },
+        "rotation": {
+          "$ref": "#/definitions/Mdeg"
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "front",
+            "back"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "at",
+        "rotation",
+        "side"
+      ],
+      "additionalProperties": false
+    },
+    "RoutingState": {
+      "type": "object",
+      "properties": {
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TrackSegment"
+          }
+        },
+        "arcs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TrackArc"
+          }
+        },
+        "vias": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Via"
+          }
+        },
+        "zones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CopperZone"
+          }
+        }
+      },
+      "required": [
+        "segments",
+        "arcs",
+        "vias",
+        "zones"
+      ],
+      "additionalProperties": false
+    },
+    "TrackSegment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "netId": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "a": {
+          "$ref": "#/definitions/Point"
+        },
+        "b": {
+          "$ref": "#/definitions/Point"
+        },
+        "width": {
+          "$ref": "#/definitions/Nm"
+        }
+      },
+      "required": [
+        "id",
+        "netId",
+        "layer",
+        "a",
+        "b",
+        "width"
+      ],
+      "additionalProperties": false
+    },
+    "TrackArc": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "netId": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "a": {
+          "$ref": "#/definitions/Point"
+        },
+        "mid": {
+          "$ref": "#/definitions/Point"
+        },
+        "b": {
+          "$ref": "#/definitions/Point"
+        },
+        "width": {
+          "$ref": "#/definitions/Nm"
+        }
+      },
+      "required": [
+        "id",
+        "netId",
+        "layer",
+        "a",
+        "mid",
+        "b",
+        "width"
+      ],
+      "additionalProperties": false
+    },
+    "Via": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "netId": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/definitions/Point"
+        },
+        "size": {
+          "$ref": "#/definitions/Nm"
+        },
+        "drill": {
+          "$ref": "#/definitions/Nm"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "id",
+        "netId",
+        "at",
+        "size",
+        "drill",
+        "layers"
+      ],
+      "additionalProperties": false
+    },
+    "CopperZone": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "netId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outline": {
+          "$ref": "#/definitions/Polygon"
+        },
+        "priority": {
+          "type": "number"
+        },
+        "clearanceNm": {
+          "$ref": "#/definitions/Nm"
+        },
+        "thermal": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "gapNm": {
+                  "$ref": "#/definitions/Nm"
+                },
+                "bridgeNm": {
+                  "$ref": "#/definitions/Nm"
+                }
+              },
+              "required": [
+                "gapNm",
+                "bridgeNm"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "isKeepout": {
+          "type": "boolean"
+        },
+        "definitionText": {
+          "type": "string",
+          "description": "The zone record verbatim; export re-emits it unchanged (RFC 11 §6.6)."
+        }
+      },
+      "required": [
+        "id",
+        "netId",
+        "layers",
+        "outline",
+        "priority",
+        "clearanceNm",
+        "thermal",
+        "isKeepout",
+        "definitionText"
+      ],
+      "additionalProperties": false
+    },
+    "PreservedBlock": {
+      "type": "object",
+      "properties": {
+        "head": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string",
+          "description": "Verbatim record text; array order is file order. Offsets are deliberately not stored: they shift when fills are stripped and must not enter the hash."
+        }
+      },
+      "required": [
+        "head",
+        "text"
+      ],
+      "additionalProperties": false,
+      "description": "A board-level record the adapter recognised but does not model, kept verbatim for export."
+    },
+    "SnapshotScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "placement"
+            },
+            "movableComponentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "movableComponentIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "routing"
+            },
+            "netIds": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "region": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Polygon"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "preserveExistingRoutes": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "netIds",
+            "region",
+            "preserveExistingRoutes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "verify"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ResourceLimits": {
+      "type": "object",
+      "properties": {
+        "engineSeconds": {
+          "type": "number"
+        },
+        "wallSeconds": {
+          "type": "number"
+        },
+        "memoryMb": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "engineSeconds",
+        "wallSeconds",
+        "memoryMb"
+      ],
+      "additionalProperties": false
+    },
+    "RoutingStrategy": {
+      "type": "object",
+      "properties": {
+        "passes": {
+          "type": "number",
+          "description": "Autorouter passes (Freerouting `-mp`)."
+        },
+        "trackWidthNm": {
+          "type": "number",
+          "description": "Width for every net in the job's scope, overriding the class width (staged power routing)."
+        },
+        "clearanceNm": {
+          "type": "number",
+          "description": "Clearance to route to when larger than the rule: margin the engine would not leave on its own."
+        },
+        "layers": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/LayerStrategy"
+          },
+          "description": "Per copper layer id: layer-preference constraints mapped onto the engine's layer settings."
+        }
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "not": {}
+          },
+          {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/definitions/LayerStrategy"
+            }
+          }
+        ],
+        "description": "Engine-specific knobs, validated by the adapter (e.g. kct strategy)."
+      }
+    },
+    "LayerStrategy": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean",
+          "description": "false = no new tracks on this layer."
+        },
+        "preferredDirection": {
+          "type": "string",
+          "enum": [
+            "horizontal",
+            "vertical"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "WeightedObjective": {
+      "type": "object",
+      "properties": {
+        "metric": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "metric",
+        "weight"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

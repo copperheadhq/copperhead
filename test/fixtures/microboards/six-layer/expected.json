@@ -1,0 +1,20 @@
+{
+  "case": "six-layer",
+  "fault": "the congestion board on six copper layers: the same channel, four inner layers to cross it on",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "conn.unrouted",
+      "entityReferences": [
+        "GND",
+        "PU",
+        "S1"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 21
+  }
+}

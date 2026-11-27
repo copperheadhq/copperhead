@@ -1,0 +1,18 @@
+{
+  "case": "outside-board",
+  "fault": "R1 placed wholly beyond the right edge of the outline; KiCad DRC reports nothing for it, so only the geometry checker catches it",
+  "generator": "bench/golden/generate.ts",
+  "status": "REFUSE",
+  "diagnostics": [
+    {
+      "code": "geom.outside-board",
+      "entityReferences": [
+        "R1"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 2
+  }
+}

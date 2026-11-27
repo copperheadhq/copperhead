@@ -1,6 +1,12 @@
 import path from 'node:path';
 import { libraryCache } from '../kicad/cache.js';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { evidenceContract } from '../pcb/evidence.js';
+import { importBoard } from '../pcb/ir/kicad/import.js';
+import { extractFills } from '../pcb/ir/kicad/zones.js';
+import { verifyDesign } from '../pcb/verify/index.js';
+import { loadConstraints as loadLayoutConstraints } from '../pcb/intent/load.js';
 import { loadConfig } from '../config.js';
 import { runErc, runDrc } from '../kicad/cli.js';
 import { formatViolations, type CheckReport } from '../kicad/report.js';
@@ -23,6 +29,22 @@ export interface CheckResult {
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
   constraints: { ok: boolean; violations: ConstraintViolation[] };
+  /**
+   * The layout track: present when docs/LAYOUT.md carries layout evidence
+   * (written by `pcb route --apply`, `pcb layout --apply`, or `pcb reuse
+   * --apply`). The committed board is re-verified by the harness checkers (no
+   * engine, no model); stale evidence or a failed gate fails the check.
+   */
+  layout: {
+    ok: boolean;
+    status: string;
+    stale: boolean;
+    selected: string | null;
+    runDir: string;
+    gates: { preflight: boolean; placement: boolean; routing: boolean };
+    metrics: Record<string, number>;
+    errors: { code: string; entityReferences: string[]; message: string }[];
+  } | null;
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -132,12 +154,58 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     }
   }
 
+  let layout: CheckResult['layout'] = null;
+  const layoutDoc = path.join(repoRoot, config.docs, 'LAYOUT.md');
+  if (config.board && existsSync(path.join(repoRoot, config.board)) && existsSync(layoutDoc)) {
+    const boardPath = path.join(repoRoot, config.board);
+    const boardText = await readFile(boardPath, 'utf8');
+    const proPath = boardPath.replace(/\.kicad_pcb$/, '.kicad_pro');
+    const projectText = existsSync(proPath) ? await readFile(proPath, 'utf8') : undefined;
+    const verdict = evidenceContract(await readFile(layoutDoc, 'utf8'), boardText, boardPath, projectText);
+    if (verdict.evidence) {
+      const { design } = importBoard({ boardText, boardPath, ...(projectText ? { projectText } : {}) });
+      const { registry: layoutConstraints } = await loadLayoutConstraints(design, boardPath, {
+        intentPath: config.pcb?.intentPath ?? null,
+        docsDir: path.join(repoRoot, config.docs),
+        repoRoot,
+      });
+      const v = verifyDesign({ design, fills: extractFills(boardText), ...(drc ? { drc } : {}), constraints: layoutConstraints });
+      const errors = v.diagnostics
+        .filter((d) => d.severity === 'error')
+        .map((d) => ({ code: d.code, entityReferences: d.entityReferences, message: d.message }));
+      const gates = { preflight: v.gates.preflight.passed, placement: v.gates.placement.passed, routing: v.gates.routing.passed };
+      const status = verdict.stale ? 'STALE' : verdict.evidence.status;
+      const layoutOk = !verdict.stale && gates.preflight && gates.placement && gates.routing;
+      layout = {
+        ok: layoutOk,
+        status,
+        stale: verdict.stale,
+        selected: verdict.evidence.selected,
+        runDir: verdict.evidence.runDir,
+        gates,
+        metrics: Object.fromEntries(Object.entries(v.metrics).filter((kv): kv is [string, number] => typeof kv[1] === 'number')),
+        errors,
+      };
+      const failed = [...v.gates.preflight.failures, ...v.gates.placement.failures, ...v.gates.routing.failures]
+        .map((d) => d.code)
+        .filter((c, i, a) => a.indexOf(c) === i);
+      log(
+        layoutOk
+          ? `layout ✓ ${verdict.evidence.status} (${verdict.evidence.selected ?? 'no engine'}, ${v.metrics.routed_nets ?? 0} net(s) routed, ${v.metrics.unrouted_count ?? 0} owed; evidence ${verdict.evidence.runDir})`
+          : verdict.stale
+            ? `layout: ${verdict.reason}`
+            : `layout: gate failed (${failed.join(', ')}); evidence ${verdict.evidence.runDir}`,
+      );
+    }
+  }
+
   const ok =
     (erc?.ok ?? true) &&
     (drc?.ok ?? true) &&
     drift.length === 0 &&
     (openspec?.ok ?? true) &&
-    constraintViolations.length === 0;
+    constraintViolations.length === 0 &&
+    (layout?.ok ?? true);
 
   return {
     ok,
@@ -146,6 +214,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
     constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    layout,
     legibility,
   };
 }

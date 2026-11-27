@@ -1,0 +1,21 @@
+{
+  "case": "via-span",
+  "fault": "four layers; XI is routed on In1.Cu between two buried vias (In1.Cu to In2.Cu), which no profile or engine on this release supports",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "geom.via-layers",
+      "entityReferences": [
+        "XI"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "consequential": [
+      "via_dangling"
+    ],
+    "unconnected": 15
+  }
+}

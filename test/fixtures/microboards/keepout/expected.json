@@ -1,0 +1,18 @@
+{
+  "case": "keepout",
+  "fault": "R2 sits inside the keepout ring around mounting hole H1",
+  "generator": "bench/golden/generate.ts",
+  "status": "REFUSE",
+  "diagnostics": [
+    {
+      "code": "intent.manufacturing.keepout",
+      "entityReferences": [
+        "R2"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 2
+  }
+}

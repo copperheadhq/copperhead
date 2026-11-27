@@ -23,9 +23,33 @@ export interface LegibilityUserConfig {
   };
 }
 
+/** Optional `pcb` block: the layout framework (RFC 11), implementation spec §11.2. */
+export interface PcbUserConfig {
+  profile?: string;
+  scoring?: string;
+  routers?: string[];
+  placers?: string[];
+  mode?: 'single' | 'race' | 'staged' | 'ensemble';
+  budgetSeconds?: number;
+  maxParallelEngines?: number;
+  freeroutingJar?: string | null;
+  java?: string | null;
+  freerouting?: { passes?: number };
+  allowRemoteEngines?: boolean;
+  /** Let the harness-only reference router compete (test fixtures only; never for real boards). */
+  allowHarnessEngines?: boolean;
+  intentPath?: string;
+  /** Reference blocks to copy: a source board, its anchor refdes, and the member refdes (implementation spec §6.7). */
+  layoutBlocks?: { id: string; source: string; anchor: string; members: string[]; map?: Record<string, string> }[];
+  referenceDesigns?: string[];
+  teardownCorpus?: string[];
+}
+
 export interface CopperheadConfig {
   schematic: string | null;
   board: string | null;
+  /** Layout framework settings; every key has a default. */
+  pcb?: PcbUserConfig;
   /** Schematic legibility checker thresholds and severity overrides. */
   legibility?: LegibilityUserConfig;
   docs: string;
@@ -154,6 +178,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     ...(raw.generatedHashes ? { generatedHashes: raw.generatedHashes } : {}),
     ...(raw.origin === 'create' || raw.origin === 'init' ? { origin: raw.origin } : {}),
     ...(raw.legibility && typeof raw.legibility === 'object' ? { legibility: raw.legibility } : {}),
+    ...(raw.pcb && typeof raw.pcb === 'object' ? { pcb: raw.pcb } : {}),
   };
 }
 

@@ -1,0 +1,250 @@
+{
+  "stages": [
+    {
+      "name": "fixed",
+      "engineId": "placer-fixed",
+      "componentIds": [
+        "5e58ada2-0f40-434d-86bb-2c740c87919c",
+        "5357a6e2-7474-40e2-80a0-98c082831ee4",
+        "0c98e26b-430d-42af-8324-f64f56fd8830"
+      ]
+    },
+    {
+      "name": "anchors",
+      "engineId": "placer-anchors",
+      "componentIds": [
+        "bb28b111-d36a-4369-840d-471e6aa94101",
+        "d16479b7-fb84-47ca-89d4-2df957669ede",
+        "c262d115-3324-4097-844a-adf03ded564e"
+      ]
+    },
+    {
+      "name": "attach",
+      "engineId": "placer-attach",
+      "componentIds": [
+        "8fae1ff2-98dc-4713-885a-1593e1ba74e8",
+        "138dc4da-b1d1-4738-8534-364fcf8d3dc9",
+        "60217a6b-bf9c-4c0c-8194-bf579deb0bb8",
+        "37631f25-c32c-40a4-8e13-98a10ba487b8",
+        "bff65bf8-e6b4-4f3b-896c-8a56ca88d365",
+        "58ab781f-3c28-4949-886e-aef26991764b",
+        "aaa0e770-90c9-4858-86e3-27fe67adb82b",
+        "51ed750e-707c-4542-8e9f-f9f3b54eae14",
+        "c32c145c-de9f-4888-8e64-107e5eadc036",
+        "00764558-86a4-4b91-89ca-272e3265c660",
+        "9f629ced-96d8-48c4-8884-c5011c0051fb",
+        "1683696a-cb3b-4c01-8c07-b7147ce20b88",
+        "209269f4-7cde-4b47-8ad0-d6d604ab5592",
+        "bd56e433-5625-4b80-87ab-c1a3712ecf53",
+        "f3d0b35b-7746-496e-8b06-02b5d3948a5c",
+        "740c825c-dcef-4bc4-8f9d-51a8289332ef",
+        "567b7b86-9c8d-4846-851f-0041e5152fe2",
+        "18a0a84f-116d-491d-831a-4b847e3a19b9",
+        "d16479b7-fb84-47ca-89d4-2df957669ede",
+        "bb28b111-d36a-4369-840d-471e6aa94101",
+        "c262d115-3324-4097-844a-adf03ded564e",
+        "5e58ada2-0f40-434d-86bb-2c740c87919c"
+      ]
+    },
+    {
+      "name": "bulk",
+      "engineId": "*",
+      "componentIds": [
+        "bcd30302-08f7-44e0-8597-ef18aa0bf225",
+        "3114fffc-7eeb-4ced-81a1-8472b36af61d",
+        "edbe4865-f244-446c-83ec-279446594ef9",
+        "c48c1ab5-c711-4fa9-8064-9ac1b8295d0c",
+        "1345bfb6-408f-4568-8db4-07087ec512f4",
+        "f1dc62c7-7923-4c56-86e4-e34b0271ae3a"
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "power-input",
+      "title": "Power Input",
+      "anchor": "5e58ada2-0f40-434d-86bb-2c740c87919c",
+      "members": [
+        "5e58ada2-0f40-434d-86bb-2c740c87919c",
+        "9f629ced-96d8-48c4-8884-c5011c0051fb",
+        "18a0a84f-116d-491d-831a-4b847e3a19b9",
+        "567b7b86-9c8d-4846-851f-0041e5152fe2",
+        "f3d0b35b-7746-496e-8b06-02b5d3948a5c",
+        "740c825c-dcef-4bc4-8f9d-51a8289332ef"
+      ],
+      "region": {
+        "outer": [
+          {
+            "x": 101500000,
+            "y": 101500000
+          },
+          {
+            "x": 114500000,
+            "y": 101500000
+          },
+          {
+            "x": 114500000,
+            "y": 162500000
+          },
+          {
+            "x": 101500000,
+            "y": 162500000
+          }
+        ],
+        "holes": []
+      },
+      "spreadBudgetNm": 20558511,
+      "notes": [
+        "no IC in the block; J1 (largest part) anchors it"
+      ]
+    },
+    {
+      "id": "regulation",
+      "title": "Regulation",
+      "anchor": "bb28b111-d36a-4369-840d-471e6aa94101",
+      "members": [
+        "bb28b111-d36a-4369-840d-471e6aa94101",
+        "51ed750e-707c-4542-8e9f-f9f3b54eae14",
+        "aaa0e770-90c9-4858-86e3-27fe67adb82b",
+        "edbe4865-f244-446c-83ec-279446594ef9",
+        "c48c1ab5-c711-4fa9-8064-9ac1b8295d0c"
+      ],
+      "region": {
+        "outer": [
+          {
+            "x": 114500000,
+            "y": 101500000
+          },
+          {
+            "x": 127500000,
+            "y": 101500000
+          },
+          {
+            "x": 127500000,
+            "y": 162500000
+          },
+          {
+            "x": 114500000,
+            "y": 162500000
+          }
+        ],
+        "holes": []
+      },
+      "spreadBudgetNm": 8483796,
+      "notes": [
+        "no IC in the block; U2 (largest part) anchors it"
+      ]
+    },
+    {
+      "id": "mcu",
+      "title": "MCU",
+      "anchor": "d16479b7-fb84-47ca-89d4-2df957669ede",
+      "members": [
+        "d16479b7-fb84-47ca-89d4-2df957669ede",
+        "0c98e26b-430d-42af-8324-f64f56fd8830",
+        "58ab781f-3c28-4949-886e-aef26991764b",
+        "bff65bf8-e6b4-4f3b-896c-8a56ca88d365",
+        "138dc4da-b1d1-4738-8534-364fcf8d3dc9",
+        "60217a6b-bf9c-4c0c-8194-bf579deb0bb8",
+        "8fae1ff2-98dc-4713-885a-1593e1ba74e8",
+        "37631f25-c32c-40a4-8e13-98a10ba487b8"
+      ],
+      "region": {
+        "outer": [
+          {
+            "x": 127500000,
+            "y": 101500000
+          },
+          {
+            "x": 140500000,
+            "y": 101500000
+          },
+          {
+            "x": 140500000,
+            "y": 162500000
+          },
+          {
+            "x": 127500000,
+            "y": 162500000
+          }
+        ],
+        "holes": []
+      },
+      "spreadBudgetNm": 57968501,
+      "notes": []
+    },
+    {
+      "id": "amplifier",
+      "title": "Amplifier",
+      "anchor": "c262d115-3324-4097-844a-adf03ded564e",
+      "members": [
+        "c262d115-3324-4097-844a-adf03ded564e",
+        "00764558-86a4-4b91-89ca-272e3265c660",
+        "1683696a-cb3b-4c01-8c07-b7147ce20b88",
+        "209269f4-7cde-4b47-8ad0-d6d604ab5592",
+        "bd56e433-5625-4b80-87ab-c1a3712ecf53",
+        "c32c145c-de9f-4888-8e64-107e5eadc036"
+      ],
+      "region": {
+        "outer": [
+          {
+            "x": 140500000,
+            "y": 101500000
+          },
+          {
+            "x": 153500000,
+            "y": 101500000
+          },
+          {
+            "x": 153500000,
+            "y": 162500000
+          },
+          {
+            "x": 140500000,
+            "y": 162500000
+          }
+        ],
+        "holes": []
+      },
+      "spreadBudgetNm": 8077413,
+      "notes": []
+    },
+    {
+      "id": "speaker-output",
+      "title": "Speaker Output",
+      "anchor": "5357a6e2-7474-40e2-80a0-98c082831ee4",
+      "members": [
+        "5357a6e2-7474-40e2-80a0-98c082831ee4",
+        "bcd30302-08f7-44e0-8597-ef18aa0bf225",
+        "3114fffc-7eeb-4ced-81a1-8472b36af61d",
+        "1345bfb6-408f-4568-8db4-07087ec512f4",
+        "f1dc62c7-7923-4c56-86e4-e34b0271ae3a"
+      ],
+      "region": {
+        "outer": [
+          {
+            "x": 153500000,
+            "y": 101500000
+          },
+          {
+            "x": 166500000,
+            "y": 101500000
+          },
+          {
+            "x": 166500000,
+            "y": 162500000
+          },
+          {
+            "x": 153500000,
+            "y": 162500000
+          }
+        ],
+        "holes": []
+      },
+      "spreadBudgetNm": 11843049,
+      "notes": [
+        "no IC in the block; J2 (largest part) anchors it"
+      ]
+    }
+  ]
+}

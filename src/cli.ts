@@ -282,7 +282,7 @@ scoreGroup
 // no LLM, no network, no CAD tool, and they write nothing.
 const pcbGroup = program
   .command('pcb')
-  .description('PCB layout records and their change views (RFC 11); no LLM, no network');
+  .description('PCB layout (RFC 11, RFC 15): import, place, reuse, route, verify, render, diff; no LLM or network unless --model');
 pcbGroup
   .command('diff <before> <after>')
   .description(
@@ -297,6 +297,7 @@ pcbGroup
       const res = await pcbDiff(before, after, {
         ...(opts.blocks && { blocks: opts.blocks }),
         ...(opts.project && { project: opts.project }),
+        cwd: repoOf(program.opts()),
       });
       // What an import could not represent goes to stderr, so --json stays one record.
       for (const note of res.notes) console.error(`note: ${note}`);
@@ -315,6 +316,611 @@ pcbGroup
     try {
       const { pcbTextconv } = await import('./commands/pcb.js');
       process.stdout.write(await pcbTextconv(board));
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+
+const pcbExit = (status: string): never => {
+  const codes: Record<string, number> = { PASS: 0, PARTIAL: 0, HOLD: 2, REFUSE: 3, UNSUPPORTED: 4, TIMEOUT: 5, ENGINE_ERROR: 6, INVALID_OUTPUT: 7 };
+  process.exit(codes[status] ?? 1);
+};
+const pcbBoard = async (repo: string, boardOpt?: string): Promise<{ boardPath: string; config: Awaited<ReturnType<typeof import('./config.js')['loadConfig']>> }> => {
+  const { loadConfig } = await import('./config.js');
+  const path = await import('node:path');
+  const config = await loadConfig(repo);
+  const rel = boardOpt ?? config.board;
+  if (!rel) {
+    console.error('no board configured; pass --board or set "board" in .copperhead/config.json');
+    process.exit(1);
+  }
+  return { boardPath: path.resolve(repo, rel), config };
+};
+pcbGroup
+  .command('import')
+  .description('read the board into the canonical IR and report what it holds')
+  .option('--board <path>', 'board to import (default: the configured board)')
+  .action(async (opts: { board?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { boardPath } = await pcbBoard(repo, opts.board);
+      const { importBoard } = await import('./pcb/ir/kicad/import.js');
+      const { readFile } = await import('node:fs/promises');
+      const { existsSync } = await import('node:fs');
+      const proPath = boardPath.replace(/\.kicad_pcb$/, '.kicad_pro');
+      const { design, ecad, warnings } = importBoard({ boardText: await readFile(boardPath, 'utf8'), boardPath, ...(existsSync(proPath) ? { projectText: await readFile(proPath, 'utf8') } : {}) });
+      const copper = design.board.layers.filter((l) => l.kind === 'copper').map((l) => l.id);
+      const summary = { hash: design.source.contentHash, fileVersion: design.source.boardFileVersion, netDialect: design.source.netDialect, components: design.components.length, nets: design.nets.length, copperLayers: copper, segments: design.routing.segments.length, vias: design.routing.vias.length, zones: design.routing.zones.length, keepouts: design.board.keepouts.length, netClasses: ecad.netClasses.map((c) => c.name), druRules: ecad.druRules.length, lossy: design.lossy, warnings };
+      if (json) console.log(JSON.stringify(summary, null, 2));
+      else {
+        console.log(`imported ${design.components.length} component(s), ${design.nets.length} net(s), ${copper.join('/')} copper, ${design.routing.segments.length} segment(s), ${design.routing.vias.length} via(s), ${design.routing.zones.length} zone(s); file version ${design.source.boardFileVersion} (${design.source.netDialect} nets); hash ${design.source.contentHash.slice(0, 12)}`);
+        for (const l of design.lossy) console.log(`  lossy: ${l}`);
+        for (const w of warnings) console.log(`  warning: ${w}`);
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('route')
+  .description('route the board with local engines, verify every candidate, and select one')
+  .option('--board <path>', 'board to route (default: the configured board)')
+  .option('--routers <ids>', 'comma-separated engine ids in preference order (default: config or every built-in router)')
+  .option('--mode <mode>', 'single | race | ensemble | staged (default: config or single)')
+  .option('--critical-nets <names>', 'staged mode: comma-separated nets routed after power and before the bulk')
+  .option('--layer-pref <specs>', 'comma-separated <layer>=<horizontal|vertical|any|off>, e.g. F.Cu=horizontal,B.Cu=vertical')
+  .option('--nets <names>', 'comma-separated net names to route (default: all)')
+  .option('--preserve', 'keep the copper already on the board', false)
+  .option('--seed <n>', 'seed for seeded engines', '0')
+  .option('--budget-seconds <n>', 'engine-second and wall-clock budget')
+  .option('--allow-harness-engines', 'let the reference router compete (harness fixtures only)', false)
+  .option('--apply', 'write the selected candidate over the board file', false)
+  .option('--run-dir <path>', 'where to write the run (default: .copperhead/runs/<ts>/layout)')
+  .action(async (opts: { board?: string; routers?: string; mode?: string; nets?: string; criticalNets?: string; layerPref?: string; preserve: boolean; seed: string; budgetSeconds?: string; allowHarnessEngines: boolean; apply: boolean; runDir?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { boardPath, config } = await pcbBoard(repo, opts.board);
+      const { routeBoard } = await import('./pcb/engines/route.js');
+      const path = await import('node:path');
+      const { copyFile } = await import('node:fs/promises');
+      const pcb = config.pcb ?? {};
+      const budget = Number(opts.budgetSeconds ?? pcb.budgetSeconds ?? 600);
+      const runDir = opts.runDir ? path.resolve(repo, opts.runDir) : path.join(repo, '.copperhead', 'runs', new Date().toISOString().replace(/[:.]/g, '-'), 'layout');
+      const routers = opts.routers?.split(',').map((s) => s.trim()).filter(Boolean) ?? pcb.routers;
+      const mode = (opts.mode ?? pcb.mode ?? 'single') as 'single' | 'race' | 'ensemble' | 'staged';
+      const layerPreferences = (opts.layerPref ?? '').split(',').map((s) => s.trim()).filter(Boolean).map((spec) => {
+        const [layerId, m] = spec.split('=');
+        if (!layerId || !['horizontal', 'vertical', 'any', 'off'].includes(m ?? '')) throw new Error(`--layer-pref: expected <layer>=<horizontal|vertical|any|off>, got "${spec}"`);
+        return { layerId, mode: m as 'horizontal' | 'vertical' | 'any' | 'off' };
+      });
+      // the board as the run found it: --apply writes only over these bytes
+      const startText = await (await import('node:fs/promises')).readFile(boardPath, 'utf8');
+      const res = await routeBoard({
+        repoRoot: repo, boardPath, runDir, ...(routers ? { routers } : {}), mode, ...(opts.nets ? { netNames: opts.nets.split(',').map((s) => s.trim()) } : {}), ...(opts.criticalNets ? { criticalNetNames: opts.criticalNets.split(',').map((s) => s.trim()) } : {}), ...(layerPreferences.length ? { layerPreferences } : {}), preserveExistingRoutes: opts.preserve, seed: Number(opts.seed), limits: { engineSeconds: budget, wallSeconds: budget }, ...(pcb.profile ? { profile: pcb.profile } : {}), ...(pcb.scoring ? { scoring: pcb.scoring } : {}), ...(pcb.maxParallelEngines ? { maxParallel: pcb.maxParallelEngines } : {}),
+        policy: { network: pcb.allowRemoteEngines ? 'required' : 'optional', allowHarnessEngines: opts.allowHarnessEngines, denyLicenses: [] },
+        log: json ? () => {} : (l) => console.error(l),
+      });
+      if (opts.apply) {
+        const sel = res.ranking.selected ? res.candidates.find((c) => c.engineId === res.ranking.selected) : undefined;
+        const { applyIfUnchanged } = await import('./pcb/engines/apply.js');
+        const done = sel && (res.outcome.status === 'PASS' || res.outcome.status === 'PARTIAL') ? await applyIfUnchanged(sel.pcbPath, boardPath, startText, path.relative(repo, boardPath)) : { applied: false };
+        if (done.applied) res.outcome.detail.push(`applied ${res.ranking.selected} to ${path.relative(repo, boardPath)}`);
+        else if (done.reason) res.outcome = { ...res.outcome, status: 'HOLD', summary: `not applied: ${done.reason}; the board is unchanged`, detail: [res.outcome.summary, ...res.outcome.detail] };
+        else res.outcome.detail.push('nothing applied; the board is unchanged');
+        // the evidence in docs/LAYOUT.md is what `check` re-verifies against (ADR 0009); a refusal is evidence too
+        const { evidenceFromRun, recordEvidence } = await import('./pcb/layout-stage.js');
+        const verdict = await recordEvidence(repo, config.docs, boardPath, await evidenceFromRun(repo, boardPath, res));
+        res.outcome.detail.push(`evidence recorded in ${path.join(config.docs, 'LAYOUT.md')}${verdict.ok ? '' : ` (${verdict.reason})`}`);
+      }
+      if (json) console.log(JSON.stringify({ ...res.outcome, diagnostics: res.outcome.diagnostics.map((d) => ({ code: d.code, severity: d.severity, message: d.message })), runDir: res.runDir, ranking: res.ranking, ineligible: res.ineligible }, null, 2));
+      else {
+        console.log(`${res.outcome.status}: ${res.outcome.summary}`);
+        for (const d of res.outcome.detail) console.log(`  ${d}`);
+        console.log(`  run: ${path.relative(repo, res.runDir)}; render ${path.relative(repo, path.join(res.runDir, "board.svg"))}`);
+      }
+      pcbExit(res.outcome.status);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('place')
+  .description('place the board through the wrapped placers, verify every candidate, and rank them (no model)')
+  .option('--board <path>', 'board to place (default: the configured board)')
+  .option('--placers <ids>', 'comma-separated engine ids in preference order (default: config or every built-in placer)')
+  .option('--plan <path>', 'placement plan written by copperhead pcb plan (subsystems, anchors, connector edges); read as data, so this command stays LLM-free')
+  .option('--mode <mode>', 'single | race | ensemble (default: config or single)')
+  .option('--movable <refs>', 'comma-separated refdes to move (default: every part not locked in KiCad)')
+  .option('--seed <n>', 'seed for seeded engines', '0')
+  .option('--budget-seconds <n>', 'engine-second and wall-clock budget')
+  .option('--no-probe', 'skip the routability probe on each candidate')
+  .option('--probe-router <id>', 'router for the probe', 'router-freerouting')
+  .option('--allow-harness-engines', 'let the reference placer and router compete (harness fixtures only)', false)
+  .option('--blocks', 'staged plan: derive functional blocks from docs/SUBSYSTEMS.md and schematic.intent.json, place each block anchor in its signal-flow slot first', false)
+  .option('--references', 'apply the approved (or permissively licensed) cached reference block per anchor as stage 3; implies --blocks', false)
+  .option('--apply', 'write the selected candidate over the board file', false)
+  .option('--run-dir <path>', 'where to write the run (default: .copperhead/runs/<ts>/placement)')
+  .action(async (opts: { board?: string; placers?: string; plan?: string; mode?: string; movable?: string; seed: string; budgetSeconds?: string; probe: boolean; probeRouter: string; allowHarnessEngines: boolean; blocks: boolean; references: boolean; apply: boolean; runDir?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { boardPath, config } = await pcbBoard(repo, opts.board);
+      const { placeBoard } = await import('./pcb/engines/place.js');
+      const path = await import('node:path');
+      const { copyFile } = await import('node:fs/promises');
+      const pcb = config.pcb ?? {};
+      const budget = Number(opts.budgetSeconds ?? pcb.budgetSeconds ?? 600);
+      const runDir = opts.runDir ? path.resolve(repo, opts.runDir) : path.join(repo, '.copperhead', 'runs', new Date().toISOString().replace(/[:.]/g, '-'), 'placement');
+      const placers = opts.placers?.split(',').map((s) => s.trim()).filter(Boolean) ?? pcb.placers;
+      const mode = (opts.mode ?? (pcb.mode === 'staged' ? 'single' : pcb.mode) ?? 'single') as 'single' | 'race' | 'ensemble';
+      let layoutPlan;
+      if (opts.plan) {
+        const { readFile } = await import('node:fs/promises');
+        layoutPlan = JSON.parse(await readFile(path.resolve(repo, opts.plan), 'utf8')) as import('./pcb/engines/reuse/plan.js').PlacementPlan;
+        if (!json) console.error(`plan: ${layoutPlan.subsystems.length} subsystem(s), ${layoutPlan.fixed.filter((f) => f.edge).length} connector edge(s) from ${opts.plan}`);
+      }
+      let blocks;
+      if (opts.blocks || opts.references) {
+        const { readFile } = await import('node:fs/promises');
+        const { existsSync } = await import('node:fs');
+        const { importBoard } = await import('./pcb/ir/kicad/import.js');
+        const { deriveBlocks } = await import('./pcb/intent/blocks.js');
+        const subsystems = path.join(repo, config.docs, 'SUBSYSTEMS.md');
+        const intentPath = config.schematic ? path.join(path.dirname(path.join(repo, config.schematic)), 'schematic.intent.json') : null;
+        const { design } = importBoard({ boardText: await readFile(boardPath, 'utf8'), boardPath });
+        blocks = deriveBlocks({ design, subsystemsMd: existsSync(subsystems) ? await readFile(subsystems, 'utf8') : null, schematicIntent: intentPath && existsSync(intentPath) ? JSON.parse(await readFile(intentPath, 'utf8')) : null });
+        if (!json) for (const b of blocks) console.error(`block ${b.id}: ${b.members.length} part(s), anchor ${b.anchor ? design.components.find((c) => c.id === b.anchor)!.reference : 'none'}, region ${b.region ? 'assigned' : 'none'}${b.notes.length ? ` (${b.notes.join('; ')})` : ''}`);
+      }
+      let reuse: import('./pcb/engines/placers/layout-reuse/adapter.js').LayoutBlockSpec[] | undefined;
+      let attached: { ref: string; to: string; max_distance_nm: number }[] | undefined;
+      if (pcb.layoutBlocks?.length) {
+        const { specFromBoard } = await import('./pcb/engines/placers/layout-reuse/adapter.js');
+        reuse = await Promise.all(pcb.layoutBlocks.map((b) => specFromBoard(b, repo)));
+        if (!json) for (const r of reuse) console.error(`layout block ${r.id}: ${r.members.length} member(s) around ${r.anchor} from ${r.source}`);
+      }
+      if (opts.references && blocks) {
+        const refs = await import('./pcb/intent/references.js');
+        const cached = await refs.readCache(repo);
+        const usable = refs.applicable(cached.filter((b) => blocks!.some((k) => k.anchor === b.target.anchorId)));
+        const holds = cached.filter((b) => blocks!.some((k) => k.anchor === b.target.anchorId) && !refs.applicable([b]).length);
+        for (const b of usable) {
+          const inputs = refs.toStageInputs(b);
+          reuse = [...(reuse ?? []), inputs.reuse];
+          attached = [...(attached ?? []), ...inputs.attached];
+          if (!json) console.error(`reference ${b.id.slice(0, 8)}: ${b.members.length} member(s) around ${b.target.anchorRef} from ${b.source.kind} ${path.relative(repo, b.source.locator)}`);
+        }
+        if (!usable.length && holds.length) {
+          const { EXIT_CODE } = await import('./pcb/ir/status.js');
+          const msg = `HOLD: ${holds.length} cached reference block(s) need approval before they apply (${holds.slice(0, 3).map((h) => `${h.id.slice(0, 8)} ${h.source.license}`).join(', ')}); run copperhead pcb references --approve <id>`;
+          if (json) console.log(JSON.stringify({ status: 'HOLD', summary: msg, holds: holds.map((h) => h.id) }));
+          else console.log(msg);
+          process.exit(EXIT_CODE.HOLD);
+        }
+      }
+      // the board as the run found it: --apply writes only over these bytes
+      const startText = await (await import('node:fs/promises')).readFile(boardPath, 'utf8');
+      const res = await placeBoard({
+        repoRoot: repo, boardPath, runDir, ...(placers ? { placers } : {}), ...(layoutPlan ? { layoutPlan } : {}), mode, ...(opts.movable ? { movableReferences: opts.movable.split(',').map((s) => s.trim()) } : {}), ...(reuse?.length ? { reuse } : {}), seed: Number(opts.seed), limits: { engineSeconds: budget, wallSeconds: budget }, ...(pcb.profile ? { profile: pcb.profile } : {}), ...(pcb.maxParallelEngines ? { maxParallel: pcb.maxParallelEngines } : {}),
+        policy: { network: pcb.allowRemoteEngines ? 'required' : 'optional', allowHarnessEngines: opts.allowHarnessEngines || (pcb.allowHarnessEngines ?? false), denyLicenses: [] },
+        probe: opts.probe ? { routerId: opts.probeRouter } : false,
+        ...(blocks ? { blocks } : {}), ...(attached?.length ? { attached } : {}), docsDir: path.join(repo, config.docs), intentPath: pcb.intentPath ?? null,
+        log: json ? () => {} : (l) => console.error(l),
+      });
+      if (opts.apply) {
+        const sel = res.ranking.selected ? res.candidates.find((c) => c.engineId === res.ranking.selected) : undefined;
+        const { applyIfUnchanged } = await import('./pcb/engines/apply.js');
+        const done = sel && (res.outcome.status === 'PASS' || res.outcome.status === 'PARTIAL') ? await applyIfUnchanged(sel.pcbPath, boardPath, startText, path.relative(repo, boardPath)) : { applied: false };
+        if (done.applied) res.outcome.detail.push(`applied ${res.ranking.selected} to ${path.relative(repo, boardPath)}`);
+        else if (done.reason) res.outcome = { ...res.outcome, status: 'HOLD', summary: `not applied: ${done.reason}; the board is unchanged`, detail: [res.outcome.summary, ...res.outcome.detail] };
+        else res.outcome.detail.push('nothing applied; the board is unchanged');
+      }
+      if (json) console.log(JSON.stringify({ ...res.outcome, diagnostics: res.outcome.diagnostics.map((d) => ({ code: d.code, severity: d.severity, message: d.message })), runDir: res.runDir, ranking: res.ranking, ineligible: res.ineligible, movable: res.movableIds.length, ...(res.plan ? { plan: { stages: res.plan.stages.map((st) => ({ name: st.name, engineId: st.engineId, parts: st.componentIds.length })), blocks: res.plan.blocks.map((b) => ({ id: b.id, members: b.members.length, region: !!b.region })) } } : {}) }, null, 2));
+      else {
+        console.log(`${res.outcome.status}: ${res.outcome.summary}`);
+        for (const d of res.outcome.detail) console.log(`  ${d}`);
+        console.log(`  run: ${path.relative(repo, res.runDir)}; render ${path.relative(repo, path.join(res.runDir, "board.svg"))}`);
+      }
+      const { EXIT_CODE } = await import('./pcb/ir/status.js');
+      process.exit(EXIT_CODE[res.outcome.status]);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('plan')
+  .description('write the layout intent: subsystems, the IC at each one\'s centre, the edge each connector faces, the critical relationships (a model writes it with --model; the rules write it without, and it never contains coordinates)')
+  .option('--board <path>', 'board to plan (default: the configured board)')
+  .option('--movable <refs>', 'comma-separated refdes the placement may move (default: every part not locked in KiCad)')
+  .option('--model <route>', 'let a model write the intent; without this the rules write it and the run is network-free')
+  .option('--out <path>', 'where to write the plan (default: <board>.plan.json beside the board)')
+  .option('--record-dir <path>', 'where request/response records are kept, so the same board plans the same way twice')
+  .action(async (opts: { board?: string; movable?: string; model?: string; out?: string; recordDir?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { boardPath, config } = await pcbBoard(repo, opts.board);
+      const path = await import('node:path');
+      const { pcbPlan } = await import('./commands/pcb-plan.js');
+      let provider = null;
+      if (opts.model) {
+        const { makeProvider } = await import('./agent/loop.js');
+        const { resolveCompatSettings } = await import('./config.js');
+        provider = await makeProvider(opts.model, false, resolveCompatSettings(config));
+      }
+      const res = await pcbPlan({
+        repoRoot: repo,
+        boardPath,
+        ...(opts.out ? { outPath: path.resolve(repo, opts.out) } : {}),
+        ...(opts.movable ? { movableReferences: opts.movable.split(',').map((s) => s.trim()) } : {}),
+        ...(provider ? { provider } : {}),
+        ...(opts.recordDir ? { recordDir: path.resolve(repo, opts.recordDir) } : {}),
+        log: json ? () => {} : (l) => console.error(l),
+      });
+      if (provider) await provider.close?.();
+      if (json) console.log(JSON.stringify({ source: res.source, reason: res.reason, out: path.relative(repo, res.outPath), summary: res.summary, warnings: res.warnings }, null, 2));
+      else {
+        console.log(`plan from the ${res.source}: ${res.summary}`);
+        console.log(`  ${res.reason}`);
+        for (const w of res.warnings) console.log(`  warning: ${w}`);
+        console.log(`  written to ${path.relative(repo, res.outPath)}; place with: copperhead pcb place --placers placer-heuristic --plan ${path.relative(repo, res.outPath)}`);
+      }
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('reuse')
+  .description('place the board by adapting a reference board\'s placement: screen variants, verify and probe the survivors, and end with options (no model unless --model)')
+  .option('--board <path>', 'board to place (default: the configured board)')
+  .option('--reference <path>', 'the board whose placement is reused (required)')
+  .option('--movable <refs>', 'comma-separated refdes to move (default: every part not locked in KiCad)')
+  .option('--keep <n>', 'how many screened variants to materialise', '8')
+  .option('--budget <kind>', 'quick | screen (how many variants to generate)', 'screen')
+  .option('--seed <n>', 'seed for seeded engines', '0')
+  .option('--budget-seconds <n>', 'engine-second and wall-clock budget')
+  .option('--no-probe', 'skip the routability probe on each option')
+  .option('--probe-router <id>', 'router for the probe', 'router-freerouting')
+  .option('--no-critical-route', 'skip routing the critical nets of each option')
+  .option('--critical-budget <n>', 'seconds for each critical-net routing run', '120')
+  .option('--critical-candidates <n>', 'how many options get their critical nets routed (RFC 15: five)', '5')
+  .option('--apply', 'write the chosen option over the board file', false)
+  .option('--option <id>', 'which option to apply (default: the ranked winner)')
+  .option('--model <route>', 'let a model write the placement plan (it never gives coordinates); without this the rules plan and the run is network-free')
+  .option('--run-dir <path>', 'where to write the run (default: .copperhead/runs/<ts>/reuse)')
+  .action(async (opts: { board?: string; reference?: string; movable?: string; keep: string; budget: string; seed: string; budgetSeconds?: string; probe: boolean; probeRouter: string; criticalRoute: boolean; criticalBudget: string; criticalCandidates: string; apply: boolean; option?: string; model?: string; runDir?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      if (!opts.reference) throw new Error('pcb reuse needs --reference <path>: the board whose placement is being reused');
+      const { boardPath, config } = await pcbBoard(repo, opts.board);
+      const path = await import('node:path');
+      const { pcbReuse } = await import('./commands/pcb-reuse.js');
+      const pcb = config.pcb ?? {};
+      const budget = Number(opts.budgetSeconds ?? pcb.budgetSeconds ?? 600);
+      const runDir = opts.runDir ? path.resolve(repo, opts.runDir) : path.join(repo, '.copperhead', 'runs', new Date().toISOString().replace(/[:.]/g, '-'), 'reuse');
+      let provider = null;
+      if (opts.model) {
+        const { makeProvider } = await import('./agent/loop.js');
+        const { resolveCompatSettings } = await import('./config.js');
+        provider = await makeProvider(opts.model, false, resolveCompatSettings(config));
+      }
+      const res = await pcbReuse({
+        repoRoot: repo,
+        boardPath,
+        referencePath: path.resolve(repo, opts.reference),
+        runDir,
+        // the layout intent the board declares, as pcb place reads it
+        docsDir: path.join(repo, config.docs),
+        intentPath: pcb.intentPath ?? null,
+        ...(opts.movable ? { movableReferences: opts.movable.split(',').map((s) => s.trim()) } : {}),
+        keep: Number(opts.keep),
+        budget: opts.budget === 'quick' ? 'quick' : 'screen',
+        seed: Number(opts.seed),
+        limits: { engineSeconds: budget, wallSeconds: budget },
+        ...(pcb.profile ? { profile: pcb.profile } : {}),
+        probe: opts.probe ? { routerId: opts.probeRouter } : false,
+        criticalRoute: opts.criticalRoute ? { budgetSeconds: Number(opts.criticalBudget), maxCandidates: Number(opts.criticalCandidates) } : false,
+        apply: opts.apply,
+        ...(opts.option ? { option: opts.option } : {}),
+        ...(provider ? { provider } : {}),
+        log: json ? () => {} : (l) => console.error(l),
+      });
+      if (provider) await provider.close?.();
+      if (json) console.log(JSON.stringify({ ...res.outcome, diagnostics: res.outcome.diagnostics.map((d) => ({ code: d.code, severity: d.severity, message: d.message })), runDir, options: res.options.map((o) => ({ id: o.id, rank: o.rank, selected: o.selected, dir: path.relative(repo, o.dir), changed: o.diff.components.length })), applied: res.applied, placementDoc: path.relative(repo, path.join(runDir, "placement.md")), screened: res.run.screened.map((v) => ({ id: v.id, legal: v.metrics.legal, score: v.score, kept: v.kept, ...(v.sameAs ? { sameAs: v.sameAs } : {}) })) }, null, 2));
+      else {
+        console.log(`${res.outcome.status}: ${res.outcome.summary}`);
+        for (const d of res.outcome.detail) console.log(`  ${d}`);
+        console.log(`  plan from the ${res.run.planSource}; options: ${path.relative(repo, path.join(runDir, 'options.md'))}; delta: ${path.relative(repo, path.join(runDir, 'delta.md'))}`);
+        console.log(`  read ${path.relative(repo, path.join(runDir, 'placement.md'))}; each option's placement diff is beside its board in variants/`);
+        const chosen = res.options.find((o) => (res.applied ? o.id === res.applied : o.selected));
+        if (chosen) {
+          const s = chosen.diff.components.length;
+          console.log(`  ${res.applied ? 'applied' : 'selected'} option ${chosen.id} changes ${s} part(s)${res.applied ? '' : '; --apply writes it'}`);
+        }
+      }
+      const { EXIT_CODE } = await import('./pcb/ir/status.js');
+      process.exit(EXIT_CODE[res.outcome.status]);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('references')
+  .description('find reference layouts for each block anchor in local sources (KiCad demos, PCBench, the repo\'s reference boards, pcb.referenceDesigns, pcb.teardownCorpus); no model, no network')
+  .option('--board <path>', 'board (default: the configured board)')
+  .option('--refresh', 'search again for anchors that already have cached blocks', false)
+  .option('--approve <id>', 'record the approval of a cached block whose license needs one')
+  .option('--approver <who>', 'who approves (default: user)', 'user')
+  .action(async (opts: { board?: string; refresh: boolean; approve?: string; approver: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const path = await import('node:path');
+      const { readFile } = await import('node:fs/promises');
+      const { existsSync } = await import('node:fs');
+      const refs = await import('./pcb/intent/references.js');
+      if (opts.approve) {
+        const b = await refs.approveReference(repo, opts.approve, opts.approver);
+        if (!b) throw new Error(`no cached reference block ${opts.approve} (see .copperhead/layout-refs/index.json)`);
+        if (json) console.log(JSON.stringify({ approved: b.id, approvedBy: b.approvedBy, license: b.source.license }));
+        else console.log(`approved ${b.id} (${b.source.license}) by ${b.approvedBy}: ${b.members.length} member(s) around ${b.target.anchorRef} from ${b.source.locator}`);
+        process.exit(0);
+      }
+      const { boardPath, config } = await pcbBoard(repo, opts.board);
+      const { importBoard } = await import('./pcb/ir/kicad/import.js');
+      const { deriveBlocks } = await import('./pcb/intent/blocks.js');
+      const pcb = config.pcb ?? {};
+      const { design } = importBoard({ boardText: await readFile(boardPath, 'utf8'), boardPath });
+      const subsystems = path.join(repo, config.docs, 'SUBSYSTEMS.md');
+      const intentPath = config.schematic ? path.join(path.dirname(path.join(repo, config.schematic)), 'schematic.intent.json') : null;
+      const blocks = deriveBlocks({ design, subsystemsMd: existsSync(subsystems) ? await readFile(subsystems, 'utf8') : null, schematicIntent: intentPath && existsSync(intentPath) ? JSON.parse(await readFile(intentPath, 'utf8')) : null });
+      const licenses: Record<string, string> = {};
+      const suite = path.join(repo, 'bench', 'suites', 'pcbench-qual.json');
+      if (existsSync(suite)) for (const b of (JSON.parse(await readFile(suite, 'utf8')) as { boards: { id: string; license?: string }[] }).boards) if (b.license) licenses[b.id] = b.license;
+      const sources = [new refs.LocalDesignSource(await refs.localBoards(repo, { referenceDesigns: pcb.referenceDesigns ?? [], pcbenchLicenses: licenses })), new refs.TeardownSource((pcb.teardownCorpus ?? []).map((d) => (path.isAbsolute(d) ? d : path.join(repo, d))))];
+      const res = await refs.findReferences(design, blocks, { repoRoot: repo, sources, refresh: opts.refresh });
+      const usable = refs.applicable(res.blocks);
+      if (json) console.log(JSON.stringify({ status: res.holds.length && !usable.length ? 'HOLD' : 'PASS', blocks: res.blocks.map((b) => ({ id: b.id, anchor: b.target.anchorRef, source: b.source.locator, kind: b.source.kind, score: b.similarity.score, members: b.members.length, license: b.source.license, approvedBy: b.approvedBy ?? null, applicable: usable.some((u) => u.id === b.id) })), holds: res.holds.map((b) => b.id), searched: res.searched, fromCache: res.fromCache }, null, 2));
+      else {
+        console.log(`${res.blocks.length} reference block(s) for ${blocks.filter((b) => b.anchor && b.id !== 'unassigned').length} anchor(s) (${res.searched} searched, ${res.fromCache} from cache); ${usable.length} applicable, ${res.holds.length} on hold`);
+        for (const b of res.blocks) console.log(`  ${usable.some((u) => u.id === b.id) ? 'apply' : b.approvedBy ? 'ok   ' : 'HOLD '} ${b.id.slice(0, 8)} ${b.target.anchorRef}: ${b.members.length} member(s), score ${b.similarity.score.toFixed(2)}, ${b.source.kind} ${path.relative(repo, b.source.locator)} (${b.source.license}${b.approvedBy ? `, approved by ${b.approvedBy}` : ''})`);
+        if (res.holds.length) console.log(`  approve with: copperhead pcb references --approve <id>`);
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('infer-intent')
+  .description('compile layout intent (RFC 11 §7.4): blocks, the intent file, the board\'s own rules, and (with a model) roles and datasheet-derived rules, merged into .copperhead/constraints.json with an intent report')
+  .option('--board <path>', 'board (default: the configured board)')
+  .option('--model <model>', 'model for the two model steps (roles, derived rules); without one the compile is deterministic')
+  .option('--intent <path>', 'intent file (default: pcb.intentPath or docs/LAYOUT.intent.yaml)')
+  .option('--run-dir <path>', 'where intent-report.md goes (default: .copperhead/runs/<ts>/intent)')
+  .option('--dry-run', 'print the report, write nothing', false)
+  .action(async (opts: { board?: string; model?: string; intent?: string; runDir?: string; dryRun: boolean }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { boardPath, config } = await pcbBoard(repo, opts.board);
+      const path = await import('node:path');
+      const { readFile } = await import('node:fs/promises');
+      const { existsSync } = await import('node:fs');
+      const { importBoard } = await import('./pcb/ir/kicad/import.js');
+      const { compileIntent, cachedDatasheets } = await import('./pcb/agent/intent/compiler.js');
+      const { loadConstraints: loadRegistry, saveConstraints } = await import('./memory/constraints.js');
+      const read = async (p: string) => (existsSync(p) ? readFile(p, 'utf8') : Promise.resolve(null));
+      const intentPath = opts.intent ? path.resolve(repo, opts.intent) : path.join(repo, config.pcb?.intentPath ?? path.join(config.docs, 'LAYOUT.intent.yaml'));
+      const schematicIntentPath = config.schematic ? path.join(path.dirname(path.join(repo, config.schematic)), 'schematic.intent.json') : null;
+      const runDir = opts.runDir ? path.resolve(repo, opts.runDir) : path.join(repo, '.copperhead', 'runs', new Date().toISOString().replace(/[:.]/g, '-'), 'intent');
+      let provider = null;
+      if (opts.model) {
+        const { makeProvider } = await import('./agent/loop.js');
+        const { resolveCompatSettings } = await import('./config.js');
+        provider = await makeProvider(opts.model, false, resolveCompatSettings(config));
+      }
+      const { design } = importBoard({ boardText: await readFile(boardPath, 'utf8'), boardPath });
+      const res = await compileIntent({
+        repoRoot: repo, design, intentText: await read(intentPath), subsystemsMd: await read(path.join(repo, config.docs, 'SUBSYSTEMS.md')),
+        schematicIntent: schematicIntentPath && existsSync(schematicIntentPath) ? JSON.parse(await readFile(schematicIntentPath, 'utf8')) : null,
+        bomMd: await read(path.join(repo, config.docs, 'BOM.md')), datasheets: await cachedDatasheets(repo), registry: await loadRegistry(repo), provider, ...(opts.dryRun ? {} : { runDir }),
+      });
+      if (provider) await provider.close?.();
+      if (!opts.dryRun) await saveConstraints(repo, res.registry);
+      const layout = Object.entries(res.registry).filter(([, c]) => c.class);
+      if (json) console.log(JSON.stringify({ status: res.holds.length ? 'HOLD' : 'PASS', constraints: layout.length, blocks: res.blocks.map((b) => ({ id: b.id, members: b.members.length, region: !!b.region })), roles: res.roles, holds: res.holds, rejected: res.rejected, runDir: opts.dryRun ? null : path.relative(repo, runDir), written: !opts.dryRun }, null, 2));
+      else {
+        console.log(res.report);
+        if (!opts.dryRun) console.log(`\nwrote ${layout.length} layout constraint(s) to .copperhead/constraints.json; report in ${path.relative(repo, runDir)}/intent-report.md`);
+      }
+      const { EXIT_CODE } = await import('./pcb/ir/status.js');
+      process.exit(res.holds.length ? EXIT_CODE.HOLD : 0);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('layout')
+  .description('the closed loop: place, route, verify, repair within a budget, record the evidence (RFC 11 §12); the model appears only in the repair planner')
+  .option('--board <path>', 'board (default: the configured board)')
+  .option('--no-place', 'route the board as placed')
+  .option('--no-route', 'place only')
+  .option('--budget-seconds <n>', 'engine-second and wall-clock budget for the whole loop (default: config or 600)')
+  .option('--max-repair-cycles <n>', 'repair cycles after the first pass (default: config maxRepairCycles or 3)')
+  .option('--model <model>', 'model for the repair planner; without one a deterministic policy picks the action')
+  .option('--seed <n>', 'seed for seeded engines', '0')
+  .option('--allow-harness-engines', 'let the reference placer and router compete (harness fixtures only)', false)
+  .option('--apply', 'write the result over the board file and record the evidence in docs/LAYOUT.md', false)
+  .option('--run-dir <path>', 'where to write the run (default: .copperhead/runs/<ts>/layout)')
+  .action(async (opts: { board?: string; place: boolean; route: boolean; budgetSeconds?: string; maxRepairCycles?: string; model?: string; seed: string; allowHarnessEngines: boolean; apply: boolean; runDir?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { boardPath, config } = await pcbBoard(repo, opts.board);
+      const path = await import('node:path');
+      const { layoutBoard } = await import('./pcb/agent/orchestrate.js');
+      const pcb = config.pcb ?? {};
+      let provider = null;
+      if (opts.model) {
+        const { makeProvider } = await import('./agent/loop.js');
+        const { resolveCompatSettings } = await import('./config.js');
+        provider = await makeProvider(opts.model, false, resolveCompatSettings(config));
+      }
+      const runDir = opts.runDir ? path.resolve(repo, opts.runDir) : path.join(repo, '.copperhead', 'runs', new Date().toISOString().replace(/[:.]/g, '-'), 'layout');
+      const res = await layoutBoard({
+        repoRoot: repo, config, boardPath, runDir, place: opts.place, route: opts.route, ...(opts.budgetSeconds ? { budgetSeconds: Number(opts.budgetSeconds) } : {}), ...(opts.maxRepairCycles ? { maxRepairCycles: Number(opts.maxRepairCycles) } : {}), seed: Number(opts.seed), provider,
+        policy: { network: pcb.allowRemoteEngines ? 'required' : 'optional', allowHarnessEngines: opts.allowHarnessEngines || (pcb.allowHarnessEngines ?? false), denyLicenses: [] }, apply: opts.apply,
+        ...(opts.allowHarnessEngines ? { probeRouter: 'router-reference' } : {}),
+        log: json ? () => {} : (l) => console.error(l),
+      });
+      if (provider) await provider.close?.();
+      if (json) console.log(JSON.stringify({ ...res.outcome, diagnostics: res.outcome.diagnostics.map((d) => ({ code: d.code, severity: d.severity, message: d.message })), runDir: path.relative(repo, res.runDir), applied: res.applied, cycles: res.cycles, holds: res.holds, evidence: res.evidence ? { status: res.evidence.status, selected: res.evidence.selected, boardHash: res.evidence.boardHash } : null }, null, 2));
+      else {
+        console.log(`${res.outcome.status}: ${res.outcome.summary}`);
+        for (const d of res.outcome.detail) console.log(`  ${d}`);
+        console.log(`  run: ${path.relative(repo, res.runDir)}; render ${path.relative(repo, path.join(res.runDir, "board.svg"))}${res.applied ? `; applied to ${path.relative(repo, boardPath)}, evidence in ${path.join(config.docs, 'LAYOUT.md')}` : ''}`);
+      }
+      const { EXIT_CODE } = await import('./pcb/ir/status.js');
+      process.exit(EXIT_CODE[res.outcome.status]);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('verify')
+  .description('verify one board file: pre-flight, geometry, connectivity, return path, KiCad DRC')
+  .argument('[board]', 'board file (default: the configured board)')
+  .option('--no-kicad', 'skip kicad-cli (no DRC, no zone refill)')
+  .option('--intent <path>', 'intent file (default: pcb.intentPath, <board dir>/intent.yaml, or docs/LAYOUT.intent.yaml)')
+  .action(async (board: string | undefined, opts: { kicad: boolean; intent?: string }) => {
+    const repo = repoOf(program.opts());
+    const json = Boolean(program.opts().json);
+    try {
+      const { boardPath, config } = await pcbBoard(repo, board);
+      const path = await import('node:path');
+      const { readFile, mkdtemp, cp, rm } = await import('node:fs/promises');
+      const { existsSync } = await import('node:fs');
+      const { tmpdir } = await import('node:os');
+      const { importBoard } = await import('./pcb/ir/kicad/import.js');
+      const { refillZones, extractFills } = await import('./pcb/ir/kicad/zones.js');
+      const { verifyDesign } = await import('./pcb/verify/index.js');
+      const { EXIT_CODE } = await import('./pcb/ir/status.js');
+      const proPath = boardPath.replace(/\.kicad_pcb$/, '.kicad_pro');
+      const projectText = existsSync(proPath) ? await readFile(proPath, 'utf8') : undefined;
+      let text = await readFile(boardPath, 'utf8');
+      let drc;
+      if (opts.kicad) {
+        // refill on a copy so verify never mutates the user's file
+        const dir = await mkdtemp(path.join(tmpdir(), 'copperhead-verify-'));
+        try {
+          await cp(path.dirname(boardPath), dir, { recursive: true });
+          const copy = path.join(dir, path.basename(boardPath));
+          drc = await refillZones(copy);
+          text = await readFile(copy, 'utf8');
+        } finally {
+          await rm(dir, { recursive: true, force: true });
+        }
+      }
+      const { design } = importBoard({ boardText: text, boardPath, ...(projectText ? { projectText } : {}) });
+      const { loadConstraints } = await import('./pcb/intent/load.js');
+      const { registry: constraints, intentPath, holds } = await loadConstraints(design, boardPath, { intentPath: config.pcb?.intentPath ?? opts.intent ?? null, docsDir: path.join(repo, config.docs), repoRoot: repo });
+      const v = verifyDesign({ design, fills: extractFills(text), ...(drc ? { drc } : {}), constraints });
+      const errors = v.diagnostics.filter((d) => d.severity === 'error');
+      const status = holds.length ? 'HOLD' : !v.gates.preflight.passed || !v.gates.placement.passed ? 'REFUSE' : errors.length ? 'PARTIAL' : (v.metrics.unrouted_count ?? 0) > 0 ? 'PARTIAL' : 'PASS';
+      if (json) console.log(JSON.stringify({ status, intent: intentPath ? path.relative(repo, intentPath) : null, holds, metrics: v.metrics, gates: { preflight: v.gates.preflight.passed, placement: v.gates.placement.passed, routing: v.gates.routing.passed }, disagreements: v.disagreements, diagnostics: v.diagnostics.map((d) => ({ code: d.code, severity: d.severity, entityReferences: d.entityReferences, message: d.message })) }, null, 2));
+      else {
+        if (intentPath) console.log(`intent: ${path.relative(repo, intentPath)} (${Object.keys(constraints).length} constraint(s) with the board's own rules)`);
+        for (const h of holds) console.log(`  HOLD ${h}`);
+        console.log(`${status}: ${v.metrics.routed_nets ?? 0} net(s) routed, ${v.metrics.unrouted_count ?? 0} owed, ${v.metrics.shorts ?? 0} short(s), ${v.metrics.drc_error_count ?? 0} KiCad error(s); gates preflight ${v.gates.preflight.passed ? 'pass' : 'FAIL'}, placement ${v.gates.placement.passed ? 'pass' : 'FAIL'}, routing ${v.gates.routing.passed ? 'pass' : 'FAIL'}`);
+        for (const d of v.diagnostics.filter((d) => d.severity !== 'info')) console.log(`  ${d.severity} ${d.code}${d.entityReferences.length ? ` [${d.entityReferences.slice(0, 4).join(', ')}]` : ''}: ${d.message}`);
+        for (const x of v.disagreements) console.log(`  disagreement ${x.code}: ${x.a.checker} says ${x.a.says}; ${x.b.checker} says ${x.b.says}`);
+      }
+      process.exit(EXIT_CODE[status]);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('render')
+  .description('render one board file to SVG (with the verify diagnostics marked unless --plain)')
+  .argument('[board]', 'board file (default: the configured board)')
+  .option('--out <path>', 'output .svg (default: beside the board)')
+  .option('--plain', 'no diagnostics, no legend (thumbnail mode)', false)
+  .option('--no-legend', 'keep the diagnostic markers on the board but drop the legend under it')
+  .option('--scale <n>', 'pixels per millimetre', '14')
+  .action(async (board: string | undefined, opts: { out?: string; plain: boolean; legend: boolean; scale: string }) => {
+    const repo = repoOf(program.opts());
+    try {
+      const { boardPath, config } = await pcbBoard(repo, board);
+      const path = await import('node:path');
+      const { readFile, writeFile } = await import('node:fs/promises');
+      const { existsSync } = await import('node:fs');
+      const { importBoard } = await import('./pcb/ir/kicad/import.js');
+      const { extractFills } = await import('./pcb/ir/kicad/zones.js');
+      const { verifyDesign } = await import('./pcb/verify/index.js');
+      const { renderSvg } = await import('./pcb/ir/svg.js');
+      const { loadConstraints } = await import('./pcb/intent/load.js');
+      const proPath = boardPath.replace(/\.kicad_pcb$/, '.kicad_pro');
+      const projectText = existsSync(proPath) ? await readFile(proPath, 'utf8') : undefined;
+      const text = await readFile(boardPath, 'utf8');
+      const { design } = importBoard({ boardText: text, boardPath, ...(projectText ? { projectText } : {}) });
+      const plain = opts.plain || Boolean(program.opts().plain); // the global --plain (log style) swallows the flag when it precedes the subcommand
+      // intent markers too: the same registry verify and check use
+      const constraints = plain ? {} : (await loadConstraints(design, boardPath, { intentPath: config.pcb?.intentPath ?? null, docsDir: path.join(repo, config.docs), repoRoot: repo })).registry;
+      const diagnostics = plain ? [] : verifyDesign({ design, fills: extractFills(text), constraints }).diagnostics;
+      const out = opts.out ? path.resolve(repo, opts.out) : boardPath.replace(/\.kicad_pcb$/, '.svg');
+      await writeFile(out, renderSvg(design, { diagnostics, scale: Number(opts.scale), legend: !plain && opts.legend !== false }), 'utf8');
+      if (Boolean(program.opts().json)) console.log(JSON.stringify({ out, diagnostics: diagnostics.filter((d) => d.severity !== 'info').length }));
+      else console.log(out);
+    } catch (err) {
+      console.error((err as Error).message);
+      process.exit(1);
+    }
+  });
+pcbGroup
+  .command('score')
+  .description('re-rank the candidates of a run directory')
+  .argument('<run-dir>', 'a run directory written by pcb route')
+  .option('--scoring <profile>', 'scoring profile', 'default-low-speed-2-layer')
+  .action(async (runDir: string, opts: { scoring: string }) => {
+    const json = Boolean(program.opts().json);
+    try {
+      const path = await import('node:path');
+      const { readFile, readdir, writeFile } = await import('node:fs/promises');
+      const { existsSync } = await import('node:fs');
+      const { rank } = await import('./pcb/verify/scoring.js');
+      const { loadScoringProfile } = await import('./pcb/verify/profiles/scoring/index.js');
+      const dir = path.resolve(runDir);
+      const candidates = path.join(dir, 'candidates');
+      const inputs = [];
+      for (const d of existsSync(candidates) ? await readdir(candidates) : []) {
+        const mp = path.join(candidates, d, 'metrics.json');
+        const dp = path.join(candidates, d, 'diagnostics.json');
+        if (!existsSync(mp)) continue;
+        const metrics = JSON.parse(await readFile(mp, 'utf8'));
+        const diags = existsSync(dp) ? (JSON.parse(await readFile(dp, 'utf8')) as { code: string; severity: string }[]) : [];
+        const gateFailures = diags.filter((x) => x.severity === 'error' && !x.code.startsWith('conn.unrouted') && !x.code.startsWith('drc.') && !x.code.startsWith('quality.')).map((x) => x.code);
+        inputs.push({ id: d.replace(/-\d+$/, ''), metrics, gatesPassed: gateFailures.length === 0 && (metrics.drc_critical_count ?? 0) === 0, gateFailures });
+      }
+      const ranking = rank(inputs, loadScoringProfile(opts.scoring));
+      await writeFile(path.join(dir, 'ranking.json'), JSON.stringify(ranking, null, 2), 'utf8');
+      if (json) console.log(JSON.stringify(ranking, null, 2));
+      else for (const c of ranking.candidates) console.log(`${c.rank}. ${c.id}${c.eligible ? '' : ' (ineligible)'}: ${c.reason}`);
       process.exit(0);
     } catch (err) {
       console.error((err as Error).message);

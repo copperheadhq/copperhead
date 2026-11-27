@@ -1,0 +1,2 @@
+
+`spisolator.kicad_pcb` — the `spisolator_spisolator` board from PCBench (github.com/PCBench/PCBench at `dec3be7`, MIT; board license recorded as MIT in the corpus metadata), upgraded with `kicad-cli pcb upgrade --force`. A KiCad 4 board with a back-side SOIC and KiCad 10's name-only net dialect; used to hold the DSN emitter and the kicad-tools dialect rewrite to what KiCad's own exporter produces.

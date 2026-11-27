@@ -359,8 +359,20 @@ export async function kicadLoadError(filePath: string): Promise<string | null> {
   }
 }
 
-export function runDrc(pcbPath: string): Promise<CheckReport> {
-  return runCheck('drc', pcbPath);
+export interface DrcOptions {
+  /** Refill zones before checking (`--refill-zones`); with `saveBoard` the refilled board is written back. */
+  refillZones?: boolean;
+  saveBoard?: boolean;
+  /** Test board-vs-schematic parity (`--schematic-parity`); the report's `schematic_parity` bucket. */
+  schematicParity?: boolean;
+}
+
+export function runDrc(pcbPath: string, opts: DrcOptions = {}): Promise<CheckReport> {
+  const extra: string[] = [];
+  if (opts.refillZones) extra.push('--refill-zones');
+  if (opts.saveBoard) extra.push('--save-board');
+  if (opts.schematicParity) extra.push('--schematic-parity');
+  return runCheck('drc', pcbPath, extra);
 }
 
 /**

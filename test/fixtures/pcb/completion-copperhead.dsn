@@ -1,0 +1,150 @@
+(pcb "board"
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (host_cad "copperhead")
+    (host_version "pcb-layout-framework")
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0 100300 -100300  135700 -100300  135700 -125700  100300 -125700  100300 -100300)
+    )
+    (via "Via[0-1]_600:300_um")
+    (rule
+      (width 250)
+      (clearance 200)
+      (clearance 50 (type smd_smd))
+    )
+  )
+  (placement
+    (component Package_SO:SOIC-8_3.9x4.9mm_P1.27mm
+      (place U1 116000 -113000 front 0 (PN "MCU"))
+    )
+    (component Capacitor_SMD:C_0603_1608Metric
+      (place C1 116000 -106500 front 0 (PN "100n"))
+    )
+    (component Resistor_SMD:R_0603_1608Metric
+      (place R1 124000 -108000 front 0 (PN "10k"))
+      (place R2 124000 -118000 front 0 (PN "10k"))
+    )
+    (component Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm
+      (place Y1 107000 -118000 front 0 (PN "8MHz"))
+    )
+    (component Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical
+      (place J1 132000 -109000 front 0 (PN "CONN"))
+    )
+  )
+  (library
+    (image Package_SO:SOIC-8_3.9x4.9mm_P1.27mm
+      (outline (path signal 0 -3700 2700  3700 2700  3700 -2700  -3700 -2700  -3700 2700))
+      (pin "RoundRect[T]Pad_1950x600_um_0_57b04a0" 1 -2475 1905)
+      (pin "RoundRect[T]Pad_1950x600_um_0_57b04a0" 2 -2475 635)
+      (pin "RoundRect[T]Pad_1950x600_um_0_57b04a0" 3 -2475 -635)
+      (pin "RoundRect[T]Pad_1950x600_um_0_57b04a0" 4 -2475 -1905)
+      (pin "RoundRect[T]Pad_1950x600_um_0_57b04a0" 5 2475 -1905)
+      (pin "RoundRect[T]Pad_1950x600_um_0_57b04a0" 6 2475 -635)
+      (pin "RoundRect[T]Pad_1950x600_um_0_57b04a0" 7 2475 635)
+      (pin "RoundRect[T]Pad_1950x600_um_0_57b04a0" 8 2475 1905)
+    )
+    (image Capacitor_SMD:C_0603_1608Metric
+      (outline (path signal 0 -1480 730  1480 730  1480 -730  -1480 -730  -1480 730))
+      (pin "RoundRect[T]Pad_900x950_um_0_11387c4" 1 -775 0)
+      (pin "RoundRect[T]Pad_900x950_um_0_11387c4" 2 775 0)
+    )
+    (image Resistor_SMD:R_0603_1608Metric
+      (outline (path signal 0 -1480 730  1480 730  1480 -730  -1480 -730  -1480 730))
+      (pin "RoundRect[T]Pad_800x950_um_0_b337d3f4" 1 -825 0)
+      (pin "RoundRect[T]Pad_800x950_um_0_b337d3f4" 2 825 0)
+    )
+    (image Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm
+      (outline (path signal 0 -2100 1750  2100 1750  2100 -1750  -2100 -1750  -2100 1750))
+      (pin "RoundRect[T]Pad_1400x1200_um_0_f8b4a964" 1 -1100 -850)
+      (pin "RoundRect[T]Pad_1400x1200_um_0_f8b4a964" 2 1100 -850)
+      (pin "RoundRect[T]Pad_1400x1200_um_0_f8b4a964" 3 1100 850)
+      (pin "RoundRect[T]Pad_1400x1200_um_0_f8b4a964" 4 -1100 850)
+    )
+    (image Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical
+      (outline (path signal 0 -1770 1770  1770 1770  1770 -9390  -1770 -9390  -1770 1770))
+      (pin "Rect[A]Pad_1700x1700_um_0_49f2ce1c" 1 0 0)
+      (pin "Round[A]Pad_1700_um" 2 0 -2540)
+      (pin "Round[A]Pad_1700_um" 3 0 -5080)
+      (pin "Round[A]Pad_1700_um" 4 0 -7620)
+    )
+    (padstack "RoundRect[T]Pad_1950x600_um_0_57b04a0"
+      (shape (polygon F.Cu 0 975 -150  972 -179  964 -207  950 -233  931 -256  908 -275  882 -289  854 -297  825 -300  -825 -300  -854 -297  -882 -289  -908 -275  -931 -256  -950 -233  -964 -207  -972 -179  -975 -150  -975 150  -972 179  -964 207  -950 233  -931 256  -908 275  -882 289  -854 297  -825 300  825 300  854 297  882 289  908 275  931 256  950 233  964 207  972 179  975 150))
+      (attach off)
+    )
+    (padstack "RoundRect[T]Pad_900x950_um_0_11387c4"
+      (shape (polygon F.Cu 0 450 -250  446 -294  433 -336  412 -375  384 -409  350 -437  311 -458  269 -471  225 -475  -225 -475  -269 -471  -311 -458  -350 -437  -384 -409  -412 -375  -433 -336  -446 -294  -450 -250  -450 250  -446 294  -433 336  -412 375  -384 409  -350 437  -311 458  -269 471  -225 475  225 475  269 471  311 458  350 437  384 409  412 375  433 336  446 294  450 250))
+      (attach off)
+    )
+    (padstack "RoundRect[T]Pad_800x950_um_0_b337d3f4"
+      (shape (polygon F.Cu 0 400 -275  396 -314  385 -352  366 -386  341 -416  311 -441  277 -460  239 -471  200 -475  -200 -475  -239 -471  -277 -460  -311 -441  -341 -416  -366 -386  -385 -352  -396 -314  -400 -275  -400 275  -396 314  -385 352  -366 386  -341 416  -311 441  -277 460  -239 471  -200 475  200 475  239 471  277 460  311 441  341 416  366 386  385 352  396 314  400 275))
+      (attach off)
+    )
+    (padstack "RoundRect[T]Pad_1400x1200_um_0_f8b4a964"
+      (shape (polygon F.Cu 0 700 -350  695 -399  681 -446  658 -489  627 -527  589 -558  546 -581  499 -595  450 -600  -450 -600  -499 -595  -546 -581  -589 -558  -627 -527  -658 -489  -681 -446  -695 -399  -700 -350  -700 350  -695 399  -681 446  -658 489  -627 527  -589 558  -546 581  -499 595  -450 600  450 600  499 595  546 581  589 558  627 527  658 489  681 446  695 399  700 350))
+      (attach off)
+    )
+    (padstack "Rect[A]Pad_1700x1700_um_0_49f2ce1c"
+      (shape (polygon F.Cu 0 -850 850  850 850  850 -850  -850 -850))
+      (shape (polygon B.Cu 0 -850 850  850 850  850 -850  -850 -850))
+      (attach off)
+    )
+    (padstack "Round[A]Pad_1700_um"
+      (shape (circle F.Cu 1700))
+      (shape (circle B.Cu 1700))
+      (attach off)
+    )
+    (padstack "Via[0-1]_600:300_um"
+      (shape (circle F.Cu 600))
+      (shape (circle B.Cu 600))
+      (attach off)
+    )
+  )
+  (network
+    (net GND
+      (pins U1-4 C1-2 Y1-2 Y1-4 J1-2)
+    )
+    (net SIG1
+      (pins U1-1 R1-2 J1-3)
+    )
+    (net SIG2
+      (pins U1-2 R2-2 J1-4)
+    )
+    (net VCC
+      (pins U1-8 C1-1 R1-1 R2-1 J1-1)
+    )
+    (net XI
+      (pins U1-5 Y1-1)
+    )
+    (net XO
+      (pins U1-6 Y1-3)
+    )
+    (class kicad_default GND SIG1 SIG2 VCC XI XO
+      (circuit
+        (use_via "Via[0-1]_600:300_um")
+      )
+      (rule
+        (width 250)
+        (clearance 200)
+      )
+    )
+  )
+  (wiring
+  )
+)

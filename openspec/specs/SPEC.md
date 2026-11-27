@@ -355,8 +355,10 @@ copperhead pcb diff <before> <after> [--blocks <dir>] [--project <id>] [--json]
     written <rev>:<path>; the after side may instead be a candidate, whose
     block layouts are read from --blocks or from beside it. A board is
     imported into a layout input (RFC 11 Section 5.1) with identifiers
-    derived under one project, the board file's name unless --project
-    says otherwise, so the same part matches across revisions. Prints the
+    derived under one project, the first board's file name unless
+    --project says otherwise, so the same part matches across files and
+    revisions; what an import could not represent is printed on standard
+    error. Prints the
     text view of RFC 11 Section 14.4 (one line per changed component, !
     where the change needs approval, then constraint, finding, and copper
     lines); --json prints the placement diff record. Read-only; no LLM,
@@ -367,6 +369,27 @@ copperhead pcb textconv <board>
     per line, for git's diff driver: `*.kicad_pcb diff=copperhead-pcb` in
     .gitattributes and `git config diff.copperhead-pcb.textconv
     "copperhead pcb textconv"`. Read-only; no LLM, no network, no kicad-cli.
+
+copperhead pcb reuse --reference <board> [--board <board>] [--apply] [--option <id>] [--model <route>] ...
+    Places a board by reusing a reference board's placement (RFC 15): match
+    the parts, transfer the reference into this board's frame, plan, pack
+    every variant in memory, screen them, materialise the best eight with
+    KiCad, verify, probe routability, route the critical nets of the top
+    five, and rank by RFC 15's tiers. Writes to the run directory
+    options.md, delta.md, placement.md (RFC 11 Section 12.6: once when the
+    plan is validated and again when the run ends), ranking.json and
+    outcome.json, and for each option its board, render, and placement
+    diff against the board as it was (RFC 11 Section 6.11). The outcome,
+    ranking.json, and --apply agree on the selected option. --apply writes
+    the selected option, or --option's, over the board: the person's
+    approval of every change to a part the import owns. Without --model,
+    no LLM and no network; Freerouting is used where installed
+    (scripts/tools.sh).
+
+copperhead pcb place [--board <board>] [--mode single|race|staged|ensemble] [--apply] ...
+    Places a board with no reference through the registered placers (RFC
+    11 Section 8.1), verifies and ranks the candidates, and with --apply
+    writes the selected one. No LLM, no network.
 
 copperhead watch                          # Phase 2
     Start the live viewer (see §6).
@@ -562,6 +585,14 @@ Format: Given / When / Then. "Fixture" = the open-telegraph repo (or the tiny te
 - **AC-21.2** Identifiers are derived as RFC 3 Section 4.2 specifies: the derivation reproduces the RFC example's `PCB-217f1404b81d`, and a part keeps its identifier when it is renumbered, whether it has a schematic symbol or is placed only on the board.
 - **AC-21.3** The import does not depend on the order of the file: not of its footprints, its routing, nor the edges of its outline. It records every placement as owned by the import adapter, and lists in the board's `lossy` field what it could not represent, including copper on no net.
 - **AC-21.4** `pcb diff` of two boards, even under different file names, or of a board and itself at a git revision (`HEAD:board.kicad_pcb`), shows a moved and turned part as one row with its distance and rotation, and prints the imports' `lossy` notes on standard error.
+
+### AC-22 · Placement by reuse, end to end (change: add-pcb-placement)
+
+- **AC-22.1** `pcb reuse --reference <board>` on a board and a reference places every part, offers ranked options, and writes each option's board, render, and placement diff against the board as it was; the diff validates against the RFC 11 schema.
+- **AC-22.2** `placement.md` is written once the plan is validated, saying nothing has been measured, and again when the run ends, with the six sections of RFC 11 Section 12.6 in order; the same records give the same bytes.
+- **AC-22.3** The printed outcome, `ranking.json`, `options.md`, and `--apply` name the same selected option: the ranking after critical routing, when it ran. The critical nets of the top five candidates are routed by default.
+- **AC-22.4** Each option is written as an RFC 11 candidate against the board's layout input, and its placement diff marks every part it moves as needing approval, since the import owns them. After `--apply`, `pcb diff HEAD:<board> <board>` shows the parts the applied option moved.
+- **AC-22.5** Candidates are ranked by RFC 15 Section 11's tiers in order, each metric within its own tolerance; an unmeasured tier ties; each candidate's reason names the tier that put it ahead.
 
 ### AC-3 · `copperhead do` — core loop
 

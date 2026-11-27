@@ -1,0 +1,468 @@
+{
+  "status": "PASS",
+  "summary": "placer-reuse-pack selected: placer-reuse-pack: routability 95%, HPWL 596.3 mm, weighted score 0.000, on the Pareto frontier",
+  "detail": [
+    "placer-reference: ineligible (harness-only reference engine (pass allowHarnessEngines to use it))",
+    "placer-kicad-tools-evolutionary: process-failed: kct placement optimize exited 1:   \"message\": \"Error during optimization: 'EvolutionaryPlacementOptimizer' object has no attribute 'total_wire_length'\" | } | CuPy not available, falling back to NumPy (fix: see kct.log in the run directory)",
+    "placer-reuse-copy: unsupported (no placement, no explanation from the engine)",
+    "placer-reuse-pack: rank 1, routability 95%, HPWL 596.3 mm, weighted score 0.000, on the Pareto frontier",
+    "placer-kicad-tools-physics: rank 2, ineligible: geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; courtyard_overlap_count 265 > 0",
+    "placer-pyplacer: rank 3, ineligible: geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; courtyard_overlap_count 9 > 0",
+    "placer-fixed: rank 4, ineligible: geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; geom.courtyard-overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; drc.courtyards_overlap; courtyard_overlap_count 4 > 0"
+  ],
+  "diagnostics": [
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.drill_out_of_range",
+      "severity": "error",
+      "message": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.2000 mm): PTH pad 41 [GND] of U1",
+      "entityReferences": [
+        "GND"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": []
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_overlap",
+      "severity": "warning",
+      "message": "Silkscreen clearance",
+      "entityReferences": [
+        "F.Silkscreen"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "GND",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "unconnected-(U1-IO13-Pad21)",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "/SD_MODE",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "GND",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "unconnected-(U1-IO14-Pad22)",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "GND",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "/EN",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "GND",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "/LED_A",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "+3V3",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "GND",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "/EN",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "GND",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "/CC1",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.silk_over_copper",
+      "severity": "warning",
+      "message": "Silkscreen clipped by solder mask",
+      "entityReferences": [
+        "/CC1",
+        "F.Cu"
+      ]
+    },
+    {
+      "code": "drc.lib_footprint_mismatch",
+      "severity": "warning",
+      "message": "Footprint 'ESP32-S3-WROOM-1' does not match copy in library 'RF_Module'",
+      "entityReferences": []
+    }
+  ]
+}

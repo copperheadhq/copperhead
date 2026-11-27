@@ -1,0 +1,43 @@
+{
+  "id": "jlcpcb-2layer",
+  "description": "JLCPCB 2-layer, 1 oz outer copper. Values vendored from kicad-tools manufacturers/data/jlcpcb.yaml block 2layer_1oz (source: https://jlcpcb.com/capabilities/pcb-capabilities, last verified upstream 2026-01-16).",
+  "source": {
+    "project": "rjwalters/kicad-tools",
+    "license": "MIT",
+    "commit": "cfc166b0f15943f02cec2236ccdafbcfefc45aa9",
+    "paths": ["src/kicad_tools/manufacturers/data/jlcpcb.yaml", "src/kicad_tools/manufacturers/rules/jlcpcb-2layer-1oz.kicad_dru", "src/kicad_tools/manufacturers/data/jlcpcb_rotations.yaml"],
+    "vendored": "2026-09-05"
+  },
+  "layers": 2,
+  "copperWeightOz": 1.0,
+  "boardThicknessNm": 1600000,
+  "minTrackNm": 127000,
+  "minClearanceNm": 127000,
+  "minViaDrillNm": 300000,
+  "minViaDiameterNm": 600000,
+  "minAnnularNm": 150000,
+  "minHoleNm": 300000,
+  "maxHoleNm": 6300000,
+  "copperEdgeClearanceNm": 300000,
+  "holeEdgeClearanceNm": 500000,
+  "holeToHoleNm": 500000,
+  "minSilkWidthNm": 150000,
+  "minSilkHeightNm": 1000000,
+  "minMaskDamNm": 100000,
+  "minMaskClearanceNm": 50000,
+  "minPadNm": 250000,
+  "viaInPad": "forbidden",
+  "criticalDrc": [
+    "clearance", "shorting_items", "track_width", "via_diameter", "hole_clearance", "hole_to_hole",
+    "annular_width", "copper_edge_clearance", "courtyards_overlap", "pth_inside_courtyard",
+    "items_not_allowed", "invalid_outline", "isolated_copper", "zones_intersect", "starved_thermal"
+  ],
+  "advisoryDrc": [
+    "solder_mask_bridge", "silk_over_copper", "silk_overlap", "text_height", "text_thickness",
+    "lib_footprint_mismatch", "footprint_type_mismatch", "malformed_courtyard", "missing_courtyard",
+    "track_dangling", "via_dangling"
+  ],
+  "kicadToolsMfr": "jlcpcb",
+  "druFile": "jlcpcb-2layer-1oz.kicad_dru",
+  "rotationsFile": "jlcpcb-rotations.yaml"
+}

@@ -13,3 +13,9 @@ demo-runs/
 manual-tests/runs/
 *.tgz
 .npmrc
+
+# engine binaries fetched by scripts/tools.sh (Freerouting, a JRE, kicad-tools,
+# OrthoRoute, topola, pyplacer). The benchmark itself lives in copperbench.
+vendor/tools/
+vendor/tools-fetch.log
+*.lck

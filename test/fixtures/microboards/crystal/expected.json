@@ -1,0 +1,18 @@
+{
+  "case": "crystal",
+  "fault": "the crystal block (Y1, C1, C2) has a 4 mm spread budget; C2 sits 11 mm from the MCU",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "intent.functional.group.spread",
+      "entityReferences": [
+        "C2"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 8
+  }
+}

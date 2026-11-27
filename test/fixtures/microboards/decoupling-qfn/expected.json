@@ -1,0 +1,19 @@
+{
+  "case": "decoupling-qfn",
+  "fault": "C1 decouples the QFN pin 16 but sits 12 mm away; C2 is placed right",
+  "generator": "bench/golden/generate.ts",
+  "status": "REFUSE",
+  "diagnostics": [
+    {
+      "code": "intent.relative.attached",
+      "entityReferences": [
+        "C1",
+        "U1"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 4
+  }
+}

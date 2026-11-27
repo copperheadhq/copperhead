@@ -1,0 +1,19 @@
+{
+  "case": "ldo-caps",
+  "fault": "the LDO output capacitor C2 sits 15 mm from the regulator; the input capacitor C1 is attached",
+  "generator": "bench/golden/generate.ts",
+  "status": "REFUSE",
+  "diagnostics": [
+    {
+      "code": "intent.relative.attached",
+      "entityReferences": [
+        "C2",
+        "U1"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 5
+  }
+}

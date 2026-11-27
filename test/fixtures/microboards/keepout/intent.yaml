@@ -1,0 +1,5 @@
+placement:
+  keepouts:
+    - region: mounting_hole_ring
+      radius_mm: 3.5
+      prohibit: [components, copper]

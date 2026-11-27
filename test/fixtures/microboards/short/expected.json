@@ -1,0 +1,24 @@
+{
+  "case": "short",
+  "fault": "a VCC track from U1.8 lands on C1.1, which is GND",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "conn.short",
+      "entityReferences": [
+        "VCC",
+        "GND"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [
+      "shorting_items"
+    ],
+    "consequential": [
+      "solder_mask_bridge"
+    ],
+    "unconnected": 2
+  }
+}

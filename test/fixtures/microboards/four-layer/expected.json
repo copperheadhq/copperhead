@@ -1,0 +1,23 @@
+{
+  "case": "four-layer",
+  "fault": "the completion board on four copper layers (KiCad 10 numbering), nothing routed: every connection is owed; the routers may use In1.Cu and In2.Cu",
+  "generator": "bench/golden/generate.ts",
+  "status": "PARTIAL",
+  "diagnostics": [
+    {
+      "code": "conn.unrouted",
+      "entityReferences": [
+        "VCC",
+        "GND",
+        "SIG1",
+        "SIG2",
+        "XI",
+        "XO"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 14
+  }
+}

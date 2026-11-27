@@ -1,0 +1,18 @@
+{
+  "case": "fixed-connector",
+  "fault": "J1 is constrained to the west edge but sits mid-board",
+  "generator": "bench/golden/generate.ts",
+  "status": "REFUSE",
+  "diagnostics": [
+    {
+      "code": "intent.mechanical.edge",
+      "entityReferences": [
+        "J1"
+      ]
+    }
+  ],
+  "drc": {
+    "errorTypes": [],
+    "unconnected": 4
+  }
+}

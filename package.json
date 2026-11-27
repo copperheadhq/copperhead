@@ -35,6 +35,8 @@
   "files": [
     "dist",
     "src",
+    "vendor/pyplacer",
+    "vendor/ipc",
     "LICENSE",
     "NOTICE",
     "README.md"
@@ -57,16 +59,22 @@
     "docs:dev": "npm --prefix docs run dev",
     "docs:build": "npm --prefix docs run build",
     "docs:preview": "npm --prefix docs run preview",
+    "placeboards": "bash manual-tests/placement-boards/run.sh",
     "refboards": "bash scripts/draft-reference-boards.sh",
     "scoresheets": "tsx scripts/score-sheets.ts",
-    "realdesigns": "tsx scripts/draft-real-designs.ts"
+    "realdesigns": "tsx scripts/draft-real-designs.ts",
+    "schemas": "node scripts/pcb-schemas.mjs",
+    "tools": "bash scripts/tools.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.113.0",
+    "@flatten-js/core": "1.6.14",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "commander": "^12.1.0",
     "execa": "^9.5.2",
     "openai": "^6.49.0",
+    "polygon-clipping": "^0.15.7",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
@@ -78,6 +86,7 @@
     "ajv": "^8.17.1",
     "json-schema-to-typescript": "^15.0.4",
     "markdownlint-cli2": "0.23.2",
+    "ts-json-schema-generator": "^2.9.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "vitest": "^3.0.8"

@@ -1,0 +1,192 @@
+# Layout intent for esp32-amp (RFC 11 §7.3). Read automatically by `pcb place`
+# and `pcb infer-intent` because it sits beside the board. Everything here is a
+# requirement a person would state at review: where the connectors go, which
+# capacitor belongs to which pin, and what has to stay together.
+#
+# Targets the 40 x 50 mm outline. The intent language has no key for the board
+# outline itself, so that lives in the board file; the edges below assume
+# portrait 40 wide x 50 tall.
+#
+# Edge assignment differs from the schematic's `groupOrder`, and deliberately.
+# That order (power -> regulation -> mcu -> amplifier -> speaker) is the order a
+# reader walks the sheet, not a placement requirement. Physically the antenna
+# rules the board: the module goes at one end with its clearance off the edge,
+# and the USB-C shell goes at the far end, away from it.
+
+placement:
+  fixed:
+    - component: J1          # USB-C: plug goes in from the south edge, as far
+      edge: south            # from U1's antenna as the outline allows
+      orientation: outward
+    - component: J2          # speaker terminal: wires leave from the east edge
+      edge: east
+      orientation: outward
+    - component: J3          # UART header: reachable from the west edge
+      edge: west
+      orientation: outward
+
+  # The ESP32-S3-WROOM-1 declares a 48 x 21 mm antenna keep-out next to its
+  # 19.5 x 20.2 mm body. On a 40 mm-wide board it cannot be contained, so the
+  # module sits on the north edge with the clearance hanging off. What stays on
+  # board is roughly a 6 mm strip that must carry no copper.
+  #
+  # Stating it here matters: `partKind` already classifies U1 as an RF part and
+  # tags it `rf-keepout`, but that is the derived path at the bottom of the
+  # authority ladder and it names no edge. This pins the edge as a requirement.
+  rf:
+    - ref: U1
+      edge: north
+      clearance_mm: 21
+
+  # Class-D switching output: keep the switcher off the board edge so the
+  # radiating node is not at the boundary.
+  edge_distance:
+    - ref: U3
+      min_mm: 3
+
+  attachments:
+    # ESP32-S3 module: 3V3 is pad 2
+    - component: C3          # 100n, the one that has to be at the pin
+      target: { component: U1, pins: ["2"] }
+      max_distance_mm: 2
+      priority: critical
+    - component: C4          # 22u bulk, may sit further out
+      target: { component: U1, pins: ["2"] }
+      max_distance_mm: 6
+    - component: R4          # EN pullup
+      target: { component: U1, pins: ["3"] }
+      max_distance_mm: 6
+    - component: C5          # EN delay cap
+      target: { component: U1, pins: ["3"] }
+      max_distance_mm: 6
+    - component: SW2         # RESET drives EN
+      target: { component: U1, pins: ["3"] }
+      max_distance_mm: 12
+    - component: SW1         # BOOT drives IO0 (pad 27)
+      target: { component: U1, pins: ["27"] }
+      max_distance_mm: 12
+
+    # AP2112K-3.3: pad 1 is VIN, pad 5 is VOUT
+    - component: C1
+      target: { component: U2, pins: ["1"] }
+      max_distance_mm: 3
+      priority: critical
+    - component: C2
+      target: { component: U2, pins: ["5"] }
+      max_distance_mm: 3
+      priority: critical
+
+    # MAX98357A: pads 7 and 8 are both VDD; the class-D supply loop is the
+    # hottest thing on this board, so the bulk cap comes with it
+    - component: C6
+      target: { component: U3, pins: ["7"] }
+      max_distance_mm: 1.5
+      priority: critical
+    - component: C7
+      target: { component: U3, pins: ["8"] }
+      max_distance_mm: 4
+    - component: CP1
+      target: { component: U3, pins: ["7"] }
+      max_distance_mm: 12
+    - component: R5          # GAIN_SLOT (pad 2) is a high-impedance select pin
+      target: { component: U3, pins: ["2"] }
+      max_distance_mm: 4
+    - component: R6          # SD_MODE divider (pad 4) likewise
+      target: { component: U3, pins: ["4"] }
+      max_distance_mm: 5
+    - component: R7
+      target: { component: U3, pins: ["4"] }
+      max_distance_mm: 5
+
+    # USB-C front end stays at the receptacle
+    - component: R1
+      target: { component: J1, pins: ["A5"] }
+      max_distance_mm: 6
+    - component: R2
+      target: { component: J1, pins: ["B5"] }
+      max_distance_mm: 6
+    - component: D1          # TVS clamps at the connector or not at all
+      target: { component: J1, pins: ["A4"] }
+      max_distance_mm: 8
+      priority: critical
+    - component: F1
+      target: { component: J1, pins: ["A4"] }
+      max_distance_mm: 10
+
+  groups:
+    - id: output-filter      # ferrites and their caps, tight, by the terminal
+      components: [FB1, FB2, C8, C9, J2]
+      max_spread_mm: 14
+    - id: i2s-link           # three clock/data lines, kept short
+      components: [U1, U3]
+      max_spread_mm: 32
+
+  # The output is an ordered path, not a cluster: amplifier, then ferrite, then
+  # the shunt cap, then the terminal. A `group` only says "near each other" and
+  # lets the packer put the cap before the ferrite, which defeats the filter.
+  chains:
+    - order: [U3, FB1, C8, J2]
+      max_length_mm: 18
+    - order: [U3, FB2, C9, J2]
+      max_length_mm: 18
+
+  # The supply loop that carries the class-D switching current. Small loop area
+  # is the whole EMC story on a board like this.
+  hot_loops:
+    - kind: class-d-output
+      parts: [U3, C6, C7, CP1]
+      max_area_mm2: 40
+
+  # The bridged output and its ferrites are the aggressor; the radio is what
+  # gets hurt. They are at opposite ends of the board anyway, so this is a floor
+  # rather than a stretch.
+  isolation:
+    - noisy: [U3, FB1, FB2, C8, C9]
+      sensitive: [U1]
+      min_mm: 8
+
+  # The amplifier runs hot; the electrolytic is the part whose life that costs.
+  thermal:
+    - hot: [U3]
+      protect: [CP1]
+      min_mm: 5
+
+  # TQFN-16 with a thermal pad tied to GND. This is also the pin that makes ERC
+  # warn (Unspecified type on a power net), so it is worth stating on purpose.
+  exposed_pads: [U3]
+
+routing:
+  # Currents, not widths: the physics compiler turns amps into a width and can
+  # cite why. 3.2 W into 4 ohm is 0.89 A rms, 1.26 A peak, and F1 holds at 1.1 A.
+  currents:
+    - net: VBUS
+      amps: 1.1
+      rise_c: 10
+    - net: +5V
+      amps: 1.1
+      rise_c: 10
+    - net: /SPK_P          # KiCad prefixes a sheet-local net with its path;
+      amps: 1.2              # only the global power nets are bare
+      rise_c: 10
+    - net: /SPK_N
+      amps: 1.2
+      rise_c: 10
+    - net: +3V3          # ESP32-S3 peaks near 0.5 A on WiFi transmit
+      amps: 0.5
+      rise_c: 10
+
+  # Power and return first so the pours are placed before signals carve them up,
+  # then the two audio outputs, then the I2S clock group, then USB.
+  priorities:
+    - [GND]
+    - [+5V, +3V3, VBUS]
+    - [/SPK_P, /SPK_N]
+    - [/BCLK, /LRCLK, /DIN]
+    - [/USB_DP, /USB_DM]
+    - [remaining]
+
+electrical:
+  voltages:
+    VBUS: 5.0
+    +5V: 5.0
+    +3V3: 3.3

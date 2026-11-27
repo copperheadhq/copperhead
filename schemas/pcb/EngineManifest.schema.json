@@ -1,0 +1,252 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/EngineManifest",
+  "definitions": {
+    "EngineManifest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/EngineKind"
+        },
+        "version": {
+          "type": "string"
+        },
+        "adapterVersion": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string",
+          "description": "SPDX identifier."
+        },
+        "inputSchemaVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outputSchemaVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "determinism": {
+          "$ref": "#/definitions/Determinism"
+        },
+        "executionMode": {
+          "$ref": "#/definitions/ExecutionMode"
+        },
+        "networkRequirement": {
+          "$ref": "#/definitions/NetworkRequirement"
+        },
+        "harnessOnly": {
+          "type": "boolean",
+          "description": "Reference implementations: ineligible for production jobs (RFC 11 §3.1)."
+        },
+        "requires": {
+          "$ref": "#/definitions/EngineRequirements"
+        },
+        "capabilities": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PlacerCapabilities"
+            },
+            {
+              "$ref": "#/definitions/RouterCapabilities"
+            },
+            {
+              "$ref": "#/definitions/CheckerCapabilities"
+            }
+          ]
+        },
+        "supportedConstraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Constraint classes (optionally `class.parameter`) the engine honours."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "version",
+        "adapterVersion",
+        "license",
+        "inputSchemaVersions",
+        "outputSchemaVersions",
+        "determinism",
+        "executionMode",
+        "networkRequirement",
+        "harnessOnly",
+        "requires",
+        "capabilities",
+        "supportedConstraints"
+      ],
+      "additionalProperties": false
+    },
+    "EngineKind": {
+      "type": "string",
+      "enum": [
+        "placer",
+        "router",
+        "checker"
+      ]
+    },
+    "Determinism": {
+      "type": "string",
+      "enum": [
+        "deterministic",
+        "seeded",
+        "nondeterministic"
+      ]
+    },
+    "ExecutionMode": {
+      "type": "string",
+      "enum": [
+        "library",
+        "process",
+        "container",
+        "remote"
+      ]
+    },
+    "NetworkRequirement": {
+      "type": "string",
+      "enum": [
+        "none",
+        "optional",
+        "required"
+      ]
+    },
+    "EngineRequirements": {
+      "type": "object",
+      "properties": {
+        "binaries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "python": {
+          "type": "string"
+        },
+        "java": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PlacerCapabilities": {
+      "type": "object",
+      "properties": {
+        "bottomSide": {
+          "type": "boolean"
+        },
+        "rotation": {
+          "type": "boolean"
+        },
+        "arbitraryOutline": {
+          "type": "boolean"
+        },
+        "relativeConstraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Relative constraint kinds the engine honours natively (e.g. \"near\", \"grouped\", \"region\")."
+        },
+        "fixedComponents": {
+          "type": "boolean"
+        },
+        "congestionAwareness": {
+          "type": "boolean"
+        },
+        "layoutReuse": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bottomSide",
+        "rotation",
+        "arbitraryOutline",
+        "relativeConstraints",
+        "fixedComponents",
+        "congestionAwareness",
+        "layoutReuse"
+      ],
+      "additionalProperties": false
+    },
+    "RouterCapabilities": {
+      "type": "object",
+      "properties": {
+        "minLayers": {
+          "type": "number",
+          "description": "Fewest copper layers the engine routes on at all (OrthoRoute routes on inner layers only: 4)."
+        },
+        "maxLayers": {
+          "type": "number"
+        },
+        "differentialPairs": {
+          "type": "boolean"
+        },
+        "lengthMatching": {
+          "type": "boolean"
+        },
+        "pushAndShove": {
+          "type": "boolean"
+        },
+        "partialRouting": {
+          "type": "boolean"
+        },
+        "preserveExistingRoutes": {
+          "type": "boolean"
+        },
+        "arbitraryAngles": {
+          "type": "boolean"
+        },
+        "blindBuriedVias": {
+          "type": "boolean"
+        },
+        "copperZones": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "differentialPairs",
+        "lengthMatching",
+        "pushAndShove",
+        "partialRouting",
+        "preserveExistingRoutes",
+        "arbitraryAngles",
+        "blindBuriedVias",
+        "copperZones"
+      ],
+      "additionalProperties": false
+    },
+    "CheckerCapabilities": {
+      "type": "object",
+      "properties": {
+        "domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Rule domains the checker speaks for (RFC 11 §10.2)."
+        }
+      },
+      "required": [
+        "domains"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

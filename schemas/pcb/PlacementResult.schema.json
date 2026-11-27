@@ -1,0 +1,372 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/PlacementResult",
+  "definitions": {
+    "PlacementResult": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/EngineStatus"
+        },
+        "placements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlacedComponent"
+          }
+        },
+        "unplacedComponentIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Diagnostic"
+          }
+        },
+        "runtime": {
+          "$ref": "#/definitions/RuntimeMetrics"
+        },
+        "provenance": {
+          "$ref": "#/definitions/EngineProvenance"
+        }
+      },
+      "required": [
+        "status",
+        "placements",
+        "unplacedComponentIds",
+        "diagnostics",
+        "runtime",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "EngineStatus": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "partial",
+        "failed",
+        "unsupported"
+      ]
+    },
+    "PlacedComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/definitions/Point"
+        },
+        "rotation": {
+          "$ref": "#/definitions/Mdeg"
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "front",
+            "back"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "at",
+        "rotation",
+        "side"
+      ],
+      "additionalProperties": false
+    },
+    "Point": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "$ref": "#/definitions/Nm"
+        },
+        "y": {
+          "$ref": "#/definitions/Nm"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    "Nm": {
+      "type": "number",
+      "description": "Length in integer nanometres."
+    },
+    "Mdeg": {
+      "type": "number",
+      "description": "Angle in integer millidegrees, counter-clockwise positive in KiCad's Y-down frame."
+    },
+    "Diagnostic": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/definitions/DiagnosticCategory"
+        },
+        "severity": {
+          "$ref": "#/definitions/Severity"
+        },
+        "entityIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entityReferences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "region": {
+          "$ref": "#/definitions/Polygon"
+        },
+        "measured": {
+          "$ref": "#/definitions/Quantity"
+        },
+        "allowed": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "relation": {
+              "type": "string",
+              "enum": [
+                "<=",
+                ">=",
+                "==",
+                "!="
+              ]
+            },
+            "value": {
+              "type": "number"
+            },
+            "unit": {
+              "type": "string",
+              "enum": [
+                "nm",
+                "mdeg",
+                "count",
+                "ratio",
+                "nm2"
+              ]
+            }
+          },
+          "required": [
+            "relation",
+            "unit",
+            "value"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "suggestedActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RepairActionType"
+          }
+        },
+        "sourceChecker": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "version"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "code",
+        "category",
+        "severity",
+        "entityIds",
+        "entityReferences",
+        "message",
+        "suggestedActions",
+        "sourceChecker"
+      ],
+      "additionalProperties": false
+    },
+    "DiagnosticCategory": {
+      "type": "string",
+      "enum": [
+        "geometry",
+        "connectivity",
+        "drc",
+        "intent",
+        "quality",
+        "preflight"
+      ]
+    },
+    "Severity": {
+      "type": "string",
+      "enum": [
+        "error",
+        "warning",
+        "info"
+      ]
+    },
+    "Polygon": {
+      "type": "object",
+      "properties": {
+        "outer": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Point"
+          }
+        },
+        "holes": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/Point"
+            }
+          }
+        }
+      },
+      "required": [
+        "outer",
+        "holes"
+      ],
+      "additionalProperties": false,
+      "description": "A polygon: one outer ring plus holes. Rings are closed implicitly (last != first)."
+    },
+    "Quantity": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "nm",
+            "mdeg",
+            "count",
+            "ratio",
+            "nm2"
+          ]
+        }
+      },
+      "required": [
+        "value",
+        "unit"
+      ],
+      "additionalProperties": false
+    },
+    "RepairActionType": {
+      "type": "string",
+      "enum": [
+        "continue-routing",
+        "change-net-priority",
+        "select-router",
+        "tune-router",
+        "rip-up-nets",
+        "move-group",
+        "resize-region",
+        "rotate-component",
+        "use-ranked-candidate",
+        "request-user-action"
+      ]
+    },
+    "RuntimeMetrics": {
+      "type": "object",
+      "properties": {
+        "wallSeconds": {
+          "type": "number"
+        },
+        "engineSeconds": {
+          "type": "number"
+        },
+        "peakMemoryMb": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "wallSeconds"
+      ],
+      "additionalProperties": false
+    },
+    "EngineProvenance": {
+      "type": "object",
+      "properties": {
+        "engineId": {
+          "type": "string"
+        },
+        "engineVersion": {
+          "type": "string"
+        },
+        "adapterVersion": {
+          "type": "string"
+        },
+        "invocation": {
+          "type": "object",
+          "properties": {
+            "binary": {
+              "type": "string"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "envKeys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "binary",
+            "args",
+            "envKeys"
+          ],
+          "additionalProperties": false,
+          "description": "What actually ran: binary path, arguments, and the environment keys passed through."
+        },
+        "seed": {
+          "type": "number"
+        },
+        "exitCode": {
+          "type": "number"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "finishedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "engineId",
+        "engineVersion",
+        "adapterVersion",
+        "seed",
+        "startedAt",
+        "finishedAt"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

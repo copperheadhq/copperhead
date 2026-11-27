@@ -1,0 +1,54 @@
+{
+  "profile": "default-placement-2-layer",
+  "selected": "placer-reuse-pack",
+  "rows": [
+    {
+      "engine": "placer-reuse-pack",
+      "rank": 1,
+      "eligible": true,
+      "hpwl_mm": "596.3",
+      "courtyard_overlaps": 0,
+      "congestion": 4,
+      "outside": 0,
+      "legalized": 0,
+      "routed": "95.5%",
+      "runtime_s": "0.4"
+    },
+    {
+      "engine": "placer-kicad-tools-physics",
+      "rank": 2,
+      "eligible": false,
+      "hpwl_mm": "1129.1",
+      "courtyard_overlaps": 265,
+      "congestion": 311,
+      "outside": 0,
+      "legalized": 24,
+      "routed": "-",
+      "runtime_s": "315.6"
+    },
+    {
+      "engine": "placer-pyplacer",
+      "rank": 3,
+      "eligible": false,
+      "hpwl_mm": "1099.8",
+      "courtyard_overlaps": 9,
+      "congestion": 69,
+      "outside": 0,
+      "legalized": 3,
+      "routed": "-",
+      "runtime_s": "93.4"
+    },
+    {
+      "engine": "placer-fixed",
+      "rank": 4,
+      "eligible": false,
+      "hpwl_mm": "1081.7",
+      "courtyard_overlaps": 4,
+      "congestion": 241,
+      "outside": 0,
+      "legalized": 0,
+      "routed": "-",
+      "runtime_s": "0.0"
+    }
+  ]
+}

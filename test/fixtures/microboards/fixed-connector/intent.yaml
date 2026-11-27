@@ -1,0 +1,5 @@
+placement:
+  fixed:
+    - component: J1
+      edge: west
+      orientation: outward
