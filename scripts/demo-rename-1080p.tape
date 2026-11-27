@@ -6,13 +6,15 @@
 #   VHS_WINDOW_BAR_COLOR="#22222a" vhs scripts/demo-rename-1080p.tape
 #
 # vhs renders silent. To lay the music over it (normalize to -14 LUFS, trim to
-# the video, fade both ends) and land the shareable copy in assets/:
-#   ffmpeg -i demo-runs/copperhead-rename-1080p.mp4 -i assets/home-resonance.mp3 \
+# the video, fade both ends) and land the shareable copy in demo-runs/ (the
+# soundtrack is not tracked; recover it with
+# `git show 59f49ff:assets/home-resonance.mp3 > demo-runs/home-resonance.mp3`):
+#   ffmpeg -i demo-runs/copperhead-rename-1080p.mp4 -i demo-runs/home-resonance.mp3 \
 #     -filter_complex "[1:a]atrim=0:25.64,asetpts=N/SR/TB,\
 # loudnorm=I=-14:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.4,\
 # afade=t=out:st=24.54:d=1.1[a]" \
 #     -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -ar 44100 -shortest \
-#     -movflags +faststart assets/copperhead-1080p.mp4
+#     -movflags +faststart demo-runs/copperhead-1080p.mp4
 
 Output demo-runs/copperhead-rename-1080p.mp4
 
