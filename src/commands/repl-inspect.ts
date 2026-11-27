@@ -79,6 +79,7 @@ export async function formatConfigInspect(repoRoot: string): Promise<string> {
     meta('origin', c.origin ?? dim('unset')),
     meta('llmCache', c.llmCache ? 'on' : 'off'),
     meta('budgets', Object.keys(c.budgets).length ? JSON.stringify(c.budgets) : dim('{}')),
+    meta('packs', c.constraintPacks?.join(', ') || dim('none')),
   ];
   if (c.stageMaxTurns && Object.keys(c.stageMaxTurns).length) {
     lines.push(meta('stageTurns', JSON.stringify(c.stageMaxTurns)));

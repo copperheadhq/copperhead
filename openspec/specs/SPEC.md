@@ -224,6 +224,17 @@ The agent maintains `.copperhead/constraints.json` — a live, machine-readable 
 
 Loaded into every run's system prompt; `check` validates the design against it mechanically where possible (leakage sums, keepout geometry, forbidden pins). The `affects` field is what makes propagation reliable — change a constraint and the agent knows exactly which parts to revisit.
 
+Projects may add a local JSON constraint pack with `copperhead constraints add <pack.json>`. Copperhead
+copies the pack into `.copperhead/packs/`, pins its repo-relative path in `.copperhead/config.json`, and loads
+its rules alongside the project registry. Each pack declares an ID and exact version; its rules retain
+`constraint pack <id>@<version>` provenance. The `record_constraint` tool cannot overwrite a pack rule;
+import a different version to change it. A different version replaces that pack's active version. A pack rule that
+duplicates a project rule or another active pack rule is an error, never a
+silent override. The pack remains local and committed, so loading and verification need no network. Packs use
+the existing constraint shape and do not add new validators: `check` applies only its existing deterministic
+checks, while all loaded rules are available to the agent. Pack JSON is the source for pack rules, so `sync`
+does not require a duplicate project-doc mention. This does not change the edit-tool gate.
+
 An `affects` item that targets an artifact that does not exist yet (schematic, board, or BOM recorded before their pipeline stage) opens no revisit obligation at record time — it is marked `deferred` in the registry instead, and the obligation re-opens automatically at the start of the first run where the artifact exists. This keeps early docs-only stages from burning turns on ceremonial "not yet created" resolutions without losing the reconciliation guarantee: the revisit still happens, at the moment it can actually change the design.
 
 ### Change workflow (OpenSpec propose → apply → archive)
@@ -300,8 +311,14 @@ copperhead skill run <name> [--scope power|all] [--model …]
     model, same as `do`. Does not snapshot or commit.
 
 copperhead check          (alias: copperhead verify)
-    Run ERC + DRC + doc-drift check; exit non-zero on violations.
-    No LLM calls. Usable as CI step / pre-commit hook.
+    Run ERC + DRC + doc-drift and supported constraint checks; exit non-zero
+    on violations. JSON reports active pack provenance and constraints not
+    mechanically verified. No LLM calls or network. Usable in CI/pre-commit.
+
+copperhead constraints add <pack.json>
+    Validate and copy a local versioned JSON pack into .copperhead/packs/,
+    then reference it from config.json. Pack rules join the effective
+    constraint registry. No LLM calls or network.
 
 copperhead sync [--dry-run]
     Verify the entire design state for inconsistencies — doc tables vs

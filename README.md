@@ -72,6 +72,7 @@ copperhead demo --model cursor # full USB-C breakout create pipeline
 # or one-shot:
 copperhead do "add reverse-polarity protection on VIN"
 copperhead check               # ERC + DRC + doc drift; no LLM, CI-safe
+copperhead constraints add examples/constraint-packs/battery-powered.json # reusable, local design rules
 ```
 
 Starting from nothing instead? Write a product brief and run `copperhead create --brief brief.md`. The [examples/](examples/) directory has ready-made briefs sorted by difficulty, plus a note on which one is designed to fail.

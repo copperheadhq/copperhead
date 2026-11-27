@@ -9,7 +9,12 @@ import { flatten } from './envelope.js';
 import { CachingProvider } from './response-cache.js';
 import { withWatchdog, TurnTimeoutError, MAX_TURN_TIMEOUTS } from './recovery.js';
 import { buildSystemPrompt } from './prompts.js';
-import { loadConstraints, reopenDeferredAffects, type ConstraintRegistry } from '../memory/constraints.js';
+import {
+  loadConstraints,
+  loadLocalConstraints,
+  reopenDeferredAffects,
+  type ConstraintRegistry,
+} from '../memory/constraints.js';
 
 const constraintsRel = '.copperhead/constraints.json';
 
@@ -22,7 +27,7 @@ async function inheritedConstraints(repoRoot: string): Promise<Array<{ key: stri
   } catch {
     base = {};
   }
-  const now = await loadConstraints(repoRoot);
+  const now = await loadLocalConstraints(repoRoot);
   const out: Array<{ key: string; openNow: string[] }> = [];
   for (const [key, c] of Object.entries(now)) {
     const same = Object.hasOwn(base, key) && JSON.stringify(base[key]) === JSON.stringify(c);

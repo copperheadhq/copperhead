@@ -64,8 +64,8 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     }
   }
 
-  // dual-write audit: every registry key should be mentioned in some doc, and
-  // every budget in config should exist in the registry
+  // dual-write audit: project registry keys should appear in docs; pack rules
+  // carry their source in the vendored JSON pack instead.
   const registry = await loadConstraints(repoRoot);
   const docsDir = path.join(repoRoot, config.docs);
   let docsText = '';
@@ -74,6 +74,7 @@ export async function syncVerify(repoRoot: string): Promise<SyncReport> {
     if (existsSync(p)) docsText += `\n<<<${name}>>>\n` + (await readFile(p, 'utf8'));
   }
   for (const key of Object.keys(registry)) {
+    if (registry[key]!.source.startsWith('constraint pack ')) continue;
     const shortKey = key.split('.').pop()!;
     if (docsText && !docsText.includes(shortKey)) {
       resolvable.push({

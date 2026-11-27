@@ -34,6 +34,18 @@ copperhead create --brief ../copperhead/examples/simple/usb-c-breakout.md
 
 The pipeline is resumable. If a stage fails, rerun the same command and it picks up where it stopped.
 
+## Constraint pack example
+
+[`constraint-packs/battery-powered.json`](constraint-packs/battery-powered.json) shows the pack format.
+Add it from a Copperhead checkout with:
+
+```bash
+copperhead constraints add examples/constraint-packs/battery-powered.json
+```
+
+The sample sets a sleep-current budget. Copperhead loads it into the agent's constraints; `check` reports it
+as not mechanically verified because the current deterministic checker does not measure circuit current.
+
 Start with a simple brief the first time you point copperhead at anything. The hard briefs exercise the parts of the loop most likely to need a human pushing back, especially budget refusals and part substitutions.
 
 ### One brief is meant to fail
