@@ -7,6 +7,7 @@ import { loadConfig, resolveModel, type ModelSource } from './config.js';
 import { pickModel } from './util/select.js';
 import { runInit, InitError } from './memory/scaffold.js';
 import { runCheck } from './commands/check.js';
+import { installConstraintPack } from './memory/constraints.js';
 import { runDoctor, formatDoctor } from './commands/doctor.js';
 import { syncVerify, syncResolve, formatSyncReport } from './commands/sync.js';
 import { runCreate } from './commands/create.js';
@@ -179,6 +180,28 @@ program
   .alias('verify')
   .description('ERC + DRC + doc-drift + spec validation; no LLM calls; CI-safe')
   .action(checkAction);
+
+program
+  .command('constraints')
+  .description('manage local, versioned constraint packs')
+  .command('add')
+  .description('copy a local JSON constraint pack into this project')
+  .argument('<pack.json>', 'path to a constraint pack file')
+  .action(async (packPath: string) => {
+    const repo = repoOf(program.opts());
+    try {
+      const result = await installConstraintPack(repo, packPath);
+      if (program.opts().json) console.log(JSON.stringify(result, null, 2));
+      else {
+        const action = result.alreadyInstalled ? 'already installed' : result.updated ? 'updated' : 'added';
+        console.log(`${action} constraint pack ${result.id}@${result.version} (${result.ruleCount} rules)`);
+        console.log(`copied to ${result.path}`);
+      }
+    } catch (error) {
+      console.error((error as Error).message);
+      process.exit(1);
+    }
+  });
 
 program
   .command('explain')

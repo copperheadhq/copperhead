@@ -1,11 +1,13 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { configPath, loadConfig } from '../config.js';
+import { resolveInRepo } from '../util/paths.js';
 
 /**
- * Machine-readable constraint registry (SPEC §2.6). Built simultaneously with
- * the docs: every stated/assumed/discovered constraint lands in both in the
- * same tool turn. `affects` drives propagation.
+ * Effective constraint registry (SPEC §2.6): project constraints plus local
+ * pack rules. Project entries are dual-written with docs; `affects` drives
+ * propagation.
  */
 export interface Constraint {
   min?: number;
@@ -25,16 +27,180 @@ export interface Constraint {
 
 export type ConstraintRegistry = Record<string, Constraint>;
 
+export interface ConstraintPackRule {
+  min?: number;
+  max?: number;
+  forbidden?: string[];
+  value?: string | number;
+  affects: string[];
+}
+
+export interface ConstraintPack {
+  id: string;
+  version: string;
+  name: string;
+  description: string;
+  constraints: Record<string, ConstraintPackRule>;
+}
+
+export interface ConstraintPackInstallResult {
+  id: string;
+  version: string;
+  name: string;
+  ruleCount: number;
+  path: string;
+  updated: boolean;
+  alreadyInstalled: boolean;
+}
+
+const packSource = (id: string, version: string): string => `constraint pack ${id}@${version}`;
+const PACK_ID = /^[a-z0-9][a-z0-9-]*$/;
+const PACK_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const PACK_FIELDS = new Set(['min', 'max', 'forbidden', 'value', 'affects']);
+
+function record(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const object = record(value);
+  if (object) {
+    return `{${Object.keys(object)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+export function parseConstraintPack(raw: unknown): ConstraintPack {
+  const pack = record(raw);
+  if (!pack) throw new Error('constraint pack must be a JSON object');
+  const unknownFields = Object.keys(pack).filter(
+    (key) => !['id', 'version', 'name', 'description', 'constraints'].includes(key),
+  );
+  if (unknownFields.length) throw new Error(`constraint pack has unknown field(s): ${unknownFields.join(', ')}`);
+  if (typeof pack.id !== 'string' || !PACK_ID.test(pack.id)) {
+    throw new Error('constraint pack id must be lowercase letters, numbers, and hyphens, starting with a letter or number');
+  }
+  if (typeof pack.version !== 'string' || !PACK_VERSION.test(pack.version)) {
+    throw new Error('constraint pack version must be a numeric semantic version such as "1.0.0"');
+  }
+  if (typeof pack.name !== 'string' || !pack.name.trim()) throw new Error('constraint pack name must be non-empty');
+  if (typeof pack.description !== 'string' || !pack.description.trim()) {
+    throw new Error('constraint pack description must be non-empty');
+  }
+
+  const rawConstraints = record(pack.constraints);
+  if (!rawConstraints || !Object.keys(rawConstraints).length) {
+    throw new Error('constraint pack must contain at least one constraint');
+  }
+  const constraints: Record<string, ConstraintPackRule> = {};
+  for (const [key, rawRule] of Object.entries(rawConstraints)) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(key) || ['__proto__', 'constructor', 'prototype'].includes(key)) {
+      throw new Error(`constraint pack has invalid constraint key "${key}"`);
+    }
+    const rule = record(rawRule);
+    if (!rule) throw new Error(`constraint "${key}" must be an object`);
+    const unknownRuleFields = Object.keys(rule).filter((field) => !PACK_FIELDS.has(field));
+    if (unknownRuleFields.length) {
+      throw new Error(`constraint "${key}" has unknown field(s): ${unknownRuleFields.join(', ')}`);
+    }
+    if (rule.min !== undefined && (typeof rule.min !== 'number' || !Number.isFinite(rule.min))) {
+      throw new Error(`constraint "${key}".min must be a finite number`);
+    }
+    if (rule.max !== undefined && (typeof rule.max !== 'number' || !Number.isFinite(rule.max))) {
+      throw new Error(`constraint "${key}".max must be a finite number`);
+    }
+    if (typeof rule.min === 'number' && typeof rule.max === 'number' && rule.min > rule.max) {
+      throw new Error(`constraint "${key}" has min greater than max`);
+    }
+    if (
+      rule.value !== undefined &&
+      !(typeof rule.value === 'string' || (typeof rule.value === 'number' && Number.isFinite(rule.value)))
+    ) {
+      throw new Error(`constraint "${key}".value must be a string or finite number`);
+    }
+    if (
+      rule.forbidden !== undefined &&
+      (!Array.isArray(rule.forbidden) ||
+        rule.forbidden.length === 0 ||
+        rule.forbidden.some((item) => typeof item !== 'string' || !item.trim()))
+    ) {
+      throw new Error(`constraint "${key}".forbidden must be a non-empty array of strings`);
+    }
+    if (
+      rule.affects !== undefined &&
+      (!Array.isArray(rule.affects) || rule.affects.some((item) => typeof item !== 'string' || !item.trim()))
+    ) {
+      throw new Error(`constraint "${key}".affects must be an array of non-empty strings`);
+    }
+    if (rule.min === undefined && rule.max === undefined && rule.value === undefined && rule.forbidden === undefined) {
+      throw new Error(`constraint "${key}" must define min, max, value, or forbidden`);
+    }
+    constraints[key] = {
+      ...(typeof rule.min === 'number' ? { min: rule.min } : {}),
+      ...(typeof rule.max === 'number' ? { max: rule.max } : {}),
+      ...(typeof rule.value === 'string' || typeof rule.value === 'number' ? { value: rule.value } : {}),
+      ...(Array.isArray(rule.forbidden) ? { forbidden: rule.forbidden as string[] } : {}),
+      affects: Array.isArray(rule.affects) ? (rule.affects as string[]) : [],
+    };
+  }
+
+  return {
+    id: pack.id,
+    version: pack.version,
+    name: pack.name.trim(),
+    description: pack.description.trim(),
+    constraints,
+  };
+}
+
 export function constraintsPath(repoRoot: string): string {
   return path.join(repoRoot, '.copperhead', 'constraints.json');
 }
 
-export async function loadConstraints(repoRoot: string): Promise<ConstraintRegistry> {
+export async function loadLocalConstraints(repoRoot: string): Promise<ConstraintRegistry> {
   const p = constraintsPath(repoRoot);
   if (!existsSync(p)) return {};
   return JSON.parse(await readFile(p, 'utf8')) as ConstraintRegistry;
 }
 
+export async function loadConstraints(repoRoot: string): Promise<ConstraintRegistry> {
+  const registry = await loadLocalConstraints(repoRoot);
+  const config = await loadConfig(repoRoot);
+  const installedIds = new Set<string>();
+  for (const packPath of config.constraintPacks ?? []) {
+    const abs = resolveInRepo(repoRoot, packPath);
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await readFile(abs, 'utf8'));
+    } catch (error) {
+      throw new Error(`cannot load constraint pack ${packPath}: ${(error as Error).message}`);
+    }
+    const pack = parseConstraintPack(raw);
+    const expectedPath = path.posix.join('.copperhead', 'packs', `${pack.id}@${pack.version}.json`);
+    if (path.posix.normalize(packPath.replace(/\\/g, '/')) !== expectedPath) {
+      throw new Error(`constraint pack ${pack.id}@${pack.version} must be stored at ${expectedPath}`);
+    }
+    if (installedIds.has(pack.id)) {
+      throw new Error(`constraint pack "${pack.id}" is listed more than once in .copperhead/config.json`);
+    }
+    installedIds.add(pack.id);
+    for (const [key, rule] of Object.entries(pack.constraints)) {
+      if (Object.hasOwn(registry, key)) {
+        throw new Error(`constraint pack "${pack.id}@${pack.version}" conflicts with existing constraint "${key}"`);
+      }
+      registry[key] = { ...rule, source: packSource(pack.id, pack.version) };
+    }
+  }
+  return registry;
+}
+
+/** Persist project constraints only; pack rules remain in their JSON files. */
 export async function saveConstraints(repoRoot: string, registry: ConstraintRegistry): Promise<void> {
   const p = constraintsPath(repoRoot);
   await mkdir(path.dirname(p), { recursive: true });
@@ -46,10 +212,106 @@ export async function saveConstraint(
   key: string,
   constraint: Constraint,
 ): Promise<ConstraintRegistry> {
-  const registry = await loadConstraints(repoRoot);
-  registry[key] = constraint;
-  await saveConstraints(repoRoot, registry);
-  return registry;
+  const local = await loadLocalConstraints(repoRoot);
+  const effective = await loadConstraints(repoRoot);
+  if (!Object.hasOwn(local, key) && Object.hasOwn(effective, key)) {
+    throw new Error(`constraint "${key}" comes from a constraint pack; update the pack version instead of editing it`);
+  }
+  local[key] = constraint;
+  await saveConstraints(repoRoot, local);
+  return loadConstraints(repoRoot);
+}
+
+export async function installConstraintPack(
+  repoRoot: string,
+  sourcePath: string,
+): Promise<ConstraintPackInstallResult> {
+  const source = path.resolve(sourcePath);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(source, 'utf8'));
+  } catch (error) {
+    throw new Error(`cannot read constraint pack ${sourcePath}: ${(error as Error).message}`);
+  }
+  const pack = parseConstraintPack(raw);
+  const config = await loadConfig(repoRoot);
+  const local = await loadLocalConstraints(repoRoot);
+  const otherPacks: ConstraintPack[] = [];
+  const otherPackPaths: string[] = [];
+  let updated = false;
+  let alreadyInstalled = false;
+  for (const existingPath of config.constraintPacks ?? []) {
+    const abs = resolveInRepo(repoRoot, existingPath);
+    let existingRaw: unknown;
+    try {
+      existingRaw = JSON.parse(await readFile(abs, 'utf8'));
+    } catch (error) {
+      throw new Error(`cannot load existing constraint pack ${existingPath}: ${(error as Error).message}`);
+    }
+    const existing = parseConstraintPack(existingRaw);
+    if (existing.id === pack.id) {
+      if (existing.version === pack.version && canonicalJson(existing) !== canonicalJson(pack)) {
+        throw new Error(`constraint pack ${pack.id}@${pack.version} is already installed; pack versions are immutable`);
+      }
+      alreadyInstalled = existing.version === pack.version;
+      updated = !alreadyInstalled;
+    } else {
+      otherPacks.push(existing);
+      otherPackPaths.push(existingPath);
+    }
+  }
+
+  const conflicts = new Set<string>();
+  for (const key of Object.keys(pack.constraints)) {
+    if (Object.hasOwn(local, key)) conflicts.add(key);
+    for (const other of otherPacks) {
+      if (Object.hasOwn(other.constraints, key)) conflicts.add(key);
+    }
+  }
+  if (conflicts.size) {
+    throw new Error(
+      `constraint pack ${pack.id}@${pack.version} conflicts with existing constraint(s): ${[...conflicts].join(', ')}`,
+    );
+  }
+
+  const packRelPath = path.posix.join('.copperhead', 'packs', `${pack.id}@${pack.version}.json`);
+  const packAbsPath = resolveInRepo(repoRoot, packRelPath);
+  if (existsSync(packAbsPath)) {
+    let installed: unknown;
+    try {
+      installed = JSON.parse(await readFile(packAbsPath, 'utf8'));
+    } catch (error) {
+      throw new Error(`cannot replace invalid installed pack ${packRelPath}: ${(error as Error).message}`);
+    }
+    if (canonicalJson(parseConstraintPack(installed)) !== canonicalJson(pack)) {
+      throw new Error(`constraint pack ${pack.id}@${pack.version} is already present with different contents`);
+    }
+  }
+
+  const rawConfig = existsSync(configPath(repoRoot))
+    ? (JSON.parse(await readFile(configPath(repoRoot), 'utf8')) as Record<string, unknown>)
+    : {};
+  const nextPacks = otherPackPaths;
+  if (!nextPacks.includes(packRelPath)) nextPacks.push(packRelPath);
+
+  await mkdir(path.dirname(packAbsPath), { recursive: true });
+  await writeFile(packAbsPath, JSON.stringify(pack, null, 2) + '\n', 'utf8');
+  await mkdir(path.dirname(configPath(repoRoot)), { recursive: true });
+  await writeFile(
+    configPath(repoRoot),
+    JSON.stringify({ ...rawConfig, constraintPacks: nextPacks }, null, 2) + '\n',
+    'utf8',
+  );
+
+  return {
+    id: pack.id,
+    version: pack.version,
+    name: pack.name,
+    ruleCount: Object.keys(pack.constraints).length,
+    path: packRelPath,
+    updated,
+    alreadyInstalled,
+  };
 }
 
 /** The build artifact an `affects` item names, when it clearly names one. */
@@ -107,7 +369,7 @@ export async function reopenDeferredAffects(
   config: ArtifactConfig,
   openObligation: (key: string, item: string) => void,
 ): Promise<ReopenedAffects[]> {
-  const registry = await loadConstraints(repoRoot);
+  const registry = await loadLocalConstraints(repoRoot);
   const reopened: ReopenedAffects[] = [];
   for (const [key, c] of Object.entries(registry)) {
     if (!c.deferred?.length) continue;

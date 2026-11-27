@@ -53,6 +53,7 @@ describe('repl inspect formatters', () => {
     expect(text).toContain('Config');
     expect(text).toContain('hw/board.kicad_sch');
     expect(text).toContain('12');
+    expect(text).toContain('packs');
   });
 
   it('formats constraints registry', async () => {

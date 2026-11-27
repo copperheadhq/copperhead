@@ -1,0 +1,12 @@
+{
+  "id": "battery-powered",
+  "version": "1.0.0",
+  "name": "Battery-powered",
+  "description": "Starter sleep-current budget for a battery-powered device.",
+  "constraints": {
+    "power.sleep_current_uA": {
+      "max": 25,
+      "affects": ["power subsystem"]
+    }
+  }
+}

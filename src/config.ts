@@ -33,6 +33,8 @@ export interface CopperheadConfig {
   maxTurns: number;
   /** Per-stage overrides for the create pipeline, keyed by stage name. */
   stageMaxTurns?: Record<string, number>;
+  /** Repo-relative JSON constraint packs copied into this project. */
+  constraintPacks?: string[];
   maxRepairCycles: number;
   budgets: Record<string, number>;
   /** Per-turn inactivity watchdog (ms). A provider turn that goes this long
@@ -119,6 +121,13 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     return { schematic: null, board: null, ...DEFAULTS };
   }
   const raw = JSON.parse(await readFile(p, 'utf8')) as Partial<CopperheadConfig>;
+  if (
+    raw.constraintPacks !== undefined &&
+    (!Array.isArray(raw.constraintPacks) ||
+      raw.constraintPacks.some((packPath) => typeof packPath !== 'string' || !packPath.trim()))
+  ) {
+    throw new Error('invalid .copperhead/config.json: constraintPacks must be an array of non-empty repo-relative paths');
+  }
   // A zero/negative/non-integer stage budget would exhaust the stage on turn 0;
   // drop such entries rather than let a config typo stall the pipeline.
   const stageMaxTurns = Object.fromEntries(
@@ -131,6 +140,7 @@ export async function loadConfig(repoRoot: string): Promise<CopperheadConfig> {
     model: raw.model ?? null,
     maxTurns: raw.maxTurns ?? DEFAULTS.maxTurns,
     ...(Object.keys(stageMaxTurns).length ? { stageMaxTurns } : {}),
+    ...(raw.constraintPacks ? { constraintPacks: raw.constraintPacks } : {}),
     maxRepairCycles: raw.maxRepairCycles ?? DEFAULTS.maxRepairCycles,
     budgets: raw.budgets ?? {},
     turnTimeoutMs: typeof raw.turnTimeoutMs === 'number' ? raw.turnTimeoutMs : DEFAULTS.turnTimeoutMs,

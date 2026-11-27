@@ -22,7 +22,12 @@ export interface CheckResult {
   drc: { ok: boolean; violations: number; unrouted: number; intrinsic: number } | null;
   drift: { ok: boolean; mismatches: DriftMismatch[]; warning?: string };
   openspec: { ok: boolean; detail: string } | null;
-  constraints: { ok: boolean; violations: ConstraintViolation[] };
+  constraints: {
+    ok: boolean;
+    violations: ConstraintViolation[];
+    packs: { source: string; ruleCount: number }[];
+    unverified: string[];
+  };
   /**
    * Advisory at every severity (design C6): findings inform, the exit code
    * never depends on them, so existing repos gain information, not failures.
@@ -119,17 +124,41 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
   }
 
   let constraintViolations: ConstraintViolation[] = [];
+  const registry = await loadConstraints(repoRoot);
+  const packSources = new Map<string, number>();
+  for (const constraint of Object.values(registry)) {
+    if (constraint.source.startsWith('constraint pack ')) {
+      packSources.set(constraint.source, (packSources.get(constraint.source) ?? 0) + 1);
+    }
+  }
+  const packs = [...packSources].map(([source, ruleCount]) => ({ source, ruleCount }));
+  for (const [source, count] of packSources) log(`${source} (${count} rule${count === 1 ? '' : 's'})`);
+  const hasSchematic = Boolean(config.schematic && existsSync(path.join(repoRoot, config.schematic)));
+  const unverified = Object.entries(registry)
+    .filter(
+      ([, constraint]) =>
+        !hasSchematic ||
+        constraint.min !== undefined ||
+        constraint.max !== undefined ||
+        constraint.value !== undefined ||
+        !constraint.forbidden?.length,
+    )
+    .map(([key]) => key);
   if (config.schematic && existsSync(path.join(repoRoot, config.schematic))) {
-    const registry = await loadConstraints(repoRoot);
     const pins = await pinNets(path.join(repoRoot, config.schematic));
     constraintViolations = checkForbiddenPins(registry, pins);
     if (Object.keys(registry).length) {
-      log(
-        constraintViolations.length === 0
-          ? 'constraints ✓'
-          : constraintViolations.map((v) => `constraint ${v.key}: ${v.description} (source: ${v.source})`).join('\n'),
-      );
+      if (constraintViolations.length) {
+        log(
+          constraintViolations.map((v) => `constraint ${v.key}: ${v.description} (source: ${v.source})`).join('\n'),
+        );
+      } else {
+        log(unverified.length ? 'supported constraint checks ✓' : 'constraints ✓');
+      }
+      if (unverified.length) log(`constraints not mechanically checked: ${unverified.join(', ')}`);
     }
+  } else if (Object.keys(registry).length) {
+    log('constraint checks skipped (no schematic configured)');
   }
 
   const ok =
@@ -145,7 +174,7 @@ export async function runCheck(repoRoot: string, log: (s: string) => void): Prom
     drc: drc ? { ok: drc.ok, violations: drc.violations.length, unrouted: drc.unrouted ?? 0, intrinsic: drc.intrinsic?.length ?? 0 } : null,
     drift: { ok: drift.length === 0, mismatches: drift, ...(driftWarning ? { warning: driftWarning } : {}) },
     openspec,
-    constraints: { ok: constraintViolations.length === 0, violations: constraintViolations },
+    constraints: { ok: constraintViolations.length === 0, violations: constraintViolations, packs, unverified },
     legibility,
   };
 }

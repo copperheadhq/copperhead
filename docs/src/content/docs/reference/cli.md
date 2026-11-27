@@ -19,6 +19,7 @@ With no subcommand, `copperhead` starts the interactive agent shell. Every comma
 | `demo` | [Simple demo](/getting-started/demo/) | Tour no / pipeline yes | Tour of what copperhead does, or run the USB-C breakout create pipeline. |
 | `init` | Setup | No | Scaffolds `docs/` from an existing schematic. |
 | `check` (`verify`) | Either | No | ERC, DRC, drift, constraints, spec validation. CI-safe. |
+| `constraints add <pack.json>` | Setup | No | Copy a local, versioned JSON constraint pack into the project. |
 | `explain` | Either | No | Look up a refdes, net, or pin in the schematic and docs. |
 | `do` | [Edit an existing board](/workflows/edit-existing-board/) | Yes | One change: propose, edit, verify, propagate, commit. |
 | `create` | [Design from a brief](/workflows/create-from-brief/) | Yes | Full pipeline from a markdown brief to an output package. |
@@ -88,6 +89,22 @@ copperhead init [--path <dir>] [--force] [--no-hooks]
 
 Reports each file as `created`, `unchanged`, or `REFUSED`. Exits 1 if anything was refused, 0 otherwise.
 
+## `copperhead constraints add`
+
+Adds a local, versioned JSON constraint pack to the project. It copies the file
+under `.copperhead/packs/` and records its path in `.copperhead/config.json`.
+No network access or KiCad CLI is required.
+
+```bash
+copperhead constraints add examples/constraint-packs/battery-powered.json
+```
+
+Pack rules are loaded alongside project constraints and keep their pack ID and
+version as provenance. A different version replaces the active version of that pack.
+Conflicting keys are rejected. `copperhead check` applies the deterministic
+constraint checks already supported by Copperhead; packs do not add new check
+logic.
+
 ## `copperhead do`
 
 The core loop: propose, edit, verify, propagate, commit.
@@ -123,7 +140,11 @@ ERC and DRC are skipped when no schematic or board is configured, rather than fa
 | `0` | Everything agrees. |
 | `1` | At least one check failed, or `kicad-cli` is missing. |
 
-With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`, `constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`). Legibility findings never affect the exit code.
+With `--json`, prints a result object with `ok` plus per-check detail for `erc`, `drc`, `drift`, `openspec`,
+`constraints`, and `legibility` (findings, counts, skipped and disabled families, and the advisory `score`).
+The `constraints` object includes active pack provenance and `unverified` keys: current deterministic
+constraint checks verify forbidden pins, while other constraint forms remain visible but are not mechanically
+checked. Unverified constraints do not change the exit code. Legibility findings never affect the exit code.
 
 ## `copperhead explain`
 

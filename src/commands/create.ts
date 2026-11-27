@@ -1360,7 +1360,7 @@ export async function runCreate(opts: CreateOptions): Promise<CreateResult> {
           // A verified conflict is the user's decision, not the supervisor's and
           // not a retry's (AC-18.7): no turn is spent, the block says what to do.
           const blockers = res.blockers ?? [];
-          const registry = await loadConstraints(opts.repoRoot).catch(() => ({}));
+          const registry = await loadConstraints(opts.repoRoot);
           const block = renderDecisionStop({ stage: stage.name, attempt, blockers, registry });
           opts.log(stageLine(stage.name, 'stop: verified constraint conflict; a decision is needed', 'err'));
           for (const line of block.terminal.split('\n')) opts.log(line);

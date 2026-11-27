@@ -34,6 +34,7 @@ sidebar:
 | `maxTurns` | `40` | Turn budget per run. |
 | `maxRepairCycles` | `5` | Failed ERC/DRC repairs before the run rolls back to the git snapshot. A repair fails when, after an edit, a failing check has no fewer electrical findings than the one before (or, with only silkscreen findings left, no fewer findings and no fewer unrouted connections). The first failure after a clean check, a re-run without an edit, and any progress do not count. |
 | `budgets` | `{}` | Free-form hard constraints, surfaced verbatim into every run's system prompt. |
+| `constraintPacks` | `[]` | Repo-relative paths to versioned JSON constraint packs added to this project. |
 | `baseURL` | unset | Base URL of an OpenAI-compatible endpoint. Read **only** by the `compat` model route. |
 | `apiKeyEnv` | `OPENAI_API_KEY` | Name of the environment variable holding that endpoint's key. The name, never the key itself. |
 
@@ -58,7 +59,39 @@ The names are yours. copperhead passes them through verbatim and expects the uni
 
 ## `constraints.json`
 
-`.copperhead/constraints.json` is the constraint registry: machine-readable counterparts to the constraints stated in your design docs. Constraints are dual-written, to the doc and to the registry, and the sync-obligations ledger refuses to let a run commit if one was updated without the other.
+`.copperhead/constraints.json` is the project constraint registry: machine-readable counterparts to the
+constraints stated in your design docs. Project constraints are dual-written, to the doc and to the registry,
+and the sync-obligations ledger refuses to let a run commit if one was updated without the other. Pack rules
+remain in their vendored JSON file and are distinguished by pack ID and version rather than requiring a
+duplicate mention in project docs.
+
+### Constraint packs
+
+From a Copperhead source checkout, use
+`copperhead constraints add examples/constraint-packs/battery-powered.json` to copy the example pack into
+`.copperhead/packs/` and activate it in `config.json`. For your own pack, pass its local file path instead.
+Packs are JSON data, not code or a network registry. Copperhead loads their rules with the project's own
+constraints and labels each rule with its pack ID and version. To change pack rules, import a new version;
+conflicting keys are rejected rather than overridden.
+
+```json
+{
+  "id": "battery-powered",
+  "version": "1.0.0",
+  "name": "Battery-powered",
+  "description": "Starter constraints for a low-power device.",
+  "constraints": {
+    "power.sleep_current_uA": {
+      "max": 25,
+      "affects": ["power subsystem"]
+    }
+  }
+}
+```
+
+Pack rule fields are `min`, `max`, `value`, `forbidden`, and optional `affects`, matching the existing registry.
+Packs do not add new verification logic: deterministic checks enforce only the constraint forms they already
+support. All pack files are stored in the repository, so `copperhead check` remains offline.
 
 ## Environment variables
 
@@ -187,5 +220,6 @@ If `agent` is not on `PATH`, set `COPPERHEAD_CURSOR_PATH`. A rate-limited `curso
 | `docs/*.md` | Yes | Design docs. The agent's memory and its output. |
 | `.copperhead/config.json` | Yes | Configuration. |
 | `.copperhead/constraints.json` | Yes | Constraint registry. |
+| `.copperhead/packs/*.json` | Yes | Local copies of active, versioned constraint packs. |
 | `.copperhead/README.md` | Yes | Self-describing docs for the above. |
 | `.copperhead/runs/<ts>/` | No | JSONL transcript plus a human-readable `summary.md`. Gitignored. |
