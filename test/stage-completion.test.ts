@@ -12,8 +12,8 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
-import { STAGES, contractGapDetail } from '../src/commands/create.js';
-import { loadConfig } from '../src/config.js';
+import { STAGES, contractGapDetail, devplanGap } from '../src/commands/create.js';
+import { loadConfig, type CopperheadConfig } from '../src/config.js';
 
 /** Return the isComplete function for the named stage (throws if not found). */
 function stageNamed(name: string) {
@@ -606,6 +606,42 @@ describe('devplan isComplete', () => {
     });
   });
 
+  it('returns false when DEVPLAN.md contains only the stage-7 firmware note', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'DEVPLAN.md'),
+        '# DEVPLAN\n\n## Firmware: none, by design\n\nThe schematic has no programmable part.\n',
+        'utf8',
+      );
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(false);
+    });
+  });
+
+  it('returns true when the stage-7 note is followed by a bring-up section', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'DEVPLAN.md'),
+        '# DEVPLAN\n\n## Firmware: none, by design\n\nThe schematic has no programmable part.\n\n## Bring-up steps\n\n1. Power on and measure the 3.3 V rail.\n',
+        'utf8',
+      );
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+    });
+  });
+
+  it('detects a bring-up section with CRLF line endings', async () => {
+    await withTmpDir(async (root) => {
+      await mkdir(path.join(root, DOCS), { recursive: true });
+      await writeFile(
+        path.join(root, DOCS, 'DEVPLAN.md'),
+        '# DEVPLAN\r\n\r\n## Firmware: none, by design\r\n\r\nThe schematic has no programmable part.\r\n\r\n## Bring up\r\n\r\n1. Power on and measure the 3.3 V rail.\r\n',
+        'utf8',
+      );
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+    });
+  });
+
   it('returns true when DEVPLAN.md has at least one section with content', async () => {
     await withTmpDir(async (root) => {
       await mkdir(path.join(root, DOCS), { recursive: true });
@@ -616,6 +652,147 @@ describe('devplan isComplete', () => {
       );
       expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
     });
+  });
+});
+
+describe('devplan bring-up heading and failure detail (#378)', () => {
+  const write = async (root: string, text: string) => {
+    await mkdir(path.join(root, DOCS), { recursive: true });
+    await writeFile(path.join(root, DOCS, 'DEVPLAN.md'), text, 'utf8');
+  };
+
+  it('accepts a bring-up heading written with a Unicode hyphen', async () => {
+    await withTmpDir(async (root) => {
+      for (const hyphen of ['\u2010', '\u2011', '\u2013']) {
+        await write(root, `# DEVPLAN\n\n## Bring${hyphen}up\n\n1. Measure the 3.3 V rail.\n`);
+        expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+      }
+    });
+  });
+
+  it('names the missing heading when the section is bold text or named otherwise', async () => {
+    await withTmpDir(async (root) => {
+      const missing = 'docs/DEVPLAN.md has no "## Bring-up" heading';
+      await write(root, '# DEVPLAN\n\n**Bring-up**\n\n1. Measure the 3.3 V rail.\n');
+      expect(await devplanGap(root, DOCS)).toContain(missing);
+      await write(root, '# DEVPLAN\n\n## Power-on sequence\n\n1. Measure the 3.3 V rail.\n');
+      expect(await devplanGap(root, DOCS)).toContain(missing);
+    });
+  });
+
+  it('names the absent file and the empty section', async () => {
+    await withTmpDir(async (root) => {
+      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md does not exist');
+      await write(root, '# DEVPLAN\n\n## Bring-up\n');
+      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md has a "## Bring-up" heading with nothing under it');
+      await write(root, '# DEVPLAN\n\n## Bring-up\n\n1. Measure the 3.3 V rail.\n');
+      expect(await devplanGap(root, DOCS)).toBeNull();
+    });
+  });
+
+  it('returns false when the only bring-up "heading" is a comment in a fenced stage-7 snippet', async () => {
+    await withTmpDir(async (root) => {
+      for (const fence of ['```', '~~~']) {
+        await write(
+          root,
+          `# DEVPLAN\n\n## Firmware: not compiled here\n\nThe vendor toolchain is not installed:\n\n${fence}sh\n# bring up the toolchain first\nidf.py build\n${fence}\n`,
+        );
+        expect(await stageNamed('devplan')(root, DOCS), fence).toBe(false);
+      }
+    });
+  });
+
+  it('returns false when the bring-up heading is empty and the content belongs to another section', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n## Firmware: none, by design\n\nThe schematic has no programmable part.\n\n## Bring-up\n\n## Risks\n\nThe LDO may run hot.\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(false);
+      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md has a "## Bring-up" heading with nothing under it');
+    });
+  });
+
+  it('counts content under a subheading of the bring-up section, and a fenced snippet inside it', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n## Bring-up\n\n### Power\n\n1. Measure the 3.3 V rail.\n\n## Risks\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+      await write(root, '# DEVPLAN\n\n## Bring-up\n\n```sh\n# meter the 3.3 V rail first\n```\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+    });
+  });
+
+  it('names a code fence the document never closes when it hides the bring-up heading', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n## Firmware: not compiled here\n\n```sh\nidf.py build\n\n## Bring-up\n\n1. Measure the 3.3 V rail.\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(false);
+      expect(await devplanGap(root, DOCS)).toBe(
+        'docs/DEVPLAN.md has a code fence opened at line 5 that is never closed, so everything after it (including any "## Bring-up") reads as code',
+      );
+    });
+  });
+
+  it('closes a fence with a longer one, but not with a line that has text after the fence', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n```sh\n# bring up the toolchain\n`````\n\n## Bring-up\n\n1. Measure the 3.3 V rail.\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+      // "```sh" opens a fence; inside one it is code, not a close, so the fence stays open
+      await write(root, '# DEVPLAN\n\n```\nidf.py build\n```sh\n\n## Bring-up\n\n1. Measure the 3.3 V rail.\n');
+      expect(await devplanGap(root, DOCS)).toBe(
+        'docs/DEVPLAN.md has a code fence opened at line 3 that is never closed, so everything after it (including any "## Bring-up") reads as code',
+      );
+    });
+  });
+
+  it('returns true when a stage-7 line starts with an inline ``` code span (not a fence)', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n## Firmware: not compiled here\n\n```idf.py build``` needs ESP-IDF.\n\n## Bring-up\n\n1. Measure the 3.3 V rail.\n');
+      expect(await stageNamed('devplan')(root, DOCS)).toBe(true);
+    });
+  });
+
+  it('returns false when the bring-up section holds only a thematic break or an HTML comment', async () => {
+    await withTmpDir(async (root) => {
+      for (const filler of ['---', '<!-- steps go here -->']) {
+        await write(root, `## Bring-up\n\n${filler}\n\n## Risks\n\n- none\n`);
+        expect(await stageNamed('devplan')(root, DOCS), filler).toBe(false);
+        expect(await devplanGap(root, DOCS), filler).toBe('docs/DEVPLAN.md has a "## Bring-up" heading with nothing under it');
+      }
+    });
+  });
+
+  it('keeps a fence open on a closer of the other character or a shorter run', async () => {
+    await withTmpDir(async (root) => {
+      const missing = 'docs/DEVPLAN.md has no "## Bring-up" heading';
+      // a ~~~ line inside a backtick fence, and a ``` line inside a ```` fence, close nothing
+      for (const doc of ['# DEVPLAN\n\n```sh\n~~~\n# bring up the toolchain\n```\n', '# DEVPLAN\n\n````sh\n```\n# bring up the toolchain\n````\n']) {
+        await write(root, doc);
+        expect(await stageNamed('devplan')(root, DOCS), doc).toBe(false);
+        expect(await devplanGap(root, DOCS), doc).toContain(missing);
+      }
+    });
+  });
+
+  it('a bare "##" line is an empty heading that ends the bring-up section', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n## Bring-up\n\n##\n\n1. Measure the 3.3 V rail.\n');
+      expect(await devplanGap(root, DOCS)).toBe('docs/DEVPLAN.md has a "## Bring-up" heading with nothing under it');
+    });
+  });
+
+  it('the stage failure detail names the missing heading', async () => {
+    await withTmpDir(async (root) => {
+      await write(root, '# DEVPLAN\n\n**Bring-up**\n\n1. Measure the 3.3 V rail.\n');
+      const config = { docs: DOCS } as CopperheadConfig;
+      expect(await contractGapDetail('devplan', root, config)).toBe(
+        'the devplan contract is not met: docs/DEVPLAN.md has no "## Bring-up" heading (a Markdown heading line; bold text or another section name does not count)',
+      );
+    });
+  });
+
+  it('the stage prompt asks for the heading the check requires, at the configured path', () => {
+    const devplan = STAGES.find((s) => s.name === 'devplan')!;
+    const prompt = devplan.prompt('brief', 'docs/');
+    expect(prompt).toContain('Write docs/DEVPLAN.md (or, if it already exists, add to it with edit_file, keeping what is there)');
+    expect(prompt).toContain('with a "## Bring-up" section');
+    expect(devplan.prompt('brief', 'design/notes')).toContain('design/notes/DEVPLAN.md');
   });
 });
 
