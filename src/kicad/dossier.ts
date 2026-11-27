@@ -26,6 +26,7 @@ import {
   searchInstalledSymbols,
   listInstalledLibraries,
   comparePinNumbers,
+  SymbolResolver,
   type LibPin,
 } from './symlib.js';
 
@@ -87,17 +88,15 @@ export interface DossierOptions {
  */
 export async function bomSymbolDossier(
   bomMd: string,
-  dirs: string[],
+  libs: Map<string, string> | string[],
   opts: DossierOptions = {},
 ): Promise<string> {
   const searchCap = opts.searchCap ?? 3;
   const maxChars = opts.maxChars ?? 24_000;
   try {
-    if (!dirs.length) return '';
-    // No readable library at all must yield no dossier, not a page of
-    // NO-INSTALLED-SYMBOL lines: a false absence claim in a machine-verified
-    // block is the exact failure mode this file exists to prevent (I15).
-    if (!(await listInstalledLibraries(dirs)).size) return '';
+    const map = libs instanceof Map ? libs : await listInstalledLibraries(libs);
+    if (!map.size) return '';
+    const stockFound = map instanceof SymbolResolver ? map.stockFound : true;
     // Group refdes by primary query so a part used five times renders once.
     // The MPN is the stronger name when present; the stage-3 scaffold's
     // UNVERIFIED flag word is not part of it. The Value is kept as a fallback
@@ -154,19 +153,23 @@ export async function bomSymbolDossier(
       }
       let line: string;
       try {
-        let hits = exact ? [exact] : await searchInstalledSymbols(query, dirs, searchCap);
+        let hits = exact ? [exact] : await searchInstalledSymbols(query, map, searchCap);
         let matchedBy = '';
         if (!hits.length && fallback) {
-          hits = await searchInstalledSymbols(fallback, dirs, searchCap);
+          hits = await searchInstalledSymbols(fallback, map, searchCap);
           if (hits.length) matchedBy = ` (matched by Value "${fallback}")`;
         }
         const top = hits[0];
         if (!top) {
-          line = `- ${who}: NO INSTALLED SYMBOL matches — not capturable as named; substitute a part whose symbol exists (search_symbols to find one)`;
+          line = !stockFound
+            ? `- ${who}: availability is unverified (stock KiCad symbol libraries were not found on this machine; confirm with symbol_pins)`
+            : `- ${who}: NO INSTALLED SYMBOL matches — not capturable as named; substitute a part whose symbol exists (search_symbols to find one)`;
         } else {
-          const r = await resolveLibrarySymbol(top, dirs);
+          const r = await resolveLibrarySymbol(top, map);
           if (r.status !== 'ok' && exact) {
-            line = `- ${who}: ${exact} does NOT resolve on this machine — the manifest's lib_id is stale (a library changed since draft_bom ran); confirm with symbol_pins`;
+            line = !stockFound
+              ? `- ${who}: availability is unverified (stock KiCad symbol libraries were not found on this machine; confirm with symbol_pins)`
+              : `- ${who}: ${exact} does NOT resolve on this machine — the manifest's lib_id is stale (a library changed since draft_bom ran); confirm with symbol_pins`;
           } else if (r.status !== 'ok') {
             // A hit that fails to re-resolve is a library race or parse quirk;
             // report the candidates without claiming pins we could not read.

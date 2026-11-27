@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseSexp, children, child, isList, type SexpNode, type Bounds } from '../sexp.js';
-import { symbolSearchDirs, findLibraryFile, findSymbolAcrossLibraries, closestSymbolNames } from '../symlib.js';
+import { SymbolResolver, findLibraryFile, findSymbolAcrossLibraries, closestSymbolNames } from '../symlib.js';
 import { EMIT_VERSION, renameSymbolBlock } from '../emit.js';
 import { libTableRows } from '../libtable.js';
 import { childSpans } from '../spans.js';
@@ -275,7 +275,7 @@ export class SymbolResolutionError extends Error {
  * when any exist; fuzzy matches are the fallback, reported under the symbol
  * name that actually matched. Returns corrected `lib_id`s or an empty array.
  */
-async function crossLibrarySuggestions(name: string, lib: string, dirs: string[]): Promise<string[]> {
+async function crossLibrarySuggestions(name: string, lib: string, dirs: Map<string, string> | string[]): Promise<string[]> {
   const matches = await findSymbolAcrossLibraries(name, dirs, lib);
   const exact = matches.filter((m) => m.exact).map((m) => `${m.lib}:${m.name}`);
   if (exact.length) return exact;
@@ -286,6 +286,7 @@ export class SymbolSource {
   private cache = new Map<string, ResolvedSymbol>();
   private projectLibs: Promise<Map<string, string>> | null = null;
   private projectNames: Promise<{ has: (lib: string) => boolean } | null> | null = null;
+  private installedLibs: Promise<Map<string, string> | string[]> | null = null;
 
   /**
    * Libraries the project's own `sym-lib-table` names (#314): a project-local
@@ -463,7 +464,10 @@ export class SymbolSource {
       if (block) this.libs.add(lib);
     }
     if (!block) {
-      const dirs = this.searchDirs ?? (await symbolSearchDirs());
+      this.installedLibs ??= this.searchDirs
+        ? Promise.resolve(this.searchDirs)
+        : SymbolResolver.create({ projectDir: this.projectDir ?? this.repoRoot });
+      const dirs = await this.installedLibs;
       const file = project ?? (await findLibraryFile(lib, dirs));
       if (!file) {
         const elsewhere = await crossLibrarySuggestions(name, lib, dirs);

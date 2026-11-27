@@ -10,8 +10,15 @@ import {
   closestSymbolNames,
   searchInstalledSymbols,
   findLibraryFile,
+  SymbolResolver,
 } from '../src/kicad/symlib.js';
 import { symbolAvailabilityFacts } from '../src/agent/recovery.js';
+import { kicadMajorVersion } from '../src/kicad/cli.js';
+import { SymbolSource } from '../src/kicad/draft/symsource.js';
+import { bomSymbolDossier } from '../src/kicad/dossier.js';
+import { dispatchTool, type RunContext } from '../src/agent/tools.js';
+import { ObligationsLedger } from '../src/agent/ledger.js';
+import type { PartsManifest } from '../src/kicad/parts/manifest.js';
 
 // A minimal stand-in for /usr/share/kicad/symbols/Device.kicad_sym: R (2 pins)
 // and R_Small which `extends` R (inherits R's pins, has none of its own).
@@ -449,5 +456,298 @@ describe('cross-library discovery and refusal fact-checking (#195, #196, #197)',
 
   it('produces no facts block when the text names no lib_ids', async () => {
     expect(await symbolAvailabilityFacts('turn timed out after 300s; see create.ts:311', [dir])).toBe('');
+  });
+
+  describe('project-local symbol libraries discovery (#491)', () => {
+    let projDir: string;
+    let stockDir: string;
+
+    const RF_LIB = `(kicad_symbol_lib (version 20251024) (generator test)
+  (symbol "PE4259-63" (pin_names (offset 1.016))
+    (symbol "PE4259-63_1_1"
+      (pin passive line (at -5.08 2.54 0) (length 2.54) (name "RFC") (number "1"))
+      (pin passive line (at 5.08 2.54 180) (length 2.54) (name "RF1") (number "2"))
+      (pin passive line (at 5.08 -2.54 180) (length 2.54) (name "RF2") (number "3"))
+    )
+  )
+)`;
+
+    const SYM_LIB_TABLE = `(sym_lib_table
+  (lib (name "rf_switch")(type "KiCad")(uri "\${KIPRJMOD}/lib/my_rf.kicad_sym")(options "")(descr ""))
+)`;
+
+    const testCtx = (repoRoot: string): RunContext => ({
+      repoRoot,
+      config: { schematic: 'project.kicad_sch' } as RunContext['config'],
+      transcript: { event: async () => {} } as unknown as RunContext['transcript'],
+      ledger: new ObligationsLedger(),
+      runId: 'test-491',
+      interactive: false,
+      confirm: async () => true,
+      editsUnlocked: false,
+      changeId: null,
+      proposalValidated: false,
+      filesTouched: new Set(),
+      decisions: [],
+      lastErc: null,
+      lastDrc: null,
+      lastLegibility: null,
+      lastScore: null,
+      repairCycles: 0,
+      finishRequest: null,
+    });
+
+    let origKicadSymbolDir: string | undefined;
+
+    beforeAll(async () => {
+      stockDir = await mkdtemp(path.join(tmpdir(), 'copperhead-491-stock-'));
+      await writeFile(path.join(stockDir, 'Device.kicad_sym'), DEVICE_LIB, 'utf8');
+      origKicadSymbolDir = process.env.KICAD_SYMBOL_DIR;
+      process.env.KICAD_SYMBOL_DIR = stockDir;
+
+      projDir = await mkdtemp(path.join(tmpdir(), 'copperhead-491-proj-'));
+      await mkdir(path.join(projDir, 'lib'), { recursive: true });
+      await writeFile(path.join(projDir, 'lib', 'my_rf.kicad_sym'), RF_LIB, 'utf8');
+      await writeFile(path.join(projDir, 'sym-lib-table'), SYM_LIB_TABLE, 'utf8');
+      await writeFile(path.join(projDir, 'project.kicad_sch'), '(kicad_sch (version 20251024))\n', 'utf8');
+    });
+
+    afterAll(async () => {
+      if (origKicadSymbolDir !== undefined) {
+        process.env.KICAD_SYMBOL_DIR = origKicadSymbolDir;
+      } else {
+        delete process.env.KICAD_SYMBOL_DIR;
+      }
+      await rm(stockDir, { recursive: true, force: true }).catch(() => {});
+      await rm(projDir, { recursive: true, force: true }).catch(() => {});
+    });
+
+    it('control: SymbolSource.resolve already succeeds', async () => {
+      const symsource = new SymbolSource(projDir, [stockDir], false, projDir);
+      const res = await symsource.resolve('rf_switch:PE4259-63');
+      expect(res.pins).toHaveLength(3);
+      expect(res.pins.map((p) => p.name).sort()).toEqual(['RF1', 'RF2', 'RFC']);
+    });
+
+    it('search_symbols finds rf_switch:PE4259-63 under its table nickname', async () => {
+      const out = await dispatchTool(testCtx(projDir), 'search_symbols', { query: 'PE4259-63' });
+      expect(out).toContain('installed symbols matching "PE4259-63":');
+      expect(out).toContain('rf_switch:PE4259-63');
+    });
+
+    it('search_symbols miss text names searched tables and mentions project-local option', async () => {
+      const out = await dispatchTool(testCtx(projDir), 'search_symbols', { query: 'NONEXISTENT_PART_XYZ' });
+      expect(out).toContain('no installed symbol matches "NONEXISTENT_PART_XYZ"');
+      expect(out).toContain('project sym-lib-table');
+      expect(out).toContain('sym-lib-table');
+      expect(out).toContain('project-local library');
+    });
+
+    it('symbol_pins resolves it and reports 3 pins', async () => {
+      const out = await dispatchTool(testCtx(projDir), 'symbol_pins', { lib_id: 'rf_switch:PE4259-63' });
+      expect(out).toContain('rf_switch:PE4259-63 — 3 pin(s), 1 unit(s):');
+      expect(out).toContain('1: RFC · passive');
+      expect(out).toContain('2: RF1 · passive');
+      expect(out).toContain('3: RF2 · passive');
+    });
+
+    it('bomSymbolDossier with a manifest resolves it', async () => {
+      const manifest: PartsManifest = {
+        version: 1,
+        subsystems: {},
+        parts: [
+          {
+            ref: 'U1',
+            libId: 'rf_switch:PE4259-63',
+            mpn: 'PE4259-63',
+            footprint: 'Package_TO_SOT_SMD:SOT-363_SC-70-6',
+            subsystem: 'RF',
+            value: 'PE4259-63',
+          },
+        ],
+      };
+      const resolver = await SymbolResolver.create({ projectDir: projDir, stockDirs: [stockDir] });
+      const dossier = await bomSymbolDossier('', resolver, { manifest });
+      expect(dossier).toContain('U1 (PE4259-63): rf_switch:PE4259-63 — 3 pin(s):');
+      expect(dossier).toContain('1=RFC/passive 2=RF1/passive 3=RF2/passive');
+    });
+
+    it('symbolAvailabilityFacts resolves it', async () => {
+      const refusal = 'VERIFIED ABSENT: "rf_switch:PE4259-63" is not installed on this machine.';
+      const facts = await symbolAvailabilityFacts(refusal, projDir);
+      expect(facts).toContain('- rf_switch:PE4259-63: RESOLVES on this machine (3 pins)');
+    });
+
+    it('a sym-lib-cache/ row named Device does not hide stock Device', async () => {
+      const cacheDir = await mkdtemp(path.join(tmpdir(), 'copperhead-491-cache-'));
+      try {
+        await mkdir(path.join(cacheDir, 'sym-lib-cache'), { recursive: true });
+        const PARTIAL_DEVICE = `(kicad_symbol_lib (version 20251024) (generator test)
+  (symbol "C" (pin_numbers hide) (pin_names (offset 0))
+    (symbol "C_0_1" (rectangle (start -1.016 -2.54) (end 1.016 2.54)))
+    (symbol "C_1_1"
+      (pin passive line (at 0 3.81 270) (length 1.27) (name "~") (number "1"))
+      (pin passive line (at 0 -3.81 90) (length 1.27) (name "~") (number "2"))
+    )
+  )
+)`;
+        await writeFile(path.join(cacheDir, 'sym-lib-cache', 'Device.kicad_sym'), PARTIAL_DEVICE, 'utf8');
+        const cacheTable = `(sym_lib_table\n  (lib (name "Device")(type "KiCad")(uri "\${KIPRJMOD}/sym-lib-cache/Device.kicad_sym")(options "")(descr ""))\n)`;
+        await writeFile(path.join(cacheDir, 'sym-lib-table'), cacheTable, 'utf8');
+
+        const resolver = await SymbolResolver.create({ projectDir: cacheDir, stockDirs: [stockDir], global: false });
+        const r = await resolveLibrarySymbol('Device:R', resolver);
+        expect(r.status).toBe('ok');
+        if (r.status === 'ok') {
+          expect(r.pins).toHaveLength(2);
+        }
+      } finally {
+        await rm(cacheDir, { recursive: true, force: true }).catch(() => {});
+      }
+    });
+
+    it('a project beneath a directory named sym-lib-cache resolves its own libraries', async () => {
+      const parentDir = await mkdtemp(path.join(tmpdir(), 'sym-lib-cache-parent-'));
+      const subProj = path.join(parentDir, 'sym-lib-cache', 'myboard');
+      try {
+        await mkdir(path.join(subProj, 'lib'), { recursive: true });
+        await writeFile(path.join(subProj, 'lib', 'rf.kicad_sym'), RF_LIB, 'utf8');
+        const table = `(sym_lib_table\n  (lib (name "rf")(type "KiCad")(uri "\${KIPRJMOD}/lib/rf.kicad_sym")(options "")(descr ""))\n)`;
+        await writeFile(path.join(subProj, 'sym-lib-table'), table, 'utf8');
+
+        const resolver = await SymbolResolver.create({ projectDir: subProj, global: false, stockDirs: [stockDir] });
+        const r = await resolveLibrarySymbol('rf:PE4259-63', resolver);
+        expect(r.status).toBe('ok');
+        if (r.status === 'ok') {
+          expect(r.pins).toHaveLength(3);
+        }
+      } finally {
+        await rm(parentDir, { recursive: true, force: true }).catch(() => {});
+      }
+    });
+
+    it('symbols discovered through global sym-lib-table resolve in search_symbols and SymbolSource', async () => {
+      const configDir = await mkdtemp(path.join(tmpdir(), 'copperhead-global-config-'));
+      const globalLibDir = await mkdtemp(path.join(tmpdir(), 'copperhead-global-lib-'));
+      const testProj = await mkdtemp(path.join(tmpdir(), 'copperhead-global-proj-'));
+      try {
+        const ver = `${(await kicadMajorVersion()) ?? 10}.0`;
+        await mkdir(path.join(configDir, ver), { recursive: true });
+        const GLOBAL_PART_LIB = `(kicad_symbol_lib (version 20251024) (generator test)
+  (symbol "GLOBAL-PART" (pin_names (offset 0))
+    (symbol "GLOBAL-PART_0_1" (rectangle (start -2.54 -5.08) (end 2.54 5.08)))
+    (symbol "GLOBAL-PART_1_1"
+      (pin input line (at -3.81 2.54 0) (length 1.27) (name "IN1") (number "1"))
+      (pin input line (at -3.81 0 0) (length 1.27) (name "IN2") (number "2"))
+      (pin output line (at 3.81 2.54 180) (length 1.27) (name "OUT1") (number "3"))
+      (pin power_in line (at 0 6.35 270) (length 1.27) (name "VCC") (number "4"))
+      (pin power_in line (at 0 -6.35 90) (length 1.27) (name "GND") (number "5"))
+    )
+  )
+)`;
+        const globalLibPath = path.join(globalLibDir, 'corp.kicad_sym');
+        await writeFile(globalLibPath, GLOBAL_PART_LIB, 'utf8');
+        const globalTable = `(sym_lib_table\n  (lib (name "corp")(type "KiCad")(uri "${globalLibPath.split(path.sep).join('/')}")(options "")(descr ""))\n)`;
+        await writeFile(path.join(configDir, ver, 'sym-lib-table'), globalTable, 'utf8');
+        await writeFile(path.join(testProj, 'project.kicad_sch'), '(kicad_sch (version 20251024))\n', 'utf8');
+
+        const prevConfig = process.env.KICAD_CONFIG_HOME;
+        process.env.KICAD_CONFIG_HOME = configDir;
+        try {
+          const out = await dispatchTool(testCtx(testProj), 'search_symbols', { query: 'GLOBAL-PART' });
+          expect(out).toContain('corp:GLOBAL-PART');
+
+          const symsource = new SymbolSource(testProj, undefined, false, testProj);
+          const resolved = await symsource.resolve('corp:GLOBAL-PART');
+          expect(resolved.pins).toHaveLength(5);
+        } finally {
+          if (prevConfig !== undefined) {
+            process.env.KICAD_CONFIG_HOME = prevConfig;
+          } else {
+            delete process.env.KICAD_CONFIG_HOME;
+          }
+        }
+      } finally {
+        await rm(configDir, { recursive: true, force: true }).catch(() => {});
+        await rm(globalLibDir, { recursive: true, force: true }).catch(() => {});
+        await rm(testProj, { recursive: true, force: true }).catch(() => {});
+      }
+    });
+
+    it('when stock symbols are missing, project symbol resolves and stock misses are treated as unverified', async () => {
+      const missingStockDir = path.join(tmpdir(), 'copperhead-missing-stock-dir-12345');
+      const pinned = ['KICAD_SYMBOL_DIR', 'KICAD10_SYMBOL_DIR', 'KICAD9_SYMBOL_DIR', 'KICAD8_SYMBOL_DIR', 'KICAD_CONFIG_HOME'] as const;
+      const prevEnv = Object.fromEntries(pinned.map((k) => [k, process.env[k]]));
+      const emptyConfig = await mkdtemp(path.join(tmpdir(), 'copperhead-empty-config-'));
+      for (const k of pinned) delete process.env[k];
+      process.env.KICAD_SYMBOL_DIR = missingStockDir;
+      process.env.KICAD_CONFIG_HOME = emptyConfig;
+      try {
+        const resolver = await SymbolResolver.create({ projectDir: projDir, stockDirs: [missingStockDir], global: false });
+        expect(resolver.stockFound).toBe(false);
+
+        // Project symbol still resolves
+        const pr = await resolveLibrarySymbol('rf_switch:PE4259-63', resolver);
+        expect(pr.status).toBe('ok');
+        if (pr.status === 'ok') expect(pr.pins).toHaveLength(3);
+
+        const symPinsProject = await dispatchTool(testCtx(projDir), 'symbol_pins', { lib_id: 'rf_switch:PE4259-63' });
+        expect(symPinsProject).toContain('rf_switch:PE4259-63');
+        expect(symPinsProject).toContain('3 pin(s)');
+
+        // Stock lib_id search does not yield "not capturable"
+        const searchStock = await dispatchTool(testCtx(projDir), 'search_symbols', { query: 'LM358' });
+        expect(searchStock).not.toContain('not capturable');
+        expect(searchStock).toContain('does not rule the part out');
+
+        // Stock lib_id in symbol_pins returns "cannot verify" and never "not capturable"
+        const symPinsStock = await dispatchTool(testCtx(projDir), 'symbol_pins', { lib_id: 'Device:R' });
+        expect(symPinsStock).toContain('cannot verify "Device:R"');
+        expect(symPinsStock).not.toContain('not capturable');
+
+        // bomSymbolDossier emits availability is unverified; never NO INSTALLED SYMBOL or stale
+        const manifest: PartsManifest = {
+          version: 1,
+          subsystems: {},
+          parts: [
+            {
+              ref: 'U1',
+              libId: 'Device:R',
+              mpn: 'RC0603FR-0710KL',
+              footprint: 'Resistor_SMD:R_0603_1608Metric',
+              subsystem: 'RF',
+              value: '10k',
+            },
+          ],
+        };
+        const dossier = await bomSymbolDossier('', resolver, { manifest });
+        expect(dossier).toContain('availability is unverified');
+        expect(dossier).not.toContain('NO INSTALLED SYMBOL');
+        expect(dossier).not.toContain('stale');
+
+        const bomDossierNoManifest = await bomSymbolDossier('| Refdes | Value | Footprint |\n| --- | --- | --- |\n| U2 | LM358 | Package_SO:SOIC-8_3.9x4.9mm_P1.27mm |\n', resolver);
+        expect(bomDossierNoManifest).toContain('availability is unverified');
+        expect(bomDossierNoManifest).not.toContain('NO INSTALLED SYMBOL');
+
+        // symbolAvailabilityFacts never produces a recovery fact line for absent stock parts
+        const refusal = 'VERIFIED ABSENT: "Device:R" is not installed on this machine.';
+        const facts = await symbolAvailabilityFacts(refusal, projDir);
+        expect(facts).toBe('');
+      } finally {
+        for (const k of pinned) {
+          if (prevEnv[k] !== undefined) process.env[k] = prevEnv[k];
+          else delete process.env[k];
+        }
+        await rm(emptyConfig, { recursive: true, force: true }).catch(() => {});
+      }
+    });
+
+    it('case-only nickname collision does not resolve to a different stock library on case-insensitive filesystems', async () => {
+      const resolver = await SymbolResolver.create({ stockDirs: [stockDir], global: false });
+      // Stock library has exact nickname "Device", not lowercase "device"
+      expect(await findLibraryFile('device', resolver)).toBeNull();
+      const r = await resolveLibrarySymbol('device:R', resolver);
+      expect(r.status).not.toBe('ok');
+    });
   });
 });
