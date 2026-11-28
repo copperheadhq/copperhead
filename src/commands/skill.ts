@@ -113,6 +113,7 @@ async function minimalCtx(repoRoot: string, initializeTranscript = true): Promis
     confirm: async () => true,
     editsUnlocked: false,
     changeId: null,
+    approvedChangeId: null,
     proposalValidated: false,
     filesTouched: new Set(),
     decisions: [],
