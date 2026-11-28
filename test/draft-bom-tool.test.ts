@@ -80,7 +80,7 @@ describe('draft_bom tool', () => {
     expect(t?.kind).toBe('tool');
     expect(t?.viewHint).toBe('mutation');
     const d = (t as { schema?: { description: string } }).schema?.description ?? '';
-    for (const word of ['"ref"', '"value"', '"group"', '"libId"', '"footprint"', '"mpn"', '"rationale"', '"verified"', '"package"', '"offBoard": true', '"substitutions"', '"reason"', 'UNVERIFIED']) {
+    for (const word of ['"ref"', '"value"', '"group"', '"libId"', '"footprint"', '"mpn"', '"rationale"', '"verified"', '"package"', '"offBoard": true', '"substitutions"', '"reason"', 'UNVERIFIED', 'at most one substitution per refdes', 'tolerance, rating or dielectric', 'libId alone does not agree']) {
       expect(d, word).toContain(word);
     }
   });
@@ -144,6 +144,72 @@ describe('draft_bom tool', () => {
       await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
       expect(await dispatchTool(ctx, 'check_drift', {})).toMatch(/vacuously clean/);
       expect(ctx.ledger.isClear).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('accepts backslash-pipe code spans, pipes in rationale, and rating-bearing substitutions end to end', async () => {
+    const { root, ctx, cleanup } = await repo();
+    try {
+      const manifestWithPipesAndRatings = {
+        ...CLEAN,
+        parts: [
+          { ...CLEAN.parts[0], rationale: 'C:\\tools\\bin | primary' },
+          { ref: 'R1', value: '`10k\\|1%`', package: '0603', group: 'MCU' },
+          { ref: 'R2', value: '10k', package: '0603', group: 'MCU' },
+          CLEAN.parts[2],
+        ],
+        substitutions: [{ ref: 'R2', wanted: '10k 0.1%', chosen: '10k 1% 100mW', reason: 'alt | `a\\|b`' }],
+      };
+      const out = await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(manifestWithPipesAndRatings) });
+      expect(out).toMatch(/draft_bom: clean/);
+      expect(out).toContain('rendered to docs/BOM.md');
+
+      const bom = await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8');
+      expect(bom).toContain('| R1 | `10k\\\\|1%` | Resistor_SMD:R_0603_1608Metric |  |  | Device:R |');
+      expect(bom).toContain('| R2 | 10k 0.1% | 10k 1% 100mW | alt \\| `a\\\\|b` |');
+
+      const { parseBomTable, parseCanonicalRows } = await import('../src/memory/bom-table.js');
+      const canonical = parseCanonicalRows(bom);
+      expect(canonical.find((r) => r.cells[0] === 'U1')?.cells).toHaveLength(6);
+      expect(canonical.find((r) => r.cells[0] === 'U1')?.cells[5]).toBe('CopperMCU:MCU8');
+      expect(parseBomTable(bom).find((r) => r.refdes === 'R1')?.value).toBe('`10k\\|1%`');
+
+      const drift = await dispatchTool(ctx, 'check_drift', {});
+      expect(drift).toMatch(/vacuously clean/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('fails closed with actionable diagnostic when rendering throws (Finding B regression)', async () => {
+    const { root, ctx, cleanup } = await repo();
+    try {
+      // First write clean BOM.md so there is an existing BOM on disk
+      await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
+      const bomBefore = await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8');
+
+      // Intercept renderManifest in checkPartsManifest to simulate an unexpected render throw
+      const renderMod = await import('../src/kicad/parts/render.js');
+      const spy = vi.spyOn(renderMod, 'renderManifest').mockImplementation(() => {
+        throw new Error('Simulated unexpected render failure');
+      });
+
+      try {
+        const out = await dispatchTool(ctx, 'draft_bom', { manifest_json: JSON.stringify(CLEAN) });
+        expect(out).toContain('BOM.md not written');
+        expect(out).toContain('cannot be rendered to BOM.md: Simulated unexpected render failure');
+        // Existing BOM.md on disk was not overwritten or corrupted with null
+        expect(await readFile(path.join(root, 'docs', 'BOM.md'), 'utf8')).toBe(bomBefore);
+
+        const { checkPartsManifest, partsStageComplete, partsStageGap } = await import('../src/kicad/parts/stage.js');
+        const check = await checkPartsManifest(root, ctx.config);
+        expect(partsStageComplete(check)).toBe(false);
+        expect(partsStageGap(check)).toContain('cannot be rendered to BOM.md');
+      } finally {
+        spy.mockRestore();
+      }
     } finally {
       await cleanup();
     }

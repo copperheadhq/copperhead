@@ -14,6 +14,7 @@
 import { SymbolResolutionError, type ResolvedSymbol } from '../draft/symsource.js';
 import { looksLikeDescription, unitPlacementFinding } from '../draft/ir.js';
 import type { FootprintResolver, MissingFootprint } from '../footprints.js';
+import { normalizeValue } from '../../memory/bom-table.js';
 import { checkPinsAgainstPads } from './pads.js';
 import { isPassivePrefix, knownPackages, passiveDefault } from './passives.js';
 import { refPrefix, type ManifestFinding, type PartsManifest } from './manifest.js';
@@ -68,6 +69,80 @@ export function subsystemHeadings(md: string | null | undefined): string[] | nul
  * is the user's to install.
  */
 export const modelFixableMiss = (m: MissingFootprint): boolean => m.why !== 'no-library' || (m.near.length > 0 && !m.fuzzy);
+
+/**
+ * Detects an 'm' (milli, 10^-3) vs 'M' (mega, 10^6) SI prefix multiplier in a component value string.
+ *
+ * Distinguishes case-significant electrical SI multipliers that collide under case-folding:
+ * - milli: 100m, 100 m, 100mΩ, 100 mΩ, 100mohm, 100 mOhm, 100mF, 100mV, 100mA, 0m1
+ * - mega:  100M, 100 M, 100MΩ, 100 MΩ, 100Mohm, 100 MOhm, 100MF, 100MV, 100MA, 4M7
+ *
+ * Handles both U+03A9 (GREEK CAPITAL LETTER OMEGA) and U+2126 (OHM SIGN).
+ * Non-prefix occurrences (e.g. '100 ohm', 'MAX3232', 'MCU8') return null.
+ */
+export function getSiPrefixM(s: string): 'm' | 'M' | null {
+  const normalized = s.normalize('NFC');
+  const match = /\d\s*([mM])(?:(?:ohm|ohms|f|h|v|a|hz|w)\b|[\u03A9\u2126]|(?=[\d\s,\/]|$))/i.exec(normalized);
+  return match ? (match[1] as 'm' | 'M') : null;
+}
+
+/**
+ * Checks whether a manifest part entry carries the substitution's chosen part.
+ *
+ * Per SPEC.md AC-19.1:
+ * "at most one substitution per refdes; its chosen equals that entry's mpn or value,
+ * and a tolerance, rating or dielectric may follow the value (a libId alone does not agree)."
+ *
+ * This performs syntactic consistency validation against the manifest entry's
+ * declared fields. It verifies that the substitution's chosen string agrees with:
+ * 1. The entry's manufacturer part number (exact string match, case-insensitive).
+ * 2. The entry's component value:
+ *    - Exact string match or normalized value match (preserving SI prefix sensitivity, e.g. 100m != 100M).
+ *    - The value followed by one or more whitespace-separated tolerance, rating or dielectric
+ *      descriptors (e.g. '100nF 6.3V', '10uF 6.3V X5R', '10k ±1%', '10k 1% 100mW');
+ *      arbitrary trailing text is not permitted.
+ *
+ * Liberal substring heuristics, generic prefix/delimiter splitting (e.g. startsWith),
+ * standalone libId matches, and fake manufacturer aliases are rejected: string matching
+ * checks field consistency, not electrical compatibility or procurement suitability.
+ */
+const DESCRIPTOR_RE =
+  /^(?:±?\d+(?:\.\d+)?%|\d+(?:\.\d+)?[Vv]|\d+(?:\.\d+)?m?W|\d+\/\d+W|[XYZxyz]\d[A-Za-z]|[Cc]0[Gg]|[Nn][Pp]0)$/;
+
+export function substitutionCarriesChosen(
+  part: { value: string; mpn?: string | null; libId?: string | null },
+  chosenStr: string,
+): boolean {
+  const chosen = chosenStr.trim();
+  if (!chosen) return false;
+
+  const chosenLower = chosen.toLowerCase();
+
+  // 1. Exact canonical MPN agreement (case-insensitive)
+  if (part.mpn) {
+    const mpnTrim = part.mpn.trim();
+    if (mpnTrim.toLowerCase() === chosenLower) return true;
+  }
+
+  // 2. Value agreement
+  const partVal = part.value.trim();
+  // SI unit sensitivity: 'm' (milli) != 'M' (mega)
+  const samePrefix = (a: string, b: string): boolean => getSiPrefixM(a) === getSiPrefixM(b);
+  const valNorm = normalizeValue(part.value);
+  const chosenNorm = normalizeValue(chosenStr);
+  if (samePrefix(partVal, chosen) && (partVal.toLowerCase() === chosenLower || (!!valNorm && !!chosenNorm && valNorm === chosenNorm))) return true;
+
+  // The value, then one or more whitespace-separated tolerance, rating or dielectric
+  // descriptors ("10k 1%", "100nF 6.3V X5R", "10k 1% 100mW"). The prefix check reads
+  // only the value part, so a "100mW" rating is not taken for a milli value; "10k5",
+  // "1k2" and "0.1uF" still never match, and power units (W, mW) are case-sensitive.
+  const head = chosen.slice(0, partVal.length);
+  const rest = chosen.slice(partVal.length);
+  if (head.toLowerCase() !== partVal.toLowerCase() || !samePrefix(partVal, head)) return false;
+  if (!/^\s/.test(rest)) return false;
+  const tokens = rest.trim().split(/\s+/);
+  return tokens.length > 0 && tokens.every((t) => DESCRIPTOR_RE.test(t));
+}
 
 export async function validatePartsManifest(manifest: PartsManifest, opts: ValidateOptions): Promise<ManifestValidation> {
   const findings: ManifestFinding[] = [];
@@ -175,15 +250,20 @@ export async function validatePartsManifest(manifest: PartsManifest, opts: Valid
 
   // substitutions: point at a real entry, and the entry carries the chosen part
   const byRef = new Map(parts.map((p) => [p.ref, p]));
+  const seenSubRefs = new Set<string>();
   for (const s of manifest.substitutions ?? []) {
     const p = byRef.get(s.ref);
     if (!p) {
       add(s.ref, `substitution for ${s.ref}: no part entry has that refdes`);
       continue;
     }
-    const carries = [p.value, p.mpn, p.libId].filter((v): v is string => !!v).map((v) => v.toLowerCase());
-    const chosen = s.chosen.toLowerCase();
-    if (!carries.some((v) => v === chosen || v.includes(chosen) || chosen.includes(v))) {
+    if (seenSubRefs.has(s.ref)) {
+      add(s.ref, `duplicate substitution for refdes "${s.ref}"; each refdes may have at most one substitution record`);
+      continue;
+    }
+    seenSubRefs.add(s.ref);
+
+    if (!substitutionCarriesChosen(p, s.chosen)) {
       add(s.ref, `substitution for ${s.ref}: "chosen" is ${JSON.stringify(s.chosen)} but the entry carries value ${JSON.stringify(p.value)}${p.mpn ? `, mpn ${JSON.stringify(p.mpn)}` : ''}; they must agree`);
     }
   }

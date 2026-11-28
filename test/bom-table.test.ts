@@ -8,6 +8,9 @@ import {
   normalizeValue,
   normalizeFootprint,
   pinoutColumnReport,
+  splitRow,
+  escapeCell,
+  unescapeCell,
 } from '../src/memory/bom-table.js';
 
 describe('parseMarkdownTables', () => {
@@ -480,5 +483,133 @@ describe('optional outer pipes (GitHub-flavored markdown)', () => {
       b3,
     ].join('\n');
     expect(parsePinoutRows(md).map((r) => r.ref)).toEqual(['U1']);
+  });
+});
+
+describe('GFM table cell escaping and splitRow (GitHub cmark-gfm / markdown-it table rule)', () => {
+  const GITHUB_MEASURED_ROWS: Array<{ row: string; expected: string[] }> = [
+    { row: '| a\\|b | c |', expected: ['a|b', 'c'] },
+    { row: '| a\\\\|b | c |', expected: ['a\\|b', 'c'] },
+    { row: '| a\\\\\\|b | c |', expected: ['a\\\\|b', 'c'] },
+    { row: '| `a\\|b` | c |', expected: ['`a|b`', 'c'] },
+    { row: '| `a\\\\|b` | c |', expected: ['`a\\|b`', 'c'] },
+    { row: '| `a\\\\\\|b` | c |', expected: ['`a\\\\|b`', 'c'] },
+  ];
+
+  it('escaped pipe within a rendered BOM.md cell parses as 6 columns and preserves Symbol identity', () => {
+    const table = [
+      '# BOM',
+      '',
+      '| Refdes | Value | Footprint | MPN | Rationale | Symbol |',
+      '| --- | --- | --- | --- | --- | --- |',
+      '| R1 | 10k \\| 1% | Resistor_SMD:R_0805 | RC0805 | pull-up \\| bias | Device:R |',
+    ].join('\n');
+
+    const rawRows = parseCanonicalRows(table);
+    expect(rawRows).toHaveLength(1);
+    expect(rawRows[0]!.cells).toEqual([
+      'R1',
+      '10k | 1%',
+      'Resistor_SMD:R_0805',
+      'RC0805',
+      'pull-up | bias',
+      'Device:R',
+    ]);
+
+    const rows = parseBomTable(table);
+    expect(rows).toEqual([
+      {
+        refdes: 'R1',
+        value: '10k | 1%',
+        footprint: 'Resistor_SMD:R_0805',
+        mpn: 'RC0805',
+        flags: [],
+      },
+    ]);
+  });
+
+  it('splits the 6 GitHub-measured backslash-pipe rows identically to cmark-gfm', () => {
+    for (const { row, expected } of GITHUB_MEASURED_ROWS) {
+      expect(splitRow(row), JSON.stringify(row)).toEqual(expected);
+    }
+    // Also without optional outer border pipes
+    expect(splitRow('a\\|b | c')).toEqual(['a|b', 'c']);
+    expect(splitRow('a\\\\|b | c')).toEqual(['a\\|b', 'c']);
+    expect(splitRow('`a\\\\|b` | c')).toEqual(['`a\\|b`', 'c']);
+  });
+
+  it('handles edge cases: trailing backslashes/pipes, Windows paths, unmatched backticks, CRLF, empty cells, Unicode', () => {
+    // Ordinary text and Windows paths
+    expect(splitRow('| U1 | C:\\tools\\bin | MCU |')).toEqual(['U1', 'C:\\tools\\bin', 'MCU']);
+    expect(splitRow('| U1 | foo\\\\bar | Package |')).toEqual(['U1', 'foo\\\\bar', 'Package']);
+    expect(splitRow('| U1 | path\\ | MCU |')).toEqual(['U1', 'path\\', 'MCU']);
+
+    // Leading and trailing escaped pipes vs border pipes
+    expect(splitRow('\\| a | b')).toEqual(['| a', 'b']);
+    expect(splitRow('| a | b |')).toEqual(['a', 'b']);
+    expect(splitRow('| a | b\\|')).toEqual(['a', 'b|']);
+    expect(splitRow('| a | b\\\\|')).toEqual(['a', 'b\\|']);
+    expect(splitRow('| a | b\\\\| |')).toEqual(['a', 'b\\|']);
+    expect(splitRow('| a | b\\\\ |')).toEqual(['a', 'b\\\\']);
+
+    // Unmatched backticks, multi-backtick runs, and mixed markdown syntax
+    expect(splitRow('| R1 | foo`bar | Device:R |')).toEqual(['R1', 'foo`bar', 'Device:R']);
+    expect(splitRow('| R1 | ``10k \\| ` \\| 1%`` | Device:R |')).toEqual(['R1', '``10k | ` | 1%``', 'Device:R']);
+    expect(splitRow('| R1 | \\`not-code\\` and `real\\|code` | Device:R |')).toEqual(['R1', '\\`not-code\\` and `real|code`', 'Device:R']);
+
+    // Empty cells and CRLF row endings
+    expect(splitRow('| | a | |')).toEqual(['', 'a', '']);
+    expect(splitRow('| R1 | 10k \\| 1% | Device:R |\r\n')).toEqual(['R1', '10k | 1%', 'Device:R']);
+
+    // Unicode and substitution row with escaped pipes
+    expect(splitRow('| R1 | 10kΩ ±1% µF ⚡ | Device:R |')).toEqual(['R1', '10kΩ ±1% µF ⚡', 'Device:R']);
+    expect(splitRow('| R1 | 10k | 10k 1% \\| 100mW | out of stock \\| alt |')).toEqual([
+      'R1',
+      '10k',
+      '10k 1% | 100mW',
+      'out of stock | alt',
+    ]);
+  });
+
+  it('escapeCell matches main writer output on fixed independently specified fixtures', () => {
+    expect(escapeCell(null)).toBe('');
+    expect(escapeCell(undefined)).toBe('');
+    expect(escapeCell('')).toBe('');
+    expect(escapeCell('   \r\n  ')).toBe('');
+    expect(escapeCell('10k | 1%')).toBe('10k \\| 1%');
+    expect(escapeCell('a||b')).toBe('a\\|\\|b');
+    expect(escapeCell('`a\\|b`')).toBe('`a\\\\|b`');
+    expect(escapeCell('C:\\tools\\bin')).toBe('C:\\tools\\bin');
+    expect(escapeCell('foo\\\\bar')).toBe('foo\\\\bar');
+    expect(escapeCell('path\\')).toBe('path\\');
+    expect(escapeCell('\\`10k\\|1%\\`')).toBe('\\`10k\\\\|1%\\`');
+    expect(escapeCell('  line1\r\nline2\nline3  ')).toBe('line1 line2 line3');
+    expect(escapeCell('10kΩ ±1% µF ⚡')).toBe('10kΩ ±1% µF ⚡');
+  });
+
+  it('round-trips all 19,530 strings of length 1..6 over [a, \\, |, `, space] without throwing', () => {
+    const alphabet = ['a', '\\', '|', '`', ' '];
+    let count = 0;
+    function walk(prefix: string, targetLen: number): void {
+      if (prefix.length === targetLen) {
+        count++;
+        const escaped = escapeCell(prefix);
+        expect(splitRow(`| ${escaped} | z |`), JSON.stringify(prefix)).toEqual([prefix.trim(), 'z']);
+        expect(unescapeCell(escaped), JSON.stringify(prefix)).toBe(prefix.trim());
+        return;
+      }
+      for (const ch of alphabet) walk(prefix + ch, targetLen);
+    }
+    for (let len = 1; len <= 6; len++) walk('', len);
+    expect(count).toBe(19_530);
+  });
+
+  it('preserves cell count, boundaries, and sentinel placement across all 6 GitHub-measured rows', () => {
+    for (const { row, expected } of GITHUB_MEASURED_ROWS) {
+      const sentinelRow = row.replace(/ \|$/, ' | SENTINEL_COL3 |');
+      const got = splitRow(sentinelRow);
+      expect(got, JSON.stringify(sentinelRow)).toEqual([...expected, 'SENTINEL_COL3']);
+      expect(got.at(-1), JSON.stringify(sentinelRow)).toBe('SENTINEL_COL3');
+    }
   });
 });

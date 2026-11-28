@@ -47,6 +47,42 @@ describe('renderManifest', () => {
     expect(renderManifest(manifest())).toBe(renderManifest(manifest()));
   });
 
+  it('matches main writer output for backslashes and code-span pipes and round-trips without drift', async () => {
+    const raw = JSON.stringify({
+      version: 1,
+      parts: [
+        { ref: 'U1', value: 'MCU8', libId: 'CopperMCU:MCU8', footprint: 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm', mpn: 'MCU8-SOIC', group: 'MCU', rationale: 'C:\\tools\\bin | rev' },
+        { ref: 'R1', value: '`10k\\|1%`', package: '0603', group: 'MCU', mpn: 'RC0603FR-0710KL', verified: true },
+      ],
+      substitutions: [{ ref: 'R1', wanted: '10k', chosen: '`10k\\|1%`', reason: 'alt | `a\\|b`' }],
+    });
+    const m = parseManifest(raw).manifest!;
+    const md = renderManifest(m);
+    // Expected lines captured directly from main's writer rule: replace('|', '\\|'), keep backslashes as-is.
+    expect(md).toContain('| U1 | MCU8 | Package_SO:SOIC-8_3.9x4.9mm_P1.27mm | MCU8-SOIC (UNVERIFIED) | C:\\tools\\bin \\| rev | CopperMCU:MCU8 |');
+    expect(md).toContain('| R1 | `10k\\\\|1%` | Resistor_SMD:R_0603_1608Metric | RC0603FR-0710KL |  | Device:R |');
+    expect(md).toContain('| R1 | 10k | `10k\\\\|1%` | alt \\| `a\\\\|b` |');
+
+    const rows = parseBomTable(md);
+    expect(rows).toEqual([
+      { refdes: 'U1', value: 'MCU8', footprint: 'Package_SO:SOIC-8_3.9x4.9mm_P1.27mm', mpn: 'MCU8-SOIC (UNVERIFIED)', flags: ['UNVERIFIED'] },
+      { refdes: 'R1', value: '`10k\\|1%`', footprint: 'Resistor_SMD:R_0603_1608Metric', mpn: 'RC0603FR-0710KL', flags: [] },
+    ]);
+
+    const root = await mkdtemp(path.join(tmpdir(), 'copperhead-render-compat-'));
+    try {
+      const docs = path.join(root, 'docs');
+      await mkdir(docs);
+      await writeFile(path.join(docs, 'parts.intent.json'), raw);
+      await writeFile(path.join(docs, 'BOM.md'), md);
+      expect(await manifestDrift(docs)).toEqual([]);
+      await writeFile(path.join(docs, 'BOM.md'), md.replace('| R1 | `10k\\\\|1%` |', '| R1 | 4k7 |'));
+      expect(await manifestDrift(docs)).toEqual([{ doc: 'BOM.md', claim: 'R1 value 4k7', actual: 'R1 value `10k\\|1%` in parts.intent.json' }]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('is read by the existing BOM readers with the same rows', () => {
     const md = renderManifest(manifest());
     const rows = parseBomTable(md);

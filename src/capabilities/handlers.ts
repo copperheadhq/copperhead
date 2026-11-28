@@ -636,7 +636,7 @@ export const HANDLERS: HandlerDef[] = [
         'Validate the parts manifest (docs/' + MANIFEST_FILENAME + ') against the KiCad libraries installed on THIS machine and, when clean, render docs/BOM.md from it deterministically. Pass manifest_json to write the manifest first, or omit it to check the file as it is. BOM.md is never hand-written while a manifest exists: it is this render, and a hand edit is drift. ' +
         'Manifest: {"version": 1, "parts": [entry, …], "substitutions"?: [{"ref", "wanted", "chosen", "reason"}]}. Entry: {"ref": "U1", "value": "STM32F103C8T6", "group": "<a SUBSYSTEMS.md heading>", "libId": "MCU_ST_STM32F1:STM32F103C8Tx", "footprint": "Package_QFP:LQFP-48_7x7mm_P0.5mm", "mpn": "STM32F103C8T6", "rationale": "why this part", "verified": false}. ' +
         'A passive (R, C, L, D, LED, F, FB, Y, SW, TP refdes) gives "package" ("0603", "SOD-123", "3mm") instead of libId and footprint and the engine fills both from the stock library; explicit ids still win. A BOM line with no place on the board (a battery with leads, a cable) sets "offBoard": true and needs no libId or footprint. A board feature with nothing to buy (a mounting hole, a fiducial, a pad test point) sets "noPart": true and needs no mpn: never put a description in "mpn". ' +
-        'Rules checked, each reported with its refdes and fix: one entry per refdes (no "C5-C8"); "value" is the component value (prose goes in "rationale"); every entry names a SUBSYSTEMS.md heading; every active part has libId, footprint and mpn (mpn waived by "noPart"); the libId resolves to an installed symbol (nearest installed lib_ids on a miss); the footprint resolves exactly as the board will (closest installed ids on a miss); the symbol pins are pads of the footprint; a substitution names an entry that carries the chosen part. ' +
+        'Rules checked, each reported with its refdes and fix: one entry per refdes (no "C5-C8"); "value" is the component value (prose goes in "rationale"); every entry names a SUBSYSTEMS.md heading; every active part has libId, footprint and mpn (mpn waived by "noPart"); the libId resolves to an installed symbol (nearest installed lib_ids on a miss); the footprint resolves exactly as the board will (closest installed ids on a miss); the symbol pins are pads of the footprint; at most one substitution per refdes; its chosen equals that entry\'s mpn or value, and a tolerance, rating or dielectric may follow the value (a libId alone does not agree). ' +
         'The MPN is rendered "(UNVERIFIED)" until "verified": true — do not write the flag yourself. A footprint whose library is not installed anywhere is reported for the user to install and does not block you. Headings with no part yet are noted, so a large manifest can be written one subsystem at a time and checked between edits.',
       parameters: {
         type: 'object',
@@ -669,9 +669,9 @@ export const HANDLERS: HandlerDef[] = [
       if (!check.manifest || !check.validation!.ok) {
         return { ok: false, text: `${partsStageGap(check)}\nBOM.md not written; fix the manifest and call draft_bom again.` };
       }
-      const bomRel = path.join(ctx.config.docs, 'BOM.md');
-      if (!check.bomMatches) {
-        await writeFile(resolveInRepo(ctx.repoRoot, bomRel), check.rendered!, 'utf8');
+      const bomRel = path.posix.join(ctx.config.docs.replace(/\\/g, '/'), 'BOM.md');
+      if (!check.bomMatches && check.rendered) {
+        await writeFile(resolveInRepo(ctx.repoRoot, bomRel), check.rendered, 'utf8');
         markTouched(ctx, bomRel);
       }
       const v = check.validation!;

@@ -6,22 +6,61 @@
  */
 
 export interface TableRow {
-    cells: string[];
+  cells: string[];
+}
+
+/**
+ * Escape a cell value for inclusion in a GFM pipe table.
+ *
+ * Follows the GitHub (cmark-gfm) table writer rule: every literal pipe is
+ * prefixed with one backslash, line breaks become spaces, and ends are
+ * trimmed. Existing backslashes and code spans are kept unchanged.
+ */
+export function escapeCell(text: string | undefined | null): string {
+  return (text ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+}
+
+/**
+ * Unescape a cell value from a GFM pipe table.
+ * Uses the shared GFM row scanner to ensure exact agreement with splitRow.
+ */
+export function unescapeCell(cell: string): string {
+  const cells = splitRow('| ' + cell + ' |');
+  return cells[0] ?? '';
+}
+
+/**
+ * Split one row into trimmed cells. The outer pipes are optional, because they
+ * are optional in GitHub-flavored markdown: `Refdes | Pin | Net` renders as a
+ * table exactly like `| Refdes | Pin | Net |` does, and a hand- or LLM-authored
+ * doc may legitimately be written either way.
+ *
+ * Follows the GitHub (cmark-gfm) and markdown-it table rule: a pipe immediately
+ * preceded by a backslash is escaped regardless of any earlier backslashes,
+ * does not split the cell, and drops only that one escaping backslash. Code
+ * spans do not alter table-level pipe splitting.
+ */
+export function splitRow(line: string): string[] {
+  const s = line.trim();
+  const cells: string[] = [];
+  let cur = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (ch === '\\' && s[i + 1] === '|') {
+      cur += '|';
+      i++;
+    } else if (ch === '|') {
+      cells.push(cur.trim());
+      cur = '';
+    } else {
+      cur += ch;
+    }
   }
-  
-  /**
-   * Split one row into trimmed cells. The outer pipes are optional, because they
-   * are optional in GitHub-flavored markdown: `Refdes | Pin | Net` renders as a
-   * table exactly like `| Refdes | Pin | Net |` does, and a hand- or LLM-authored
-   * doc may legitimately be written either way.
-   */
-  function splitRow(line: string): string[] {
-    return line
-      .replace(/^\|/, '')
-      .replace(/\|$/, '')
-      .split('|')
-      .map((c) => c.trim());
-  }
+  cells.push(cur.trim());
+  if (s.startsWith('|')) cells.shift();
+  if (cells.length > 0 && s.endsWith('|') && !s.endsWith('\\|')) cells.pop();
+  return cells;
+}
 
   /** `|---|:--:|` and friends: the row separating a header from its data. */
   function isSeparatorRow(cells: string[]): boolean {

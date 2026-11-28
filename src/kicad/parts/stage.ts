@@ -48,7 +48,7 @@ export interface PartsCheckOptions {
 const canon = (s: string): string => s.replace(/\r\n/g, '\n').split('\n').map((l) => l.trimEnd()).join('\n').replace(/\n+$/, '');
 
 export function partsManifestPath(docs: string): string {
-  return path.join(docs, MANIFEST_FILENAME);
+  return path.posix.join(docs.replace(/\\/g, '/'), MANIFEST_FILENAME);
 }
 
 /** Validate the repo's manifest, or null when there is none. */
@@ -69,9 +69,20 @@ export async function checkPartsManifest(repoRoot: string, config: PartsCheckCon
   const subsystemsPath = path.join(repoRoot, config.docs, 'SUBSYSTEMS.md');
   const subsystemsMd = existsSync(subsystemsPath) ? await readFile(subsystemsPath, 'utf8') : null;
   out.validation = await validatePartsManifest(manifest, { symbols, footprints, subsystemsMd, ...(opts.maxFindings !== undefined ? { maxFindings: opts.maxFindings } : {}) });
-  out.rendered = renderManifest(manifest);
+  if (out.validation.ok) {
+    try {
+      out.rendered = renderManifest(manifest);
+    } catch (err) {
+      out.rendered = null;
+      out.validation.ok = false;
+      out.validation.findings.push({
+        ref: MANIFEST_FILENAME,
+        detail: `${MANIFEST_FILENAME} cannot be rendered to BOM.md: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
   const bomAbs = path.join(repoRoot, config.docs, 'BOM.md');
-  out.bomMatches = existsSync(bomAbs) && canon(await readFile(bomAbs, 'utf8')) === canon(out.rendered);
+  out.bomMatches = !!out.rendered && existsSync(bomAbs) && canon(await readFile(bomAbs, 'utf8')) === canon(out.rendered);
   return out;
 }
 
