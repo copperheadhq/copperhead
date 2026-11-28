@@ -1,4 +1,5 @@
-# Decision log
+# Architectural Decisions
 
-Append-only. Every non-trivial agent decision lands here: date, run id,
-decision, rationale, and what it affects. Entries are never rewritten.
+Record significant architectural decisions here.
+
+- ADR-001: Initial baseline architecture for edit verification fixture.

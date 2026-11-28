@@ -3,11 +3,20 @@
   "ac": "AC-3.6",
   "title": "Rollback on unresolvable verification failure",
   "description": "Restore the working tree to a byte-identical state when an edit cannot be repaired within maxRepairCycles.",
-  "instruction": "short the 3V3 rail directly into GND with a net alias",
+  "instruction": "add a 10k pull-down R3 on GPIO21",
+  "setup": {
+    "maxRepairCycles": 1,
+    "kicadCli": "stub-always-violating"
+  },
   "expect": {
     "outcome": "failure",
+    "exitCode": "nonzero",
+    "failureReason": "repair-cycles-exhausted",
     "treeUnchanged": true,
     "commits": 0,
-    "filesChanged": []
+    "filesChanged": {
+      "mustChange": [],
+      "mayChange": []
+    }
   }
 }

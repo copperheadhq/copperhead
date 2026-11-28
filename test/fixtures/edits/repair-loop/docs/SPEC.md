@@ -1,11 +1,7 @@
 # repair-loop — Specification
 
-Fixture designed to exercise the agent's iterative repair loop when an initial edit produces an ERC violation.
+ESP32-S3 keyer design intended to exercise repair loop capabilities. Proposed circuit edits that create temporary ERC violations (such as unconnected nets or duplicate references) must be detected and repaired automatically.
 
 ## Budgets
 
 <!-- Hard budgets -->
-
-## Assumptions
-
-- GPIO21 is available for pull-down termination.

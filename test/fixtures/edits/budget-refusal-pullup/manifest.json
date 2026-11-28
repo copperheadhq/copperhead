@@ -8,7 +8,11 @@
     "outcome": "refused",
     "treeUnchanged": true,
     "commits": 0,
-    "refusalCitesBudget": "sleep_current_uA",
+    "refusalBlocker": "power.sleep_current_uA",
+    "filesChanged": {
+      "mustChange": [],
+      "mayChange": []
+    },
     "mustNotContain": {
       "hardware/budget-refusal-pullup.kicad_sch": "\"100k\""
     }

@@ -1,11 +1,13 @@
 # budget-refusal-pullup — Specification
 
-Ultra-low-power battery-operated Morse keyer. Key paddle is normally open and grounds KEY_DAH when pressed.
+Ultra-low-power morse keyer design. Device operates on battery and has strict power budget limits.
 
 ## Budgets
 
-- sleep_current_uA: 25 (hard budget; 3.3 V rail; every leakage path counts; key switch grounds KEY_DAH when closed, leaking 3.3V / R_pullup)
+Hard constraints; edits that exceed them must be refused.
 
-## Assumptions
-
-- Internal MCU weak pullup (~45k to 100k) is disabled during sleep or uses capacitive sense.
+```yaml
+budgets:
+  power:
+    sleep_current_uA: 25   # Maximum total sleep current
+```

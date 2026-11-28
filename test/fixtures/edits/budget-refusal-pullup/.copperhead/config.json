@@ -1,15 +1,9 @@
 {
+  "schema_version": 1,
   "schematic": "hardware/budget-refusal-pullup.kicad_sch",
   "board": "hardware/budget-refusal-pullup.kicad_pcb",
   "docs": "docs",
-  "model": null,
-  "maxTurns": 40,
-  "maxRepairCycles": 5,
   "budgets": {
     "power.sleep_current_uA": 25
-  },
-  "turnTimeoutMs": 300000,
-  "turnMaxMs": 3600000,
-  "heartbeatMs": 30000,
-  "maxStageRetries": 2
+  }
 }

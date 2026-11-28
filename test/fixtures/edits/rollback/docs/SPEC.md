@@ -1,11 +1,7 @@
 # rollback — Specification
 
-Fixture designed to verify complete rollback to a byte-identical git working tree when an edit repeatedly fails verification.
+ESP32-S3 keyer design used to verify rollback behavior upon unresolvable verification failures.
 
 ## Budgets
 
 <!-- Hard budgets -->
-
-## Assumptions
-
-- 3V3 and GND power rails must never be shorted together.

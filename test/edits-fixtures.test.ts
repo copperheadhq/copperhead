@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 import { parseSexp, listSymbols, pinNets } from '../src/kicad/sexp.js';
 import { checkDrift } from '../src/memory/drift.js';
+import { runErc, runDrc, KicadCliMissingError } from '../src/kicad/cli.js';
+import { tempFixtureRepo } from './helpers.js';
+import { buildAllFixtures } from '../scripts/build-edit-fixtures.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EDITS_DIR = path.join(HERE, 'fixtures', 'edits');
@@ -40,6 +44,58 @@ describe('edit-verification fixtures (issue #58, AC-3.1..AC-3.6)', () => {
     expect(readme).toContain('AC-3.6');
   });
 
+  // F4(a): static guard test asserting every mustContain is unmet in the starting tree
+  it('every mustContain expectation is unmet in starting tree', async () => {
+    for (const caseId of EXPECTED_CASES) {
+      const caseDir = path.join(EDITS_DIR, caseId);
+      const manifestPath = path.join(caseDir, 'manifest.json');
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+      const mustContain = manifest.expect?.mustContain;
+      if (!mustContain) continue;
+
+      for (const [relPath, needleOrNeedles] of Object.entries(mustContain)) {
+        const fullPath = path.join(caseDir, relPath);
+        if (!existsSync(fullPath)) continue;
+        const text = await readFile(fullPath, 'utf8');
+        const needles = Array.isArray(needleOrNeedles) ? needleOrNeedles : [needleOrNeedles];
+        for (const needle of needles) {
+          expect(
+            text.includes(needle as string),
+            `case "${caseId}": expected mustContain "${needle}" in ${relPath} to be absent from starting tree`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  // F7: generator reproduction test ensuring generator reproduces committed tree byte-for-byte
+  it('generator reproduces committed fixtures byte-for-byte', async () => {
+    const tempDir = path.join(os.tmpdir(), `copperhead-edits-diff-${Date.now()}`);
+    try {
+      await buildAllFixtures(tempDir);
+
+      const compareDirs = async (sourceDir: string, targetDir: string): Promise<void> => {
+        const entries = await readdir(sourceDir, { withFileTypes: true });
+        for (const entry of entries) {
+          const sPath = path.join(sourceDir, entry.name);
+          const tPath = path.join(targetDir, entry.name);
+          expect(existsSync(tPath), `Generated file missing: ${tPath}`).toBe(true);
+          if (entry.isDirectory()) {
+            await compareDirs(sPath, tPath);
+          } else {
+            const sContent = await readFile(sPath, 'utf8');
+            const tContent = await readFile(tPath, 'utf8');
+            expect(tContent, `Content mismatch in ${entry.name}`).toBe(sContent);
+          }
+        }
+      };
+
+      await compareDirs(EDITS_DIR, tempDir);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   for (const caseId of EXPECTED_CASES) {
     describe(`case: ${caseId}`, () => {
       const caseDir = path.join(EDITS_DIR, caseId);
@@ -56,6 +112,15 @@ describe('edit-verification fixtures (issue #58, AC-3.1..AC-3.6)', () => {
         expect(manifest.instruction.length).toBeGreaterThan(0);
         expect(manifest.expect).toBeDefined();
         expect(['success', 'refused', 'failure']).toContain(manifest.expect.outcome);
+
+        // F5 schema verification
+        if (manifest.expect.filesChanged) {
+          expect(Array.isArray(manifest.expect.filesChanged.mustChange)).toBe(true);
+          expect(Array.isArray(manifest.expect.filesChanged.mayChange)).toBe(true);
+        }
+        if (manifest.expect.outcome === 'refused') {
+          expect(typeof manifest.expect.refusalBlocker).toBe('string');
+        }
       });
 
       it('has complete documentation set in docs/', () => {
@@ -100,6 +165,32 @@ describe('edit-verification fixtures (issue #58, AC-3.1..AC-3.6)', () => {
         const mismatches = await checkDrift(caseDir, 'docs', `hardware/${caseId}.kicad_sch`);
         expect(mismatches).toEqual([]);
       });
+
+      // F6: ERC and DRC clean check on a copy of the case in a temp repo
+      it('starting project is ERC- and DRC-clean under kicad-cli', async () => {
+        const { repo, cleanup } = await tempFixtureRepo(caseDir);
+        try {
+          const schPath = path.join(repo, 'hardware', `${caseId}.kicad_sch`);
+          const erc = await runErc(schPath);
+          const ercErrors = erc.violations.filter((v) => v.severity === 'error');
+          expect(ercErrors, `Starting ERC errors in ${caseId}`).toEqual([]);
+
+          const pcbPath = path.join(repo, 'hardware', `${caseId}.kicad_pcb`);
+          const drc = await runDrc(pcbPath);
+          const drcErrors = drc.violations.filter((v) => v.severity === 'error');
+          expect(drcErrors, `Starting DRC errors in ${caseId}`).toEqual([]);
+          expect(drc.unconnected, `Starting unconnected items in ${caseId}`).toBe(0);
+          expect(drc.parityErrors, `Starting schematic/PCB parity errors in ${caseId}`).toBe(0);
+        } catch (err) {
+          if (err instanceof KicadCliMissingError) {
+            // kicad-cli not installed in this environment (e.g. dev host); safely skip
+            return;
+          }
+          throw err;
+        } finally {
+          await cleanup();
+        }
+      });
     });
   }
 
@@ -130,6 +221,18 @@ describe('edit-verification fixtures (issue #58, AC-3.1..AC-3.6)', () => {
     expect(spec).toContain('GPIO3');
     expect(spec).toContain('GPIO45');
     expect(spec).toContain('GPIO46');
+  });
+
+  // F8: pin-choice-strapping dual write test for pinout.rtc_capable
+  it('strapping-pin case has documented rtc_capable constraint matching SPEC.md', async () => {
+    const caseDir = path.join(EDITS_DIR, 'pin-choice-strapping');
+    const constraints = JSON.parse(await readFile(path.join(caseDir, '.copperhead', 'constraints.json'), 'utf8'));
+    expect(constraints['pinout.rtc_capable']).toBeDefined();
+    expect(constraints['pinout.rtc_capable'].affects).toContain('KEY_IN');
+
+    const spec = await readFile(path.join(caseDir, 'docs', 'SPEC.md'), 'utf8');
+    expect(spec).toContain('rtc_capable');
+    expect(spec).toContain('RTC-capable');
   });
 
   it('budget refusal case has documented 25 µA sleep current budget', async () => {

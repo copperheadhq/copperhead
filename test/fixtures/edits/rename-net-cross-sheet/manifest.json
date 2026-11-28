@@ -8,12 +8,19 @@
     "outcome": "success",
     "erc": "clean",
     "commits": 1,
-    "filesChanged": [
-      "hardware/rename-net-cross-sheet.kicad_sch",
-      "hardware/keyer.kicad_sch",
-      "docs/PINOUT.md",
-      "docs/SUBSYSTEMS.md"
-    ],
+    "filesChanged": {
+      "mustChange": [
+        "hardware/rename-net-cross-sheet.kicad_sch",
+        "hardware/keyer.kicad_sch",
+        "docs/PINOUT.md",
+        "docs/SUBSYSTEMS.md"
+      ],
+      "mayChange": [
+        "openspec/changes/**",
+        "docs/CHANGELOG.md",
+        "docs/DECISIONS.md"
+      ]
+    },
     "maxSchLinesChangedPct": 5,
     "mustContain": {
       "docs/PINOUT.md": "KEY_DASH",

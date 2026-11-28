@@ -1,11 +1,7 @@
 # rename-net-cross-sheet — Specification
 
-Two-sheet Morse keyer design based on ESP32-S3. The KEY_DAH paddle signal traverses the root MCU sheet and the keyer conditioning subsheet.
+Morse keyer design with hierarchical multi-sheet schematic architecture. Net KEY_DAH connects U1 on the root sheet to R2 on the Keyer sub-sheet.
 
 ## Budgets
 
 <!-- Hard budgets -->
-
-## Assumptions
-
-- Keyer conditioning uses 1k series protection and 10k pullup.

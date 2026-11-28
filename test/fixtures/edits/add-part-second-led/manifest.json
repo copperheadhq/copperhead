@@ -8,13 +8,21 @@
     "outcome": "success",
     "erc": "clean",
     "commits": 1,
-    "filesChanged": [
-      "hardware/add-part-second-led.kicad_sch",
-      "docs/BOM.md"
-    ],
+    "footprintIn": "LED_SMD",
+    "filesChanged": {
+      "mustChange": [
+        "hardware/add-part-second-led.kicad_sch",
+        "docs/BOM.md"
+      ],
+      "mayChange": [
+        "openspec/changes/**",
+        "docs/CHANGELOG.md",
+        "docs/DECISIONS.md"
+      ]
+    },
     "mustContain": {
-      "docs/BOM.md": "UNVERIFIED",
-      "hardware/add-part-second-led.kicad_sch": "D2"
+      "docs/BOM.md": "| D2 |",
+      "hardware/add-part-second-led.kicad_sch": "(property \"Reference\" \"D2\""
     }
   }
 }

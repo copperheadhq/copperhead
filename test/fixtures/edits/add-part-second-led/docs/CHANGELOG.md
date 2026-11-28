@@ -1,3 +1,3 @@
-# Design changelog
+# Changelog
 
-Append-only, newest first. One entry per committed copperhead run.
+- Baseline initial revision for edit verification fixture.

@@ -1,7 +1,6 @@
-# Layout intent
+# Layout Constraints
 
-Placement and routing intent: keepouts, pours, ESD placement.
+Physical layout constraints and stackup details.
 
-## Draft quality
-
-<!-- copperhead writes an honest assessment here after any layout pass -->
+- 2-layer standard FR-4 stackup (1.6mm thickness).
+- Outline rectangle defined on Edge.Cuts (100mm x 70mm).

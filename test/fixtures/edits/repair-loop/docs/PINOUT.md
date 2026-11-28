@@ -11,5 +11,5 @@ reassigning pins.
 | U1 | 4 | GPIO3 | | |
 | U1 | 5 | GPIO14 | KEY_DAH | |
 | U1 | 6 | GPIO18 | | |
-| U1 | 7 | GPIO21 | | Target pin for pulldown |
+| U1 | 7 | GPIO21 | | |
 | U1 | 8 | GND | GND | |

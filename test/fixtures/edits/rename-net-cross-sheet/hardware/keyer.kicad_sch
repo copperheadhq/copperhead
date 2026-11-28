@@ -2,13 +2,13 @@
   (version 20231120)
   (generator "eeschema")
   (generator_version "8.0")
-  (uuid "0a0a0a0a-0000-4000-8000-000000000002")
+  (uuid "0b0b0b0b-0000-4000-8000-000000000001")
   (paper "A4")
   (title_block
     (title "Keyer Subsheet")
     (date "2026-07-31")
     (rev "A")
-    (comment 1 "Keyer conditioning circuit")
+    (comment 1 "Hierarchical subsheet for morse key inputs")
   )
   (lib_symbols
     (symbol "Device:R"
@@ -17,18 +17,10 @@
       (exclude_from_sim no)
       (in_bom yes)
       (on_board yes)
-      (property "Reference" "R" (at 2.032 0 90)
-        (effects (font (size 1.27 1.27)))
-      )
-      (property "Value" "R" (at 0 0 90)
-        (effects (font (size 1.27 1.27)))
-      )
-      (property "Footprint" "" (at -1.778 0 90)
-        (effects (font (size 1.27 1.27)) hide)
-      )
-      (property "Datasheet" "~" (at 0 0 0)
-        (effects (font (size 1.27 1.27)) hide)
-      )
+      (property "Reference" "R" (at 2.032 0 90) (effects (font (size 1.27 1.27))))
+      (property "Value" "R" (at 0 0 90) (effects (font (size 1.27 1.27))))
+      (property "Footprint" "" (at -1.778 0 90) (effects (font (size 1.27 1.27)) hide))
+      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (symbol "R_0_1"
         (rectangle (start -1.016 -2.54) (end 1.016 2.54)
           (stroke (width 0.254) (type default))
@@ -50,30 +42,18 @@
   (global_label "3V3" (shape input) (at 88.9 91.44 90) (fields_autoplaced yes)
     (effects (font (size 1.27 1.27)) (justify left))
     (uuid "0c0c0c0c-0000-4000-8000-000000000005")
-    (property "Intersheetrefs" "${INTERSHEET_REFS}" (at 88.9814 87.0964 90)
-      (effects (font (size 1.27 1.27)) (justify left) hide)
-    )
   )
   (global_label "EN" (shape input) (at 88.9 99.06 270) (fields_autoplaced yes)
     (effects (font (size 1.27 1.27)) (justify right))
     (uuid "0c0c0c0c-0000-4000-8000-000000000006")
-    (property "Intersheetrefs" "${INTERSHEET_REFS}" (at 88.9814 103.4036 270)
-      (effects (font (size 1.27 1.27)) (justify right) hide)
-    )
   )
   (global_label "KEY_DAH" (shape input) (at 96.52 106.68 90) (fields_autoplaced yes)
     (effects (font (size 1.27 1.27)) (justify left))
     (uuid "0c0c0c0c-0000-4000-8000-000000000007")
-    (property "Intersheetrefs" "${INTERSHEET_REFS}" (at 96.6014 102.3364 90)
-      (effects (font (size 1.27 1.27)) (justify left) hide)
-    )
   )
   (global_label "GND" (shape input) (at 96.52 114.3 270) (fields_autoplaced yes)
     (effects (font (size 1.27 1.27)) (justify right))
     (uuid "0c0c0c0c-0000-4000-8000-000000000008")
-    (property "Intersheetrefs" "${INTERSHEET_REFS}" (at 96.6014 118.6436 270)
-      (effects (font (size 1.27 1.27)) (justify right) hide)
-    )
   )
   (symbol
     (lib_id "Device:R")
@@ -101,7 +81,7 @@
     (pin "2" (uuid "0e0e0e0e-0000-4000-8000-000000000002"))
     (instances
       (project "rename-net-cross-sheet"
-        (path "/0a0a0a0a-0000-4000-8000-000000000001/0f0f0f0f-0000-4000-8000-00000000sh01"
+        (path "/0a0a0a0a-0000-4000-8000-000000000001/0f0f0f0f-0000-4000-8000-000000000002"
           (reference "R1") (unit 1)
         )
       )
@@ -133,13 +113,13 @@
     (pin "2" (uuid "0e0e0e0e-0000-4000-8000-000000000004"))
     (instances
       (project "rename-net-cross-sheet"
-        (path "/0a0a0a0a-0000-4000-8000-000000000001/0f0f0f0f-0000-4000-8000-00000000sh01"
+        (path "/0a0a0a0a-0000-4000-8000-000000000001/0f0f0f0f-0000-4000-8000-000000000002"
           (reference "R2") (unit 1)
         )
       )
     )
   )
   (sheet_instances
-    (path "/0f0f0f0f-0000-4000-8000-00000000sh01" (page "2"))
+    (path "/0f0f0f0f-0000-4000-8000-000000000002" (page "2"))
   )
 )

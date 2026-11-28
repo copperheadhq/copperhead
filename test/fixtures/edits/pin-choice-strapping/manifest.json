@@ -3,22 +3,33 @@
   "ac": "AC-3.2",
   "title": "Constraint-aware pin selection",
   "description": "Move an input signal to an RTC-capable pin while respecting strapping-pin constraints (GPIO0, GPIO3, GPIO45, GPIO46 forbidden).",
-  "instruction": "move the key input to a different RTC-capable pin",
+  "instruction": "move the key input to an RTC-capable pin while avoiding strapping pins",
   "expect": {
     "outcome": "success",
     "erc": "clean",
     "commits": 1,
-    "filesChanged": [
-      "hardware/pin-choice-strapping.kicad_sch",
-      "docs/PINOUT.md"
-    ],
+    "check": "ok",
+    "filesChanged": {
+      "mustChange": [
+        "hardware/pin-choice-strapping.kicad_sch",
+        "docs/PINOUT.md"
+      ],
+      "mayChange": [
+        "openspec/changes/**",
+        "docs/CHANGELOG.md",
+        "docs/DECISIONS.md"
+      ]
+    },
+    "mustMatch": {
+      "docs/PINOUT.md": "\\\\| (?:U1 \\\\| )?\\\\d+ \\\\| (?:GPIO|IO)(1|2|14|18|21) \\\\| KEY_IN \\\\|"
+    },
     "mustNotContain": {
       "docs/PINOUT.md": [
-        "| U1 | 3 | GPIO0 | KEY_IN |",
-        "| U1 | 4 | GPIO3 | KEY_IN |",
-        "| U1 | 9 | GPIO45 | KEY_IN |",
-        "| U1 | 10 | GPIO46 | KEY_IN |",
-        "| U1 | 5 | GPIO14 | KEY_IN |"
+        "| U1 | 27 | IO0 | KEY_IN |",
+        "| U1 | 15 | IO3 | KEY_IN |",
+        "| U1 | 26 | IO45 | KEY_IN |",
+        "| U1 | 16 | IO46 | KEY_IN |",
+        "| U1 | 31 | IO38 | KEY_IN |"
       ]
     }
   }

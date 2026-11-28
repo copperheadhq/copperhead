@@ -12,7 +12,7 @@
       "KEY_IN"
     ]
   },
-  "pinout.rtc_required": {
+  "pinout.rtc_capable": {
     "value": "RTC-capable",
     "source": "docs/SPEC.md#rtc-capable-gpios",
     "affects": [

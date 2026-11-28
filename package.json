@@ -57,6 +57,7 @@
     "docs:dev": "npm --prefix docs run dev",
     "docs:build": "npm --prefix docs run build",
     "docs:preview": "npm --prefix docs run preview",
+    "fixtures:edits": "tsx scripts/build-edit-fixtures.ts",
     "refboards": "bash scripts/draft-reference-boards.sh",
     "scoresheets": "tsx scripts/score-sheets.ts",
     "realdesigns": "tsx scripts/draft-real-designs.ts"
