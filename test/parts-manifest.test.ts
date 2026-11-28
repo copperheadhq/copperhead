@@ -633,13 +633,76 @@ describe('substitution chosen: value plus a rating word', () => {
     expect(substitutionCarriesChosen({ value: '100nF' }, '100nF C0G')).toBe(true);
     expect(substitutionCarriesChosen({ value: '100nF' }, '100nF NP0')).toBe(true);
     expect(substitutionCarriesChosen({ value: '100nF' }, '100nF 50V')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1% 0.25W')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '10k' }, ' 10k   1%   100mW ')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF\t50V')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF 6.3v x5r')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF c0g')).toBe(true);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF np0')).toBe(true);
   });
-  it('still rejects a different value, libId-only match, or SI prefix', () => {
+  it('still rejects a different value, libId-only match, SI prefix, or arbitrary trailing text', () => {
     expect(substitutionCarriesChosen({ value: '10k' }, '10k5')).toBe(false);
     expect(substitutionCarriesChosen({ value: '1k' }, '1k2 1%')).toBe(false);
     expect(substitutionCarriesChosen({ value: '0' }, '0.1uF')).toBe(false);
     expect(substitutionCarriesChosen({ value: '100M' }, '100m 1%')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '100m' }, '100M 1%')).toBe(false);
     expect(substitutionCarriesChosen({ value: '100mΩ' }, '100MΩ 1%')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '100k' }, '0')).toBe(false);
     expect(substitutionCarriesChosen({ value: '10k', libId: 'Device:R' }, 'Device:R')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1% 22k')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF 50V but use 1uF')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1MW')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1% 1MW')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 100mw')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 0.25w')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1/4w')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1% arbitrary')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k arbitrary')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF X5R 1uF')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '100nF' }, '100nF 50V X5R invalid')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1% 100mW 22k')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1% 22k 100mW')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1%invalid')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1%,')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k 1% 50V.')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, '10k1%')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '' }, '1% 100mW')).toBe(false);
+    expect(substitutionCarriesChosen({ value: '10k' }, `10k ${'1% '.repeat(20)}22k`)).toBe(false);
+  });
+  it('enforces complete descriptor sequences in validatePartsManifest', async () => {
+    const R1 = { ref: 'R1', value: '10k', group: 'Power', package: '0603' };
+    const C1 = { ref: 'C1', value: '10uF', group: 'Power', package: '0603' };
+
+    const ok = await validate(
+      manifest([R1, C1], {
+        substitutions: [
+          { ref: 'R1', wanted: '10k 0402', chosen: '10k 1% 100mW', reason: '0603 stock' },
+          { ref: 'C1', wanted: '10uF X7R', chosen: '10uF 6.3V X5R', reason: 'X5R in stock' },
+        ],
+      }),
+    );
+    expect(ok.ok).toBe(true);
+    expect(ok.findings).toEqual([]);
+
+    const badTrail = await validate(
+      manifest([R1], {
+        substitutions: [{ ref: 'R1', wanted: '10k', chosen: '10k 1% 22k', reason: 'conflicting value' }],
+      }),
+    );
+    expect(badTrail.ok).toBe(false);
+    expect(badTrail.findings.map((f) => f.detail)).toContain(
+      'substitution for R1: "chosen" is "10k 1% 22k" but the entry carries value "10k"; they must agree',
+    );
+
+    const badMw = await validate(
+      manifest([R1], {
+        substitutions: [{ ref: 'R1', wanted: '10k', chosen: '10k 1MW', reason: 'bad power unit' }],
+      }),
+    );
+    expect(badMw.ok).toBe(false);
+    expect(badMw.findings.map((f) => f.detail)).toContain(
+      'substitution for R1: "chosen" is "10k 1MW" but the entry carries value "10k"; they must agree',
+    );
   });
 });

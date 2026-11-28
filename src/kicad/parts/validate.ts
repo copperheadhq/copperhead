@@ -98,13 +98,17 @@ export function getSiPrefixM(s: string): 'm' | 'M' | null {
  * 1. The entry's manufacturer part number (exact string match, case-insensitive).
  * 2. The entry's component value:
  *    - Exact string match or normalized value match (preserving SI prefix sensitivity, e.g. 100m != 100M).
- *    - The value followed by a tolerance, rating or dielectric descriptor (e.g. '100nF 6.3V',
- *      '10uF 6.3V X5R', '10k ±1%', '10k 1% 100mW'); additional trailing text is permitted.
+ *    - The value followed by one or more whitespace-separated tolerance, rating or dielectric
+ *      descriptors (e.g. '100nF 6.3V', '10uF 6.3V X5R', '10k ±1%', '10k 1% 100mW');
+ *      arbitrary trailing text is not permitted.
  *
  * Liberal substring heuristics, generic prefix/delimiter splitting (e.g. startsWith),
  * standalone libId matches, and fake manufacturer aliases are rejected: string matching
  * checks field consistency, not electrical compatibility or procurement suitability.
  */
+const DESCRIPTOR_RE =
+  /^(?:±?\d+(?:\.\d+)?%|\d+(?:\.\d+)?[Vv]|\d+(?:\.\d+)?m?W|\d+\/\d+W|[XYZxyz]\d[A-Za-z]|[Cc]0[Gg]|[Nn][Pp]0)$/;
+
 export function substitutionCarriesChosen(
   part: { value: string; mpn?: string | null; libId?: string | null },
   chosenStr: string,
@@ -128,16 +132,16 @@ export function substitutionCarriesChosen(
   const chosenNorm = normalizeValue(chosenStr);
   if (samePrefix(partVal, chosen) && (partVal.toLowerCase() === chosenLower || (!!valNorm && !!chosenNorm && valNorm === chosenNorm))) return true;
 
-  // The value, then a tolerance, rating or dielectric word ("10k 1%", "100nF 6.3V X5R",
-  // "10k 1% 100mW"). The prefix check reads only the value part, so a "100mW" rating
-  // is not taken for a milli value; "10k5", "1k2" and "0.1uF" still never match.
+  // The value, then one or more whitespace-separated tolerance, rating or dielectric
+  // descriptors ("10k 1%", "100nF 6.3V X5R", "10k 1% 100mW"). The prefix check reads
+  // only the value part, so a "100mW" rating is not taken for a milli value; "10k5",
+  // "1k2" and "0.1uF" still never match, and power units (W, mW) are case-sensitive.
   const head = chosen.slice(0, partVal.length);
   const rest = chosen.slice(partVal.length);
-  return (
-    head.toLowerCase() === partVal.toLowerCase() &&
-    samePrefix(partVal, head) &&
-    /^\s+(?:±?\d+(?:\.\d+)?%|\d+(?:\.\d+)?V|\d+(?:\.\d+)?m?W|\d+\/\d+W|[XYZ]\d[A-Z]|C0G|NP0)(?:\s.*)?$/i.test(rest)
-  );
+  if (head.toLowerCase() !== partVal.toLowerCase() || !samePrefix(partVal, head)) return false;
+  if (!/^\s/.test(rest)) return false;
+  const tokens = rest.trim().split(/\s+/);
+  return tokens.length > 0 && tokens.every((t) => DESCRIPTOR_RE.test(t));
 }
 
 export async function validatePartsManifest(manifest: PartsManifest, opts: ValidateOptions): Promise<ManifestValidation> {

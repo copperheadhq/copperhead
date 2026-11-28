@@ -28,7 +28,7 @@ The part-selection stage SHALL produce a parts manifest at `docs/parts.intent.js
 
 #### Scenario: Substitution procurement contract and single substitution record
 
-- **WHEN** a manifest carries multiple substitutions for the same refdes, or a chosen part that does not equal the entry's mpn or value (optionally followed by a tolerance, rating or dielectric descriptor, preserving case-sensitive milli vs mega SI prefixes and rejecting standalone libId)
+- **WHEN** a manifest carries multiple substitutions for the same refdes, or a chosen part that does not equal the entry's mpn or value (optionally followed by one or more whitespace-separated tolerance, rating or dielectric descriptors with no arbitrary trailing text, preserving case-sensitive milli vs mega SI prefixes and power units and rejecting standalone libId)
 - **THEN** validation reports a finding rejecting duplicate substitutions or procurement disagreement
 
 ### Requirement: Stage-3 completion is the validator's verdict
