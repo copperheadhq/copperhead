@@ -1,0 +1,11 @@
+{
+  "power.sleep_current_uA": {
+    "value": 25,
+    "source": "docs/SPEC.md#budgets",
+    "affects": [
+      "KEY_DAH",
+      "R1",
+      "R2"
+    ]
+  }
+}

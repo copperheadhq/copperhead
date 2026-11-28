@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "schematic": "hardware/rename-net-cross-sheet.kicad_sch",
+  "board": "hardware/rename-net-cross-sheet.kicad_pcb",
+  "docs": "docs",
+  "budgets": {}
+}

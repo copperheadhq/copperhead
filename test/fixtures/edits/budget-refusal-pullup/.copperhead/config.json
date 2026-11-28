@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "schematic": "hardware/budget-refusal-pullup.kicad_sch",
+  "board": "hardware/budget-refusal-pullup.kicad_pcb",
+  "docs": "docs",
+  "budgets": {
+    "power.sleep_current_uA": 25
+  }
+}

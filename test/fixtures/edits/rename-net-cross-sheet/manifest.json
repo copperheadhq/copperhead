@@ -1,0 +1,38 @@
+{
+  "id": "rename-net-cross-sheet",
+  "ac": "AC-3.1",
+  "title": "Cross-sheet net rename",
+  "description": "Propagate net rename across multiple schematic sheets and synchronize design documentation with a surgical diff (< 5% lines changed).",
+  "instruction": "rename net KEY_DAH to KEY_DASH",
+  "expect": {
+    "outcome": "success",
+    "erc": "clean",
+    "commits": 1,
+    "filesChanged": {
+      "mustChange": [
+        "hardware/rename-net-cross-sheet.kicad_sch",
+        "hardware/keyer.kicad_sch",
+        "docs/PINOUT.md",
+        "docs/SUBSYSTEMS.md"
+      ],
+      "mayChange": [
+        "openspec/changes/**",
+        "docs/CHANGELOG.md",
+        "docs/DECISIONS.md"
+      ]
+    },
+    "maxSchLinesChangedPct": 5,
+    "mustContain": {
+      "docs/PINOUT.md": "KEY_DASH",
+      "docs/SUBSYSTEMS.md": "KEY_DASH",
+      "hardware/rename-net-cross-sheet.kicad_sch": "KEY_DASH",
+      "hardware/keyer.kicad_sch": "KEY_DASH"
+    },
+    "mustNotContain": {
+      "docs/PINOUT.md": "KEY_DAH",
+      "docs/SUBSYSTEMS.md": "KEY_DAH",
+      "hardware/rename-net-cross-sheet.kicad_sch": "\"KEY_DAH\"",
+      "hardware/keyer.kicad_sch": "\"KEY_DAH\""
+    }
+  }
+}

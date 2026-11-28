@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "schematic": "hardware/repair-loop.kicad_sch",
+  "board": "hardware/repair-loop.kicad_pcb",
+  "docs": "docs",
+  "budgets": {}
+}

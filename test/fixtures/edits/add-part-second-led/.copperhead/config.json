@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "schematic": "hardware/add-part-second-led.kicad_sch",
+  "board": "hardware/add-part-second-led.kicad_pcb",
+  "docs": "docs",
+  "budgets": {}
+}

@@ -7,10 +7,10 @@ import { execa } from 'execa';
 export const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'open-key');
 export const REPORTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'reports');
 
-/** Copy the open-key fixture into a fresh temp dir and git-init it. */
-export async function tempFixtureRepo(): Promise<{ repo: string; cleanup: () => Promise<void> }> {
+/** Copy a fixture (default open-key) into a fresh temp dir and git-init it. */
+export async function tempFixtureRepo(source: string = FIXTURE): Promise<{ repo: string; cleanup: () => Promise<void> }> {
   const repo = await mkdtemp(path.join(tmpdir(), 'copperhead-test-'));
-  await cp(FIXTURE, repo, { recursive: true });
+  await cp(source, repo, { recursive: true });
   // the target-repo convention (AC-4.3): .env and the run audit trail ignored
   await writeFile(path.join(repo, '.gitignore'), '.env\n.copperhead/runs/\n', 'utf8');
   await execa('git', ['init', '-q'], { cwd: repo });

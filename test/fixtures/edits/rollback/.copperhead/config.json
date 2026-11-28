@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "schematic": "hardware/rollback.kicad_sch",
+  "board": "hardware/rollback.kicad_pcb",
+  "docs": "docs",
+  "budgets": {}
+}

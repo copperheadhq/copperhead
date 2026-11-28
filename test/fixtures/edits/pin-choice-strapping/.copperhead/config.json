@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "schematic": "hardware/pin-choice-strapping.kicad_sch",
+  "board": "hardware/pin-choice-strapping.kicad_pcb",
+  "docs": "docs",
+  "budgets": {}
+}
